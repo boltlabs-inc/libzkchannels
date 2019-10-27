@@ -67,7 +67,7 @@ The libzkchannels library provides APIs for two types of payment channels:
 * bidirectional payment channels
 * third-party payments
 
-## Bidirectional Payment Channels
+## Bidirectional Payment Channels using ZK Proof techniques
 
 An anonymous payment channel enables two parties to exchange arbitrary positive and negative amounts. 
 
@@ -147,7 +147,7 @@ To spend on the channel, execute the pay protocol API (can be executed as many t
     assert!(cust_state.verify_pay_token(&channel_state, &new_pay_token));
 
 
-### Channel Closure Algorithms
+### Channel Closure
 
 To close a channel, the customer must execute the `zkproofs::customer_refund()` routine as follows:
 
@@ -214,6 +214,24 @@ The channel establishment still works as described before and the pay protocol i
 	...
 
 See the `intermediary_payment_basics_works()` unit test in `src/lib.rs` for more details.
+
+## Bidirectional Payment Channels using MPC techniques
+
+### Channel Setup and Key Generation
+
+TODO 
+
+### Initialization
+
+TODO
+
+### Establish Protocol
+
+TODO
+
+### Channel Closure
+
+TODO
 
 # Documentation 
 
