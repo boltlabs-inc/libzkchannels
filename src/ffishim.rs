@@ -11,7 +11,6 @@ pub mod ffishim {
     use libc::c_char;
     use std::ffi::{CStr, CString};
     use std::str;
-//    use channels::{ChannelcloseM, ResultBoltType, BoltError};
 
     fn error_message(s: String) -> *mut c_char {
         let ser = ["{\'error\':\'", &s, "\'}"].concat();
@@ -34,24 +33,6 @@ pub mod ffishim {
     }
 
     pub type ResultSerdeType<T> = Result<T, serde_json::error::Error>;
-
-//    fn deserialize_object<'a, T>(serialized: *mut c_char) -> T
-//	where
-//	    T: Deserialize<'a>,
-//	{
-//	    let bytes = unsafe { CStr::from_ptr(serialized).to_bytes() };
-//	    let string: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
-//	    serde_json::from_str(&string).unwrap()
-//	}
-//
-//    fn deserialize_optional_object<'a, T>(serialized: *mut c_char) -> Option<T>
-//    where
-//        T: Deserialize<'a>,
-//    {
-//        let bytes = unsafe { CStr::from_ptr(serialized).to_bytes() };
-//        let string: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
-//        Some(serde_json::from_str(&string).unwrap())
-//    }
 
     fn deserialize_result_object<'a, T>(serialized: *mut c_char) -> ResultSerdeType<T>
         where
