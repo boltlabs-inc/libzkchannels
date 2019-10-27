@@ -4,16 +4,16 @@ all:
 	export RUSTFLAGS=-Awarnings
 	cargo +nightly build
 	cargo +nightly test
-	cargo +nightly run --example zkchannels_test
+	cargo +nightly run --example zkchannels_zkproofs
 
 debug:
 	export RUST_BACKTRACE=1 
 	cargo +nightly build
-	cargo +nightly run --example zkchannels_test
+	cargo +nightly run --example zkchannels_zkproofs
 
 release:
 	cargo +nightly build --release
-	cargo +nightly run --release --example zkchannels_test
+	cargo +nightly run --release --example zkchannels_zkproofs
 
 bench:
 	cargo +nightly bench
