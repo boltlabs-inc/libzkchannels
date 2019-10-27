@@ -1,11 +1,3 @@
-/*
- * Implement for Bolt protocols:
- * - initializing channel state and generating cust/merch wallets
- * - establish protocol
- * - pay protocol
- * - channel close algorithms (WIP)
- */
-
 extern crate pairing;
 extern crate rand;
 
@@ -605,6 +597,185 @@ impl<E: Engine> MerchantState<E> {
         let merch_sig = secp.sign(&msg2, &self.sk);
         return ChannelcloseM { address: address.clone(), revoke: revoke_token.clone(), signature: merch_sig };
     }
+}
+
+
+// PROTOTYPE
+#[cfg(feature = "mpc-bitcoin")]
+pub struct ChannelMPCToken { }
+
+#[cfg(feature = "mpc-bitcoin")]
+pub struct ChannelMPCState { }
+
+#[cfg(feature = "mpc-bitcoin")]
+pub struct CustomerMPCState {
+    pub name: String,
+    pub pk_c: secp256k1::PublicKey,
+    sk_c: secp256k1::SecretKey,
+    pub cust_balance: i64,
+    pub merch_balance: i64,
+    pub wpk: secp256k1::PublicKey,
+    // keypair bound to the wallet
+    wsk: secp256k1::SecretKey,
+    old_kp: Option<WalletKeyPair>,
+    // old wallet key pair
+    // t: E::Fr,
+    // randomness used to form the commitment
+    // wallet: Wallet<E>,
+    // vector of field elements that represent wallet
+    // pub w_com: Commitment<E>,
+    // commitment to the current state of the wallet
+    index: i32,
+    close_tokens: HashMap<i32, secp256k1::Signature>,
+    pay_tokens: HashMap<i32, secp256k1::Signature>
+}
+
+#[cfg(feature = "mpc-bitcoin")]
+pub struct MerchantMPCState { }
+
+#[cfg(feature = "mpc-bitcoin")]
+impl CustomerMPCState {
+    pub fn new<R: Rng>(csprng: &mut R, channel_token: &mut ChannelMPCToken, cust_bal: i64, merch_bal: i64, name: String) -> Self
+    {
+        let mut kp = secp256k1::Secp256k1::new();
+        kp.randomize(csprng);
+
+        // generate the keypair for the channel
+        let (sk_c, pk_c) = kp.generate_keypair(csprng);
+        // generate the keypair for the initial wallet
+        let (wsk, wpk) = kp.generate_keypair(csprng);
+
+        assert!(channel_token.is_init());
+
+        let ct_db = HashMap::new();
+        let pt_db = HashMap::new();
+
+        return CustomerMPCState {
+            name: name,
+            pk_c: pk_c,
+            sk_c: sk_c,
+            cust_balance: cust_bal,
+            merch_balance: merch_bal,
+            wpk: wpk,
+            wsk: wsk,
+            old_kp: None,
+//            t: t,
+//            w_com: w_com,
+//            wallet: wallet,
+            index: 0,
+            close_tokens: ct_db,
+            pay_tokens: pt_db,
+        };
+    }
+
+//    pub fn get_wallet(&self) -> Wallet<E> {
+//        return self.wallet.clone();
+//    }
+
+//    pub fn get_public_key(&self) -> E::Fr {
+//        // hash the channel pub key
+//        let pk_h = hash_pubkey_to_fr::<E>(&self.pk_c);
+//        return pk_h;
+//    }
+
+    pub fn get_close_token(&self) -> secp256k1::Signature {
+        let index = self.index;
+        let close_token = self.close_tokens.get(&index).unwrap();
+        // rerandomize first
+        return close_token.clone();
+    }
+
+    // generate nizk proof of knowledge of commitment opening
+
+//    pub fn verify_close_token(&mut self, channel: &ChannelState<E>, close_token: &Signature<E>) -> bool {
+//        // add a prefix to the wallet for close-message
+//        let close_wallet = self.wallet.with_close(String::from("close"));
+//        let cp = channel.cp.as_ref().unwrap();
+//        let mpk = cp.pub_params.mpk.clone();
+//        //println!("verify_close_token - Wallet: {}", &self.wallet);
+//
+//        let is_close_valid = cp.pub_params.pk.verify_blind(&mpk, &close_wallet, &self.t, &close_token);
+//        if is_close_valid {
+//            //println!("verify_close_token - Blinded close token is valid!!");
+//            let unblind_close_token = cp.pub_params.pk.unblind(&self.t, &close_token);
+//            let pk = cp.pub_params.pk.get_pub_key();
+//            let is_valid = pk.verify(&mpk, &close_wallet, &unblind_close_token);
+//            if is_valid {
+//                // record the unblinded close token
+//                self.close_tokens.insert(self.index, unblind_close_token);
+//            }
+//            return is_valid;
+//        }
+//
+//        //println!("Customer - Verification failed for close token!");
+//        return is_close_valid;
+//    }
+//
+//    pub fn verify_pay_token(&mut self, channel: &ChannelState<E>, pay_token: &Signature<E>) -> bool {
+//        // unblind and verify signature
+//        let cp = channel.cp.as_ref().unwrap();
+//        let mpk = cp.pub_params.mpk.clone();
+//        // we don't want to include "close" prefix here (even if it is set)
+//        let wallet = self.wallet.without_close();
+//        //println!("verify_pay_token - Wallet: {}", &self.wallet);
+//
+//        let is_pay_valid = cp.pub_params.pk.verify_blind(&mpk, &wallet, &self.t, &pay_token);
+//        if is_pay_valid {
+//            //println!("verify_pay_token - Blinded pay token is valid!!");
+//            let unblind_pay_token = cp.pub_params.pk.unblind(&self.t, &pay_token);
+//            let pk = cp.pub_params.pk.get_pub_key();
+//            let is_valid = pk.verify(&mpk, &wallet, &unblind_pay_token);
+//            if is_valid {
+//                self.pay_tokens.insert(self.index, unblind_pay_token);
+//            }
+//            return is_valid;
+//        }
+//
+//        //println!("Customer - Verification failed for pay token!");
+//        return is_pay_valid;
+//    }
+
+    pub fn has_tokens(&self) -> bool {
+        let index = self.index;
+        let is_ct = self.close_tokens.get(&index).is_some();
+        let is_pt = self.pay_tokens.get(&index).is_some();
+        return is_ct && is_pt;
+    }
+
+    // update the internal state of the customer wallet
+    pub fn update(&mut self, new_wallet: CustomerMPCState) -> bool {
+        // update everything except for the wpk/wsk pair
+        assert!(self.name == new_wallet.name);
+        self.cust_balance = new_wallet.cust_balance;
+        self.merch_balance = new_wallet.merch_balance;
+        self.old_kp = new_wallet.old_kp;
+        self.wpk = new_wallet.wpk;
+        self.wsk = new_wallet.wsk;
+//        self.t = new_wallet.t;
+//        self.w_com = new_wallet.w_com;
+//        self.wallet = new_wallet.wallet;
+        self.index = new_wallet.index;
+        self.close_tokens = new_wallet.close_tokens;
+        self.pay_tokens = new_wallet.pay_tokens;
+
+        return true;
+    }
+
+//    pub fn generate_revoke_token(&mut self, channel: &ChannelState<E>, close_token: &Signature<E>) -> ResultBoltType<(RevokedMessage, secp256k1::Signature)> {
+//        if self.verify_close_token(channel, close_token) {
+//            let old_wallet = self.old_kp.unwrap();
+//            // proceed with generating the close token
+//            let secp = secp256k1::Secp256k1::new();
+//            let rm = RevokedMessage::new(String::from("revoked"), old_wallet.wpk);
+//            let revoke_msg = secp256k1::Message::from_slice(&rm.hash_to_slice()).unwrap();
+//            // msg = "revoked"|| old wsk (for old wallet)
+//            let revoke_token = secp.sign(&revoke_msg, &old_wallet.wsk);
+//
+//            return Ok((rm, revoke_token));
+//        }
+//
+//        Err(BoltError::new("generate_revoke_token - could not verify the close token."))
+//    }
 }
 
 #[cfg(test)]

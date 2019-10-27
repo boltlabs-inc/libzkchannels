@@ -502,7 +502,58 @@ pub mod zkproofs {
 }
 
 /////////////////////////////// ZK proofs + blind sigs ////////////////////////////////
+#[cfg(feature = "mpc-bitcoin")]
 pub mod mpc {
+    use rand::Rng;
+    use util;
+    use wallet;
+    use secp256k1;
+    use HashMap;
+
+    use serde::{Serialize, Deserialize};
+    use util::RevokedMessage;
+    use channels::{ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState};
+
+    pub struct Payment {
+        //com: Commitment,
+        wpk: secp256k1::PublicKey,
+        amount: i64,
+    }
+
+    #[derive(Clone, Serialize, Deserialize)]
+    pub struct RevokeToken {
+        message: util::RevokedMessage,
+        pub signature: secp256k1::Signature,
+    }
+
+    ///
+    /// init_merchant - takes as input the public params, merchant balance and keypair.
+    /// Generates merchant data which consists of channel token and merchant state.
+    ///
+    pub fn init_merchant<'a, R: Rng>(csprng: &mut R, channel_state: &mut ChannelMPCState, name: &'a str) -> (ChannelMPCToken, MerchantMPCState, ChannelMPCState) {
+        // create new merchant state
+        let merch_name = String::from(name);
+        let (mut merch_state, mut channel_state) = MerchantMPCState::new(csprng, channel_state, merch_name);
+        // initialize the merchant state
+        let channel_token = merch_state.init(&mut channel_state);
+
+        return (channel_token, merch_state, channel_state.clone());
+    }
+
+    ///
+    /// init_customer - takes as input the public params, channel state, commitment params, keypair,
+    /// and initial balance for customer and merchant. Generate initial customer channel token,
+    /// and wallet commitment.
+    ///
+    pub fn init_customer<'a, R: Rng>(csprng: &mut R, channel_token: &mut ChannelMPCToken,
+                                                b0_cust: i64, b0_merch: i64, name: &'a str) -> CustomerMPCState
+    {
+        assert!(b0_cust >= 0);
+        assert!(b0_merch >= 0);
+
+        let cust_name = String::from(name);
+        return CustomerMPCState::new(csprng, channel_token, b0_cust, b0_merch, cust_name);
+    }
 
 }
 

@@ -4,6 +4,7 @@ extern crate zkchannels;
 extern crate time;
 extern crate secp256k1;
 
+#[cfg(feature = "mpc-bitcoin")]
 use zkchannels::mpc;
 use std::time::Instant;
 use zkchannels::handle_bolt_result;
@@ -32,19 +33,20 @@ macro_rules! measure_two_arg {
 
 fn main() {
     println!("******************************************");
-    let mut channel_state = mpc::ChannelState::new(String::from("Channel A -> B"), false);
-    let rng = &mut rand::thread_rng();
-
-    let b0_customer = 150;
-    let b0_merchant = 10;
-    let pay_inc = 20;
-    let pay_inc2 = 10;
-
-    let (mut channel_token, mut merch_state, mut channel_state) = mpc::init_merchant(rng, &mut channel_state, "Merchant Bob");
-
-    let mut cust_state = mpc::init_customer(rng, &mut channel_token, b0_customer, b0_merchant, "Alice");
-
-    println!("{}", cust_state);
+    println!(" MPC example goes here!");
+//    let mut channel_state = mpc::ChannelState::new(String::from("Channel A -> B"), false);
+//    let rng = &mut rand::thread_rng();
+//
+//    let b0_customer = 150;
+//    let b0_merchant = 10;
+//    let pay_inc = 20;
+//    let pay_inc2 = 10;
+//
+//    let (mut channel_token, mut merch_state, mut channel_state) = mpc::init_merchant(rng, &mut channel_state, "Merchant Bob");
+//
+//    let mut cust_state = mpc::init_customer(rng, &mut channel_token, b0_customer, b0_merchant, "Alice");
+//
+//    println!("{}", cust_state);
 
 //    // lets establish the channel
 //    let (com, com_proof, est_time) = measure_two_arg!(mpc::establish_customer_generate_proof(rng, &mut channel_token, &mut cust_state));
@@ -62,4 +64,5 @@ fn main() {
 //    assert!(cust_state.verify_close_token(&channel_state, &close_token));
 
     // wait for funding tx to be confirmed, etc
+    println!("******************************************");
 }

@@ -6,6 +6,9 @@ all:
 	cargo +nightly test
 	cargo +nightly run --example zkchannels_zkproofs
 
+mpc:
+	cargo +nightly build --features mpc-bitcoin
+
 debug:
 	export RUST_BACKTRACE=1 
 	cargo +nightly build
