@@ -40,6 +40,7 @@ First, install the dependencies by
 
 	. ./env
 	make deps
+	./test_emp.sh
 
 To build the library and execute basic examples, run `make` 
 
