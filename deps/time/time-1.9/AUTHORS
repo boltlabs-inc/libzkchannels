@@ -1,0 +1,10 @@
+Authors of GNU time.
+
+David Keppel.  Original version.
+
+David MacKenzie.  POSIXization, autoconfiscation, GNU getoptization,
+documentation, other bug fixes and improvements.
+
+Arne Henrik Juul.  Helped with portability.
+
+Francois Pinard.  Helped with portability.
