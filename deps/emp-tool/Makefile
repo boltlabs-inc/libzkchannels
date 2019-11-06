@@ -10,7 +10,8 @@ emp-tool-$(VERSION)/.built: emp-tool-${VERSION}
 	cmake -DCMAKE_INSTALL_PREFIX:PATH=$(ZK_DEPS_INSTALL) ../$<; \
 	make && \
 	make install && \
-	touch ../$@
+	touch ../$@ && \
+	../fix_rpath_osx.sh libemp-tool
 
 emp-tool-$(VERSION): emp-tool-$(VERSION).tar.gz
 	tar xf $^
