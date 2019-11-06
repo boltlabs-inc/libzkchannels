@@ -7,7 +7,16 @@ EMP_TOOL=${1:-emp-tool-${VERSION}}
 
 echo "Clone github repo @ ${LINK}"
 git clone ${LINK} ${EMP_TOOL}.git
+
 cd ${EMP_TOOL}.git
+
+echo "Patch emp-tool..."
+git apply ../uint.patch
+cp ../uinteger.h* emp-tool/circuits/
+cp ../uint.cpp test/
+git add emp-tool/circuits/uinteger.h*
+git add test/uint.cpp
+git commit -a -m "patching"
 
 if [[ ! -f ${EMP_TOOL}.${FORMAT} ]]; then
    echo "Create archive of source (without git files)"
@@ -18,6 +27,7 @@ if [[ ! -f ${EMP_TOOL}.${FORMAT} ]]; then
    mkdir ${EMP_TOOL}
    cd ${EMP_TOOL}
    tar -xf ../${EMP_TOOL}.test.${FORMAT}
+
 
    cd ..
    tar -czf ${EMP_TOOL}.${FORMAT} ${EMP_TOOL}

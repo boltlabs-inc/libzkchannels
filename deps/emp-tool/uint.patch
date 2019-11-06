@@ -1,0 +1,21 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index f84efb3..4896fe5 100755
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -62,3 +62,4 @@ add_test(float)
+ add_test(float32)
+ add_test(garble)
+ add_test(gen_circuit)
++add_test(uint)
+diff --git a/emp-tool/emp-tool.h b/emp-tool/emp-tool.h
+index af15417..7b5aa35 100644
+--- a/emp-tool/emp-tool.h
++++ b/emp-tool/emp-tool.h
+@@ -14,6 +14,7 @@
+ #include "emp-tool/circuits/float_circuit.h"
+ #include "emp-tool/circuits/float32_circuit.h"
+ #include "emp-tool/circuits/integer.h"
++#include "emp-tool/circuits/uinteger.h"
+ #include "emp-tool/circuits/number.h"
+ #include "emp-tool/circuits/swappable.h"
+ 
