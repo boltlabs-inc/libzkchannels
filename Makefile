@@ -1,4 +1,4 @@
-.PHONY: all debug bench test update doc clean
+.PHONY: all deps debug bench test update doc clean
 
 all:
 	export RUSTFLAGS=-Awarnings
@@ -31,6 +31,10 @@ update:
 doc:
 	# generates the documentation
 	cargo +nightly doc
+
+deps:
+	. ./env
+	make -C deps
 
 #pythontests:
 #	cargo +nightly clean

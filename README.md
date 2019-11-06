@@ -36,7 +36,13 @@ We will switch to the stable release channel once libzkchannels (and dependencie
 
 # Build & Install
 
+First, install the dependencies by
+
+	. ./env
+	make deps
+
 To build the library and execute basic examples, run `make` 
+
 
 # Tests
 

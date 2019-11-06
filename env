@@ -1,6 +1,9 @@
 ROOT=$(pwd)
 ZK_DEPS_INSTALL=${ROOT}/deps/root
 
+unset ZK_DEPS_INSTALL
+unset PKG_CONFIG_PATH
+
 export ZK_DEPS_INSTALL
 export LD_LIBRARY_PATH=${ZK_DEPS_INSTALL}/lib:${LD_LIBRARY_PATH}
 
