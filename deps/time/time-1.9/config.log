@@ -30,12 +30,14 @@ Kernel configured for up to 16 processors.
 Processor type: x86_64h (Intel x86-64h Haswell)
 Processors active: 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
 Primary memory available: 16.00 gigabytes
-Default processor set: 496 tasks, 2785 threads, 16 processors
-Load average: 3.92, Mach factor: 12.06
+Default processor set: 536 tasks, 3195 threads, 16 processors
+Load average: 7.03, Mach factor: 10.88
 /bin/machine           = unknown
 /usr/bin/oslevel       = unknown
 /bin/universe          = unknown
 
+PATH: /Users/ayo/Projects/libzkchannels/deps/root/bin
+PATH: /bin
 PATH: /usr/local/opt/m4/bin
 PATH: /Users/ayo/.cargo/bin
 PATH: /usr/local/opt/openssl/bin
@@ -46,6 +48,7 @@ PATH: /bin
 PATH: /usr/sbin
 PATH: /sbin
 PATH: /Library/TeX/texbin
+PATH: /bin
 
 
 ## ----------- ##
@@ -663,7 +666,7 @@ configure:7559: checking for getexecname
 configure:7559: gcc -o conftest -g -O2   conftest.c  >&5
 Undefined symbols for architecture x86_64:
   "_getexecname", referenced from:
-      _main in conftest-ce56d0.o
+      _main in conftest-48f610.o
 ld: symbol(s) not found for architecture x86_64
 clang: error: linker command failed with exit code 1 (use -v to see invocation)
 configure:7559: $? = 1
@@ -771,7 +774,7 @@ configure:7559: checking for _set_invalid_parameter_handler
 configure:7559: gcc -o conftest -g -O2   conftest.c  >&5
 Undefined symbols for architecture x86_64:
   "__set_invalid_parameter_handler", referenced from:
-      _main in conftest-1e4f3f.o
+      _main in conftest-eeafb8.o
 ld: symbol(s) not found for architecture x86_64
 clang: error: linker command failed with exit code 1 (use -v to see invocation)
 configure:7559: $? = 1
@@ -7822,7 +7825,7 @@ configure:14174: checking for _doprnt
 configure:14174: gcc -o conftest -g -O2   conftest.c  >&5
 Undefined symbols for architecture x86_64:
   "__doprnt", referenced from:
-      _main in conftest-8668f5.o
+      _main in conftest-b2781b.o
 ld: symbol(s) not found for architecture x86_64
 clang: error: linker command failed with exit code 1 (use -v to see invocation)
 configure:14174: $? = 1
