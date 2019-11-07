@@ -28,6 +28,6 @@ distclean:
 
 checkenv:
 ifeq ($(origin ZK_DEPS_INSTALL), undefined)
-	$(info "ZK_DEPS_INSTALL not set. Try: . ./env")
+	$(info "ZK_DEPS_INSTALL not set. Try in root: . ./env")
 	exit 1
 endif

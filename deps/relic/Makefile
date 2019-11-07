@@ -18,7 +18,7 @@ relic-$(VERSION)/.built: relic-${VERSION}
 relic-$(VERSION): relic-$(VERSION).tar.gz
 	tar xf $^
 
-package:
+package: checkenv
 	./download_relic.sh relic-$(VERSION)
 
 clean:
@@ -26,3 +26,9 @@ clean:
 
 distclean:
 	rm -rf relic-$(VERSION)* tmp* 
+
+checkenv:
+ifeq ($(origin ZK_DEPS_INSTALL), undefined)
+	$(info "ZK_DEPS_INSTALL not set. Try in root: . ./env")
+	exit 1
+endif

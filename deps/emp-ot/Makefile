@@ -15,7 +15,7 @@ emp-ot-$(VERSION)/.built: emp-ot-${VERSION}
 emp-ot-$(VERSION): emp-ot-$(VERSION).tar.gz
 	tar xf $^
 
-package:
+package: checkenv
 	./download_emp_ot.sh emp-ot-$(VERSION)
 
 clean:
@@ -23,3 +23,10 @@ clean:
 
 distclean:
 	rm -rf emp-ot-$(VERSION)* build-*
+
+checkenv:
+ifeq ($(origin ZK_DEPS_INSTALL), undefined)
+	$(info "ZK_DEPS_INSTALL not set. Try in root: . ./env")
+	exit 1
+endif
+
