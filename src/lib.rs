@@ -44,6 +44,7 @@ pub mod nizk;
 pub mod util;
 pub mod wallet;
 pub mod ffishim;
+pub mod mpcwrapper;
 
 use std::fmt;
 use std::str;
