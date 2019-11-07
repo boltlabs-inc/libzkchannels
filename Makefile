@@ -1,4 +1,4 @@
-.PHONY: all deps debug bench test update doc clean
+.PHONY: all deps debug bench test update doc clean distclean
 
 all:
 	export RUSTFLAGS=-Awarnings
@@ -64,3 +64,7 @@ deps:
 
 clean:
 	cargo +nightly clean
+
+distclean:
+	make -C deps distclean
+
