@@ -16,7 +16,7 @@ emp-sh2pc-$(VERSION)/.built: emp-sh2pc-${VERSION}
 emp-sh2pc-$(VERSION): emp-sh2pc-$(VERSION).tar.gz
 	tar xf $^
 
-package:
+package: checkenv
 	./download_emp_sh2pc.sh emp-sh2pc-$(VERSION)
 
 clean:
@@ -24,3 +24,9 @@ clean:
 
 distclean:
 	rm -rf emp-sh2pc-$(VERSION)* build-*
+
+checkenv:
+ifeq ($(origin ZK_DEPS_INSTALL), undefined)
+	$(info "ZK_DEPS_INSTALL not set. Try in root: . ./env")
+	exit 1
+endif

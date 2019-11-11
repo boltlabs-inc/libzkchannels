@@ -2,10 +2,9 @@
 
 DIRS=time relic emp-tool emp-ot emp-sh2pc
 
-# relic 
 all: $(DIRS)
 	sh ./install_packages.sh
-	mkdir -p root/lib
+	mkdir -p root/{lib,bin}
 	for d in $(DIRS); do \
 		make -C $$d; \
 	done
