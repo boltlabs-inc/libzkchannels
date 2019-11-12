@@ -638,7 +638,47 @@ impl ChannelMPCToken {
 
 #[cfg(feature = "mpc-bitcoin")]
 #[derive(Clone, Serialize, Deserialize)]
-pub struct ChannelMPCState { }
+pub struct ChannelMPCState {
+    R: i32,
+    tx_fee: i64,
+    pub name: String,
+    pub pay_init: bool,
+    pub channel_established: bool,
+    pub third_party: bool,
+}
+
+#[cfg(feature = "mpc-bitcoin")]
+impl ChannelMPCState {
+    pub fn new(name: String, third_party_support: bool) -> ChannelMPCState {
+        ChannelMPCState {
+            R: 0,
+            tx_fee: 0,
+            name: name.to_string(),
+            pay_init: false,
+            channel_established: false,
+            third_party: third_party_support,
+        }
+    }
+
+    ///
+    /// keygen - takes as input public parameters and generates a digital signature keypair
+    ///
+    pub fn keygen<R: Rng>(&mut self, csprng: &mut R, _id: String) -> (secp256k1::SecretKey, secp256k1::PublicKey) {
+        let mut kp = secp256k1::Secp256k1::new();
+        kp.randomize(csprng);
+        let (sk, pk) = kp.generate_keypair(csprng);
+        return (sk, pk);
+    }
+
+    pub fn set_channel_fee(&mut self, fee: i64) {
+        self.tx_fee = fee;
+    }
+
+    pub fn get_channel_fee(&self) -> i64 {
+        return self.tx_fee as i64;
+    }
+}
+
 
 #[cfg(feature = "mpc-bitcoin")]
 #[derive(Clone, Serialize, Deserialize)]
