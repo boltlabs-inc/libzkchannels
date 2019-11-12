@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use nizk::{NIZKPublicParams, NIZKSecretParams, NIZKProof};
 use wallet::Wallet;
+use wallet::State;
 use std::error::Error;
 use std::fmt;
 
@@ -602,36 +603,64 @@ impl<E: Engine> MerchantState<E> {
 
 // PROTOTYPE
 #[cfg(feature = "mpc-bitcoin")]
-pub struct ChannelMPCToken { }
+#[derive(Clone, Serialize, Deserialize)]
+pub struct ChannelMPCToken {
+    pub pk_c: Option<secp256k1::PublicKey>, // pk_c
+    pub pk_m: secp256k1::PublicKey, // pk_m
+    pub escrow_txid: [u8; 32],
+    pub merch_txid: [u8; 32]
+}
 
 #[cfg(feature = "mpc-bitcoin")]
+impl ChannelMPCToken {
+    pub fn set_customer_pk(&mut self, pk_c: &secp256k1::PublicKey) {
+        self.pk_c = Some(pk_c.clone());
+    }
+
+    pub fn is_init(&self) -> bool {
+        return !self.pk_c.is_none();
+    }
+
+    pub fn compute_channel_id(&self) -> [u8; 32] {
+        if self.pk_c.is_none() {
+            panic!("pk_c is not initialized yet");
+        }
+
+        // check txids are set
+        let input = serde_json::to_vec(&self).unwrap();
+
+        return hash_to_slice(&input);
+    }
+
+    // add a method to compute hash on chain: SHA256 + RIPEMD160?
+}
+
+
+#[cfg(feature = "mpc-bitcoin")]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ChannelMPCState { }
 
 #[cfg(feature = "mpc-bitcoin")]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct CustomerMPCState {
     pub name: String,
     pub pk_c: secp256k1::PublicKey,
     sk_c: secp256k1::SecretKey,
     pub cust_balance: i64,
     pub merch_balance: i64,
-    pub wpk: secp256k1::PublicKey,
+    pub rev_lock: secp256k1::PublicKey,
     // keypair bound to the wallet
-    wsk: secp256k1::SecretKey,
+    rev_secret: secp256k1::SecretKey,
     old_kp: Option<WalletKeyPair>,
     // old wallet key pair
-    // t: E::Fr,
-    // randomness used to form the commitment
-    // wallet: Wallet<E>,
-    // vector of field elements that represent wallet
-    // pub w_com: Commitment<E>,
+    t: Vec<u8>, // randomness used to form the commitment
+    state: State, // vector of field elements that represent current state
+    //pub s_com: Commitment,
     // commitment to the current state of the wallet
     index: i32,
     close_tokens: HashMap<i32, secp256k1::Signature>,
     pay_tokens: HashMap<i32, secp256k1::Signature>
 }
-
-#[cfg(feature = "mpc-bitcoin")]
-pub struct MerchantMPCState { }
 
 #[cfg(feature = "mpc-bitcoin")]
 impl CustomerMPCState {
@@ -642,8 +671,22 @@ impl CustomerMPCState {
 
         // generate the keypair for the channel
         let (sk_c, pk_c) = kp.generate_keypair(csprng);
-        // generate the keypair for the initial wallet
-        let (wsk, wpk) = kp.generate_keypair(csprng);
+        // generate the keypair for the initial state of channel
+        let (rsk, rpk) = kp.generate_keypair(csprng);
+
+        channel_token.set_customer_pk(&pk_c);
+
+        // set txids??
+
+        //
+        let mut t = vec![0u8; 32];
+        csprng.fill_bytes(&mut t);
+
+        println!("Picked random t: {:?}", t);
+        let mut state = State { rev_lock: rpk, pk_c: pk_c, pk_m: channel_token.pk_m.clone(),
+                                bc: cust_bal, bm: merch_bal,
+                                escrow_txid: channel_token.escrow_txid.clone(),
+                                merch_txid: channel_token.merch_txid.clone() };
 
         assert!(channel_token.is_init());
 
@@ -656,21 +699,20 @@ impl CustomerMPCState {
             sk_c: sk_c,
             cust_balance: cust_bal,
             merch_balance: merch_bal,
-            wpk: wpk,
-            wsk: wsk,
+            rev_lock: rpk,
+            rev_secret: rsk,
             old_kp: None,
-//            t: t,
-//            w_com: w_com,
-//            wallet: wallet,
+            t: t.to_vec(),
+            state: state,
             index: 0,
             close_tokens: ct_db,
             pay_tokens: pt_db,
         };
     }
 
-//    pub fn get_wallet(&self) -> Wallet<E> {
-//        return self.wallet.clone();
-//    }
+    pub fn get_current_state(&self) -> State {
+        return self.state.clone();
+    }
 
 //    pub fn get_public_key(&self) -> E::Fr {
 //        // hash the channel pub key
@@ -749,11 +791,6 @@ impl CustomerMPCState {
         self.cust_balance = new_wallet.cust_balance;
         self.merch_balance = new_wallet.merch_balance;
         self.old_kp = new_wallet.old_kp;
-        self.wpk = new_wallet.wpk;
-        self.wsk = new_wallet.wsk;
-//        self.t = new_wallet.t;
-//        self.w_com = new_wallet.w_com;
-//        self.wallet = new_wallet.wallet;
         self.index = new_wallet.index;
         self.close_tokens = new_wallet.close_tokens;
         self.pay_tokens = new_wallet.pay_tokens;
@@ -777,6 +814,47 @@ impl CustomerMPCState {
 //        Err(BoltError::new("generate_revoke_token - could not verify the close token."))
 //    }
 }
+
+#[cfg(feature = "mpc-bitcoin")]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct MerchantMPCState {
+    id: String,
+    pk_m: secp256k1::PublicKey, // pk_m
+    sk_m: secp256k1::SecretKey, // sk_m
+    pub keys: HashMap<String, PubKeyMap>,
+    pub pay_tokens: HashMap<String, secp256k1::Signature>,
+}
+
+#[cfg(feature = "mpc-bitcoin")]
+impl MerchantMPCState {
+    pub fn new<R: Rng>(csprng: &mut R, channel: &mut ChannelMPCState, id: String) -> (Self, ChannelMPCState) {
+        // generate keys here
+        let mut tx_kp = secp256k1::Secp256k1::new();
+        tx_kp.randomize(csprng);
+        let (sk, pk) = tx_kp.generate_keypair(csprng);
+
+        let mut ch = channel.clone();
+
+        (MerchantMPCState {
+            id: id.clone(),
+            pk_m: pk,
+            sk_m: sk,
+            keys: HashMap::new(),
+            pay_tokens: HashMap::new(),
+        }, ch)
+    }
+
+    pub fn init(&mut self, channel: &mut ChannelMPCState) -> ChannelMPCToken {
+
+        return ChannelMPCToken {
+            pk_c: None,
+            pk_m: self.pk_m.clone(),
+            escrow_txid: [0u8; 32],
+            merch_txid: [0u8; 32]
+        };
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
