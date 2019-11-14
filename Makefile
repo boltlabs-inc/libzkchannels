@@ -33,7 +33,6 @@ doc:
 	cargo +nightly doc
 
 deps:
-	. ./env
 	make -C deps
 
 #pythontests:

@@ -4,7 +4,7 @@ VERSION := 1.9
 
 all: package time-$(VERSION)/.built
 
-package:
+package: checkenv
 	./download_time.sh $(VERSION)
 
 time-$(VERSION)/.built: time-$(VERSION)
@@ -22,3 +22,10 @@ clean:
 
 distclean:
 	rm -rf time-$(VERSION)*
+
+checkenv:
+ifeq ($(origin ZK_DEPS_INSTALL), undefined)
+	$(info "ZK_DEPS_INSTALL not set. Try in root: . ./env")
+	exit 1
+endif
+

@@ -2,7 +2,7 @@
 # Simple commitment tx with no HTLC as in BOLT 3 Appendix class
 # https://github.com/lightningnetwork/lightning-rfc/blob/master/03-transactions.md#funding-transaction-output
 
-# NOT FINAL 
+# NOT FINAL
 # Following fields are temporarily filled in
 # nSequence
 # nLockTime
@@ -47,18 +47,15 @@ version = nVersion.to_bytes(4, byteorder="little", signed=False)
 marker = bytes.fromhex("00") # this must be 00
 flag = bytes.fromhex("01") # this must be 01
 
-# TODO - Understand how locktime works
 # LOCKTIME
-# locktime: upper 8 bits are 0x20, lower 24 bits are the lower 24 bits of
-# the obscured commitment number
+# locktime: upper 8 bits are 0x20, lower 24 bits are the lower 24 bits of the obscured commitment number
 nLockTime = bytes.fromhex("3e195220")
 
-to_self_delay = bytes.fromhex("01") # TODO: Check if this is correct
+# 0xcf05 = delay of 1487 blocks
+to_self_delay = bytes.fromhex("cf05")
 
-# TODO - understand how sequence works
-#      - does sequence become 'to self delay'?
 # sequence: upper 8 bits are 0x80, lower 24 bits are upper 24 bits of the obscured commitment number
-sequence_hex = "0038b02b80"
+sequence_hex = "38b02b80"
 nSequence = bytes.fromhex(sequence_hex)
 
 sighash_type = "01000000"
@@ -166,7 +163,7 @@ to_local_redeem_script = (
     bytes.fromhex("63") # OP_ENDIF
     + local_delayedpubkey # TODO - THIS SHOULD BE JOINT REVOCATION pubkey
     + bytes.fromhex("67") # OP_ELSE
-    + to_self_delay # TODO - fill this in. sequence?
+    + to_self_delay
     + bytes.fromhex("b2") # OP_CHECKSEQUENCEVERIFY
     + bytes.fromhex("75")  # OP_DROP
     + local_delayedpubkey
@@ -264,7 +261,10 @@ witness = (
     + fund_redeem_script
 )
 
-
+scriptSig = (
+    # Since scriptSig is emtpy, we only encode it's length
+    bytes.fromhex("00")
+)
 
 final_tx = (
     version
@@ -272,6 +272,7 @@ final_tx = (
     + flag
     + tx_in_count
     + outpoint
+    + scriptSig
     + nSequence
     + tx_out_count
     + to_remote_output
