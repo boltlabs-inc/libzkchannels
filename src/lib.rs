@@ -35,6 +35,9 @@ extern crate libc;
 
 #[cfg(test)]
 extern crate core;
+extern crate bit_array;
+extern crate typenum;
+extern crate num;
 
 pub mod cl;
 pub mod ccs08;
