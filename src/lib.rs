@@ -555,6 +555,12 @@ pub mod mpc {
         return CustomerMPCState::new(csprng, channel_token, b0_cust, b0_merch, cust_name);
     }
 
+//    pub fn establish_commitment<R: Rng>(csprng: &mut R, channel_token: &ChannelMPCToken,
+//                                       cust_state: &CustomerMPCState) -> (HashCommitment) {
+//        let cust_com = cust_state;
+//        return (cust_state.w_com.clone(), cust_com_proof);
+//    }
+
 }
 
 #[cfg(all(test, feature = "unstable"))]
@@ -952,6 +958,7 @@ mod tests {
 
     #[cfg(feature = "mpc-bitcoin")]
     #[test]
+    #[ignore]
     fn mpc_channel_works() {
         let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
         let rng = &mut rand::thread_rng();
@@ -969,7 +976,11 @@ mod tests {
         // initialize on the customer side with balance: b0_cust
         let cust_state = mpc::init_customer(rng, &mut channel_token, b0_cust, b0_merch, cust_name);
 
-        // TODO: establish phase
+        // form transactions: escrow-tx and merch-close-tx
+
+        // both sides sign transactions (by exchanging signatures on escrow-tx + merch-close-tx)
+
+        // TODO: activate/unlink phase (w/ amount=0)
 
         // TODO: pay phase w/ MPC
     }

@@ -3,7 +3,7 @@ extern crate pairing;
 use super::*;
 use pairing::Engine;
 use ff::PrimeField;
-use util::{hash_to_fr, hash_to_slice};
+use util::{hash_to_fr, hash_to_slice, sha256_hash_to_slice};
 use std::fmt;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -50,18 +50,21 @@ impl<E: Engine> fmt::Display for Wallet<E> {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct State {
+    pub nonce: [u8; 32],
     pub rev_lock: secp256k1::PublicKey,
     pub pk_c: secp256k1::PublicKey,
     pub pk_m: secp256k1::PublicKey,
     pub bc: i64,
     pub bm: i64,
     pub escrow_txid: [u8; 32],
-    pub merch_txid: [u8; 32]
+    pub merch_txid: [u8; 32],
+    pub t: [u8; 32]
 }
 
 impl State {
     pub fn generate_commitment(&self) -> [u8; 32] {
         let mut input_buf = Vec::new();
+        input_buf.extend_from_slice(&self.nonce);
         input_buf.extend_from_slice(&self.rev_lock.serialize_uncompressed());
         input_buf.extend_from_slice(&self.pk_c.serialize_uncompressed());
         input_buf.extend_from_slice(&self.pk_m.serialize_uncompressed());
@@ -69,8 +72,9 @@ impl State {
         input_buf.extend_from_slice(&self.bm.to_string().as_bytes());
         input_buf.extend_from_slice(&self.escrow_txid);
         input_buf.extend_from_slice(&self.merch_txid);
+        input_buf.extend_from_slice(&self.t);
 
-        return hash_to_slice(&input_buf);
+        return sha256_hash_to_slice(&input_buf);
     }
 }
 
