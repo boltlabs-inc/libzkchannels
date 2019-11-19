@@ -1,0 +1,2 @@
+fastecdsa==1.7.4
+riemann-tx==2.0.0
