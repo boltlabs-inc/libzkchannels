@@ -512,7 +512,7 @@ pub mod mpc {
 
     use serde::{Serialize, Deserialize};
     use util::RevokedMessage;
-    use channels::{ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState};
+    pub use channels::{ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState};
 
     pub struct Payment {
         //com: Commitment,
@@ -554,6 +554,12 @@ pub mod mpc {
         let cust_name = String::from(name);
         return CustomerMPCState::new(csprng, channel_token, b0_cust, b0_merch, cust_name);
     }
+
+//    pub fn establish_commitment<R: Rng>(csprng: &mut R, channel_token: &ChannelMPCToken,
+//                                       cust_state: &CustomerMPCState) -> (HashCommitment) {
+//        let cust_com = cust_state;
+//        return (cust_state.w_com.clone(), cust_com_proof);
+//    }
 
 }
 
@@ -948,5 +954,34 @@ mod tests {
         println!("serialized cw: {:?}", &serialized_cw);
 
         let _des_cw: zkproofs::CustomerState<Bls12> = serde_json::from_str(&serialized_cw).unwrap();
+    }
+
+    #[cfg(feature = "mpc-bitcoin")]
+    #[test]
+    #[ignore]
+    fn mpc_channel_works() {
+        let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
+        let rng = &mut rand::thread_rng();
+        let merch_name = "Bob";
+        let cust_name = "Alice";
+
+        let b0_cust = 1000;
+        let b0_merch = 10;
+
+        // each party executes the init algorithm on the agreed initial challenge balance
+        // in order to derive the channel tokens
+        // initialize on the merchant side with balance: b0_merch
+        let (mut channel_token, merch_state, channel_state) = mpc::init_merchant(rng, &mut channel_state, merch_name);
+
+        // initialize on the customer side with balance: b0_cust
+        let cust_state = mpc::init_customer(rng, &mut channel_token, b0_cust, b0_merch, cust_name);
+
+        // form transactions: escrow-tx and merch-close-tx
+
+        // both sides sign transactions (by exchanging signatures on escrow-tx + merch-close-tx)
+
+        // TODO: activate/unlink phase (w/ amount=0)
+
+        // TODO: pay phase w/ MPC
     }
 }

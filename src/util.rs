@@ -114,6 +114,17 @@ pub fn hash_to_slice(input_buf: &Vec<u8>) -> [u8; 32] {
     return hash_buf;
 }
 
+pub fn sha256_hash_to_slice(input_buf: &Vec<u8>) -> [u8; 32] {
+    let mut hasher = sha2::Sha256::new();
+    hasher.input(&input_buf.as_slice());
+    let sha2_digest = hasher.result();
+
+    let mut hash_buf: [u8; 32] = [0; 32];
+    hash_buf.copy_from_slice(&sha2_digest[0..32]);
+    return hash_buf;
+}
+
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RevokedMessage {
     pub msgtype: String,
