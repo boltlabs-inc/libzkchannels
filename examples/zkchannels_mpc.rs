@@ -1,5 +1,4 @@
 extern crate rand;
-extern crate rand_core;
 extern crate zkchannels;
 extern crate time;
 extern crate secp256k1;

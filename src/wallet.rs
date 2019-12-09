@@ -1,9 +1,7 @@
-extern crate pairing;
-
 use super::*;
 use pairing::Engine;
 use ff::PrimeField;
-use util::{hash_to_fr, hash_to_slice, sha256_hash_to_slice};
+use util::{hash_to_fr, hash_to_slice};
 use std::fmt;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -74,7 +72,7 @@ impl State {
         input_buf.extend_from_slice(&self.merch_txid);
         input_buf.extend_from_slice(&self.t);
 
-        return sha256_hash_to_slice(&input_buf);
+        return hash_to_slice(&input_buf);
     }
 }
 
