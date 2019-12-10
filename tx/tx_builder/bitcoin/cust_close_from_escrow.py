@@ -258,4 +258,3 @@ final_tx = (
 )
 
 print(final_tx.hex())
-# print(merch_close_script.hex())
