@@ -33,6 +33,8 @@ extern crate serde_with;
 
 extern crate libc;
 
+extern crate hex;
+
 #[cfg(test)]
 extern crate core;
 extern crate bit_array;
