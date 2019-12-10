@@ -65,12 +65,12 @@ impl ChannelMPCState {
     ///
     /// keygen - takes as input public parameters and generates a digital signature keypair
     ///
-    pub fn keygen<R: Rng>(&mut self, csprng: &mut R, _id: String) -> (secp256k1::SecretKey, secp256k1::PublicKey) {
-        let mut kp = secp256k1::Secp256k1::new();
-        kp.randomize(csprng);
-        let (sk, pk) = kp.generate_keypair(csprng);
-        return (sk, pk);
-    }
+//    pub fn keygen<R: Rng>(&mut self, csprng: &mut R, _id: String) -> (secp256k1::SecretKey, secp256k1::PublicKey) {
+//        let mut kp = secp256k1::Secp256k1::new();
+//        kp.randomize(csprng);
+//        let (sk, pk) = kp.generate_keypair(csprng);
+//        return (sk, pk);
+//    }
 
     pub fn set_channel_fee(&mut self, fee: i64) {
         self.tx_fee = fee;
@@ -81,6 +81,11 @@ impl ChannelMPCState {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+struct LockPreimagePair {
+    old_rev_secret: [u8; 32],
+    old_rev_lock: [u8; 32]
+}
 
 #[cfg(feature = "mpc-bitcoin")]
 #[derive(Clone, Serialize, Deserialize)]
@@ -90,44 +95,53 @@ pub struct CustomerMPCState {
     sk_c: secp256k1::SecretKey,
     pub cust_balance: i64,
     pub merch_balance: i64,
-    pub rev_lock: secp256k1::PublicKey, // keypair bound to the wallet
-    rev_secret: secp256k1::SecretKey,
-    old_kp: Option<WalletKeyPair>, // old wallet key pair
+    pub rev_lock: [u8; 32],
+    rev_secret: [u8; 32],
+    old_kp: Option<LockPreimagePair>, // old lock and preimage pair
     t: [u8; 32], // randomness used to form the commitment
     state: State, // vector of field elements that represent current state
-    pub s_com: [u8; 32], // commitment to the current state of the wallet
+    pub s_com: [u8; 32], // commitment to the current state
     index: i32,
-    close_tokens: HashMap<i32, secp256k1::Signature>,
+    close_signatures: HashMap<i32, secp256k1::Signature>,
     pay_tokens: HashMap<i32, secp256k1::Signature>
 }
+
+const NONCE_LEN: usize = 12;
 
 #[cfg(feature = "mpc-bitcoin")]
 impl CustomerMPCState {
     pub fn new<R: Rng>(csprng: &mut R, channel_token: &mut ChannelMPCToken, cust_bal: i64, merch_bal: i64, name: String) -> Self
     {
-        let mut kp = secp256k1::Secp256k1::new();
-        kp.randomize(csprng);
+        let secp = secp256k1::Secp256k1::new();
 
-        // generate the keypair for the channel
-        let (sk_c, pk_c) = kp.generate_keypair(csprng);
+        let mut seckey = [0u8; 32];
+        csprng.fill_bytes(&mut seckey);
+
+        // generate the signing keypair for the channel
+        let sk_c = secp256k1::SecretKey::from_slice(&seckey).unwrap();
+        let pk_c = secp256k1::PublicKey::from_secret_key(&secp, &sk_c);
+
         // generate the keypair for the initial state of channel
-        let (rsk, rpk) = kp.generate_keypair(csprng);
+        let mut rev_secret = [0u8; 32];
+        csprng.fill_bytes(&mut rev_secret);
+
+        // compute hash of the revocation secret
+        let rev_lock = hash_to_slice(&rev_secret.to_vec());
 
         channel_token.set_customer_pk(&pk_c);
 
         // pick random t
         let mut t: [u8; 32] = [0; 32];
-        let mut nonce: [u8; 32] = [0; 32];
+        let mut nonce: [u8; NONCE_LEN] = [0; NONCE_LEN];
         csprng.fill_bytes(&mut t);
         csprng.fill_bytes(&mut nonce);
 
-        let mut state = State { nonce: nonce, rev_lock: rpk, pk_c: pk_c, pk_m: channel_token.pk_m.clone(),
-                                bc: cust_bal, bm: merch_bal,
-                                escrow_txid: channel_token.escrow_txid.clone(),
-                                merch_txid: channel_token.merch_txid.clone(), t: t.clone() };
+        let state = State { nonce: nonce, rev_lock: rev_lock, pk_c: pk_c, pk_m: channel_token.pk_m.clone(),
+                                bc: cust_bal, bm: merch_bal, escrow_txid: channel_token.escrow_txid.clone(),
+                                merch_txid: channel_token.merch_txid.clone() };
 
         // generate initial commitment to state of channel
-        let s_com = state.generate_commitment();
+        let s_com = state.generate_commitment(&t);
         assert!(channel_token.is_init());
 
         let ct_db = HashMap::new();
@@ -139,14 +153,14 @@ impl CustomerMPCState {
             sk_c: sk_c,
             cust_balance: cust_bal,
             merch_balance: merch_bal,
-            rev_lock: rpk,
-            rev_secret: rsk,
+            rev_lock: rev_lock,
+            rev_secret: rev_secret,
             old_kp: None,
-            t: t.clone(),
+            t: t,
             state: state,
             s_com: s_com,
             index: 0,
-            close_tokens: ct_db,
+            close_signatures: ct_db,
             pay_tokens: pt_db,
         };
     }
@@ -155,19 +169,12 @@ impl CustomerMPCState {
         return self.state.clone();
     }
 
-//    pub fn get_public_key(&self) -> E::Fr {
-//        // hash the channel pub key
-//        let pk_h = hash_pubkey_to_fr::<E>(&self.pk_c);
-//        return pk_h;
-//    }
-
-    pub fn get_close_token(&self) -> secp256k1::Signature {
+    pub fn get_close_signature(&self) -> secp256k1::Signature {
         let index = self.index;
-        let close_token = self.close_tokens.get(&index).unwrap();
+        let close_signature = self.close_signatures.get(&index).unwrap();
         // rerandomize first
-        return close_token.clone();
+        return close_signature.clone();
     }
-
 
     // verify the closing
     pub fn verify_close_signature(&mut self, channel: &ChannelMPCState, close_sig: &secp256k1::Signature) -> bool {
@@ -186,7 +193,7 @@ impl CustomerMPCState {
 
     pub fn has_tokens(&self) -> bool {
         let index = self.index;
-        let is_ct = self.close_tokens.get(&index).is_some();
+        let is_ct = self.close_signatures.get(&index).is_some();
         let is_pt = self.pay_tokens.get(&index).is_some();
         return is_ct && is_pt;
     }
@@ -199,27 +206,33 @@ impl CustomerMPCState {
         self.merch_balance = new_wallet.merch_balance;
         self.old_kp = new_wallet.old_kp;
         self.index = new_wallet.index;
-        self.close_tokens = new_wallet.close_tokens;
+        self.close_signatures = new_wallet.close_signatures;
         self.pay_tokens = new_wallet.pay_tokens;
 
         return true;
     }
 
-    pub fn generate_revoke_token(&mut self, channel: &ChannelMPCState, close_sig: &secp256k1::Signature) -> ResultBoltType<(RevokedMessage, secp256k1::Signature)> {
-        if self.verify_close_signature(channel, close_sig) {
-            let old_state = self.old_kp.unwrap();
-            // proceed with generating the close token
-            let secp = secp256k1::Secp256k1::new();
-            let rm = RevokedMessage::new(String::from("revoked"), old_state.wpk);
-            let revoke_msg = secp256k1::Message::from_slice(&rm.hash_to_slice()).unwrap();
-            // msg = "revoked"|| old wsk (for old wallet)
-            let revoke_token = secp.sign(&revoke_msg, &old_state.wsk);
+//    pub fn generate_revoke_token(&mut self, channel: &ChannelMPCState, close_sig: &secp256k1::Signature) -> ResultBoltType<(RevokedMessage, secp256k1::Signature)> {
+//        if self.verify_close_signature(channel, close_sig) {
+//            let old_state = self.old_kp.unwrap();
+//            // proceed with generating the close token
+//            let secp = secp256k1::Secp256k1::new();
+//            let rm = RevokedMessage::new(String::from("revoked"), old_state.wpk);
+//            let revoke_msg = secp256k1::Message::from_slice(&rm.hash_to_slice()).unwrap();
+//            // msg = "revoked"|| old wsk (for old wallet)
+//            let revoke_sig = secp.sign(&revoke_msg, &old_state.wsk);
+//
+//            return Ok((rm, revoke_token));
+//        }
+//
+//        Err(BoltError::new("generate_revoke_token - could not verify the close token."))
+//    }
+}
 
-            return Ok((rm, revoke_token));
-        }
-
-        Err(BoltError::new("generate_revoke_token - could not verify the close token."))
-    }
+#[derive(Clone, Serialize, Deserialize)]
+pub struct LockMap {
+    pub lock: [u8; 32],
+    pub secret: [u8; 32],
 }
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -228,24 +241,28 @@ pub struct MerchantMPCState {
     id: String,
     pk_m: secp256k1::PublicKey, // pk_m
     sk_m: secp256k1::SecretKey, // sk_m
-    pub keys: HashMap<String, PubKeyMap>,
+    pub lock_map: HashMap<String, LockMap>,
     pub pay_tokens: HashMap<String, secp256k1::Signature>,
 }
 
 #[cfg(feature = "mpc-bitcoin")]
 impl MerchantMPCState {
     pub fn new<R: Rng>(csprng: &mut R, channel: &mut ChannelMPCState, id: String) -> (Self, ChannelMPCState) {
-        let mut tx_kp = secp256k1::Secp256k1::new();
-        tx_kp.randomize(csprng);
-        let (sk, pk) = tx_kp.generate_keypair(csprng);
+        let secp = secp256k1::Secp256k1::new();
+        let mut seckey = [0u8; 32];
+        csprng.fill_bytes(&mut seckey);
+
+        // generate the signing keypair for the channel
+        let sk_m = secp256k1::SecretKey::from_slice(&seckey).unwrap();
+        let pk_m = secp256k1::PublicKey::from_secret_key(&secp, &sk_m);
 
         let mut ch = channel.clone();
 
         (MerchantMPCState {
             id: id.clone(),
-            pk_m: pk,
-            sk_m: sk,
-            keys: HashMap::new(),
+            pk_m: pk_m,
+            sk_m: sk_m,
+            lock_map: HashMap::new(),
             pay_tokens: HashMap::new(),
         }, ch)
     }
@@ -260,23 +277,23 @@ impl MerchantMPCState {
         };
     }
 
-    pub fn establish_pay_signature<R: Rng>(&mut self, csprng: &mut R, channel_token: &ChannelMPCToken, state: State) -> secp256k1::Signature {
+    pub fn establish_pay_signature<R: Rng>(&mut self, csprng: &mut R, channel_token: &ChannelMPCToken, s_com: &[u8; 32]) -> secp256k1::Signature {
         // TODO: figure out how we are generating this (w/ or w/o MPC)?
         let secp = secp256k1::Secp256k1::signing_only();
-        let msg = state.generate_commitment();
-        let msg = secp256k1::Message::from_slice(&msg).unwrap();
+        let msg = secp256k1::Message::from_slice(s_com).unwrap();
         let pay_sig = secp.sign(&msg, &self.sk_m);
 
         // store the state inside the ActivateBucket
-
 
         return pay_sig;
     }
 }
 
+#[cfg(feature = "mpc-bitcoin")]
 #[cfg(test)]
 mod tests {
     use super::*;
+    use channels_mpc::{ChannelMPCState, MerchantMPCState, CustomerMPCState};
 
     #[test]
     fn mpc_channel_util_works() {
@@ -302,7 +319,7 @@ mod tests {
 
         println!("Begin activate phase for channel");
 
-        let pay_sig = merch_state.establish_pay_signature(rng, &mut channel_token, s_0);
+        let pay_sig = merch_state.establish_pay_signature(rng, &mut channel_token, &cust_state.s_com);
 
         // now customer can unlink by making a first payment
 
