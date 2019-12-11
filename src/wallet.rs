@@ -46,7 +46,7 @@ impl<E: Engine> fmt::Display for Wallet<E> {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct State {
     pub nonce: [u8; 12], // 96-bits
     pub rev_lock: [u8; 32], // 32 bytes for hash
@@ -77,7 +77,7 @@ impl State {
 
 impl fmt::Display for State {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "State : (\nnonce={:?}\nrev_lock={:?}\npk_c={:?}\npk_m={:?}\nbc={}\nbm={}\nescrow_txid={:?}\nmerch_txid={:?}\n)",
-               &self.nonce, &self.rev_lock, &self.pk_c, &self.pk_m, &self.bc, &self.bm, &self.escrow_txid, &self.merch_txid)
+        write!(f, "State : (\nnonce={:?}\nrev_lock={:?}\npk_c={:?}\npk_m={:?}\nbc={}\nbm={}\n)", // \nescrow_txid={:?}\nmerch_txid={:?}
+               &self.nonce, &self.rev_lock, &self.pk_c, &self.pk_m, &self.bc, &self.bm) // &self.escrow_txid, &self.merch_txid
     }
 }

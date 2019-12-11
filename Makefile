@@ -1,4 +1,4 @@
-.PHONY: all deps debug bench test update doc clean distclean
+.PHONY: all deps mpc debug bench test mpctest update doc clean distclean
 
 all:
 	export RUSTFLAGS=-Awarnings
@@ -24,6 +24,10 @@ bench:
 test:
 	# runs the unit test suite
 	cargo +nightly test --release #-- --nocapture
+
+mpctest:
+	# runs the unit test suite
+	cargo +nightly test --release --features mpc-bitcoin -- --nocapture
 
 update:
 	cargo +nightly update

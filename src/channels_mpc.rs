@@ -15,23 +15,39 @@ pub struct ChannelMPCToken {
 
 #[cfg(feature = "mpc-bitcoin")]
 impl ChannelMPCToken {
-    pub fn set_customer_pk(&mut self, pk_c: &secp256k1::PublicKey) {
-        self.pk_c = Some(pk_c.clone());
+    pub fn set_customer_pk(&mut self, pk_c: secp256k1::PublicKey) {
+        self.pk_c = Some(pk_c);
     }
 
+//    pub fn set_escrow_txid(&mut self, txid: [u8; 32]) {
+//        self.escrow_txid = Some(txid);
+//    }
+//
+//    pub fn set_merchant_close_txid(&mut self, txid: [u8; 32]) {
+//        self.merch_txid = Some(txid);
+//    }
+//
+//
     pub fn is_init(&self) -> bool {
         return !self.pk_c.is_none();
     }
 
-    pub fn compute_channel_id(&self) -> [u8; 32] {
+    pub fn compute_channel_id(&self) -> Result<[u8; 32], String> {
         if self.pk_c.is_none() {
-            panic!("pk_c is not initialized yet");
+            return Err(String::from("pk_c is not initialized yet"));
         }
 
+//        if self.escrow_txid.is_none() {
+//            Err(String::from("escrow txid not set"))
+//        }
+//
+//        if self.merch_txid.is_none() {
+//            Err(String::from("merchant-close txid not set"))
+//        }
         // check txids are set
         let input = serde_json::to_vec(&self).unwrap();
 
-        return hash_to_slice(&input);
+        return Ok(hash_to_slice(&input));
     }
 
     // add a method to compute hash on chain: SHA256 + RIPEMD160?
@@ -99,8 +115,7 @@ pub struct CustomerMPCState {
     rev_secret: [u8; 32],
     old_kp: Option<LockPreimagePair>, // old lock and preimage pair
     t: [u8; 32], // randomness used to form the commitment
-    state: State, // vector of field elements that represent current state
-    pub s_com: [u8; 32], // commitment to the current state
+    state: Option<State>, // vector of field elements that represent current state
     index: i32,
     close_signatures: HashMap<i32, secp256k1::Signature>,
     pay_tokens: HashMap<i32, secp256k1::Signature>
@@ -110,7 +125,7 @@ const NONCE_LEN: usize = 12;
 
 #[cfg(feature = "mpc-bitcoin")]
 impl CustomerMPCState {
-    pub fn new<R: Rng>(csprng: &mut R, channel_token: &mut ChannelMPCToken, cust_bal: i64, merch_bal: i64, name: String) -> Self
+    pub fn new<R: Rng>(csprng: &mut R, cust_bal: i64, merch_bal: i64, name: String) -> Self
     {
         let secp = secp256k1::Secp256k1::new();
 
@@ -128,21 +143,9 @@ impl CustomerMPCState {
         // compute hash of the revocation secret
         let rev_lock = hash_to_slice(&rev_secret.to_vec());
 
-        channel_token.set_customer_pk(&pk_c);
-
         // pick random t
         let mut t: [u8; 32] = [0; 32];
-        let mut nonce: [u8; NONCE_LEN] = [0; NONCE_LEN];
         csprng.fill_bytes(&mut t);
-        csprng.fill_bytes(&mut nonce);
-
-        let state = State { nonce: nonce, rev_lock: rev_lock, pk_c: pk_c, pk_m: channel_token.pk_m.clone(),
-                                bc: cust_bal, bm: merch_bal, escrow_txid: channel_token.escrow_txid.clone(),
-                                merch_txid: channel_token.merch_txid.clone() };
-
-        // generate initial commitment to state of channel
-        let s_com = state.generate_commitment(&t);
-        assert!(channel_token.is_init());
 
         let ct_db = HashMap::new();
         let pt_db = HashMap::new();
@@ -157,16 +160,46 @@ impl CustomerMPCState {
             rev_secret: rev_secret,
             old_kp: None,
             t: t,
-            state: state,
-            s_com: s_com,
+            state: None,
             index: 0,
             close_signatures: ct_db,
             pay_tokens: pt_db,
         };
     }
 
+    pub fn generate_init_state<R: Rng>(&mut self, csprng: &mut R, channel_token: &mut ChannelMPCToken) {
+        assert!(self.state.is_none());
+
+        let mut nonce: [u8; NONCE_LEN] = [0; NONCE_LEN];
+        csprng.fill_bytes(&mut nonce);
+
+        channel_token.set_customer_pk(self.pk_c.clone());
+
+        let state = State { nonce: nonce, rev_lock: self.rev_lock, pk_c: self.pk_c, pk_m: channel_token.pk_m.clone(),
+                                bc: self.cust_balance, bm: self.merch_balance, escrow_txid: channel_token.escrow_txid,
+                                merch_txid: channel_token.merch_txid };
+
+        // generate initial commitment to state of channel
+        // let s_com = state.generate_commitment(&t);
+
+        assert!(channel_token.is_init());
+        self.state = Some(state);
+    }
+
     pub fn get_current_state(&self) -> State {
-        return self.state.clone();
+        assert!(self.state.is_some());
+        return self.state.unwrap();
+    }
+
+
+    pub fn generate_init_channel_token(&self, pk_m: &secp256k1::PublicKey, escrow_txid: [u8; 32], merch_txid: [u8; 32]) -> ChannelMPCToken {
+
+        return ChannelMPCToken {
+            pk_c: Some(self.pk_c.clone()),
+            pk_m: pk_m.clone(),
+            escrow_txid: escrow_txid,
+            merch_txid: merch_txid
+        };
     }
 
     pub fn get_close_signature(&self) -> secp256k1::Signature {
@@ -178,14 +211,14 @@ impl CustomerMPCState {
 
     // verify the closing
     pub fn verify_close_signature(&mut self, channel: &ChannelMPCState, close_sig: &secp256k1::Signature) -> bool {
-        println!("verify_close_signature - State: {}", &self.state);
+        println!("verify_close_signature - State: {}", &self.state.unwrap());
         let is_close_valid = true;
         //println!("Customer - Verification failed for close token!");
         return is_close_valid;
     }
 
     pub fn verify_pay_signature(&mut self, channel: &ChannelMPCState, pay_sig: &secp256k1::Signature) -> bool {
-        println!("verify_pay_signature - State: {}", &self.state);
+        println!("verify_pay_signature - State: {}", &self.state.unwrap());
         let is_pay_valid = true;
         //println!("Customer - Verification failed for pay token!");
         return is_pay_valid;
@@ -267,14 +300,8 @@ impl MerchantMPCState {
         }, ch)
     }
 
-    pub fn init(&mut self, channel: &mut ChannelMPCState) -> ChannelMPCToken {
-
-        return ChannelMPCToken {
-            pk_c: None,
-            pk_m: self.pk_m.clone(),
-            escrow_txid: [0u8; 32],
-            merch_txid: [0u8; 32]
-        };
+    pub fn get_public_key(&mut self) -> secp256k1::PublicKey {
+        return self.pk_m.clone();
     }
 
     pub fn establish_pay_signature<R: Rng>(&mut self, csprng: &mut R, channel_token: &ChannelMPCToken, s_com: &[u8; 32]) -> secp256k1::Signature {
@@ -295,6 +322,19 @@ mod tests {
     use super::*;
     use channels_mpc::{ChannelMPCState, MerchantMPCState, CustomerMPCState};
 
+    fn generate_test_txs<R: Rng>(csprng: &mut R) -> ([u8; 32], [u8; 32]) {
+        let mut txid1 = [0u8; 32];
+        let mut txid2 = [0u8; 32];
+
+        csprng.fill_bytes(&mut txid1);
+        csprng.fill_bytes(&mut txid2);
+
+        println!("Escrow txid: {:?}", txid1);
+        println!("Merch txid: {:?}", txid2);
+
+        return (txid1, txid2)
+    }
+
     #[test]
     fn mpc_channel_util_works() {
         let mut channel = ChannelMPCState::new(String::from("Channel A <-> B"), false);
@@ -307,23 +347,25 @@ mod tests {
         // initialize on the merchant side with balance: b0_merch
         let (mut merch_state, mut channel) = MerchantMPCState::new(rng, &mut channel, String::from("Merchant B"));
 
-        // initialize the channel token on merchant side with pks
-        let mut channel_token = merch_state.init(&mut channel);
+        // initialize on the customer side with balance: b0_cust
+        let mut cust_state = CustomerMPCState::new(rng, b0_cust, b0_merch, String::from("Alice"));
 
         // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
+        let (escrow_txid, merch_txid) = generate_test_txs(rng);
 
-        // initialize on the customer side with balance: b0_cust
-        let mut cust_state = CustomerMPCState::new(rng, &mut channel_token, b0_cust, b0_merch, String::from("Alice"));
 
-        let s_0 = cust_state.get_current_state();
+        // initialize the channel token on with pks
+        let mut channel_token = cust_state.generate_init_channel_token(&merch_state.pk_m, escrow_txid, merch_txid);
 
-        println!("Begin activate phase for channel");
-
-        let pay_sig = merch_state.establish_pay_signature(rng, &mut channel_token, &cust_state.s_com);
-
-        // now customer can unlink by making a first payment
-
-        assert!(cust_state.verify_pay_signature(&channel, &pay_sig));
+//         let s_0 = cust_state.get_current_state();
+//
+//        println!("Begin activate phase for channel");
+//
+//        let pay_sig = merch_state.establish_pay_signature(rng, &mut channel_token, &cust_state.s_com);
+//
+//        // now customer can unlink by making a first payment
+//
+//        assert!(cust_state.verify_pay_signature(&channel, &pay_sig));
 
     }
 }
