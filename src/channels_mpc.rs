@@ -19,15 +19,6 @@ impl ChannelMPCToken {
         self.pk_c = Some(pk_c);
     }
 
-//    pub fn set_escrow_txid(&mut self, txid: [u8; 32]) {
-//        self.escrow_txid = Some(txid);
-//    }
-//
-//    pub fn set_merchant_close_txid(&mut self, txid: [u8; 32]) {
-//        self.merch_txid = Some(txid);
-//    }
-//
-//
     pub fn is_init(&self) -> bool {
         return !self.pk_c.is_none();
     }
@@ -37,13 +28,6 @@ impl ChannelMPCToken {
             return Err(String::from("pk_c is not initialized yet"));
         }
 
-//        if self.escrow_txid.is_none() {
-//            Err(String::from("escrow txid not set"))
-//        }
-//
-//        if self.merch_txid.is_none() {
-//            Err(String::from("merchant-close txid not set"))
-//        }
         // check txids are set
         let input = serde_json::to_vec(&self).unwrap();
 
@@ -77,16 +61,6 @@ impl ChannelMPCState {
             third_party: third_party_support,
         }
     }
-
-    ///
-    /// keygen - takes as input public parameters and generates a digital signature keypair
-    ///
-//    pub fn keygen<R: Rng>(&mut self, csprng: &mut R, _id: String) -> (secp256k1::SecretKey, secp256k1::PublicKey) {
-//        let mut kp = secp256k1::Secp256k1::new();
-//        kp.randomize(csprng);
-//        let (sk, pk) = kp.generate_keypair(csprng);
-//        return (sk, pk);
-//    }
 
     pub fn set_channel_fee(&mut self, fee: i64) {
         self.tx_fee = fee;
