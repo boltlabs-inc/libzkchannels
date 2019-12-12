@@ -213,3 +213,21 @@ final_tx = (
 )
 
 print(final_tx.hex())
+
+
+# Calculate txid of the tx we have just created:
+# Convert to pre-segwit format, double sha256, reverse bytes (little endian)
+
+# final_tx_legacy = (
+#     version
+#     + tx_in_count
+#     + outpoint
+#     + scriptSig
+#     + sequence
+#     + tx_out_count
+#     + output
+#     + locktime
+# )
+#
+# new_txid = dSHA256(final_tx_legacy)[::-1]
+# print(new_txid.hex())
