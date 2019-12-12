@@ -11,7 +11,8 @@ emp-sh2pc-$(VERSION)/.built: emp-sh2pc-${VERSION}
 	make && \
 	make install && \
 	cp bin/* $(ZK_DEPS_INSTALL)/bin/ && \
-	touch ../$@
+	touch ../$@ && \
+	../fix_rpath_osx.sh libtoken-utils
 
 emp-sh2pc-$(VERSION): emp-sh2pc-$(VERSION).tar.gz
 	tar xf $^

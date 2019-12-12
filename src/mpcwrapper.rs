@@ -1,10 +1,12 @@
 use libc::{c_int, c_char};
-use secp256k1::{Signature, Message, PublicKey};
+use secp256k1::{Signature, Message, PublicKey, SecretKey, Secp256k1};
 use std::ffi::{CString, CStr};
 use rand::{RngCore, Rng};
 use bit_array::BitArray;
 use typenum::U256;
-use num::BigUint;
+use num::{BigUint, BigInt};
+use num::bigint::Sign;
+use sha2::{Sha256, Digest};
 
 #[repr(C)]
 struct c_wallet {
@@ -36,17 +38,17 @@ struct c_ecdsa_params {
     k_inv: *mut c_char,
 }
 
-//#[link(name = "token_utils")]
-//extern {
-//    fn build_masked_tokens_cust(pkM: *mut c_pubkey, amount: *mut c_char, com_new: *const bool, wpk_old: *mut c_pubkey, port: c_int,
-//                                ip_addr: *mut c_char, w_new: *mut c_wallet, w_old: *mut c_wallet, t: *mut c_char, pt_old: *mut c_char,
-//                                close_tx_escrow: *const bool, //[bool; 1024]
-//                                close_tx_merch: *const bool, //[bool; 1024]
-//                                ct_masked: *mut c_char, pt_masked: *mut c_char);
-//    fn build_masked_tokens_merch(pkM: *mut c_pubkey, amount: *mut c_char, com_new: *const bool, wpk_old: *mut c_pubkey,
-//                                 port: c_int, ip_addr: *mut c_char, close_mask: *const bool, pay_mask: *const bool,
-//                                 params1: *mut c_ecdsa_params, params2: *mut c_ecdsa_params, params3: *mut c_ecdsa_params);
-//}
+#[link(name = "token-utils")]
+extern {
+    fn build_masked_tokens_cust(pkM: *mut c_pubkey, amount: *mut c_char, com_new: *const bool, wpk_old: *mut c_pubkey, port: c_int,
+                                ip_addr: *mut c_char, w_new: *mut c_wallet, w_old: *mut c_wallet, t: *mut c_char, pt_old: *mut c_char,
+                                close_tx_escrow: *const bool, //[bool; 1024]
+                                close_tx_merch: *const bool, //[bool; 1024]
+                                ct_masked: *mut c_char, pt_masked: *mut c_char);
+    fn build_masked_tokens_merch(pkM: *mut c_pubkey, amount: *mut c_char, com_new: *const bool, wpk_old: *mut c_pubkey,
+                                 port: c_int, ip_addr: *mut c_char, close_mask: *const bool, pay_mask: *const bool,
+                                 params1: *mut c_ecdsa_params, params2: *mut c_ecdsa_params, params3: *mut c_ecdsa_params);
+}
 
 pub fn mpc_build_masked_tokens_cust(pk_m: secp256k1::PublicKey, amount: i64, com_new: String, wpk_old: secp256k1::PublicKey,
                                     w_new: wallet, w_old: wallet, t: secp256k1::SecretKey, pt_old: Signature,
@@ -154,21 +156,26 @@ fn createEcdsaParams(sk: secp256k1::SecretKey) -> c_ecdsa_params {
     rng.fill_bytes(&mut nonce);
     let nonce_message = Message::from_slice(&nonce);
     let partial_signature = secp.partial_sign(&nonce_message.unwrap(), &sk);
-    let mut msg = [0u8; 32];
+    let mut msg = [0u8; 27];
     rng.fill_bytes(&mut msg);
-    let mes = Message::from_slice(&msg);
-    println!("message: {:?}", mes.unwrap());
+    println!("message: {:?}", hex::encode(&msg[..]));
+    let mut hasher = Sha256::new();
+    hasher.input(msg);
+    let msg2 = hasher.result();
+    let mes = Message::from_slice(msg2.as_slice());
+    println!("message hash: {:?}", mes.unwrap());
     let signature = secp.compute_sign(&mes.unwrap(), &partial_signature);
-    let serialized_signature = signature.serialize_der();
+    let serialized_signature = signature.serialize_compact();
     println!("Signature: {:?}", hex::encode(serialized_signature.to_vec()));
     assert!(secp.verify(&mes.unwrap(), &signature, &secp256k1::PublicKey::from_secret_key(&secp, &sk)).is_ok());
     let par_sig_compact = partial_signature.serialize_compact();
     let rx = &par_sig_compact[32..64];
+    println!("parsig: {:?}", hex::encode(&par_sig_compact[..]));
     let k_inv = &par_sig_compact[64..];
 
     c_ecdsa_params {
-        rx: CString::new(BigUint::from_bytes_be(rx).to_string()).unwrap().into_raw(),
-        k_inv: CString::new(BigUint::from_bytes_be(k_inv).to_string()).unwrap().into_raw(),
+        rx: CString::new(BigInt::from_bytes_be(Sign::Plus,rx).to_string()).unwrap().into_raw(),
+        k_inv: CString::new(BigInt::from_bytes_be(Sign::Plus,k_inv).to_string()).unwrap().into_raw(),
     }
 }
 
@@ -177,24 +184,32 @@ mod tests {
     use super::*;
     use typenum::U32;
     use std::str;
-    use secp256k1::{PublicKey, SecretKey, Secp256k1};
+    use num::BigInt;
 
     #[test]
     fn mpc_build_masked_tokens_merch_works() {
-        let rng = &mut rand::thread_rng();
-        let sk_m = SecretKey::new(rng);
+        let csprng = &mut rand::thread_rng();
+        let mut seckey = [0u8; 32];
+        csprng.fill_bytes(&mut seckey);
+
+        let sk_m = secp256k1::SecretKey::from_slice(&seckey).unwrap();
         let pk_m = PublicKey::from_secret_key(&Secp256k1::new(), &sk_m);
 
-        let wsk = SecretKey::new(rng);
+        let mut secwsk = [0u8; 32];
+        csprng.fill_bytes(&mut secwsk);
+        let wsk = secp256k1::SecretKey::from_slice(&secwsk).unwrap();
         let wpk = PublicKey::from_secret_key(&Secp256k1::new(), &wsk);
 
-        mpc_build_masked_tokens_merch(rng, pk_m, 6, "test_commitment".parse().unwrap(), wpk, sk_m);
+        mpc_build_masked_tokens_merch(csprng, pk_m, 6, "test_commitment".parse().unwrap(), wpk, sk_m);
     }
 
     #[test]
     fn createEcdsaParamsWorks() {
-        let rng = &mut rand::thread_rng();
-        let sk = secp256k1::SecretKey::new(rng);
+        let csprng = &mut rand::thread_rng();
+        let mut seckey = [0u8; 32];
+        csprng.fill_bytes(&mut seckey);
+
+        let sk = secp256k1::SecretKey::from_slice(&seckey).unwrap();
         println!("secret key: {}", sk.to_string());
         let params = createEcdsaParams(sk);
         let rx = unsafe { str::from_utf8(CStr::from_ptr(params.rx).to_bytes()).unwrap() };
@@ -211,4 +226,26 @@ mod tests {
         let x: Vec<bool> = array.iter().map(|e| e.clone()).collect();
         assert_eq!(vec!(true, false, true, false, false, true, false, true, false, true, true, true, true, true, false, true, true, true, true, true, true, true, true, true, true, false, false, true, true, false, false, true), x);
     }
+
+    #[test]
+    fn signature() {
+        let secp = Secp256k1::new();
+        let sig = hex::decode("96fec178aea8d00c83f36b3424dd56762a5440547938ecc82b5c204435418fd968bafe1af248ec2c9ff9aba262cfcf801b486c685467ebc567b9b4e5e5674135").unwrap();
+        let mut signature = secp256k1::Signature::from_compact(&sig).unwrap();
+        let par_sig_ser = hex::decode("96fec178aea8d00c83f36b3424dd56762a5440547938ecc82b5c204435418fd99eedce5c89bba8897758b7d7454eb5300657f6da1132d3a930fd9721c352b6e6ce6f2c740f993c6c60931ee965241e5a0527e4ab466d97dcc3436860370700d1").unwrap();
+        let par_sig = secp256k1::PartialSignature::from_compact(&par_sig_ser).unwrap();
+        let sk_ser = hex::decode("c71ffda863b14b3a9434a8799561cb15ac082cba2ad16bebae89a507cda267a2").unwrap();
+        let sk = secp256k1::SecretKey::from_slice(&sk_ser).unwrap();
+        let msg = hex::decode("063157f426b2123c72182ed5e3f418ff26b13de970ec9c0a625a16f31ae0ce64").unwrap();
+        println!("message: {}", BigInt::from_bytes_be(Sign::Plus, &msg).to_string());
+        println!("{}", BigInt::from_bytes_be(Sign::Plus,&hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141").unwrap()).to_string());
+        let mes = secp256k1::Message::from_slice(&msg).unwrap();
+        println!("{:?}", mes);
+        let sign = secp.compute_sign(&mes, &par_sig);
+        println!("{}", hex::encode(&sign.serialize_compact()[..]));
+        assert!(secp.verify(&mes, &signature, &secp256k1::PublicKey::from_secret_key(&secp, &sk)).is_ok());
+        assert!(secp.verify(&mes, &sign, &secp256k1::PublicKey::from_secret_key(&secp, &sk)).is_ok());
+    }
+
+
 }

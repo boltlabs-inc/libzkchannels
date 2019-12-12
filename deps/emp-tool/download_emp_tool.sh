@@ -12,9 +12,11 @@ cd ${EMP_TOOL}.git
 if [[ ! -f ${EMP_TOOL}.${FORMAT} ]]; then
    echo "Patch emp-tool..."
    git apply ../uint.patch
+   git apply ../integer.patch
    cp ../uinteger.h* emp-tool/circuits/
    cp ../uint.cpp test/
    git add emp-tool/circuits/uinteger.h*
+   git add emp-tool/circuits/integer.h*
    git add test/uint.cpp
    git commit -a -m "patching"
 
