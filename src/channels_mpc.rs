@@ -119,7 +119,7 @@ impl CustomerMPCState {
 
         // pick random t
         let mut t: [u8; 32] = [0; 32];
-        csprng.fill_bytes(&mut t);
+        //csprng.fill_bytes(&mut t);
 
         let ct_db = HashMap::new();
         let pt_db = HashMap::new();
@@ -158,6 +158,14 @@ impl CustomerMPCState {
 
         assert!(channel_token.is_init());
         self.state = Some(state);
+    }
+
+    pub fn generate_init_commitment<R: Rng>(&mut self, csprng: &mut R) -> [u8; 32] {
+        assert!(!self.state.is_none());
+        let mut t: [u8; 32] = [0; 32];
+        csprng.fill_bytes(&mut t);
+        self.t.copy_from_slice(&t);
+        return self.state.unwrap().generate_commitment(&self.t);
     }
 
     pub fn get_current_state(&self) -> State {
@@ -248,6 +256,7 @@ pub struct MerchantMPCState {
     id: String,
     pk_m: secp256k1::PublicKey, // pk_m
     sk_m: secp256k1::SecretKey, // sk_m
+    pub activate_map: HashMap<String, State>,
     pub lock_map: HashMap<String, LockMap>,
     pub pay_tokens: HashMap<String, secp256k1::Signature>,
 }
@@ -269,6 +278,7 @@ impl MerchantMPCState {
             id: id.clone(),
             pk_m: pk_m,
             sk_m: sk_m,
+            activate_map: HashMap::new(),
             lock_map: HashMap::new(),
             pay_tokens: HashMap::new(),
         }, ch)
@@ -278,15 +288,31 @@ impl MerchantMPCState {
         return self.pk_m.clone();
     }
 
-    pub fn establish_pay_signature<R: Rng>(&mut self, csprng: &mut R, channel_token: &ChannelMPCToken, s_com: &[u8; 32]) -> secp256k1::Signature {
+    pub fn activate_channel(&self, channel_token: &ChannelMPCToken, s_com: [u8; 32]) -> secp256k1::Signature {
+        // store the state inside the ActivateBucket
+        let channel_id = channel_token.compute_channel_id().unwrap();
+        let channel_id_str= hex::encode(channel_id.to_vec());
+
+        // does MPC verify that s_com was generated from s_0 in activate bucket?
+
         // TODO: figure out how we are generating this (w/ or w/o MPC)?
         let secp = secp256k1::Secp256k1::signing_only();
-        let msg = secp256k1::Message::from_slice(s_com).unwrap();
+        let msg = secp256k1::Message::from_slice(&s_com).unwrap();
         let pay_sig = secp.sign(&msg, &self.sk_m);
-
-        // store the state inside the ActivateBucket
-
         return pay_sig;
+
+    }
+
+    pub fn store_initial_state(&mut self, channel_token: &ChannelMPCToken, s0: &State) -> bool {
+        let channel_id = channel_token.compute_channel_id().unwrap();
+        let channel_id_str= hex::encode(channel_id.to_vec());
+        self.activate_map.insert(channel_id_str, s0.clone());
+
+        return true;
+    }
+
+    pub fn unlink_channel(&self, ) -> bool {
+        return true;
     }
 }
 
@@ -327,19 +353,31 @@ mod tests {
         // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
         let (escrow_txid, merch_txid) = generate_test_txs(rng);
 
-
         // initialize the channel token on with pks
         let mut channel_token = cust_state.generate_init_channel_token(&merch_state.pk_m, escrow_txid, merch_txid);
 
-//         let s_0 = cust_state.get_current_state();
-//
-//        println!("Begin activate phase for channel");
-//
-//        let pay_sig = merch_state.establish_pay_signature(rng, &mut channel_token, &cust_state.s_com);
-//
-//        // now customer can unlink by making a first payment
-//
-//        assert!(cust_state.verify_pay_signature(&channel, &pay_sig));
+        // generate and send initial state to the merchant
+        cust_state.generate_init_state(rng, &mut channel_token);
+        let s_0 = cust_state.get_current_state();
+
+        println!("Begin activate phase for channel");
+
+        let s_com = cust_state.generate_init_commitment(rng);
+
+        // send the initial state s_0 to merchant
+        merch_state.store_initial_state(&channel_token, &s_0);
+
+        // activate channel
+        let pay_sig = merch_state.activate_channel(&channel_token, s_com);
+
+        println!("init commitment => {:?}", s_com);
+
+        println!("Signature on s_com => {:?}", pay_sig);
+
+        // now customer can unlink by making a first payment
+        // let sig = merch_state.unlink_channel(&channel_token, s_0);
+
+        // assert!(cust_state.verify_pay_signature(&channel, &pay_sig));
 
     }
 }
