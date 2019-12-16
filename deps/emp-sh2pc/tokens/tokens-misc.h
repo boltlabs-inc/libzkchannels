@@ -142,8 +142,8 @@ struct MaskCommitment_d {
  * \param k_inv : k_inv = k^-1. Represented as a decimal string. (256 bits)
  */
 struct EcdsaPartialSig_l {
-  string r;
-  string k_inv;
+  char* r;
+  char* k_inv;
 };
 
 struct EcdsaPartialSig_d {
@@ -196,8 +196,8 @@ EcdsaPartialSig_l localize_EcdsaPartialSig(EcdsaPartialSig_d ecdsapartialsig);
 // void distribute_State(State_d destination, State_l source);
 // void localize_State(State_l destination, State_d source);
 
-// void distribute_EcdsaPartialSig(EcdsaPartialSig_d destination, EcdsaPartialSig_l source);
-// void localize_EcdsaPartialSig(EcdsaPartialSig_l destination, EcdsaPartialSig_d ecdsapartialsig);
+// void distribute_EcdsaPartialSig(EcdsaPartialSig_d destination, EcdsaPartialSig source);
+// void localize_EcdsaPartialSig(EcdsaPartialSig destination, EcdsaPartialSig_d ecdsapartialsig);
 
 /***************************** THIS FROM MARCELLA BEFORE THE GREAT RE-TYPING ************************/
 
@@ -231,9 +231,9 @@ void issue_tokens(
   PayToken_l old_paytoken_l,
   Mask_l paytoken_mask_l,
   MaskCommitment_l paytoken_mask_commitment_l,
-  EcdsaPartialSig_l sig1, 
+  EcdsaPartialSig_l sig1,
   bool close_tx_escrow[1024],
-  EcdsaPartialSig_l sig2, 
+  EcdsaPartialSig_l sig2,
   bool close_tx_merch[1024]
   );
 

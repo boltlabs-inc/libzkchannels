@@ -50,6 +50,7 @@ pub mod wallet;
 pub mod ffishim;
 pub mod mpcwrapper;
 pub mod ffishim_bn256;
+pub mod bindings;
 
 use std::fmt;
 use std::str;

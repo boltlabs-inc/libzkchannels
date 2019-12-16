@@ -130,8 +130,8 @@ void test_hardcoded_vector() {
   
   // format partial signature
   EcdsaPartialSig_l psl;
-  psl.r = r;
-  psl.k_inv = k_inv;
+  strcpy(psl.r, r.c_str());
+  strcpy(psl.k_inv, k_inv.c_str());
   EcdsaPartialSig_d psd = distribute_EcdsaPartialSig(psl);
 
   // compute and parse result

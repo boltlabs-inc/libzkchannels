@@ -1,8 +1,12 @@
 #pragma once 
 
-#include <string>
 #include "tokens-misc.h"
 using namespace std;
+
+//struct EcdsaPartialSig_l {
+//  char* r;
+//  char* k_inv;
+//};
 
 /*
  * describes an API for calling MPC functions 
@@ -43,7 +47,7 @@ struct HMACKeyCommitment {
  * GABE: I'm throwing randomness in here for now, but we can rip it out?
  */
 struct HMACKeyCommitmnetOpening {
-  HMACKey key;
+  struct HMACKey* key;
   int randomness[8];
 };
 
@@ -59,7 +63,7 @@ struct PayToken {
 /* ECDSA public key type 
  * \param pubkey    : a public key. TYPISSUE - probably not an integer */
 struct PubKey{
-  int pubkey;
+  char* pubkey;
 };
 
 /* Revocation lock - TYPISSUE: not sure what type this is yet.
@@ -67,7 +71,7 @@ struct PubKey{
  * \param rl 	: a revocation lock.
  */
 struct RevLock {
-  bool revlock[256];
+  char* revlock;
 };
 
 /* state type
@@ -80,21 +84,12 @@ struct RevLock {
  * \param txid_escrow   : transaction ID for escrow transaction (ditto on format)
  */
 struct State {
-  PubKey pkC;
-  RevLock rl;
+  struct PubKey* pkC;
+  struct RevLock* rl;
   int balance_cust;
   int balance_merch;
-  bool txid_merch[256];
-  bool txid_escrow[256];
-};
-
-/* Partial ECDSA signature
- * \param r     : A value for a partial ecdsa signature, k randomly chosen: (rx, ry) = kG, and r = rx*x mod q
- * \param k_inv : For the randomly chosen k, k_inv = k^-1
- */
-struct EcdsaPartialSig {
-  bool r[256];
-  bool k_inv[256];
+  char *txid_merch[256];
+  char *txid_escrow[256];
 };
 
 
@@ -126,22 +121,22 @@ struct EcdsaPartialSig {
  *
  */
 void build_masked_tokens_cust(
-  PubKey pkM,
-  bool amount[64],
-  bool *com_new,
-  RevLock rl_old,
+  struct PubKey* pkM,
+  char amount[64],
+  char *com_new,
+  struct RevLock* rl_old,
   int port,
-  string ip_addr,
+  char* ip_addr,
 
-  State w_new,
-  State w_old,
-  bool *t,
-  bool pt_old[256],
-  bool close_tx_escrow[1024],
-  bool close_tx_merch[1024],
+  struct State* w_new,
+  struct State* w_old,
+  char *t,
+  char pt_old[256],
+  char close_tx_escrow[1024],
+  char close_tx_merch[1024],
 
-  bool ct_masked[256],
-  bool pt_masked[256]
+  char ct_masked[256],
+  char pt_masked[256]
 );
 
 
@@ -176,18 +171,18 @@ void build_masked_tokens_cust(
  *
  */
 void build_masked_tokens_merch(
-  PubKey pkM,
-  bool amount[64],
-  bool *com_new,
-  RevLock rl_old,
+  struct PubKey* pkM,
+  char amount[64],
+  char *com_new,
+  struct RevLock* rl_old,
   int port,
-  string ip_addr,
+  char* ip_addr,
 
-  bool close_mask[256],
-  bool pay_mask[256],
-  struct EcdsaPartialSig_l sig1,
-  struct EcdsaPartialSig_l sig2,
-  struct EcdsaPartialSig_l sig3
+  char close_mask[256],
+  char pay_mask[256],
+  struct EcdsaPartialSig_l* sig1,
+  struct EcdsaPartialSig_l* sig2,
+  struct EcdsaPartialSig_l* sig3
 );
 
 

@@ -226,8 +226,8 @@ EcdsaPartialSig_d distribute_EcdsaPartialSig(EcdsaPartialSig_l psl, int party){
 EcdsaPartialSig_l localize_EcdsaPartialSig(EcdsaPartialSig_d psd){
   EcdsaPartialSig_l to_return;
 
-  to_return.r = psd.r.reveal<string>(PUBLIC);
-  to_return.k_inv = psd.k_inv.reveal<string>(PUBLIC);
+  strcpy(to_return.r, psd.r.reveal<string>(PUBLIC).c_str());
+  strcpy(to_return.k_inv, psd.k_inv.reveal<string>(PUBLIC).c_str());
 
   return to_return;
 }

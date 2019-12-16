@@ -8,7 +8,7 @@
 //  TODO make some test vectors, seriously)
 //  TODO maybe move the parsing code to sha256 module
 //
-Integer signature_hash(bool msg[1024]) {
+Integer signature_hash(char msg[1024]) {
   uint message[2][16] = {0};
   uint shft = 0;
   uint block = 0;
@@ -54,7 +54,7 @@ string get_ECDSA_params() {
 // parameters here are appended -c because they're in the clear
 // mc : message text (in the clear)
 // pubsig : partial ecdsa signature in the clear (see token.h)
-Integer ecdsa_sign(bool msg[1024], EcdsaPartialSig_l pubsig) {
+Integer ecdsa_sign(char msg[1024], EcdsaPartialSig_l pubsig) {
 
   // merchant inputs
   EcdsaPartialSig_d partialsig = distribute_EcdsaPartialSig(pubsig);

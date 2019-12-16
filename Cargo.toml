@@ -8,6 +8,8 @@ readme = "README.md"
 homepage = "https://github.com/jakinyele/libzkchannels"
 repository = "https://github.com/jakinyele/libzkchannels"
 license = "MIT License"
+build = "build.rs"
+links = "token-utils"
 
 [dependencies]
 rand = "0.7"

@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
   if (party == MERCH) {
 	PubKey pkM;
 	RevLock rl;
-	EcdsaPartialSig_l sig;
+	EcdsaPartialSig sig;
 	bool mask[256];
 	build_masked_tokens_merch(
 	  pkM, nullptr, nullptr, rl, port, "127.0.0.1",
