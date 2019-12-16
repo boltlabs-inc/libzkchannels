@@ -139,6 +139,7 @@ mod tests {
     use num::BigInt;
 
     #[test]
+    #[ignore]
     fn mpc_build_masked_tokens_merch_works() {
         let csprng = &mut rand::thread_rng();
         let mut seckey = [0u8; 32];
@@ -156,6 +157,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn mpc_build_masked_tokens_cust_works() {
         let csprng = &mut rand::thread_rng();
         let mut seckey = [0u8; 32];
