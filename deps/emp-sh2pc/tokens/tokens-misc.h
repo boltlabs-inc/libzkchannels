@@ -141,10 +141,10 @@ struct MaskCommitment_d {
  * \param r     : r = rx*x mod q. Represented as a decimal string. (256 bits)
  * \param k_inv : k_inv = k^-1. Represented as a decimal string. (256 bits)
  */
-struct EcdsaPartialSig_l {
-  char* r;
-  char* k_inv;
-};
+//struct EcdsaPartialSig_l {
+//  char* r;
+//  char* k_inv;
+//};
 
 struct EcdsaPartialSig_d {
   Integer r;

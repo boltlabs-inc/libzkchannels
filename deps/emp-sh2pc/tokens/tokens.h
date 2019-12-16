@@ -1,12 +1,14 @@
-#pragma once 
+#ifndef TOKENS_INCLUDE_H_
+#define TOKENS_INCLUDE_H_
 
-#include "tokens-misc.h"
-using namespace std;
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-//struct EcdsaPartialSig_l {
-//  char* r;
-//  char* k_inv;
-//};
+struct EcdsaPartialSig_l {
+  char* r;
+  char* k_inv;
+};
 
 /*
  * describes an API for calling MPC functions 
@@ -91,7 +93,6 @@ struct State {
   char *txid_merch[256];
   char *txid_escrow[256];
 };
-
 
 /* customer's token generation function
  *
@@ -184,5 +185,9 @@ void build_masked_tokens_merch(
   struct EcdsaPartialSig_l* sig2,
   struct EcdsaPartialSig_l* sig3
 );
+#ifdef __cplusplus
+}
+#endif
+#endif
 
 

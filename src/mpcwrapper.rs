@@ -3,7 +3,7 @@ use secp256k1::{Signature, Message, PublicKey, Secp256k1};
 use std::ffi::{CString, CStr};
 use rand::{RngCore, Rng};
 use bit_array::BitArray;
-use typenum::{U256, U64};
+use typenum::{U264, U64};
 use num::BigInt;
 use num::bigint::Sign;
 use bindings::{PubKey, build_masked_tokens_cust, build_masked_tokens_merch, EcdsaPartialSig_l, RevLock, State};
@@ -67,13 +67,13 @@ fn translate_string(in_str: String) -> *mut c_char {
 }
 
 fn translate_pub_key(pk: &PublicKey) -> PubKey {
-    let pk_bits = BitArray::<u8, U256>::from_bytes(&pk.serialize());
+    let pk_bits = BitArray::<u8, U264>::from_bytes(&pk.serialize());
     let mut res = PubKey { pubkey: CString::new(format!("{:?}", pk_bits)).unwrap().into_raw() };
     res
 }
 
 fn translate_revlock(pk: &PublicKey) -> RevLock {
-    let pk_bits = BitArray::<u8, U256>::from_bytes(&pk.serialize());
+    let pk_bits = BitArray::<u8, U264>::from_bytes(&pk.serialize());
     let mut res = RevLock { revlock: CString::new(format!("{:?}", pk_bits)).unwrap().into_raw() };
     res
 }
@@ -126,8 +126,8 @@ fn createEcdsaParams(sk: &secp256k1::SecretKey) -> EcdsaPartialSig_l {
     let k_inv = &par_sig_compact[64..];
 
     EcdsaPartialSig_l {
-        r: CString::new(rx).unwrap().into_raw(),
-        k_inv: CString::new(k_inv).unwrap().into_raw(),
+        r: CString::new(hex::encode(rx)).unwrap().into_raw(),
+        k_inv: CString::new(hex::encode(k_inv)).unwrap().into_raw(),
     }
 }
 
@@ -153,6 +153,39 @@ mod tests {
         let wpk = PublicKey::from_secret_key(&Secp256k1::new(), &wsk);
 
         mpc_build_masked_tokens_merch(csprng, pk_m, 6, "test_commitment".parse().unwrap(), wpk, sk_m);
+    }
+
+    #[test]
+    fn mpc_build_masked_tokens_cust_works() {
+        let csprng = &mut rand::thread_rng();
+        let mut seckey = [0u8; 32];
+        csprng.fill_bytes(&mut seckey);
+
+        let sk_m = secp256k1::SecretKey::from_slice(&seckey).unwrap();
+        let pk_m = PublicKey::from_secret_key(&Secp256k1::new(), &sk_m);
+
+        let mut secwsk = [0u8; 32];
+        csprng.fill_bytes(&mut secwsk);
+        let wsk = secp256k1::SecretKey::from_slice(&secwsk).unwrap();
+        let wpk = PublicKey::from_secret_key(&Secp256k1::new(), &wsk);
+        let secp = secp256k1::Secp256k1::new();
+        let signature = secp.sign(&Message::from_slice(&secwsk).unwrap(), &wsk);
+
+        mpc_build_masked_tokens_cust(pk_m, 6, "test_commitment".parse().unwrap(), wpk, State{
+            pkC: &mut PubKey{ pubkey: &mut 0i8 },
+            rl: &mut RevLock{ revlock: &mut 0i8 },
+            balance_cust: 0,
+            balance_merch: 0,
+            txid_merch: [&mut 0i8; 256],
+            txid_escrow: [&mut 0i8; 256]
+        }, State{
+            pkC: &mut PubKey{ pubkey: &mut 0i8 },
+            rl: &mut RevLock{ revlock: &mut 0i8 },
+            balance_cust: 0,
+            balance_merch: 0,
+            txid_merch: [&mut 0i8; 256],
+            txid_escrow: [&mut 0i8; 256]
+        }, wsk, signature, "test_tx1".parse().unwrap(), "test_tx2".parse().unwrap());
     }
 
     #[test]
