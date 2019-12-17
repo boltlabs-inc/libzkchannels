@@ -1,0 +1,64 @@
+diff --git a/emp-tool/circuits/integer.h b/emp-tool/circuits/integer.h
+index 52e79bb..0a5b871 100644
+--- a/emp-tool/circuits/integer.h
++++ b/emp-tool/circuits/integer.h
+@@ -52,6 +52,7 @@ class Integer : public Swappable<Integer>, public Comparable<Integer> { public:
+ 	int size() const;
+ 	template<typename O>
+ 	O reveal(int party=PUBLIC) const;
++    string reveal_unsigned(int party=PUBLIC, int base=10) const;
+ 
+ 	Integer abs() const;
+ 	Integer& resize(int length, bool signed_extend = true);
+@@ -67,6 +68,7 @@ class Integer : public Swappable<Integer>, public Comparable<Integer> { public:
+ 	Integer operator+(const Integer& rhs)const;
+ 	Integer operator-(const Integer& rhs)const;
+ 	Integer operator-()const;
++    Integer operator~()const;
+ 	Integer operator*(const Integer& rhs)const;
+ 	Integer operator/(const Integer& rhs)const;
+ 	Integer operator%(const Integer& rhs)const;
+diff --git a/emp-tool/circuits/integer.hpp b/emp-tool/circuits/integer.hpp
+index c7cc833..7a2f51e 100644
+--- a/emp-tool/circuits/integer.hpp
++++ b/emp-tool/circuits/integer.hpp
+@@ -178,6 +178,16 @@ inline string Integer::reveal<string>(int party) const {
+ 	return bin_to_dec(bin);
+ }
+ 
++inline string Integer::reveal_unsigned(int party, int base) const {
++    bool * b = new bool[length];
++    ProtocolExecution::prot_exec->reveal(b, party, (block *)bits,  length);
++    string bin="";
++    for(int i = length-1; i >= 0; --i)
++        bin += (b[i]? '1':'0');
++    delete [] b;
++    return change_base(bin,2,base);
++}
++
+ template<>
+ inline int32_t Integer::reveal<int32_t>(int party) const {
+ 	string s = reveal<string>(party);
+@@ -337,7 +347,6 @@ inline Integer Integer::operator-(const Integer& rhs) const {
+ 	return res;
+ }
+ 
+-
+ inline Integer Integer::operator*(const Integer& rhs) const {
+ 	assert(size() == rhs.size());
+ 	Integer res(*this);
+@@ -370,6 +379,14 @@ inline Integer Integer::operator-() const {
+ 	return Integer(size(), 0, PUBLIC)-(*this);
+ }
+ 
++inline Integer Integer::operator~() const {
++    Integer res(*this);
++    for(int i = 0; i < size(); ++i)
++        res.bits[i] = !res.bits[i];
++    return res;
++}
++
++
+ //Others
+ inline Integer Integer::leading_zeros() const {
+ 	Integer res = *this;

@@ -34,6 +34,9 @@ extern crate hex;
 
 #[cfg(test)]
 extern crate core;
+extern crate bit_array;
+extern crate typenum;
+extern crate num;
 extern crate serde_json;
 
 pub mod cl;
@@ -45,7 +48,9 @@ pub mod nizk;
 pub mod util;
 pub mod wallet;
 pub mod ffishim;
+pub mod mpcwrapper;
 pub mod ffishim_bn256;
+pub mod bindings;
 
 use std::fmt;
 use std::str;

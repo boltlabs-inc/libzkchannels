@@ -2,11 +2,13 @@ diff --git a/CMakeLists.txt b/CMakeLists.txt
 index f84efb3..4896fe5 100755
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -62,3 +62,4 @@ add_test(float)
+@@ -55,5 +55,6 @@
+ add_test(float)
  add_test(float32)
  add_test(garble)
  add_test(gen_circuit)
 +add_test(uint)
+ add_test(mitccrh)
 diff --git a/emp-tool/emp-tool.h b/emp-tool/emp-tool.h
 index af15417..7b5aa35 100644
 --- a/emp-tool/emp-tool.h
