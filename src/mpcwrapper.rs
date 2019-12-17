@@ -52,14 +52,14 @@ pub fn mpc_build_masked_tokens_cust(pk_m: secp256k1::PublicKey, amount: i64, com
                                  ct_masked, pt_masked)
     };
 
-    let mut ct_mask_ar = [0u8; 32];
-    let ct_masked_bytes = unsafe { CStr::from_ptr(ct_masked).to_bytes() };
-    ct_mask_ar.copy_from_slice(ct_masked_bytes);
-    let mut pt_mask_ar = [0u8; 32];
-    let pt_masked_bytes = unsafe { CStr::from_ptr(pt_masked).to_bytes() };
-    pt_mask_ar.copy_from_slice(pt_masked_bytes);
+    let mut ct_masked_ar = [0u8; 32];
+//    let ct_masked_bytes = unsafe { CStr::from_ptr(ct_masked).to_bytes() };
+//    ct_mask_ar.copy_from_slice(ct_masked_bytes);
+    let mut pt_masked_ar = [0u8; 32];
+//    let pt_masked_bytes = unsafe { CStr::from_ptr(pt_masked).to_bytes() };
+//    pt_mask_ar.copy_from_slice(pt_masked_bytes);
 
-    (ct_mask_ar, pt_mask_ar)
+    (ct_masked_ar, pt_masked_ar)
 }
 
 fn translate_paytoken(pt: &[u8]) -> PayToken_l {
