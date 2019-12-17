@@ -12,10 +12,7 @@ using namespace emp;
  * HMAC Keys are the length of the block-size of the underlying hash functions
  * SHA256 has a block size of 512 bits, so we need 16 integers to represent the whole thing
  */
-struct HMACKey_l {
-  uint32_t key[16]; //TODO uint8_t[64] seems better
-};
-
+typedef struct HMACKey_l HMACKey_l;
 struct HMACKey_d {
   Integer key[16];
 };
@@ -24,10 +21,7 @@ struct HMACKey_d {
  * Tentatively sized to use a hash (SHA256-based) commitment scheme.
  * \param rl 	: a revocation lock.
  */
-struct RevLock_l {
-  uint32_t revlock[8];
-};
-
+typedef struct RevLock_l RevLock_l;
 struct RevLock_d {
   Integer revlock[8];
 };
@@ -36,10 +30,7 @@ struct RevLock_d {
  * Is is an HMAC computed on the state 
  * The output of HMAC is the underlying block size.  In this case 256 bits
  */
-struct PayToken_l {
-  int paytoken[8];
-};
-
+typedef struct PayToken_l PayToken_l;
 struct PayToken_d {
   Integer paytoken[8];
 };
@@ -63,18 +54,20 @@ struct ClosingTokenEscrow_d {
 /* This is a nonce.  Its used to prevent double spends
  * RIGHT NOW THIS THING IS 96 BITS.  WE MAY WANT TO INCREASE ITS LENGTH IN THE FUTURE!!!
  */
-struct Nonce_l {
-  uint32_t nonce[3];
-};
-
+typedef struct Nonce_l Nonce_l;
 struct Nonce_d {
   Integer nonce[3];
 };
 
-struct Txid_l {
-  uint32_t txid[8];
+struct TxSerialized_l {
+  uint32_t tx[32];
 };
 
+struct TxSerialized_d {
+  Integer tx[32];
+};
+
+typedef struct Txid_l Txid_l;
 struct Txid_d {
   Integer txid[8];
 };
@@ -88,14 +81,7 @@ struct Txid_d {
  * \param txid_merch    : transaction ID for merchant close transaction (bits, formatted as they appear in the 'source' field of a transaction that spends it) 
  * \param txid_escrow   : transaction ID for escrow transaction (ditto on format)
  */
-struct State_l {
-  Nonce_l nonce;
-  RevLock_l rl;
-  int32_t balance_cust;
-  int32_t balance_merch;
-  Txid_l txid_merch;
-  Txid_l txid_escrow;
-};
+typedef struct State_l State_l;
 
 struct State_d {
   Nonce_d nonce;
@@ -110,27 +96,17 @@ struct State_d {
  *
  * Everything we are doing is a sha256 hash based commitment
  */
-
-struct HMACKeyCommitment_l {
-  uint32_t commitment[8];
-};
-
+typedef struct HMACKeyCommitment_l HMACKeyCommitment_l;
 struct HMACKeyCommitment_d {
   Integer commitment[8];
 };
 
-struct Mask_l {
-  uint32_t mask[8];
-};
-
+typedef struct Mask_l Mask_l;
 struct Mask_d {
   Integer mask[8];
 };
 
-struct MaskCommitment_l {
-  uint32_t commitment[8];
-};
-
+typedef struct MaskCommitment_l MaskCommitment_l;
 struct MaskCommitment_d {
   Integer commitment[8];
 };
@@ -141,11 +117,7 @@ struct MaskCommitment_d {
  * \param r     : r = rx*x mod q. Represented as a decimal string. (256 bits)
  * \param k_inv : k_inv = k^-1. Represented as a decimal string. (256 bits)
  */
-//struct EcdsaPartialSig_l {
-//  char* r;
-//  char* k_inv;
-//};
-
+typedef struct EcdsaPartialSig_l EcdsaPartialSig_l;
 struct EcdsaPartialSig_d {
   Integer r;
   Integer k_inv;
@@ -183,36 +155,10 @@ Mask_l localize_Mask(Mask_d mask);
 
 EcdsaPartialSig_d distribute_EcdsaPartialSig(EcdsaPartialSig_l ecdsapartialsig, int party=MERCH);
 EcdsaPartialSig_l localize_EcdsaPartialSig(EcdsaPartialSig_d ecdsapartialsig);
-
-// void distribute_HMACKey(HMACKey_d destination, HMACKey_l source);
-// void localize_HMACKey(HMACKey_l destination, HMACKey_d source);
-
-// void distribute_RevLock(RevLock_d destination, RevLock_l source);
-// void localize_RevLock(RevLock_l destination, RevLock_d source);
-
-// void distribute_PayToken(PayToken_d destination, PayToken_l source);
-// void localize_PayToken(PayToken_l destination, PayToken_d source);
-
-// void distribute_State(State_d destination, State_l source);
-// void localize_State(State_l destination, State_d source);
-
-// void distribute_EcdsaPartialSig(EcdsaPartialSig_d destination, EcdsaPartialSig source);
-// void localize_EcdsaPartialSig(EcdsaPartialSig destination, EcdsaPartialSig_d ecdsapartialsig);
+// easy initialization of ecdsapartialsig
+void fillEcdsaPartialSig_l(EcdsaPartialSig_l *eps, string r, string kinv);
 
 /***************************** THIS FROM MARCELLA BEFORE THE GREAT RE-TYPING ************************/
-
-/* Private partial ECDSA signature
- * \param r     : A value for a partial ecdsa signature, k randomly chosen: (rx, ry) = kG, and r = rx*x mod q
- * \param k_inv : For the randomly chosen k, k_inv = k^-1
- */
-/*
-   struct PrivateEcdsaPartialSig {
-   Integer r;
-   Integer k_inv;
-   };
-
-   PrivateEcdsaPartialSig setEcdsaPartialSig(EcdsaPartialSig pub ); 
-   */
 
 Integer makeInteger(bool *bits, int len, int intlen, int party);
 
@@ -231,9 +177,13 @@ void issue_tokens(
   PayToken_l old_paytoken_l,
   Mask_l paytoken_mask_l,
   MaskCommitment_l paytoken_mask_commitment_l,
-  EcdsaPartialSig_l sig1,
+  Mask_l merch_mask_l,
+  MaskCommitment_l merch_mask_commitment_l,
+  Mask_l escrow_mask_l,
+  MaskCommitment_l escrow_mask_commitment_l,
+  EcdsaPartialSig_l sig1, 
   bool close_tx_escrow[1024],
-  EcdsaPartialSig_l sig2,
+  EcdsaPartialSig_l sig2, 
   bool close_tx_merch[1024]
   );
 
@@ -254,9 +204,9 @@ Bit verify_token_sig(HMACKeyCommitment_d commitment, HMACKey_d opening, State_d 
  * 3. merchant-close transactions match
  * 4. balances are correctly updated by amt
  *  
- * \param[in] w_old 	: old wallet
- * \param[in] w_new 	: new wallet
- * \param[in] amt 		: transaction amount
+ * \param[in] old_state_d 	: old wallet
+ * \param[in] new_state_d   : new wallet
+ * \param[in] epsilon_d     : transaction amount
  * \param[in] wpk_old 	: old wallet ID
  *
  * \return b 	: success bit
@@ -275,6 +225,10 @@ Bit compare_wallets(State_d old_state_d, State_d new_state_d, Integer epsilon_d)
  */
 Bit open_commitment();
 
+
+Bit verify_mask_commitment(Mask_d mask, MaskCommitment_d maskcommitment);
+
+
 /* validates closing transactions against a wallet
  * for each transaction:
  * 0. check that balances are correct
@@ -289,7 +243,7 @@ Bit open_commitment();
  *
  * \return b 	: success bit
  */
-Bit validate_transactions();
+Bit validate_transactions(State_d new_state_d, TxSerialized_d close_tx_escrow_d, TxSerialized_d close_tx_merch_d);
 
 /* applies a mask to a pay token
  * uses a one-time-pad scheme (just xors mask with token bits)
@@ -301,7 +255,7 @@ Bit validate_transactions();
  * \param[in] token : Sequence of bits representing a token
  *
  */
-Bit mask_paytoken(PayToken_d paytoken, Mask_d mask, MaskCommitment_d maskcommitment);
+Bit mask_paytoken(Integer paytoken[8], Mask_d mask, MaskCommitment_d maskcommitment);
 
 /* applies a mask to a token
  * uses a one-time-pad scheme (just xors mask with token bits)
@@ -313,7 +267,7 @@ Bit mask_paytoken(PayToken_d paytoken, Mask_d mask, MaskCommitment_d maskcommitm
  * \param[in] token : Sequence of bits representing a token
  *
  */
-void mask_closemerchtoken(ClosingTokenMerch_d token, Mask_d mask, MaskCommitment_d maskcommitment);
-void mask_closeescrowtoken(ClosingTokenEscrow_d token, Mask_d mask, MaskCommitment_d maskcommitment);
+Bit mask_closemerchtoken(Integer token[8], Mask_d mask, MaskCommitment_d maskcommitment);
+Bit mask_closeescrowtoken(Integer token[8], Mask_d mask, MaskCommitment_d maskcommitment);
 
 

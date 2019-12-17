@@ -29,8 +29,10 @@ using namespace std;
 // boost header to compare strings
 #include <boost/algorithm/string.hpp>
 
+enum Version { INSEC2, SEC1, SEC2, SEC3 };
+
 string SHA256HashString(string msg);
-string run_secure_sha256(string msg);
+string run_secure_sha256(string msg, uint blocks, Version test_type);
 string test_output(Integer result[8]);
 
 void test_sigmas(int party, int range=1<<25, int runs=50) {
@@ -165,23 +167,36 @@ string gen_random(const int len) {
   return s;
 }
 
-void test_end_to_end() {
+void test_known_vector2() {
   // known test vector from di-mgt.com.au
   string msg = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq";
   string expected = SHA256HashString(msg);
-  string actual = run_secure_sha256(msg);
+  string actual = run_secure_sha256(msg, 2, INSEC2);
 
   boost::algorithm::to_lower(expected);
   boost::algorithm::to_lower(actual);
 
   assert ( expected.compare(actual) == 0);
   assert ( expected.compare("248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1") == 0 );
+}
 
-  // randomized tests of 2-block-length messages
-  for (int len=56; len < 119; len++) {
-    msg = gen_random(len);
+
+void test_end_to_end() {
+  // randomized tests of 1-3 block-length messages
+  for (int len=0; len < 184; len++) {
+    string msg = gen_random(len);
     string expected = SHA256HashString(msg);
-    string actual = run_secure_sha256(msg);
+    string actual;
+
+    if (len < 56) {
+      actual = run_secure_sha256(msg, 1, SEC1);
+    } else if (len < 120) {
+      actual = run_secure_sha256(msg, 2, SEC2);
+      string insec_actual = run_secure_sha256(msg, 2, INSEC2);
+      assert (actual.compare(insec_actual) == 0);
+    } else { // len < 184
+      actual = run_secure_sha256(msg, 3, SEC3);
+    }
 
     boost::algorithm::to_lower(expected);
     boost::algorithm::to_lower(actual);
@@ -189,7 +204,7 @@ void test_end_to_end() {
     assert ( expected.compare(actual) == 0);
   }
   
-  cout << "Passed 64 SHA256 end-to-end tests." << endl;
+  cout << "Passed 248 SHA256 end-to-end tests." << endl;
 }
 
 // reference sha256 implementation by CryptoPP
@@ -226,7 +241,10 @@ string padSHA256(string const &input) {
 }
 
 // test sha256 implementation 
-string run_secure_sha256(string msg) {
+string run_secure_sha256(string msg, uint blocks, Version test_type) {
+  uint msg_blocks[blocks][16];
+  memset( msg_blocks, 0, blocks*16*sizeof(uint) );
+
   // pad message using insecure scheme
   string padded_msg = padSHA256(msg);
   string padded_msg_hex;
@@ -237,19 +255,34 @@ string run_secure_sha256(string msg) {
         new CryptoPP::StringSink(padded_msg_hex)));
 
   // parse padded message into blocks
-  assert (padded_msg_hex.length() == BLOCKS * 128);
+  assert (padded_msg_hex.length() == blocks * 128);
   string blk;
-  uint message[BLOCKS][16] = {0};
-  for (int b=0; b<BLOCKS; b++) {
+  for (uint b=0; b<blocks; b++) {
     for (int i=0; i<16; i++) {
       blk = padded_msg_hex.substr((b*128) + (i*8), 8);
-      message[b][i] = (uint) strtoul(blk.c_str(), NULL,16);
+      msg_blocks[b][i] = (uint) strtoul(blk.c_str(), NULL,16);
     }
   }
-
-  // MPC - run sha256 
   Integer result[8];
-  computeSHA256(message, result);
+
+  // MPC - run sha256 for different block lengths
+  if (test_type == INSEC2) {
+    computeSHA256_2l(msg_blocks, result);
+  } else { // SEC1 || SEC2 || SEC3
+    Integer sec_blocks[blocks][16];
+    for (uint b=0; b < blocks; b++) {
+      for (int t=0; t < 16; t++) {
+        sec_blocks[b][t] = Integer(BITS, msg_blocks[b][t], CUST);
+      }
+    }
+    
+    switch (test_type) {
+      case SEC1 : computeSHA256_1d(sec_blocks, result); break;
+      case SEC2 : computeSHA256_2d(sec_blocks, result); break;
+      case SEC3 : computeSHA256_3d(sec_blocks, result); break;
+      default : cout << "impossible! not implemented" << endl;
+    }
+  }
 
   // convert output to correct-length string
   Integer hash = composeSHA256result(result);
@@ -279,7 +312,7 @@ int main(int argc, char** argv) {
   test_compose();
 
   // run end-to-end tests
-  test_end_to_end();
+  test_end_to_end();  
 
   delete io;
   return 0;

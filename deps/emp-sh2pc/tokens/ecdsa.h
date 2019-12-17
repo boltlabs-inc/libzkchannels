@@ -15,7 +15,7 @@ const int QLEN = 256;
 // computes SHA256 hash of the input
 // todo; maybe require this in a different format 
 // (e.g. padded and in blocks)
-Integer signature_hash(Integer m);
+Integer signature_hash(char cmsg[1024]);
 
 // hard-coded conversion of secp256k1 point order 
 // (e.g. modulus)

@@ -6,11 +6,10 @@ using namespace emp;
 #define CUST BOB
 
 const int BITS = 32;
-const int BLOCKS = 2;
 
 /* implementation of SHA256 from FIPS PUB 180-4 
  * with the following modifications
- * - processes only a fixed length input (BLOCKS)
+ * - processes only a fixed length input. We've hardcoded it for 1, 2, or 3 blocks
  * - assumes padding already exists
  */
 
@@ -66,7 +65,7 @@ Integer composeSHA256result(Integer result[8]);
  * composed of 8 32-bit Integers such that
  * sha256(message) = result[0] || result[1] || ... || result[7]
  */
-void computeSHA256(uint message[BLOCKS][16], Integer result[8]);
+void computeSHA256_2l(uint message[2][16], Integer result[8]);
 
 /* computes sha256 for a 2-block message
  * output is stored in result
@@ -74,7 +73,7 @@ void computeSHA256(uint message[BLOCKS][16], Integer result[8]);
  * sha256(message) = result[0] || result[1] || ... || result[7]
  * this takes already distributed variables.
  */
-void computeSHA256_d(Integer message[BLOCKS][16], Integer result[8]);
-
-void computeSHA256_d_3blocks(Integer message[3][16], Integer result[8]);
+void computeSHA256_1d(Integer message[1][16], Integer result[8]);
+void computeSHA256_2d(Integer message[2][16], Integer result[8]);
+void computeSHA256_3d(Integer message[3][16], Integer result[8]);
 

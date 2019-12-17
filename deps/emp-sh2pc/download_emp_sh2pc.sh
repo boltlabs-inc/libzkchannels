@@ -41,6 +41,7 @@ endmacro()\
    echo "add_test (ecdsa)" >> CMakeLists.txt
    echo "add_test (sha256)" >> CMakeLists.txt
    echo "add_test (hmac)" >> CMakeLists.txt
+   echo "add_test (bitcoin)" >> CMakeLists.txt
    git add test/*.cpp
    git add emp-sh2pc/*
    git commit -a -m "Patching..."

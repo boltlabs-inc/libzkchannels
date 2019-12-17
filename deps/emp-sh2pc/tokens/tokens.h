@@ -3,12 +3,8 @@
 
 #ifdef __cplusplus
 extern "C" {
+#include <stdint.h>
 #endif
-
-struct EcdsaPartialSig_l {
-  char* r;
-  char* k_inv;
-};
 
 /*
  * describes an API for calling MPC functions 
@@ -26,72 +22,108 @@ struct EcdsaPartialSig_l {
  * but I don't know what representation they -will- take.
  * I've marked such parameters with TYPISSUE
  *
+ * Uses char * instead of int for compatibility with Rust.
+ *
  * Comments are sort of in doxygen style.
+ */
+
+/**** LOCAL TYPES ****/
+/* These types are "local" e.g. traditional C variables held completely in memory.
+ * You can tell because they all end in _l
+ * They have distributed counterparts defined in tokens-misc.h
  */
 
 /* HMAC Key structure.
  * HMAC Keys are the length of the block-size of the underlying hash functions
  * SHA256 has a block size of 512 bits, so we need 16 integers to represent the whole thing
  */
-struct HMACKey {
-  int key[16];
+struct HMACKey_l {
+  uint32_t key[16]; //TODO uint8_t[64] seems better
 };
 
 /* A Commitment to an HMAC Key
  * We are using hash based commitments, so this is really just the output of a SHA256 invocation
  */
-struct HMACKeyCommitment {
-  int commitment[8];
+
+struct HMACKeyCommitment_l {
+  uint32_t commitment[8];
 };
 
-/* The opening to a commitment to an HMAC key
- * To open a hash based commitment, we need an actual key and potentially randomness
- * GABE: I'm throwing randomness in here for now, but we can rip it out?
- */
-struct HMACKeyCommitmnetOpening {
-  struct HMACKey* key;
-  int randomness[8];
+/* random mask value */
+struct Mask_l {
+  uint32_t mask[8];
 };
+
+/* commitment to a random mask value (uses HMAC) */
+struct MaskCommitment_l {
+  uint32_t commitment[8];
+};
+
 
 /* This is a pay token
  * Is is an HMAC computed on the state 
  * The output of HMAC is the underlying block size.  In this case 256 bits
  */
-struct PayToken {
-  int paytoken[8];
+struct PayToken_l {
+  uint32_t paytoken[8];
 };
-
 
 /* ECDSA public key type 
- * \param pubkey    : a public key. TYPISSUE - probably not an integer */
-struct PubKey{
-  char* pubkey;
+ * \param pubkey    : a public key. 
+ * TYPISSUE - how many bits is an ECDSA public key? Do we actually need this?
+ */
+struct PubKey {
+  char pubkey[256]; 
 };
 
+/* ECDSA partial signature
+* This is a partial signature. It is based on a raondomly chosen k, message x, public key G, and public modulus q. Let (rx, ry) = kG.
+* \param r     : r = rx*x mod q. Represented as a decimal string. (256 bits)
+* \param k_inv : k_inv = k^-1. Represented as a decimal string. (256 bits)
+*
+* The parameter sizes are overly generous since we're storing them as decimal.
+*/
+struct EcdsaPartialSig_l {
+  char r[256]; 
+  char k_inv[256];
+};
+
+/* This is a nonce.  Its used to prevent double spends
+ * RIGHT NOW THIS THING IS 96 BITS.  WE MAY WANT TO INCREASE ITS LENGTH IN THE FUTURE!!!
+ */
+struct Nonce_l {
+  uint32_t nonce[3];
+};
 /* Revocation lock - TYPISSUE: not sure what type this is yet.
  * Tentatively sized to use a hash (SHA256-based) commitment scheme.
  * \param rl 	: a revocation lock.
  */
-struct RevLock {
-  char* revlock;
+struct RevLock_l {
+  uint32_t revlock[8];
+};
+
+/* bitcoin-flavored transaction id
+ */
+struct Txid_l {
+  uint32_t txid[8];
 };
 
 /* state type
  *
- * \param pkC           : customer public key 
- * \param rl 			: revocation lock for 
+ * \param nonce         : unique identifier for the transaction?
+ * \param rl 			: revocation lock for current state
  * \param balance_cust  : customer balance 
  * \param balance_merch : merchant balance
  * \param txid_merch    : transaction ID for merchant close transaction (bits, formatted as they appear in the 'source' field of a transaction that spends it) 
  * \param txid_escrow   : transaction ID for escrow transaction (ditto on format)
  */
-struct State {
-  struct PubKey* pkC;
-  struct RevLock* rl;
-  int balance_cust;
-  int balance_merch;
-  char *txid_merch[256];
-  char *txid_escrow[256];
+struct State_l {
+  struct Nonce_l nonce;
+  struct RevLock_l rl;
+  int32_t balance_cust;
+  int32_t balance_merch;
+  struct Txid_l txid_merch;
+  struct Txid_l txid_escrow;
 };
 
 /* customer's token generation function
@@ -103,17 +135,18 @@ struct State {
  *
  * option: port could be fixed in advance (not passed in here)
  * 
- * \param[in] pkM       : (shared) merchant public key
- * \param[in] amount    : (shared) transaction amount 
- * \param[in] com_new   : (shared) commitment to new state object using a SHA256 commitment
- * \param[in] rl_old   	: (shared) previous state revocation lock 
- * \param[in] port      : (shared) communication port
- * \param[in] ip_addr   : (shared) merchant's IP address
+ * \param[in] pkM         : (shared) merchant public key TYPISSUE: what is this?
+ * \param[in] amount      : (shared) transaction amount 
+ * \param[in] rl_com      : (shared) A commitment to the previous state revocation lock
+ * \param[in] port        : (shared) communication port
+ * \param[in] ip_addr     : (shared) customer's IP address
+ * \param[in] paymask_com : (shared) A commitment to the pay mask (using HMAC)
+ * \param[in] com_to_key  : (shared) A commitment to an HMAC key
  *
  * \param[in] w_new     : (private) new state object
  * \param[in] w_old     : (private) previous state object
  * \param[in] t_new     : (private) commitment randomness (TYPISSUE - size?)
- * \param[in] pt_old    : (private) previous pay token (tentative: ECDSA signature)
+ * \param[in] pt_old    : (private) previous pay token
  * \param[in] close_tx_escrow   : (private) bits of new close transaction (spends from escrow). no more than 1024 bits.
  * \param[in] close_tx_merch    : (private) bits of new close transaction (spends from merchant close transaction). No more than 1024 bits.
  * 
@@ -122,17 +155,18 @@ struct State {
  *
  */
 void build_masked_tokens_cust(
-  struct PubKey* pkM,
-  char amount[64],
-  char *com_new,
-  struct RevLock* rl_old,
+  struct PubKey pkM,
+  uint64_t amount,
+  struct RevLock_l rl_com, // TYPISSUE: this doesn't match the docs. should be a commitment
   int port,
-  char* ip_addr,
+  char ip_addr[15], // TYPISSUE: do we want to support ipv6?
+  struct MaskCommitment_l paymask_com,
+  struct HMACKeyCommitment_l key_com,
 
-  struct State* w_new,
-  struct State* w_old,
+  struct State_l w_new,
+  struct State_l w_old,
   char *t,
-  char pt_old[256],
+  struct PayToken_l pt_old,
   char close_tx_escrow[1024],
   char close_tx_merch[1024],
 
@@ -155,39 +189,43 @@ void build_masked_tokens_cust(
  *
  * option: port could be fixed in advance (not passed in here)
  *
- * \param[in] pkM       : (shared) merchant public key
- * \param[in] amount    : (shared) transaction amount 
- * \param[in] com_new   : (shared) commitment to new state object
- * \param[in] rl_old 	: (shared) previous state revocation lock
- * \param[in] port      : (shared) communication port
- * \param[in] ip_addr   : (shared) customer's IP address
+ * \param[in] pkM         : (shared) merchant public key TYPISSUE: what is this?
+ * \param[in] amount      : (shared) transaction amount 
+ * \param[in] rl_com      : (shared) A commitment to the previous state revocation lock
+ * \param[in] port        : (shared) communication port
+ * \param[in] ip_addr     : (shared) customer's IP address
+ * \param[in] paymask_com : (shared) A commitment to the pay mask (using HMAC)
+ * \param[in] com_to_key  : (shared) A commitment to an HMAC key
  *
- * \param[in] close_mask: (private) A random mask for the close token 
- * \param[in] pay_mask  : (private) A random mask for the pay token 
- * \param[in] sig1      : (private) A partial ECDSA signature
- * \param[in] sig2      : (private) A partial ECDSA signature
- * \param[in] sig3      : (private) A partial ECDSA signature
+ * \param[in] hmac_key      : (private) The key used to make HMACs
+   \param[in] open_hmac_key : (private) The opening of the commitment to the HMAC key
+ * \param[in] close_mask    : (private) A random mask for the close token TYPISSUE: break this into escrow and merch-close separate masks?
+ * \param[in] pay_mask      : (private) A random mask for the pay token 
+ * \param[in] sig1          : (private) A partial ECDSA signature
+ * \param[in] sig2          : (private) A partial ECDSA signature
+ * \param[in] sig3          : (private) A partial ECDSA signature
  *
  * Merchant does not receive output.
  *
  */
 void build_masked_tokens_merch(
-  struct PubKey* pkM,
-  char amount[64],
-  char *com_new,
-  struct RevLock* rl_old,
+  struct PubKey pkM,
+  uint64_t amount,
+  struct RevLock_l rl_com, // TYPISSUE: this doesn't match the docs. should be a commitment
   int port,
-  char* ip_addr,
+  char ip_addr[15], // TYPISSUE: what IP version?
+  struct MaskCommitment_l paymask_com,
+  struct HMACKeyCommitment_l key_com,
 
-  char close_mask[256],
-  char pay_mask[256],
-  struct EcdsaPartialSig_l* sig1,
-  struct EcdsaPartialSig_l* sig2,
-  struct EcdsaPartialSig_l* sig3
+  struct HMACKey_l hmac_key,
+  struct Mask_l close_mask,
+  struct Mask_l pay_mask,
+  struct EcdsaPartialSig_l sig1,
+  struct EcdsaPartialSig_l sig2,
+  struct EcdsaPartialSig_l sig3
 );
+
 #ifdef __cplusplus
 }
 #endif
-#endif
-
-
+#endif // TOKENS_INCLUDE_H_

@@ -8,7 +8,14 @@
 //  TODO make some test vectors, seriously)
 //  TODO maybe move the parsing code to sha256 module
 //
-Integer signature_hash(char msg[1024]) {
+Integer signature_hash(char cmsg[1024]) {
+  // convert to bools TODO: test this section
+  bool msg[1024];
+  for (int i=0; i<1024; i++) {
+    assert (cmsg[i] == '0' || cmsg[i] == '1');
+    msg[i] = (cmsg[i] == 1);
+  }
+  // convert to Integer
   uint message[2][16] = {0};
   uint shft = 0;
   uint block = 0;
@@ -31,14 +38,10 @@ Integer signature_hash(char msg[1024]) {
   }
   
   Integer result[8];
-  computeSHA256(message, result);
+  computeSHA256_2l(message, result);
 
   Integer hash = composeSHA256result(result);
   
-  //cout << "successful hash of message" << endl;
-  //cout << "\t" << hash.reveal_unsigned(PUBLIC,16) << endl;
-
-  //return message;
   return hash;
 }
 
@@ -55,10 +58,8 @@ string get_ECDSA_params() {
 // mc : message text (in the clear)
 // pubsig : partial ecdsa signature in the clear (see token.h)
 Integer ecdsa_sign(char msg[1024], EcdsaPartialSig_l pubsig) {
-
   // merchant inputs
   EcdsaPartialSig_d partialsig = distribute_EcdsaPartialSig(pubsig);
-  // cout << "partialsig " << partialsig.r.reveal<int>(PUBLIC) << endl;
 
   // customer inputs
   // m : message (limited to 1024 bits because that's all we can hash)
@@ -86,7 +87,6 @@ Integer sign_hashed_msg(Integer e, EcdsaPartialSig_d partialsig) {
 
   s.resize(256,true);
 
-  //cout << "i. signature is " << s.reveal<string>(PUBLIC) << endl;
   return s;
 }
 

@@ -130,8 +130,7 @@ void test_hardcoded_vector() {
   
   // format partial signature
   EcdsaPartialSig_l psl;
-  strcpy(psl.r, r.c_str());
-  strcpy(psl.k_inv, k_inv.c_str());
+  fillEcdsaPartialSig_l(&psl, r, k_inv);
   EcdsaPartialSig_d psd = distribute_EcdsaPartialSig(psl);
 
   // compute and parse result
@@ -149,14 +148,37 @@ void test_hardcoded_vector() {
   // parse expected result
   string expected = sig.substr(64);
 
-  cout << "expect : " << expected << endl;
-  cout << "actual : " << actual << endl;
-
   assert ( actual.compare(expected) == 0 );
 
-  cout << "passed one test" << endl;
+  cout << "passed 1 end-to-end test" << endl;
 }
 
+void test_types() {
+  // todo test more inputs
+  string r = "71885597085076080808223374723556375270869851655515045146228640565664402290406";
+  string k_inv = "93372873638179070860692927744143538466251360047033516825130235139248584327377";
+
+  Integer r_d(257, r, PUBLIC);
+  Integer k_inv_d(513, k_inv, PUBLIC);
+
+  EcdsaPartialSig_l psl;
+  fillEcdsaPartialSig_l(&psl, r, k_inv);
+  EcdsaPartialSig_d psd = distribute_EcdsaPartialSig(psl);
+  EcdsaPartialSig_l returned = localize_EcdsaPartialSig(psd);
+
+  // compare distributed
+  Bit eqr = r_d.equal(psd.r);
+  assert(eqr.reveal<string>(PUBLIC).compare("true") == 0);
+
+  Bit eqk = k_inv_d.equal(psd.k_inv);
+  assert(eqk.reveal<string>(PUBLIC).compare("true") == 0);
+
+  // compare local
+  assert (r.compare(psl.r) == 0);
+  assert (r.compare(returned.r) == 0);
+  
+  cout << "Passed 1 typing test" << endl;
+}
 
 int main(int argc, char** argv) {
   // run in semihonest library
@@ -171,6 +193,7 @@ int main(int argc, char** argv) {
 
   setup_semi_honest(io, party);
 
+  test_types();
   test_hardcoded_vector();
 
   delete io;
