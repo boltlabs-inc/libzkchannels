@@ -77,7 +77,9 @@ impl State {
 
 impl fmt::Display for State {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let nonce_hex = hex::encode(self.nonce.to_vec());
+        let rev_lock_hex = hex::encode(self.rev_lock.to_vec());
         write!(f, "State : (\nnonce={:?}\nrev_lock={:?}\npk_c={:?}\npk_m={:?}\nbc={}\nbm={}\n)", // \nescrow_txid={:?}\nmerch_txid={:?}
-               &self.nonce, &self.rev_lock, &self.pk_c, &self.pk_m, &self.bc, &self.bm) // &self.escrow_txid, &self.merch_txid
+               nonce_hex, rev_lock_hex, &self.pk_c, &self.pk_m, &self.bc, &self.bm) // &self.escrow_txid, &self.merch_txid
     }
 }

@@ -160,7 +160,7 @@ impl CustomerMPCState {
         self.state = Some(state);
     }
 
-    pub fn generate_init_commitment<R: Rng>(&mut self, csprng: &mut R) -> [u8; 32] {
+    pub fn generate_commitment<R: Rng>(&mut self, csprng: &mut R) -> [u8; 32] {
         assert!(!self.state.is_none());
         let mut t: [u8; 32] = [0; 32];
         csprng.fill_bytes(&mut t);
@@ -173,6 +173,36 @@ impl CustomerMPCState {
         return self.state.unwrap();
     }
 
+    pub fn generate_new_state<R: Rng>(&mut self, csprng: &mut R, channel: &ChannelMPCState, amount: i64) {
+        assert!(!self.state.is_none());
+
+        let mut new_state = self.state.unwrap().clone();
+
+        // generate a new nonce
+        let mut new_nonce: [u8; NONCE_LEN] = [0; NONCE_LEN];
+        csprng.fill_bytes(&mut new_nonce);
+
+        // generate a new rev_lock/rev_secret pair
+        // generate the keypair for the initial state of channel
+        let mut new_rev_secret = [0u8; 32];
+        csprng.fill_bytes(&mut new_rev_secret);
+
+        // compute hash of the revocation secret
+        let new_rev_lock = hash_to_slice(&new_rev_secret.to_vec());
+
+        // update balances appropriately
+        new_state.bc -= amount;
+        new_state.bm += amount;
+
+        new_state.nonce.copy_from_slice(&new_nonce);
+        new_state.rev_lock.copy_from_slice(&new_rev_lock);
+
+        self.rev_secret.copy_from_slice(&new_rev_secret);
+        self.cust_balance = new_state.bc;
+        self.merch_balance = new_state.bm;
+
+        self.state = Some(new_state);
+    }
 
     pub fn generate_init_channel_token(&self, pk_m: &secp256k1::PublicKey, escrow_txid: [u8; 32], merch_txid: [u8; 32]) -> ChannelMPCToken {
 
@@ -310,10 +340,6 @@ impl MerchantMPCState {
 
         return true;
     }
-
-    pub fn unlink_channel(&self, ) -> bool {
-        return true;
-    }
 }
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -362,7 +388,8 @@ mod tests {
 
         println!("Begin activate phase for channel");
 
-        let s_com = cust_state.generate_init_commitment(rng);
+        let s_com = cust_state.generate_commitment(rng);
+        println!("Initial state: {}", s_0);
 
         // send the initial state s_0 to merchant
         merch_state.store_initial_state(&channel_token, &s_0);
@@ -373,6 +400,12 @@ mod tests {
         println!("init commitment => {:?}", s_com);
 
         println!("Signature on s_com => {:?}", pay_sig);
+
+        let amount = 10;
+
+        cust_state.generate_new_state(rng, &channel, amount);
+        let s_1 = cust_state.get_current_state();
+        println!("Updated state: {}", s_1);
 
         // now customer can unlink by making a first payment
         // let sig = merch_state.unlink_channel(&channel_token, s_0);
