@@ -29,6 +29,9 @@ typenum = "*"
 num = "*"
 hex="0.3.2"
 
+[build-dependencies]
+bindgen="*"
+
 [features]
 mpc-bitcoin = []
 
