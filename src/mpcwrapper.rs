@@ -228,10 +228,24 @@ fn translate_256_chars(rx: &[u8]) -> [i8; 256] {
 mod tests {
     use super::*;
     use typenum::U32;
-    use std::str;
+    use std::{str, thread};
     use num::BigInt;
+    use std::time::Duration;
 
     #[test]
+    #[ignore]
+    fn mpc_build_masked_tokens() {
+        let handle = thread::spawn(|| {
+            mpc_build_masked_tokens_cust_works();
+        });
+        let handle2 = thread::spawn(|| {
+            mpc_build_masked_tokens_merch_works();
+        });
+
+        handle.join().unwrap();
+        handle2.join().unwrap();
+    }
+
     fn mpc_build_masked_tokens_merch_works() {
         let csprng = &mut rand::thread_rng();
         let mut seckey = [0u8; 32];
@@ -251,7 +265,6 @@ mod tests {
                                       sk_m);
     }
 
-    #[test]
     fn mpc_build_masked_tokens_cust_works() {
         let csprng = &mut rand::thread_rng();
         let mut seckey = [0u8; 32];
