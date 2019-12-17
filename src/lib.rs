@@ -32,12 +32,12 @@ extern crate serde_with;
 extern crate libc;
 extern crate hex;
 
-#[cfg(test)]
-extern crate core;
 extern crate bit_array;
 extern crate typenum;
 extern crate num;
 extern crate serde_json;
+#[cfg(test)]
+#[macro_use] extern crate rusty_fork;
 
 pub mod cl;
 pub mod ccs08;

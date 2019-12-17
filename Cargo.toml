@@ -32,6 +32,9 @@ hex="0.3.2"
 [build-dependencies]
 bindgen="*"
 
+[dev-dependencies]
+rusty-fork = "0.2.1"
+
 [features]
 mpc-bitcoin = []
 

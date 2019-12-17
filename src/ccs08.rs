@@ -444,7 +444,7 @@ mod tests {
     use pairing::bls12_381::{Bls12, G1, Fr};
     use time::PreciseTime;
     use std::ops::Add;
-    use core::mem;
+    use std::mem;
     use rand::rngs::ThreadRng;
 
     #[test]

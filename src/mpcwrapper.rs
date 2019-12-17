@@ -7,7 +7,7 @@ use typenum::{U264, U64};
 use num::BigInt;
 use num::bigint::Sign;
 use bindings::{PubKey, build_masked_tokens_cust, build_masked_tokens_merch, EcdsaPartialSig_l, State_l, RevLock_l, Nonce_l, PayToken_l, Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l};
-use core::slice;
+use std::slice;
 use wallet::State;
 
 pub fn mpc_build_masked_tokens_cust(pk_m: secp256k1::PublicKey, amount: i64, com_new: &[u8], key_com: &[u8],
@@ -223,19 +223,7 @@ mod tests {
     use num::BigInt;
     use std::time::Duration;
 
-    #[test]
-    fn mpc_build_masked_tokens() {
-        let handle = thread::spawn(|| {
-            mpc_build_masked_tokens_cust_works();
-        });
-        let handle2 = thread::spawn(|| {
-            mpc_build_masked_tokens_merch_works();
-        });
-
-        handle.join().unwrap();
-        handle2.join().unwrap();
-    }
-
+    rusty_fork_test! {
     #[test]
     fn mpc_build_masked_tokens_merch_works() {
         let csprng = &mut rand::thread_rng();
@@ -260,7 +248,9 @@ mod tests {
                                       hex::decode("11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111").unwrap().as_slice(),
                                       sk_m, &close_mask_bytes, &pay_mask_bytes);
     }
+    }
 
+    rusty_fork_test! {
     #[test]
     fn mpc_build_masked_tokens_cust_works() {
         let csprng = &mut rand::thread_rng();
@@ -299,7 +289,7 @@ mod tests {
             bc: 0,
             bm: 0,
             escrow_txid: tx_id_esc,
-            merch_txid: tx_id_merch
+            merch_txid: tx_id_merch,
         };
         let old_state = State {
             nonce: nonce2,
@@ -309,7 +299,7 @@ mod tests {
             bc: 0,
             bm: 0,
             escrow_txid: tx_id_esc,
-            merch_txid: tx_id_merch
+            merch_txid: tx_id_merch,
         };
 
         let mut t = [0u8; 32];
@@ -321,6 +311,7 @@ mod tests {
                                      hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap().as_slice(),
                                      &[1u8; 1024][..],
                                      &[1u8; 1024][..]);
+    }
     }
 
     #[test]
