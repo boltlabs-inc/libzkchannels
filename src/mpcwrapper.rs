@@ -234,7 +234,7 @@ mod tests {
     use std::time::Duration;
 
     #[test]
-    #[ignore]
+//    #[ignore]
     fn mpc_build_masked_tokens() {
         let handle = thread::spawn(|| {
             mpc_build_masked_tokens_cust_works();
@@ -247,6 +247,7 @@ mod tests {
         handle2.join().unwrap();
     }
 
+//    #[test]
     fn mpc_build_masked_tokens_merch_works() {
         let csprng = &mut rand::thread_rng();
         let mut seckey = [0u8; 32];
@@ -262,7 +263,7 @@ mod tests {
 
         mpc_build_masked_tokens_merch(csprng, pk_m, 6, hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap().as_slice(), rl.as_slice(),
                                       hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap().as_slice(),
-                                      hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap().as_slice(),
+                                      hex::decode("11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111").unwrap().as_slice(),
                                       sk_m);
     }
 
