@@ -18,8 +18,8 @@ pub struct State {
     pub txid_escrow: String,
 }
 
-pub fn mpc_build_masked_tokens_cust(pk_m: secp256k1::PublicKey, amount: i64, com_new: String, wpk_old: secp256k1::PublicKey,
-                                    new_state: State, old_state: State, t: secp256k1::SecretKey, pt_old: Signature,
+pub fn mpc_build_masked_tokens_cust(pk_m: secp256k1::PublicKey, amount: i64, com_new: String, key_com: String, wpk_old: secp256k1::PublicKey,
+                                    new_state: State, old_state: State, t: secp256k1::SecretKey, pt_old: String,
                                     close_tx_e: String, close_tx_m: String) -> (String, String) {
     // translate pk_m
     let mut pk = translate_pub_key(&pk_m);
@@ -40,12 +40,12 @@ pub fn mpc_build_masked_tokens_cust(pk_m: secp256k1::PublicKey, amount: i64, com
     let close_tx_m_bits = translate_string(close_tx_m);
     //paymask_com
     let paymask_com = MaskCommitment_l {
-        commitment: translate_256_string("test".parse().unwrap()),
+        commitment: translate_256_string(com_new),
     };
 
     //key_com
     let key_com = HMACKeyCommitment_l {
-        commitment: translate_256_string("test".parse().unwrap()),
+        commitment: translate_256_string(key_com),
     };
 
 // create pointers for closing token and payment token
@@ -54,7 +54,7 @@ pub fn mpc_build_masked_tokens_cust(pk_m: secp256k1::PublicKey, amount: i64, com
 
     unsafe {
         build_masked_tokens_cust(pk, amount as u64, rl,
-                                 8181, CString::new("127.0.0.1").unwrap().into_raw(),
+                                 12345, CString::new("127.0.0.1").unwrap().into_raw(),
                                  paymask_com, key_com,
                                  new_state_c, old_state_c, t_str, pt_old_c, close_tx_e_bits, close_tx_m_bits,
                                  ct_masked, pt_masked)
@@ -68,10 +68,10 @@ pub fn mpc_build_masked_tokens_cust(pk_m: secp256k1::PublicKey, amount: i64, com
     (ct_masked_str.to_string().clone(), pt_masked_str.to_string().clone())
 }
 
-fn translate_paytoken(pt: &Signature) -> PayToken_l {
+fn translate_paytoken(pt: &String) -> PayToken_l {
     let mut pt_ar = [0u32; 8];
-    let pt_comp = pt.serialize_compact();
-    let pt_vec = bytes_to_u32(&pt_comp, pt_comp.len());
+    let pt_bytes = hex::decode(pt).unwrap();
+    let pt_vec = bytes_to_u32(pt_bytes.as_ref(), pt_bytes.len());
     pt_ar.copy_from_slice(&pt_vec.as_slice());
     let pt = PayToken_l {
         paytoken: pt_ar
@@ -95,7 +95,7 @@ fn translate_state(state_r: &State) -> State_l {
 }
 
 fn translate_256_string(input: String) -> [u32; 8] {
-    let str_vec = bytes_to_u32(&input.as_bytes(), 256);
+    let str_vec = bytes_to_u32(&hex::decode(input).unwrap(), 32);
     let txid = str_vec.as_slice();
     let mut txid_ar = [0u32; 8];
     txid_ar.copy_from_slice(txid);
@@ -103,7 +103,7 @@ fn translate_256_string(input: String) -> [u32; 8] {
 }
 
 fn translate_512_string(input: String) -> [u32; 16] {
-    let str_vec = bytes_to_u32(&input.as_bytes(), 512);
+    let str_vec = bytes_to_u32(&hex::decode(input).unwrap(), 64);
     let txid = str_vec.as_slice();
     let mut txid_ar = [0u32; 16];
     txid_ar.copy_from_slice(txid);
@@ -115,7 +115,7 @@ fn translate_string(in_str: String) -> *mut c_char {
 }
 
 fn translate_pub_key(pk: &PublicKey) -> PubKey {
-    let mut pk_ar = [0i8; 256];
+    let mut pk_ar = [0i8; 33];
     let pk_comp = pk.serialize();
     let pk_slice = unsafe {
         slice::from_raw_parts(pk_comp.as_ptr() as *const i8, pk_comp.len())
@@ -144,12 +144,9 @@ fn bytes_to_u32(input: &[u8], size: usize) -> Vec<u32> {
 }
 
 pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, pk_m: secp256k1::PublicKey, amount: i64, com_new: String, rl: String,
-                                             sk_m: secp256k1::SecretKey) {
+                                             key_com: String, hmac_key: String, sk_m: secp256k1::SecretKey) {
     // translate pk_m
     let mut pk = translate_pub_key(&pk_m);
-
-    // translate commitment
-    let com_bit_vec = translate_string(com_new);
 
     // translate wpk
     let mut rl_c = translate_revlock(rl);
@@ -174,22 +171,22 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, pk_m: secp256k1::Publi
 
     //paymask_com
     let paymask_com = MaskCommitment_l {
-        commitment: translate_256_string("test".parse().unwrap()),
+        commitment: translate_256_string(com_new),
     };
 
     //key_com
     let key_com = HMACKeyCommitment_l {
-        commitment: translate_256_string("test".parse().unwrap()),
+        commitment: translate_256_string(key_com),
     };
 
     //hmac key
     let hmac_key = HMACKey_l {
-        key: translate_512_string("test".parse().unwrap()),
+        key: translate_512_string(hmac_key),
     };
 
     unsafe {
         build_masked_tokens_merch(pk, amount as u64, rl_c,
-                                  8181, CString::new("127.0.0.1").unwrap().into_raw(),
+                                  12345, CString::new("127.0.0.1").unwrap().into_raw(),
                                   paymask_com, key_com, hmac_key,
                                   close_mask_c, pay_mask_c, params1, params2, params3)
     };
@@ -217,11 +214,13 @@ fn translate_256_chars(rx: &[u8]) -> [i8; 256] {
     let big_int_str = CString::new(big_int).unwrap();
     let mut slice = big_int_str.into_bytes();
     let pad = 256 - slice.len();
+    let mut padded_slice = Vec::new();
     for i in 0 .. pad {
-        slice.push(0x0);
+        padded_slice.push(0x0);
     }
+    padded_slice.append(&mut slice);
     let mut r_arr = [0i8; 256];
-    r_arr.copy_from_slice(unsafe { slice::from_raw_parts(slice.as_ptr() as *const i8, slice.len()) });
+    r_arr.copy_from_slice(unsafe { slice::from_raw_parts(padded_slice.as_ptr() as *const i8, padded_slice.len()) });
     r_arr
 }
 
@@ -233,7 +232,6 @@ mod tests {
     use num::BigInt;
 
     #[test]
-    #[ignore]
     fn mpc_build_masked_tokens_merch_works() {
         let csprng = &mut rand::thread_rng();
         let mut seckey = [0u8; 32];
@@ -245,13 +243,15 @@ mod tests {
         let mut secwsk = [0u8; 32];
         csprng.fill_bytes(&mut secwsk);
         let wsk = secp256k1::SecretKey::from_slice(&secwsk).unwrap();
-        let rl = "testRevocationToken".parse().unwrap();
+        let rl = "1111111111111111111111111111111111111111111111111111111111111111".parse().unwrap();
 
-        mpc_build_masked_tokens_merch(csprng, pk_m, 6, "test_commitment".parse().unwrap(), rl, sk_m);
+        mpc_build_masked_tokens_merch(csprng, pk_m, 6, "1111111111111111111111111111111111111111111111111111111111111111".parse().unwrap(), rl,
+                                      "1111111111111111111111111111111111111111111111111111111111111111".parse().unwrap(),
+                                      "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111".parse().unwrap(),
+                                      sk_m);
     }
 
     #[test]
-    #[ignore]
     fn mpc_build_masked_tokens_cust_works() {
         let csprng = &mut rand::thread_rng();
         let mut seckey = [0u8; 32];
@@ -264,22 +264,35 @@ mod tests {
         csprng.fill_bytes(&mut secwsk);
         let wsk = secp256k1::SecretKey::from_slice(&secwsk).unwrap();
         let wpk = PublicKey::from_secret_key(&Secp256k1::new(), &wsk);
-        let secp = secp256k1::Secp256k1::new();
-        let signature = secp.sign(&Message::from_slice(&secwsk).unwrap(), &wsk);
 
-//        mpc_build_masked_tokens_cust(pk_m, 6, "test_commitment".parse().unwrap(), wpk, State {
-//            rl: &mut RevLock { revlock: &mut 0i8 },
-//            balance_cust: 0,
-//            balance_merch: 0,
-//            txid_merch: [&mut 0i8; 256],
-//            txid_escrow: [&mut 0i8; 256],
-//        }, State {
-//            rl: &mut RevLock { revlock: &mut 0i8 },
-//            balance_cust: 0,
-//            balance_merch: 0,
-//            txid_merch: [&mut 0i8; 256],
-//            txid_escrow: [&mut 0i8; 256],
-//        }, wsk, signature, "test_tx1".parse().unwrap(), "test_tx2".parse().unwrap());
+        let mut nonce1 = [0u8; 12];
+        let mut nonce2 = [0u8; 12];
+        csprng.fill_bytes(&mut nonce1);
+        csprng.fill_bytes(&mut nonce2);
+        let nonce1_vec = bytes_to_u32(&nonce1, 12);
+        let mut nonce1_ar = [0u32; 3];
+        nonce1_ar.copy_from_slice(nonce1_vec.as_slice());
+        let nonce2_vec = bytes_to_u32(&nonce2, 12);
+        let mut nonce2_ar = [0u32; 3];
+        nonce2_ar.copy_from_slice(nonce2_vec.as_slice());
+
+        mpc_build_masked_tokens_cust(pk_m, 6, "1111111111111111111111111111111111111111111111111111111111111111".parse().unwrap(),
+                                     "1111111111111111111111111111111111111111111111111111111111111111".parse().unwrap(),wpk, State {
+            nonce: nonce1_ar,
+            rl: "1111111111111111111111111111111111111111111111111111111111111111".parse().unwrap(),
+            balance_cust: 0,
+            balance_merch: 0,
+            txid_merch: "1111111111111111111111111111111111111111111111111111111111111111".parse().unwrap(),
+            txid_escrow: "1111111111111111111111111111111111111111111111111111111111111111".parse().unwrap(),
+        }, State {
+            nonce: nonce2_ar,
+            rl: "1111111111111111111111111111111111111111111111111111111111111111".parse().unwrap(),
+            balance_cust: 0,
+            balance_merch: 0,
+            txid_merch: "1111111111111111111111111111111111111111111111111111111111111111".parse().unwrap(),
+            txid_escrow: "1111111111111111111111111111111111111111111111111111111111111111".parse().unwrap(),
+        }, wsk, "1111111111111111111111111111111111111111111111111111111111111111".parse().unwrap(),
+                                     "test_tx1".parse().unwrap(), "test_tx2".parse().unwrap());
     }
 
     #[test]
@@ -295,15 +308,6 @@ mod tests {
         let k_inv = unsafe { str::from_utf8(CStr::from_ptr(params.k_inv.as_ptr()).to_bytes()).unwrap() };
         print!("r: {}\n", rx);
         print!("k^-1: {}\n", k_inv);
-    }
-
-    #[test]
-    fn testConvertToBitArray_works() {
-        let input: &[u8] = &[165, 125, 255, 153];
-        let array = BitArray::<u8, U32>::from_bytes(input);
-        assert_eq!("10100101011111011111111110011001", format!("{:?}", array));
-        let x: Vec<bool> = array.iter().map(|e| e.clone()).collect();
-        assert_eq!(vec!(true, false, true, false, false, true, false, true, false, true, true, true, true, true, false, true, true, true, true, true, true, true, true, true, true, false, false, true, true, false, false, true), x);
     }
 
     #[test]

@@ -38,6 +38,16 @@ if [[ ! -f ${EMP_SH2PC}.${FORMAT} ]]; then
 endmacro()\
    ' CMakeLists.txt
    sed -i '' -e '25,28d' CMakeLists.txt
+
+   sed -i '' -e '23i\
+   \
+   add_executable(token emp-sh2pc/main.cpp)\
+  target_link_libraries(token\
+  \ \ ${EMP-OT_LIBRARIES}\
+  \ \ token-utils)\
+  \
+   install(TARGETS token DESTINATION bin)\
+    ' CMakeLists.txt
    echo "add_test (ecdsa)" >> CMakeLists.txt
    echo "add_test (sha256)" >> CMakeLists.txt
    echo "add_test (hmac)" >> CMakeLists.txt

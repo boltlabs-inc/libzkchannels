@@ -73,7 +73,7 @@ struct PayToken_l {
  * TYPISSUE - how many bits is an ECDSA public key? Do we actually need this?
  */
 struct PubKey {
-  char pubkey[256]; 
+  char pubkey[33];
 };
 
 /* ECDSA partial signature
