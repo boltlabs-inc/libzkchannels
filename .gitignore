@@ -1,0 +1,6 @@
+src/bindings.rs
+.idea
+deps/root/*
+deps/relic/*.tar.gz
+deps/time/*.tar.gz
+deps/emp-*/*.tar.gz

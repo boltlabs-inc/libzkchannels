@@ -25,4 +25,6 @@ fn main() {
     bindings
         .write_to_file("src/bindings.rs")
         .expect("Couldn't write bindings!");
+
+    // TODO: Create build for libtoken-utils here
 }

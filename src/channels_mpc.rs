@@ -43,6 +43,7 @@ impl ChannelMPCToken {
 pub struct ChannelMPCState {
     R: i32,
     tx_fee: i64,
+    dust_limit: i64,
     pub name: String,
     pub pay_init: bool,
     pub channel_established: bool,
@@ -55,6 +56,7 @@ impl ChannelMPCState {
         ChannelMPCState {
             R: 0,
             tx_fee: 0,
+            dust_limit: 0,
             name: name.to_string(),
             pay_init: false,
             channel_established: false,
@@ -68,6 +70,15 @@ impl ChannelMPCState {
 
     pub fn get_channel_fee(&self) -> i64 {
         return self.tx_fee as i64;
+    }
+
+    pub fn set_dust_limit(&mut self, dust_amount: i64) {
+        assert!(dust_amount >= 0);
+        self.dust_limit = dust_amount;
+    }
+
+    pub fn get_dust_limit(&self) -> i64 {
+        return self.dust_limit;
     }
 }
 
@@ -286,6 +297,7 @@ pub struct MerchantMPCState {
     id: String,
     pk_m: secp256k1::PublicKey, // pk_m
     sk_m: secp256k1::SecretKey, // sk_m
+    hmac_key: Vec<u8>, // hmac key
     pub activate_map: HashMap<String, State>,
     pub lock_map: HashMap<String, LockMap>,
     pub pay_tokens: HashMap<String, secp256k1::Signature>,
@@ -302,12 +314,17 @@ impl MerchantMPCState {
         let sk_m = secp256k1::SecretKey::from_slice(&seckey).unwrap();
         let pk_m = secp256k1::PublicKey::from_secret_key(&secp, &sk_m);
 
+        let mut hmac_key_buf = [0u8; 64]; // 512 bits
+        csprng.fill_bytes(&mut hmac_key_buf);
+        let hmac_key = hmac_key_buf.to_vec();
+
         let mut ch = channel.clone();
 
         (MerchantMPCState {
             id: id.clone(),
             pk_m: pk_m,
             sk_m: sk_m,
+            hmac_key: hmac_key,
             activate_map: HashMap::new(),
             lock_map: HashMap::new(),
             pay_tokens: HashMap::new(),
@@ -330,7 +347,6 @@ impl MerchantMPCState {
         let msg = secp256k1::Message::from_slice(&s_com).unwrap();
         let pay_sig = secp.sign(&msg, &self.sk_m);
         return pay_sig;
-
     }
 
     pub fn store_initial_state(&mut self, channel_token: &ChannelMPCToken, s0: &State) -> bool {
@@ -339,6 +355,26 @@ impl MerchantMPCState {
         self.activate_map.insert(channel_id_str, s0.clone());
 
         return true;
+    }
+
+    pub fn initiate_payment<R: Rng>(&self, csprng: &mut R, channel: &mut ChannelMPCState,
+                                    nonce: Vec<u8>, r_com: [u8; 32], amount: i64) -> Result<[u8; 32], String> {
+        // if epsilon > 0, check if acceptable (above dust limit).
+        if amount > 0 && amount < channel.get_dust_limit() {
+            // if check fails, abort and output an error
+            return Err(String::from("epsilon below dust limit!"));
+        }
+
+        // check that n_i not in S
+
+
+        // pick mask_pay and form commitment to it
+        let mut pay_mask = [0u8; 32];
+        csprng.fill_bytes(&mut pay_mask);
+
+        let mask_com = hash_to_slice( &pay_mask.to_vec());
+
+        Ok(mask_com)
     }
 }
 

@@ -59,7 +59,7 @@ To use the libzkchannels library, add the `libzkchannels` crate to your dependen
 
 ```toml
 [dependencies]
-zkchannels = "0.1.0"
+zkchannels = "0.4.0"
 ```
 
 Then add an extern declaration at the root of your crate as follows:
@@ -250,7 +250,7 @@ For the libzkchannels (or BOLT) design documentation, see the `docs/bolt.pdf` do
 
 To contribute code improvements, please checkout the repository, make your changes and submit a pull request.
 
-	git clone https://github.com/jakinyele/libzkchannels.git
+	git clone https://github.com/boltlabs-inc/libzkchannels.git
 
 # TODOs
 
