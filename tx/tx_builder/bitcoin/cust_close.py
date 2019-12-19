@@ -1,12 +1,36 @@
-# Code based on tutorial by
+# This code was based on an example provided by
 # https://github.com/zeltsi/segwit_tutorial/blob/master/transactions/txdemo.py
 
-# one input:
+# This script creates a signed cust-close-tx spending from escrow or merch-close
+
+# One input:
 #   p2wsh (2-of-2 multisig) from escrow or merch-close
-# three outputs:
+# Three outputs:
 #   delayed to customer p2wsh
 #   immediate to merchant p2wpkh
 #   OP_RETURN with revocation lock and customer pubkey hash
+
+# Usage:
+# create a tx spending from either "escrow" or "merch-close" using --=spend_from
+# if "--debug" flag is set, print out tx details which get passed into tx digest preimage
+# e.g.
+# python cust_close.py --spend_from="merch-close" --debug
+#
+# Individual tx parameters can be passed in e.g.:
+# "python bitcoin/cust_close.py"
+#                 + " --spend_from " + "merch-close"
+#                 + " --txid_str " + merch_close_txid
+#                 + " --index " + "0"
+#                 + " --input_amount_btc " + "10.1"
+#                 + " --cust_privkey " + cust_privkey_hex
+#                 + " --merch_privkey " + merch_privkey_hex
+#                 + " --cust_script_value_btc " + "8"
+#                 + " --to_cust_pubkey " + cust_close_pubkey_hex
+#                 + " --to_merch_value_btc " + "2"
+#                 + " --to_merch_pubkey " + merch_close_pubkey_hex
+#                 + " --revocation_lock " + revocation_lock_hex
+#                 + " --merch_dispute_pubkey " + merch_disp_pubkey_hex
+#                 + " --to_self_delay " + "05cf"
 
 import argparse
 import hashlib
