@@ -78,7 +78,7 @@ parser.add_argument("--cust_script_value_btc", "-cso", help="btc to cust close s
 parser.add_argument("--to_cust_pubkey", "-ccpk", help="public key of cust close to-self output")
 parser.add_argument("--to_merch_value_btc", "-mo", help="btc to merchant close output")
 parser.add_argument("--to_merch_pubkey", "-mcpk", help="public key of merchant output")
-parser.add_argument("--revocation_lock", "-rl", help="revocation lock (hash160{revocation_secret})")
+parser.add_argument("--revocation_lock", "-rl", help="revocation lock (sha256{revocation_secret})")
 parser.add_argument("--merch_dispute_pubkey", "-mdpk", help="public key of merchant dispute")
 parser.add_argument("--to_self_delay", "-tsd", help="to_self_delay (in unit of blocks) for the merchant's to-self output")
 args = parser.parse_args()
@@ -365,7 +365,8 @@ final_tx = (
 
 print(final_tx.hex())
 
-##########################################]
+##########################################
+# Print out tx digest details if debug flag was set
 if args.debug:
     print("\ntx digest preimage")
     print(tx_digest_preimage.hex())
