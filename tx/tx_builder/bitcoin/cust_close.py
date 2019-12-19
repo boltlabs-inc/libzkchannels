@@ -16,7 +16,9 @@
 # e.g.
 # python cust_close.py --spend_from="merch-close" --debug
 #
-# Individual tx parameters can be passed in e.g.:
+# If no tx details are passed in, hardcoded example values are used
+#
+# Otherwise, individual tx parameters can be passed in e.g.:
 # "python bitcoin/cust_close.py"
 #                 + " --spend_from " + "merch-close"
 #                 + " --txid_str " + merch_close_txid
