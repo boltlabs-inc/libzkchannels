@@ -27,7 +27,8 @@ sha2 = { version = "0.8", default-features = false }
 bit-array = "*"
 typenum = "*"
 num = "*"
-hex="0.3.2"
+hex = "0.3.2"
+hmac = "0.7"
 
 [build-dependencies]
 bindgen="*"

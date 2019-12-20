@@ -46,9 +46,11 @@ impl<E: Engine> fmt::Display for Wallet<E> {
     }
 }
 
+pub const NONCE_LEN: usize = 12;
+
 #[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct State {
-    pub nonce: [u8; 12], // 96-bits
+    pub nonce: [u8; NONCE_LEN], // 128-bits
     pub rev_lock: [u8; 32], // 32 bytes for hash
     pub pk_c: secp256k1::PublicKey,
     pub pk_m: secp256k1::PublicKey,

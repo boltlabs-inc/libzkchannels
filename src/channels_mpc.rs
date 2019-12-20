@@ -1,7 +1,8 @@
 use super::*;
 use rand::Rng;
-use wallet::State;
-use util::{hash_to_slice};
+use wallet::{State, NONCE_LEN};
+use util::{hash_to_slice, hmac_sign};
+use mpcwrapper::{mpc_build_masked_tokens_cust, mpc_build_masked_tokens_merch};
 
 // PROTOTYPE
 #[cfg(feature = "mpc-bitcoin")]
@@ -106,8 +107,6 @@ pub struct CustomerMPCState {
     pay_tokens: HashMap<i32, secp256k1::Signature>
 }
 
-const NONCE_LEN: usize = 12;
-
 #[cfg(feature = "mpc-bitcoin")]
 impl CustomerMPCState {
     pub fn new<R: Rng>(csprng: &mut R, cust_bal: i64, merch_bal: i64, name: String) -> Self
@@ -129,7 +128,7 @@ impl CustomerMPCState {
         let rev_lock = hash_to_slice(&rev_secret.to_vec());
 
         // pick random t
-        let mut t: [u8; 32] = [0; 32];
+        let t: [u8; 32] = [0; 32];
         //csprng.fill_bytes(&mut t);
 
         let ct_db = HashMap::new();
@@ -171,12 +170,21 @@ impl CustomerMPCState {
         self.state = Some(state);
     }
 
-    pub fn generate_commitment<R: Rng>(&mut self, csprng: &mut R) -> [u8; 32] {
-        assert!(!self.state.is_none());
+    pub fn generate_lock_commitment<R: Rng>(&mut self, csprng: &mut R) -> [u8; 32] {
+        // assert!(!self.state.is_none());
         let mut t: [u8; 32] = [0; 32];
         csprng.fill_bytes(&mut t);
         self.t.copy_from_slice(&t);
-        return self.state.unwrap().generate_commitment(&self.t);
+
+        let mut input = Vec::new();
+        input.extend_from_slice(&self.rev_lock);
+        input.extend_from_slice(&self.t);
+        return hash_to_slice(&input);
+        // return self.state.unwrap().generate_commitment(&self.t);
+    }
+
+    pub fn get_randomness(&self) -> [u8; 32] {
+        return self.t;
     }
 
     pub fn get_current_state(&self) -> State {
@@ -335,18 +343,19 @@ impl MerchantMPCState {
         return self.pk_m.clone();
     }
 
-    pub fn activate_channel(&self, channel_token: &ChannelMPCToken, s_com: [u8; 32]) -> secp256k1::Signature {
+    pub fn activate_channel(&self, channel_token: &ChannelMPCToken, s_0: &State) -> [u8; 32] {
         // store the state inside the ActivateBucket
         let channel_id = channel_token.compute_channel_id().unwrap();
         let channel_id_str= hex::encode(channel_id.to_vec());
 
         // does MPC verify that s_com was generated from s_0 in activate bucket?
 
-        // TODO: figure out how we are generating this (w/ or w/o MPC)?
-        let secp = secp256k1::Secp256k1::signing_only();
-        let msg = secp256k1::Message::from_slice(&s_com).unwrap();
-        let pay_sig = secp.sign(&msg, &self.sk_m);
-        return pay_sig;
+        let mut key = [0; 64];
+        key.copy_from_slice(&self.hmac_key);
+        let s_vec = serde_json::to_vec(s_0).unwrap();
+        let init_pay_token = hmac_sign(key, &s_vec);
+
+        return init_pay_token;
     }
 
     pub fn store_initial_state(&mut self, channel_token: &ChannelMPCToken, s0: &State) -> bool {
@@ -358,15 +367,18 @@ impl MerchantMPCState {
     }
 
     pub fn initiate_payment<R: Rng>(&self, csprng: &mut R, channel: &mut ChannelMPCState,
-                                    nonce: Vec<u8>, r_com: [u8; 32], amount: i64) -> Result<[u8; 32], String> {
+                                    nonce: [u8; NONCE_LEN], r_com: [u8; 32], amount: i64) -> Result<[u8; 32], String> {
         // if epsilon > 0, check if acceptable (above dust limit).
         if amount > 0 && amount < channel.get_dust_limit() {
             // if check fails, abort and output an error
             return Err(String::from("epsilon below dust limit!"));
         }
 
-        // check that n_i not in S
-
+        // check if n_i not in S
+        let nonce_hex = hex::encode(nonce.to_vec());
+        if self.lock_map.get(&nonce_hex).is_some() {
+            return Err(String::from("nonce has been used already."));
+        }
 
         // pick mask_pay and form commitment to it
         let mut pay_mask = [0u8; 32];
@@ -424,18 +436,18 @@ mod tests {
 
         println!("Begin activate phase for channel");
 
-        let s_com = cust_state.generate_commitment(rng);
+        let r_com = cust_state.generate_lock_commitment(rng);
+        let t_0 = cust_state.get_randomness();
         println!("Initial state: {}", s_0);
+        println!("Init rev_lock commitment => {:?}", r_com);
 
         // send the initial state s_0 to merchant
         merch_state.store_initial_state(&channel_token, &s_0);
 
-        // activate channel
-        let pay_sig = merch_state.activate_channel(&channel_token, s_com);
+        // activate channel - generate pay_token
+        let pay_token_0= merch_state.activate_channel(&channel_token, &s_0);
 
-        println!("init commitment => {:?}", s_com);
-
-        println!("Signature on s_com => {:?}", pay_sig);
+        println!("Pay Token on s_0 => {:?}", pay_token_0);
 
         let amount = 10;
 
@@ -443,10 +455,30 @@ mod tests {
         let s_1 = cust_state.get_current_state();
         println!("Updated state: {}", s_1);
 
-        // now customer can unlink by making a first payment
-        // let sig = merch_state.unlink_channel(&channel_token, s_0);
+        // customer inputs => s_0, s_1, t_0, pay_token_0
+        // mpc_build_masked_tokens_cust()
 
-        // assert!(cust_state.verify_pay_signature(&channel, &pay_sig));
+        // merchant inputs => K, opening of com(K), masks for CT and pay-token
+        // mpc_build_masked_tokens_merch()
 
+        // common inputs => n_i, r_com, pk_M, amount, com(k) and com(pay-mask[i+1])
+
+        // success/failure bit phase
+        // (1) if customer gets mpc output, it sends a success or failure message
+
+        // unmask phase
+        // (2) if success, merchant sends mask for sigs(CT) (on-chain)
+        // (3) customer unmasks sig(CT) and checks for validity of signature. if valid, send RL_i, t_j (opening of r_com) + RL/RS for state i
+
+        // revoke phase
+
+        // (4) merchant checks revealed RS corresponds to RL. Opens com(RL_i).
+        // if yes, add (n_i, RS_i/RL_i) to S and send pay-mask(i+1)
+        // if no, abort and store (n_i, error) in S and output (n_i, error)
+
+        // (5) customer checks validity of commitment opening and if valid,
+        // unmask pay-token(i+1)
+        // if invalid, abort and output (s_{i+1}, CT_{i+1})
+        // otherwise, output (s_{i+1}, CT_{i+1}, pay-token-{i+1})
     }
 }
