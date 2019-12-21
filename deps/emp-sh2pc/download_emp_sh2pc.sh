@@ -9,8 +9,8 @@ echo "Clone github repo @ ${LINK}"
 git clone ${LINK} ${EMP_SH2PC}.git
 cd ${EMP_SH2PC}.git
 
-if [[ ! -f ${EMP_SH2PC}.${FORMAT} ]]; then
-
+function apply_patch()
+{
    cp ../*.cpp test
    cp ../tokens/* emp-sh2pc
    sed -i '' -e '11i\
@@ -55,6 +55,19 @@ endmacro()\
    git add test/*.cpp
    git add emp-sh2pc/*
    git commit -a -m "Patching..."
+}
+
+if [[ ! -f ${EMP_SH2PC}.${FORMAT} ]]; then
+
+   IS_PATCH=`git log -p -1 | grep Patching`
+   SUCCESS=`echo $?`
+
+   if [ $SUCCESS -eq 1 ]; then
+        echo "Applying patch!"
+        apply_patch
+   else
+        echo "Patch has already been applied! Continue"
+   fi
 
    echo "Create archive of source (without git files)"
    git archive --output ../${EMP_SH2PC}.test.${FORMAT} HEAD
