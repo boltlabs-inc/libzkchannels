@@ -12,7 +12,7 @@ fn main() {
     let bindings = bindgen::Builder::default()
         // The input header we would like to generate
         // bindings for.
-        .header("deps/emp-sh2pc/tokens/tokens.h")
+        .header("deps/root/include/emp-sh2pc/tokens.h")
         .clang_arg("-x")
         .clang_arg("c++")
         .trust_clang_mangling(false)
