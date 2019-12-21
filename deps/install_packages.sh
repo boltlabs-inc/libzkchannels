@@ -1,3 +1,5 @@
+#!/bin/bash
+
 if [ "$(uname)" == "Darwin" ]; then
 	brew update
 	brew list openssl || brew install openssl
