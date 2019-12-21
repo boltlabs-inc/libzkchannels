@@ -9,7 +9,8 @@ echo "Clone github repo @ ${LINK}"
 git clone ${LINK} ${EMP_TOOL}.git
 cd ${EMP_TOOL}.git
 
-if [[ ! -f ${EMP_TOOL}.${FORMAT} ]]; then
+function apply_patch()
+{
    echo "Patch emp-tool..."
    git apply ../uint.patch
    git apply ../integer.patch
@@ -18,7 +19,20 @@ if [[ ! -f ${EMP_TOOL}.${FORMAT} ]]; then
    git add emp-tool/circuits/uinteger.h*
    git add emp-tool/circuits/integer.h*
    git add test/uint.cpp
-   git commit -a -m "patching"
+   git commit -a -m "Patching..."
+}
+
+if [[ ! -f ${EMP_TOOL}.${FORMAT} ]]; then
+
+   IS_PATCH=`git log -p -1 | grep Patching`
+   SUCCESS=`echo $?`
+
+   if [ $SUCCESS -eq 1 ]; then
+        echo "Applying patch!"
+        apply_patch
+   else
+        echo "Patch has already been applied! Continue"
+   fi
 
    echo "Create archive of source (without git files)"
    git archive --output ../${EMP_TOOL}.test.${FORMAT} HEAD 
