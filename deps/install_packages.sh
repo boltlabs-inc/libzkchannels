@@ -17,6 +17,7 @@ else
 		sudo apt-get install -y cmake git build-essential libssl-dev libgmp-dev python 
 		sudo apt-get install -y libboost-dev
 		sudo apt-get install -y libboost-{chrono,log,program-options,date-time,thread,system,filesystem,regex,test}-dev
+		sudo apt-get install -y libcrypto++
 	else
 		sudo apt-get install -y software-properties-common
 		sudo add-apt-repository -y ppa:george-edison55/cmake-3.x
@@ -25,5 +26,6 @@ else
 		sudo apt-get install -y cmake git build-essential libssl-dev libgmp-dev python 
 		sudo apt-get install -y libboost1.58-dev
 		sudo apt-get install -y libboost-{chrono,log,program-options,date-time,thread,system,filesystem,regex,test}1.58-dev
+		sudo apt-get install -y libcrypto++
 	fi
 fi

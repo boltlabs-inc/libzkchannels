@@ -2,73 +2,14 @@
 
 VERSION=0.1
 FORMAT=tar.gz
-LINK=https://github.com/emp-toolkit/emp-sh2pc.git
+LINK=https://github.com/boltlabs-inc/emp-sh2pc.git
 EMP_SH2PC=${1:-emp-sh2pc-${VERSION}}
 
 echo "Clone github repo @ ${LINK}"
 git clone ${LINK} ${EMP_SH2PC}.git
 cd ${EMP_SH2PC}.git
 
-function apply_patch()
-{
-   cp ../*.cpp test
-   cp ../tokens/* emp-sh2pc
-   sed -i '' -e '11i\
-   find_library(CRYPTOPP_LIBRARIES NAMES cryptopp libcryptopp )\
-   MESSAGE(STATUS "CryptoPP libs: " ${CRYPTOPP_LIBRARIES} )\
-   ' CMakeLists.txt
-   sed -i '' -e '18i\
-   \
-   add_library(token-utils SHARED emp-sh2pc/sha256.cpp emp-sh2pc/hmac.cpp emp-sh2pc/ecdsa.cpp emp-sh2pc/tokens.cpp emp-sh2pc/tokens-misc.cpp)\
-   target_link_libraries(token-utils ${OPENSSL_LIBRARIES} ${Boost_LIBRARIES} ${GMP_LIBRARIES} ${EMP-OT_LIBRARIES})\
-   \
-   install(TARGETS token-utils DESTINATION lib)\
-   ' CMakeLists.txt
-   sed -i '' -e '28i\
-   \
-   macro (add_test _name)\
-\ \ add_executable(${_name} "test/${_name}.cpp")\
-\ \ target_link_libraries(${_name}\
-\ \ \ \ ${OPENSSL_LIBRARIES}\
-\ \ \ \ ${Boost_LIBRARIES}\
-\ \ \ \ ${GMP_LIBRARIES}\
-\ \ \ \ ${EMP-OT_LIBRARIES}\
-\ \ \ \ ${CRYPTOPP_LIBRARIES}\
-\ \ \ \ token-utils)\
-endmacro()\
-   ' CMakeLists.txt
-   sed -i '' -e '25,28d' CMakeLists.txt
-
-   sed -i '' -e '23i\
-   \
-   add_executable(token emp-sh2pc/main.cpp)\
-  target_link_libraries(token\
-  \ \ ${EMP-OT_LIBRARIES}\
-  \ \ token-utils)\
-  \
-   install(TARGETS token DESTINATION bin)\
-    ' CMakeLists.txt
-   echo "add_test (ecdsa)" >> CMakeLists.txt
-   echo "add_test (sha256)" >> CMakeLists.txt
-   echo "add_test (hmac)" >> CMakeLists.txt
-   echo "add_test (bitcoin)" >> CMakeLists.txt
-   git add test/*.cpp
-   git add emp-sh2pc/*
-   git commit -a -m "Patching..."
-}
-
 if [[ ! -f ${EMP_SH2PC}.${FORMAT} ]]; then
-
-   IS_PATCH=`git log -p -1 | grep Patching`
-   SUCCESS=`echo $?`
-
-   if [ $SUCCESS -eq 1 ]; then
-        echo "Applying patch!"
-        apply_patch
-   else
-        echo "Patch has already been applied! Continue"
-   fi
-
    echo "Create archive of source (without git files)"
    git archive --output ../${EMP_SH2PC}.test.${FORMAT} HEAD
 
