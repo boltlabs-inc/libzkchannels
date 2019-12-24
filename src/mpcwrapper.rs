@@ -6,7 +6,7 @@ use bit_array::BitArray;
 use typenum::{U264, U64};
 use num::BigInt;
 use num::bigint::Sign;
-use bindings::{PubKey, build_masked_tokens_cust, build_masked_tokens_merch, EcdsaPartialSig_l, State_l, RevLock_l, Nonce_l, PayToken_l, Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l};
+use bindings::{PubKey, build_masked_tokens_cust, build_masked_tokens_merch, EcdsaPartialSig_l, State_l, RevLock_l, Nonce_l, Balance_l, PayToken_l, Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l};
 use std::slice;
 use wallet::State;
 
@@ -75,17 +75,29 @@ fn translate_paytoken(pt: &[u8]) -> PayToken_l {
 fn translate_state(state: &State) -> State_l {
     let txid_merch = translate_256_string(&state.merch_txid[..]);
     let txid_escrow = translate_256_string(&state.escrow_txid[..]);
+    let prevout_escrow = translate_256_string(&state.escrow_prevout[..]);
+    let prevout_merch = translate_256_string(&state.merch_prevout[..]);
+
     let vec = bytes_to_u32(&state.nonce[..], 12);
-    let mut nonce = [0u32; 3];
+    let mut nonce = [0u32; 4];
     nonce.copy_from_slice(vec.as_slice());
+
+    let mut bc = [0u32; 2];
+    let bc_vec = bytes_to_u32(&state.bc.to_le_bytes(), 8);
+    bc.copy_from_slice(bc_vec.as_slice());
+    let bm_vec = bytes_to_u32(&state.bm.to_le_bytes(), 8);
+    let mut bm = [0u32; 2];
+    bm.copy_from_slice(bm_vec.as_slice());
 
     let mut new_state = State_l {
         nonce: Nonce_l { nonce },
         rl: translate_revlock(&state.rev_lock[..]),
-        balance_cust: state.bc as i32,
-        balance_merch: state.bm as i32,
+        balance_cust: Balance_l { balance: bc },
+        balance_merch: Balance_l { balance: bm },
         txid_merch: Txid_l { txid: txid_merch },
         txid_escrow: Txid_l { txid: txid_escrow },
+        HashPrevOuts_escrow: Txid_l { txid: prevout_escrow },
+        HashPrevOuts_merch: Txid_l { txid: prevout_merch }
     };
     new_state
 }
@@ -290,6 +302,8 @@ mod tests {
             bm: 0,
             escrow_txid: tx_id_esc,
             merch_txid: tx_id_merch,
+            escrow_prevout: [0u8; 32],
+            merch_prevout: [1u8; 32]
         };
         let old_state = State {
             nonce: nonce2,
@@ -300,6 +314,8 @@ mod tests {
             bm: 0,
             escrow_txid: tx_id_esc,
             merch_txid: tx_id_merch,
+            escrow_prevout: [0u8; 32],
+            merch_prevout: [1u8; 32]
         };
 
         let mut t = [0u8; 32];

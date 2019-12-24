@@ -57,7 +57,9 @@ pub struct State {
     pub bc: i64,
     pub bm: i64,
     pub escrow_txid: [u8; 32],
+    pub escrow_prevout: [u8; 32],
     pub merch_txid: [u8; 32],
+    pub merch_prevout: [u8; 32]
 }
 
 impl State {
@@ -71,6 +73,9 @@ impl State {
         input_buf.extend_from_slice(&self.bm.to_string().as_bytes());
         input_buf.extend_from_slice(&self.escrow_txid);
         input_buf.extend_from_slice(&self.merch_txid);
+        input_buf.extend_from_slice(&self.escrow_prevout);
+        input_buf.extend_from_slice(&self.merch_prevout);
+
         input_buf.extend_from_slice(t);
 
         return hash_to_slice(&input_buf);

@@ -161,7 +161,7 @@ impl CustomerMPCState {
 
         let state = State { nonce: nonce, rev_lock: self.rev_lock, pk_c: self.pk_c, pk_m: channel_token.pk_m.clone(),
                                 bc: self.cust_balance, bm: self.merch_balance, escrow_txid: channel_token.escrow_txid,
-                                merch_txid: channel_token.merch_txid };
+                                merch_txid: channel_token.merch_txid, escrow_prevout: [0u8; 32], merch_prevout: [1u8; 32] };
 
         // generate initial commitment to state of channel
         // let s_com = state.generate_commitment(&t);
@@ -395,18 +395,26 @@ impl MerchantMPCState {
 mod tests {
     use super::*;
     use channels_mpc::{ChannelMPCState, MerchantMPCState, CustomerMPCState};
+    use std::thread;
+    use std::time::Duration;
 
-    fn generate_test_txs<R: Rng>(csprng: &mut R) -> ([u8; 32], [u8; 32]) {
+    fn generate_test_txs<R: Rng>(csprng: &mut R) -> ([u8; 32], [u8; 32], [u8; 1024], [u8; 1024]) {
         let mut txid1 = [0u8; 32];
         let mut txid2 = [0u8; 32];
+
+        let mut ctx_e = [0u8; 1024];
+        let mut ctx_m = [0u8; 1024];
 
         csprng.fill_bytes(&mut txid1);
         csprng.fill_bytes(&mut txid2);
 
+        csprng.fill_bytes(&mut ctx_e);
+        csprng.fill_bytes(&mut ctx_m);
+
         println!("Escrow txid: {:?}", txid1);
         println!("Merch txid: {:?}", txid2);
 
-        return (txid1, txid2)
+        return (txid1, txid2, ctx_e, ctx_m)
     }
 
     #[test]
@@ -425,7 +433,7 @@ mod tests {
         let mut cust_state = CustomerMPCState::new(rng, b0_cust, b0_merch, String::from("Alice"));
 
         // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
-        let (escrow_txid, merch_txid) = generate_test_txs(rng);
+        let (escrow_txid, merch_txid, ctx_e, ctx_m) = generate_test_txs(rng);
 
         // initialize the channel token on with pks
         let mut channel_token = cust_state.generate_init_channel_token(&merch_state.pk_m, escrow_txid, merch_txid);
@@ -454,6 +462,46 @@ mod tests {
         cust_state.generate_new_state(rng, &channel, amount);
         let s_1 = cust_state.get_current_state();
         println!("Updated state: {}", s_1);
+
+        let customer_thread = thread::spawn(move || {
+            println!("hello, customer!");
+            thread::sleep(Duration::from_millis(1));
+            let pk_m = channel_token.pk_m.clone();
+            let pay_mask_com = [1u8; 32];
+            let key_com = [1u8; 32];
+            let t = t_0.clone();
+            let pay_token = pay_token_0.clone();
+            let s0 = s_0.clone();
+            let s1 = s_1.clone();
+
+            mpc_build_masked_tokens_cust(pk_m, amount, &pay_mask_com, &key_com,
+                                         s0, s1, &t,
+                                         &pay_token, &ctx_e, &ctx_m)
+        });
+
+        let merchant_thread = thread::spawn(move|| {
+            println!("hello, merchant!");
+            let pk_m = channel_token.pk_m.clone();
+            let mut rng2 = rng.clone();
+            let com_new = [1u8; 32];
+            let rl = cust_state.rev_lock.clone();
+            let key_com = [1u8; 32];
+
+            let hmac_key = merch_state.hmac_key.clone();
+            let sk_m = merch_state.sk_m.clone();
+
+            let close_mask = [2u8; 32];
+            let pay_mask = [1u8; 32];
+
+            mpc_build_masked_tokens_merch(&mut rng2, pk_m, amount, &com_new, rl, &key_com, &hmac_key.as_slice(), sk_m, &close_mask, &pay_mask);
+            thread::sleep(Duration::from_millis(1));
+        });
+
+        thread::sleep(Duration::from_millis(5));
+        customer_thread.join().unwrap();
+        merchant_thread.join().unwrap();
+
+        println!("mpc threads completed execution!");
 
         // customer inputs => s_0, s_1, t_0, pay_token_0
         // mpc_build_masked_tokens_cust()
