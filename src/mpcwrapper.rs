@@ -6,18 +6,22 @@ use bit_array::BitArray;
 use typenum::{U264, U64};
 use num::BigInt;
 use num::bigint::Sign;
-use bindings::{PubKey, build_masked_tokens_cust, build_masked_tokens_merch, EcdsaPartialSig_l, State_l, RevLock_l, Nonce_l, Balance_l, PayToken_l, Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l};
+use bindings::{PubKey, build_masked_tokens_cust, build_masked_tokens_merch, EcdsaPartialSig_l, State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l, PayToken_l, Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l, BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l};
 use std::slice;
+use std::concat;
 use wallet::State;
 
 pub fn mpc_build_masked_tokens_cust(pk_m: secp256k1::PublicKey, amount: i64, com_new: &[u8], key_com: &[u8],
+                                    merch_escrow_pub_key: [u8; 33], merch_dispute_key: [u8; 33],
+                                    merch_pub_key_hash: [u8; 20], merch_payout_pub_key: [u8; 33],
                                     new_state: State, old_state: State, t: &[u8; 32], pt_old: &[u8],
-                                    close_tx_e: &[u8], close_tx_m: &[u8]) -> ([u8; 32], [u8; 32]) {
+                                    cust_escrow_pub_key: [u8; 33], cust_payout_pub_key: [u8; 33],
+) -> ([u8; 32], [u8; 32], [u8; 32]) {
     // translate pk_m
     let mut pk = translate_pub_key(&pk_m);
 
     // translate wpk
-    let mut rl = translate_revlock(&new_state.rev_lock[..]);
+    let mut rl_c = translate_revlock_com(&new_state.rev_lock[..]);
 
     // translate new_wallet
     let mut new_state_c = translate_state(&new_state);
@@ -27,9 +31,6 @@ pub fn mpc_build_masked_tokens_cust(pk_m: secp256k1::PublicKey, amount: i64, com
     let t_str = translate_string(&t[..]);
     // translate payment_token
     let pt_old_c = translate_paytoken(&pt_old);
-    // translate close_tx (e and m)
-    let close_tx_e_bits = translate_string(close_tx_e);
-    let close_tx_m_bits = translate_string(close_tx_m);
     //paymask_com
     let paymask_com = MaskCommitment_l {
         commitment: translate_256_string(com_new),
@@ -40,26 +41,66 @@ pub fn mpc_build_masked_tokens_cust(pk_m: secp256k1::PublicKey, amount: i64, com
         commitment: translate_256_string(key_com),
     };
 
-// create pointers for closing token and payment token
-    let mut ct_masked = [0i8; 256].as_mut_ptr();
-    let mut pt_masked = [0i8; 256].as_mut_ptr();
+    //translate bitcoin keys
+    let merch_escrow_pub_key_c = translate_bitcoin_key(&merch_escrow_pub_key);
+    let merch_dispute_key_c = translate_bitcoin_key(&merch_dispute_key);
+    let merch_public_key_hash_c = translate_pub_key_hash(&merch_pub_key_hash);
+    let merch_payout_pub_key_c = translate_bitcoin_key(&merch_payout_pub_key);
+
+    let cust_escrow_pub_key_c = translate_bitcoin_key(&cust_escrow_pub_key);
+    let cust_payout_pub_key_c = translate_bitcoin_key(&cust_payout_pub_key);
+
+    let nonce = translate_nonce(&old_state.nonce);
+
+// create pointers the output variables
+    let mut pt_return_ar = [0u32; 8];
+    let mut pt_return = PayToken_l { paytoken: pt_return_ar };
+    let mut sig1_ar = [0u32; 8];
+    let mut ct_escrow = EcdsaSig_l { sig: sig1_ar };
+    let mut sig2_ar = [0u32; 8];
+    let mut ct_merch = EcdsaSig_l { sig: sig2_ar };
 
     unsafe {
-        build_masked_tokens_cust(pk, amount as u64, rl,
+        build_masked_tokens_cust(pk, translate_balance(amount), rl_c,
                                  12345, CString::new("127.0.0.1").unwrap().into_raw(),
                                  paymask_com, key_com,
-                                 new_state_c, old_state_c, t_str, pt_old_c, close_tx_e_bits, close_tx_m_bits,
-                                 ct_masked, pt_masked)
+                                 merch_escrow_pub_key_c, merch_dispute_key_c,
+                                 merch_public_key_hash_c, merch_payout_pub_key_c,
+                                 nonce,
+                                 new_state_c, old_state_c, t_str, pt_old_c,
+                                 cust_escrow_pub_key_c, cust_payout_pub_key_c,
+                                 pt_return, ct_escrow, ct_merch);
     };
 
-    let mut ct_masked_ar = [0u8; 32];
-//    let ct_masked_bytes = unsafe { CStr::from_ptr(ct_masked).to_bytes() };
-//    ct_mask_ar.copy_from_slice(ct_masked_bytes);
+    //TODO: update with values
     let mut pt_masked_ar = [0u8; 32];
-//    let pt_masked_bytes = unsafe { CStr::from_ptr(pt_masked).to_bytes() };
-//    pt_mask_ar.copy_from_slice(pt_masked_bytes);
+    let mut ct_escrow_masked_ar = [0u8; 32];
+    let mut ct_merch_masked_ar = [0u8; 32];
 
-    (ct_masked_ar, pt_masked_ar)
+    (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar)
+}
+
+fn translate_bitcoin_key(pub_key: &[u8; 33]) -> BitcoinPublicKey_l {
+    let mut pub_key_ar = [0u32; 9];
+    let mut pub_key_vec_padded = pub_key.to_vec();
+    pub_key_vec_padded.extend_from_slice(&[0, 0, 0]);
+    let pub_key_vec = bytes_to_u32(pub_key_vec_padded.as_slice(), 36);
+    pub_key_ar.copy_from_slice(pub_key_vec.as_slice());
+    BitcoinPublicKey_l { key: pub_key_ar }
+}
+
+fn translate_pub_key_hash(pub_key_hash: &[u8; 20]) -> PublicKeyHash_l {
+    let mut hash_ar = [0u32; 5];
+    let hash_vec = bytes_to_u32(&pub_key_hash[..], 20);
+    hash_ar.copy_from_slice(hash_vec.as_slice());
+    PublicKeyHash_l { hash: hash_ar }
+}
+
+fn translate_nonce(nonce: &[u8; 16]) -> Nonce_l {
+    let nonce_vec = bytes_to_u32(&nonce[..], 16);
+    let mut nonce_ar = [0u32; 4];
+    nonce_ar.copy_from_slice(nonce_vec.as_slice());
+    Nonce_l { nonce: nonce_ar }
 }
 
 fn translate_paytoken(pt: &[u8]) -> PayToken_l {
@@ -78,28 +119,30 @@ fn translate_state(state: &State) -> State_l {
     let prevout_escrow = translate_256_string(&state.escrow_prevout[..]);
     let prevout_merch = translate_256_string(&state.merch_prevout[..]);
 
-    let vec = bytes_to_u32(&state.nonce[..], 16);
-    let mut nonce = [0u32; 4];
-    nonce.copy_from_slice(vec.as_slice());
+    let nonce = translate_nonce(&state.nonce);
+    let rev_lock = translate_revlock(&state.rev_lock[..]);
 
-    let mut bc = [0u32; 2];
-    let bc_vec = bytes_to_u32(&state.bc.to_le_bytes(), 8);
-    bc.copy_from_slice(bc_vec.as_slice());
-    let bm_vec = bytes_to_u32(&state.bm.to_le_bytes(), 8);
-    let mut bm = [0u32; 2];
-    bm.copy_from_slice(bm_vec.as_slice());
+    let bc = translate_balance(state.bc);
+    let bm = translate_balance(state.bm);
 
     let mut new_state = State_l {
-        nonce: Nonce_l { nonce },
-        rl: translate_revlock(&state.rev_lock[..]),
-        balance_cust: Balance_l { balance: bc },
-        balance_merch: Balance_l { balance: bm },
+        nonce,
+        rl: rev_lock,
+        balance_cust: bc,
+        balance_merch: bm,
         txid_merch: Txid_l { txid: txid_merch },
         txid_escrow: Txid_l { txid: txid_escrow },
         HashPrevOuts_escrow: Txid_l { txid: prevout_escrow },
-        HashPrevOuts_merch: Txid_l { txid: prevout_merch }
+        HashPrevOuts_merch: Txid_l { txid: prevout_merch },
     };
     new_state
+}
+
+fn translate_balance(amount: i64) -> Balance_l {
+    let mut balance = [0u32; 2];
+    let balance_vec = bytes_to_u32(&amount.to_be_bytes(), 8);
+    balance.copy_from_slice(balance_vec.as_slice());
+    Balance_l { balance }
 }
 
 fn translate_256_string(input: &[u8]) -> [u32; 8] {
@@ -138,6 +181,11 @@ fn translate_revlock(rl: &[u8]) -> RevLock_l {
     res
 }
 
+fn translate_revlock_com(rl: &[u8]) -> RevLockCommitment_l {
+    let mut res = RevLockCommitment_l { commitment: translate_256_string(rl) };
+    res
+}
+
 fn bytes_to_u32(input: &[u8], size: usize) -> Vec<u32> {
     let out_l = size / 4;
     let mut out = Vec::new();
@@ -152,12 +200,23 @@ fn bytes_to_u32(input: &[u8], size: usize) -> Vec<u32> {
 }
 
 pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, pk_m: secp256k1::PublicKey, amount: i64, com_new: &[u8], rl: &[u8],
-                                             key_com: &[u8], hmac_key: &[u8], sk_m: secp256k1::SecretKey, close_mask: &[u8; 32], pay_mask: &[u8; 32]) {
+                                             key_com: &[u8], merch_escrow_pub_key: [u8; 33], merch_dispute_key: [u8; 33],
+                                             merch_pub_key_hash: [u8; 20], merch_payout_pub_key: [u8; 33],
+                                             nonce: [u8; 16],
+                                             hmac_key: &[u8], sk_m: secp256k1::SecretKey, merch_mask: &[u8; 32], pay_mask: &[u8; 32], escrow_mask: &[u8; 32]) {
     // translate pk_m
     let mut pk = translate_pub_key(&pk_m);
 
-    // translate wpk
-    let mut rl_c = translate_revlock(rl);
+    // translate revlock commitment
+    let mut rl_c = translate_revlock_com(rl);
+
+    //translate bitcoin keys
+    let merch_escrow_pub_key_c = translate_bitcoin_key(&merch_escrow_pub_key);
+    let merch_dispute_key_c = translate_bitcoin_key(&merch_dispute_key);
+    let merch_public_key_hash_c = translate_pub_key_hash(&merch_pub_key_hash);
+    let merch_payout_pub_key_c = translate_bitcoin_key(&merch_payout_pub_key);
+
+    let nonce_c = translate_nonce(&nonce);
 
     // Create ECDSA_params
     let mut params1 = createEcdsaParams(rng, &sk_m.clone());
@@ -165,13 +224,13 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, pk_m: secp256k1::Publi
     let mut params3 = createEcdsaParams(rng, &sk_m.clone());
 
     // Create close_mask
-    let close_mask_c = Mask_l { mask: translate_256_string(close_mask) };
+    let merch_mask = Mask_l { mask: translate_256_string(merch_mask) };
 
     // Create pay_mask
-    let pay_mask_c = Mask_l { mask: translate_256_string(pay_mask) };
+    let paytoken_mask_c = Mask_l { mask: translate_256_string(pay_mask) };
 
-    let amount_bits = BitArray::<u8, U64>::from_bytes(amount.to_string().as_ref());
-    let amount_vec: Vec<bool> = amount_bits.iter().map(|e| e.clone()).collect();
+    //Create escrow_mask
+    let escrow_mask = Mask_l { mask: translate_256_string(escrow_mask) };
 
     //paymask_com
     let paymask_com = MaskCommitment_l {
@@ -189,10 +248,13 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, pk_m: secp256k1::Publi
     };
 
     unsafe {
-        build_masked_tokens_merch(pk, amount as u64, rl_c,
+        build_masked_tokens_merch(pk, translate_balance(amount), rl_c,
                                   12345, CString::new("127.0.0.1").unwrap().into_raw(),
-                                  paymask_com, key_com, hmac_key,
-                                  close_mask_c, pay_mask_c, params1, params2, params3)
+                                  paymask_com, key_com,
+                                  merch_escrow_pub_key_c, merch_dispute_key_c,
+                                  merch_public_key_hash_c, merch_payout_pub_key_c,
+                                  nonce_c, hmac_key, merch_mask, escrow_mask,
+                                  paytoken_mask_c, params1, params2, params3);
     };
 }
 
@@ -203,8 +265,8 @@ fn createEcdsaParams<R: Rng>(rng: &mut R, sk: &secp256k1::SecretKey) -> EcdsaPar
     let nonce_message = Message::from_slice(&nonce);
     let partial_signature = secp.partial_sign(&nonce_message.unwrap(), &sk);
     let par_sig_compact = partial_signature.0.serialize_compact();
-    let r_arr = translate_256_chars(&par_sig_compact[32..64]);
-    let inv = translate_256_chars(&par_sig_compact[64..]);
+    let r_arr = translate_int_256_chars(&par_sig_compact[32..64]);
+    let inv = translate_int_256_chars(&par_sig_compact[64..]);
 
     EcdsaPartialSig_l {
         r: r_arr,
@@ -212,7 +274,7 @@ fn createEcdsaParams<R: Rng>(rng: &mut R, sk: &secp256k1::SecretKey) -> EcdsaPar
     }
 }
 
-fn translate_256_chars(rx: &[u8]) -> [i8; 256] {
+fn translate_int_256_chars(rx: &[u8]) -> [i8; 256] {
     let big_int = BigInt::from_bytes_be(Sign::Plus, rx).to_string();
     let big_int_str = CString::new(big_int).unwrap();
     let mut slice = big_int_str.into_bytes();
@@ -250,15 +312,22 @@ mod tests {
         let wsk = secp256k1::SecretKey::from_slice(&secwsk).unwrap();
         let rl = hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap();
 
-        let mut close_mask_bytes = [0u8; 32];
-        csprng.fill_bytes(&mut close_mask_bytes);
+        let mut merch_mask_bytes = [0u8; 32];
         let mut pay_mask_bytes = [0u8; 32];
-        csprng.fill_bytes(&mut pay_mask_bytes);
+        let mut escrow_mask_bytes = [0u8; 32];
+
+        let merch_escrow_pub_key = [0u8; 33];
+        let merch_dispute_key = [0u8; 33];
+        let merch_public_key_hash = [0u8; 20];
+        let merch_payout_pub_key = [0u8; 33];
+
+        let nonce = [0u8; 16];
 
         mpc_build_masked_tokens_merch(csprng, pk_m, 6, hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap().as_slice(), rl.as_slice(),
                                       hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap().as_slice(),
+                                      merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key, nonce,
                                       hex::decode("11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111").unwrap().as_slice(),
-                                      sk_m, &close_mask_bytes, &pay_mask_bytes);
+                                      sk_m, &merch_mask_bytes, &pay_mask_bytes, &escrow_mask_bytes);
     }
     }
 
@@ -303,7 +372,7 @@ mod tests {
             escrow_txid: tx_id_esc,
             merch_txid: tx_id_merch,
             escrow_prevout: [0u8; 32],
-            merch_prevout: [1u8; 32]
+            merch_prevout: [1u8; 32],
         };
         let old_state = State {
             nonce: nonce2,
@@ -315,18 +384,28 @@ mod tests {
             escrow_txid: tx_id_esc,
             merch_txid: tx_id_merch,
             escrow_prevout: [0u8; 32],
-            merch_prevout: [1u8; 32]
+            merch_prevout: [1u8; 32],
         };
 
         let mut t = [0u8; 32];
         t.copy_from_slice(hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap().as_slice());
 
+        let merch_escrow_pub_key = [0u8; 33];
+        let merch_dispute_key = [0u8; 33];
+        let merch_public_key_hash = [0u8; 20];
+        let merch_payout_pub_key = [0u8; 33];
+
+        let cust_escrow_pub_key = [0u8; 33];
+        let cust_payout_pub_key = [0u8; 33];
+
+        let nonce = [0u8; 16];
+
         mpc_build_masked_tokens_cust(pk_m, 6, hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap().as_slice(),
-                                     hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap().as_slice(), new_state, old_state,
-                                     &t,
                                      hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap().as_slice(),
-                                     &[1u8; 1024][..],
-                                     &[1u8; 1024][..]);
+                                     merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key,
+                                     new_state, old_state,
+                                     &t, hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap().as_slice(),
+                                     cust_escrow_pub_key, cust_payout_pub_key);
     }
     }
 
