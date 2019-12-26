@@ -463,43 +463,46 @@ mod tests {
         let s_1 = cust_state.get_current_state();
         println!("Updated state: {}", s_1);
 
-        let customer_thread = thread::spawn(move || {
-            println!("hello, customer!");
-            thread::sleep(Duration::from_millis(1));
-            let pk_m = channel_token.pk_m.clone();
-            let pay_mask_com = [1u8; 32];
-            let key_com = [1u8; 32];
-            let t = t_0.clone();
-            let pay_token = pay_token_0.clone();
-            let s0 = s_0.clone();
-            let s1 = s_1.clone();
+        let pk_m1 = channel_token.pk_m.clone();
+        let pk_m2 = channel_token.pk_m.clone();
 
-            mpc_build_masked_tokens_cust(pk_m, amount, &pay_mask_com, &key_com,
-                                         s0, s1, &t,
-                                         &pay_token, &ctx_e, &ctx_m)
-        });
 
-        let merchant_thread = thread::spawn(move|| {
-            println!("hello, merchant!");
-            let pk_m = channel_token.pk_m.clone();
-            let mut rng2 = rng.clone();
-            let com_new = [1u8; 32];
-            let rl = cust_state.rev_lock.clone();
-            let key_com = [1u8; 32];
-
-            let hmac_key = merch_state.hmac_key.clone();
-            let sk_m = merch_state.sk_m.clone();
-
-            let close_mask = [2u8; 32];
-            let pay_mask = [1u8; 32];
-
-            mpc_build_masked_tokens_merch(&mut rng2, pk_m, amount, &com_new, rl, &key_com, &hmac_key.as_slice(), sk_m, &close_mask, &pay_mask);
-            thread::sleep(Duration::from_millis(1));
-        });
-
-        thread::sleep(Duration::from_millis(5));
-        customer_thread.join().unwrap();
-        merchant_thread.join().unwrap();
+//        let customer_thread = thread::spawn(move || {
+//            println!("hello, customer!");
+//            thread::sleep(Duration::from_millis(1));
+//            let pay_mask_com = [1u8; 32];
+//            let key_com = [1u8; 32];
+//            let t = t_0.clone();
+//            let pay_token = pay_token_0.clone();
+//            let s0 = s_0.clone();
+//            let s1 = s_1.clone();
+//
+//            mpc_build_masked_tokens_cust(pk_m1, amount, &pay_mask_com, &key_com,
+//                                         s0, s1, &t,
+//                                         &pay_token, &ctx_e, &ctx_m)
+//        });
+//
+//        let merchant_thread = thread::spawn(move|| {
+//            println!("hello, merchant!");
+//            let mut rng = &mut rand::thread_rng();
+//
+//            let com_new = [1u8; 32];
+//            let rl = cust_state.rev_lock.clone();
+//            let key_com = [1u8; 32];
+//
+//            let hmac_key = merch_state.hmac_key.clone();
+//            let sk_m = merch_state.sk_m.clone();
+//
+//            let close_mask = [2u8; 32];
+//            let pay_mask = [1u8; 32];
+//
+//            mpc_build_masked_tokens_merch(&mut rng, pk_m2, amount, &com_new, &rl, &key_com, &hmac_key.as_slice(), sk_m, &close_mask, &pay_mask);
+//            thread::sleep(Duration::from_millis(1));
+//        });
+//
+//        thread::sleep(Duration::from_millis(5));
+//        customer_thread.join().unwrap();
+//        merchant_thread.join().unwrap();
 
         println!("mpc threads completed execution!");
 

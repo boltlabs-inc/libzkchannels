@@ -280,8 +280,8 @@ mod tests {
         let wsk = secp256k1::SecretKey::from_slice(&secwsk).unwrap();
         let wpk = PublicKey::from_secret_key(&Secp256k1::new(), &wsk);
 
-        let mut nonce1 = [0u8; 12];
-        let mut nonce2 = [0u8; 12];
+        let mut nonce1 = [0u8; 16];
+        let mut nonce2 = [0u8; 16];
         csprng.fill_bytes(&mut nonce1);
         csprng.fill_bytes(&mut nonce2);
 

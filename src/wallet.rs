@@ -46,7 +46,7 @@ impl<E: Engine> fmt::Display for Wallet<E> {
     }
 }
 
-pub const NONCE_LEN: usize = 12;
+pub const NONCE_LEN: usize = 16;
 
 #[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct State {
