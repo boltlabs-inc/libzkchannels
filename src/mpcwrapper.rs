@@ -78,7 +78,7 @@ fn translate_state(state: &State) -> State_l {
     let prevout_escrow = translate_256_string(&state.escrow_prevout[..]);
     let prevout_merch = translate_256_string(&state.merch_prevout[..]);
 
-    let vec = bytes_to_u32(&state.nonce[..], 12);
+    let vec = bytes_to_u32(&state.nonce[..], 16);
     let mut nonce = [0u32; 4];
     nonce.copy_from_slice(vec.as_slice());
 
