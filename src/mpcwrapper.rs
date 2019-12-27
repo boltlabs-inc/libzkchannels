@@ -11,7 +11,7 @@ use std::slice;
 use std::concat;
 use wallet::State;
 
-pub fn mpc_build_masked_tokens_cust(amount: i64, com_new: &[u8], key_com: &[u8],
+pub fn mpc_build_masked_tokens_cust(amount: i64, pay_mask_com: &[u8], hmac_key_com: &[u8],
                                     merch_escrow_pub_key: secp256k1::PublicKey, merch_dispute_key: secp256k1::PublicKey,
                                     merch_pub_key_hash: [u8; 20], merch_payout_pub_key: secp256k1::PublicKey,
                                     new_state: State, old_state: State, t: &[u8; 32], pt_old: &[u8],
@@ -30,12 +30,12 @@ pub fn mpc_build_masked_tokens_cust(amount: i64, com_new: &[u8], key_com: &[u8],
     let pt_old_c = translate_paytoken(&pt_old);
     //paymask_com
     let paymask_com = MaskCommitment_l {
-        commitment: translate_256_string(com_new),
+        commitment: translate_256_string(pay_mask_com),
     };
 
     //key_com
     let key_com = HMACKeyCommitment_l {
-        commitment: translate_256_string(key_com),
+        commitment: translate_256_string(hmac_key_com),
     };
 
     //translate bitcoin keys
