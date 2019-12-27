@@ -291,11 +291,35 @@ mod tests {
         let sk_m = secp256k1::SecretKey::from_slice(&seckey).unwrap();
         let pk_m = PublicKey::from_secret_key(&Secp256k1::new(), &sk_m);
 
-        let rl = hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap();
-
+        /* MERCHANT INPUTS */
+        /*  HMAC Key, Pt_Mask, Merch_Mask, Escrow_ Mask, 2x Partial Sigs*/
+        let mut hmac_key = [0u8; 64];
+        hmac_key.copy_from_slice(hex::decode("439452e56db2398e05396328c5e037086c5167565736ce7041356f12d161821715656a1a16eeff47615e0494d7b3757d730517f1beebc45575beb1644ba48a1a").unwrap().as_slice());
+        let mut paytoken_mask_bytes = [0u8; 32];
+        paytoken_mask_bytes.copy_from_slice(hex::decode("0c8dda801001c9a55f720c5f379ce09e42416780f98fef7900bd26b372b81850").unwrap().as_slice());
         let mut merch_mask_bytes = [0u8; 32];
-        let mut pay_mask_bytes = [0u8; 32];
+        merch_mask_bytes.copy_from_slice(hex::decode("1c92f6e3dfb5f805a436b727a340fd08d41e4de53b7f6dd5865b5f30fcf80709").unwrap().as_slice());
         let mut escrow_mask_bytes = [0u8; 32];
+        escrow_mask_bytes.copy_from_slice(hex::decode("2670345a391379cd02514a35ee4fb3f1f0c14b5fb75381b7e797b5dd26ee057d").unwrap().as_slice());
+   
+        /* PULBIC MPC INPUTS */
+        /* Balance amount, HMACKeyCommit, PT_MaskCommit, RevLockCommit, Nonce, 3x Public Key, 1x PK_Hash*/
+
+        let mut amount_ar = [0u8; 8];
+        amount_ar.copy_from_slice(hex::decode("0000000000000010").unwrap().as_slice());
+        let amount = i64::from_be_bytes(amount_ar);
+
+        let mut key_com = [0u8; 32];
+        key_com.copy_from_slice(hex::decode("e0e14aeda7bcf9bbbf4744ecd03fcdcef0bbc83e0d9fe55c1fb372799e3a0698").unwrap().as_slice());
+
+        let mut paytoken_mask_com = [0u8; 32];
+        paytoken_mask_com.copy_from_slice(hex::decode("d31e6fea41aa7080a7d2b34357591bab1f295b178c85572f6a5ecc8af3a93ba8").unwrap().as_slice());
+
+        let mut rev_lock_com = [0u8; 32];
+        rev_lock_com.copy_from_slice(hex::decode("1caa135b24792810dcab8dffbb5157972e38dff248f0d43f5ea453111ca25852").unwrap().as_slice());
+
+        let mut nonce = [0u8; 16];
+        nonce.copy_from_slice(hex::decode("18670766caf2e5fec5f909d04acd5e86").unwrap().as_slice());
 
         let merch_escrow_pub_key = secp256k1::PublicKey::from_slice(hex::decode("0342da23a1de903cd7a141a99b5e8051abfcd4d2d1b3c2112bac5c8997d9f12a00").unwrap().as_slice()).unwrap();
         let merch_dispute_key = secp256k1::PublicKey::from_slice(hex::decode("0253be79afe84fd9342c1f52024379b6da6299ea98844aee23838e8e678a765f7c").unwrap().as_slice()).unwrap();
@@ -303,17 +327,12 @@ mod tests {
         merch_public_key_hash.copy_from_slice(hex::decode("43e9e81bc632ad9cad48fc23f800021c5769a063").unwrap().as_slice());
         let merch_payout_pub_key = secp256k1::PublicKey::from_slice(hex::decode("02f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90").unwrap().as_slice()).unwrap();
 
-        let nonce = [0u8; 16];
-        let mut amount_ar = [0u8; 8];
-        amount_ar.copy_from_slice(hex::decode("00e1f50500000000").unwrap().as_slice());
-        let amount = i64::from_be_bytes(amount_ar);
 
-
-        mpc_build_masked_tokens_merch(csprng, amount, hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap().as_slice(), rl.as_slice(),
-                                      hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap().as_slice(),
+        mpc_build_masked_tokens_merch(csprng, amount, &paytoken_mask_com, &rev_lock_com,
+                                      &key_com,
                                       merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key, nonce,
-                                      hex::decode("11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111").unwrap().as_slice(),
-                                      sk_m, &merch_mask_bytes, &pay_mask_bytes, &escrow_mask_bytes);
+                                      &hmac_key,
+                                      sk_m, &merch_mask_bytes, &paytoken_mask_bytes, &escrow_mask_bytes);
     }
     }
 
@@ -330,33 +349,42 @@ mod tests {
         let sk_c = secp256k1::SecretKey::from_slice(&seckey).unwrap();
         let pk_c = PublicKey::from_secret_key(&Secp256k1::new(), &sk_c);
 
-        let mut nonce1 = [0u8; 16];
-        let mut nonce2 = [0u8; 16];
-        csprng.fill_bytes(&mut nonce1);
-        csprng.fill_bytes(&mut nonce2);
+        let mut t =  [0u8; 32];
+        t.copy_from_slice(hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap().as_slice());
 
-        let mut rl_ar = [0u8; 32];
-        rl_ar.copy_from_slice(hex::decode("f8345a21a55dc665b65c8dcfb49488b8e4f337d5c9bb843603f7222a892ce941").unwrap().as_slice());
+        /*   CUSTOMER SECRET INPUTS */
+        /*   old_state, new_state, old_paytoken, 2x public_keys */
+
+        let mut nonce1 = [0u8; 16];
+        nonce1.copy_from_slice(hex::decode("18670766caf2e5fec5f909d04acd5e86").unwrap().as_slice());
+        let mut nonce2 = [0u8; 16];
+        nonce2.copy_from_slice(hex::decode("b2f9b5a508cf8609f040641892824a61").unwrap().as_slice());
+
+        let mut rl_ar1 = [0u8; 32];
+        rl_ar1.copy_from_slice(hex::decode("0b744cf3475f300fe77d2e85c3a5911e603e725b17932ee90f99fc7a869b8307").unwrap().as_slice());
+
+        let mut rl_ar2 = [0u8; 32];
+        rl_ar2.copy_from_slice(hex::decode("ca54e2bc080dc33895f8fadb72902337e3ee171dd57e1dcf12e8d0d9abae3b6c").unwrap().as_slice());
 
         let mut tx_id_merch = [0u8; 32];
         tx_id_merch.copy_from_slice(hex::decode("e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4").unwrap().as_slice());
 
-        let mut hashouts_merch = [0u8; 32];
-        hashouts_merch.copy_from_slice(hex::decode("7d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d738").unwrap().as_slice());
-
         let mut tx_id_esc = [0u8; 32];
         tx_id_esc.copy_from_slice(hex::decode("e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4").unwrap().as_slice());
+
+        let mut hashouts_merch = [0u8; 32];
+        hashouts_merch.copy_from_slice(hex::decode("7d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d738").unwrap().as_slice());
 
         let mut hashouts_escrow = [0u8; 32];
         hashouts_escrow.copy_from_slice(hex::decode("7d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d738").unwrap().as_slice());
 
         let new_state = State {
             nonce: nonce1,
-            rev_lock: rl_ar,
+            rev_lock: rl_ar1,
             pk_c,
             pk_m,
-            bc: 0,
-            bm: 0,
+            bc: 80,
+            bm: 48,
             escrow_txid: tx_id_esc,
             merch_txid: tx_id_merch,
             escrow_prevout: hashouts_escrow,
@@ -364,19 +392,43 @@ mod tests {
         };
         let old_state = State {
             nonce: nonce2,
-            rev_lock: rl_ar,
+            rev_lock: rl_ar2,
             pk_c,
             pk_m,
-            bc: 0,
-            bm: 0,
+            bc: 64,
+            bm: 64,
             escrow_txid: tx_id_esc,
             merch_txid: tx_id_merch,
             escrow_prevout: hashouts_escrow,
             merch_prevout: hashouts_merch,
         };
 
-        let mut t = [0u8; 32];
-        t.copy_from_slice(hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap().as_slice());
+        let mut old_paytoken = [0u8; 32];
+        old_paytoken.copy_from_slice(hex::decode("1851d287d04a784fe30726d58e458ba87412e4c0ba5b6bfa68e2515365c01679").unwrap().as_slice());
+
+        let cust_escrow_pub_key = secp256k1::PublicKey::from_slice(hex::decode("03fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d7").unwrap().as_slice()).unwrap();
+        let cust_payout_pub_key = secp256k1::PublicKey::from_slice(hex::decode("03195e272df2310ded35f9958fd0c2847bf73b5b429a716c005d465009bd768641").unwrap().as_slice()).unwrap();
+
+        /* END CUSTOMER INPUTS */
+
+        /* PULBIC MPC INPUTS */
+        /* Balance amount, HMACKeyCommit, PT_MaskCommit, RevLockCommit, Nonce, 3x Public Key, 1x PK_Hash*/
+
+        let mut amount_ar = [0u8; 8];
+        amount_ar.copy_from_slice(hex::decode("0000000000000010").unwrap().as_slice());
+        let amount = i64::from_be_bytes(amount_ar);
+
+        let mut key_com = [0u8; 32];
+        key_com.copy_from_slice(hex::decode("e0e14aeda7bcf9bbbf4744ecd03fcdcef0bbc83e0d9fe55c1fb372799e3a0698").unwrap().as_slice());
+
+        let mut paytoken_mask_com = [0u8; 32];
+        paytoken_mask_com.copy_from_slice(hex::decode("d31e6fea41aa7080a7d2b34357591bab1f295b178c85572f6a5ecc8af3a93ba8").unwrap().as_slice());
+
+        let mut rev_lock_com = [0u8; 32];
+        rev_lock_com.copy_from_slice(hex::decode("1caa135b24792810dcab8dffbb5157972e38dff248f0d43f5ea453111ca25852").unwrap().as_slice());
+
+        let mut nonce = [0u8; 16];
+        nonce.copy_from_slice(hex::decode("18670766caf2e5fec5f909d04acd5e86").unwrap().as_slice());
 
         let merch_escrow_pub_key = secp256k1::PublicKey::from_slice(hex::decode("0342da23a1de903cd7a141a99b5e8051abfcd4d2d1b3c2112bac5c8997d9f12a00").unwrap().as_slice()).unwrap();
         let merch_dispute_key = secp256k1::PublicKey::from_slice(hex::decode("0253be79afe84fd9342c1f52024379b6da6299ea98844aee23838e8e678a765f7c").unwrap().as_slice()).unwrap();
@@ -384,20 +436,11 @@ mod tests {
         merch_public_key_hash.copy_from_slice(hex::decode("43e9e81bc632ad9cad48fc23f800021c5769a063").unwrap().as_slice());
         let merch_payout_pub_key = secp256k1::PublicKey::from_slice(hex::decode("02f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90").unwrap().as_slice()).unwrap();
 
-        let cust_escrow_pub_key = secp256k1::PublicKey::from_slice(hex::decode("03fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d7").unwrap().as_slice()).unwrap();
-        let cust_payout_pub_key = secp256k1::PublicKey::from_slice(hex::decode("03195e272df2310ded35f9958fd0c2847bf73b5b429a716c005d465009bd768641").unwrap().as_slice()).unwrap();
 
-        let nonce = [0u8; 16];
-        let mut amount_ar = [0u8; 8];
-        amount_ar.copy_from_slice(hex::decode("00e1f50500000000").unwrap().as_slice());
-        let amount = i64::from_be_bytes(amount_ar);
-
-        mpc_build_masked_tokens_cust(amount, hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap().as_slice(),
-                                     hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap().as_slice(),
+        mpc_build_masked_tokens_cust(amount, &paytoken_mask_com, &key_com,
                                      merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key,
-                                     new_state, old_state,
-                                     &t, hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap().as_slice(),
-                                     cust_escrow_pub_key, cust_payout_pub_key);
+                                     new_state, old_state, &t,
+                                     &old_paytoken, cust_escrow_pub_key, cust_payout_pub_key);
     }
     }
 
