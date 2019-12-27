@@ -70,8 +70,11 @@ pub fn mpc_build_masked_tokens_cust(amount: i64, pay_mask_com: &[u8], hmac_key_c
 
     //TODO: update with values
     let mut pt_masked_ar = [0u8; 32];
+    pt_masked_ar.copy_from_slice(u32_to_bytes(&pt_return.paytoken[..]).as_slice());
     let mut ct_escrow_masked_ar = [0u8; 32];
+    ct_escrow_masked_ar.copy_from_slice(u32_to_bytes(&ct_escrow.sig[..]).as_slice());
     let mut ct_merch_masked_ar = [0u8; 32];
+    ct_merch_masked_ar.copy_from_slice(u32_to_bytes(&ct_merch.sig[..]).as_slice());
 
     (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar)
 }
@@ -181,6 +184,14 @@ fn bytes_to_u32(input: &[u8], size: usize) -> Vec<u32> {
         let mut byte4 = [0u8; 4];
         byte4.copy_from_slice(&input[start..end]);
         out.push(u32::from_be_bytes(byte4));
+    }
+    out
+}
+
+fn u32_to_bytes(input: &[u32]) -> Vec<u8> {
+    let mut out = Vec::<u8>::new();
+    for part in input.iter() {
+        out.extend_from_slice(&part.to_be_bytes()[..]);
     }
     out
 }
