@@ -65,7 +65,7 @@ pub fn mpc_build_masked_tokens_cust(amount: i64, pay_mask_com: &[u8], hmac_key_c
                                  nonce,
                                  new_state_c, old_state_c, t_str, pt_old_c,
                                  cust_escrow_pub_key_c, cust_payout_pub_key_c,
-                                 pt_return, ct_escrow, ct_merch);
+                                 &mut pt_return, &mut ct_escrow, &mut ct_merch);
     };
 
     //TODO: update with values
