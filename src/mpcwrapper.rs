@@ -8,7 +8,6 @@ use num::BigInt;
 use num::bigint::Sign;
 use bindings::{build_masked_tokens_cust, build_masked_tokens_merch, EcdsaPartialSig_l, State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l, PayToken_l, Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l, BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l};
 use std::slice;
-use std::concat;
 use wallet::State;
 
 pub fn mpc_build_masked_tokens_cust(amount: i64, pay_mask_com: &[u8], hmac_key_com: &[u8],
