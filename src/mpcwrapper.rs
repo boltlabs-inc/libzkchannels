@@ -441,6 +441,10 @@ mod tests {
                                      merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key,
                                      new_state, old_state, &t,
                                      &old_paytoken, cust_escrow_pub_key, cust_payout_pub_key);
+
+        // pt unmasked               "8162c3044e8802d456b7355c5c101078953dbec160e2d83194952613deb19134"
+        // pt mask                   "0c8dda801001c9a55f720c5f379ce09e42416780f98fef7900bd26b372b81850"
+        // Masked PayToken Should be "8def19845e89cb7109c539036b8cf0e6d77cd941996d3748942800a0ac098964"
     }
     }
 
