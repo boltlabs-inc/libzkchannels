@@ -1,4 +1,4 @@
-use libc::{c_int, c_char};
+use libc::{c_int, c_uint, c_char, c_void};
 use secp256k1::{Signature, Message, PublicKey, Secp256k1};
 use std::ffi::{CString, CStr};
 use rand::{RngCore, Rng};
@@ -6,11 +6,34 @@ use bit_array::BitArray;
 use typenum::{U264, U64};
 use num::BigInt;
 use num::bigint::Sign;
-use bindings::{build_masked_tokens_cust, build_masked_tokens_merch, EcdsaPartialSig_l, State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l, PayToken_l, Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l, BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l};
+use bindings::{get_netio_ptr, get_unixnetio_ptr, build_masked_tokens_cust, build_masked_tokens_merch,
+               EcdsaPartialSig_l, State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l, PayToken_l,
+               Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l, BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l};
 use std::slice;
 use wallet::State;
+use std::ptr;
 
-pub fn mpc_build_masked_tokens_cust(amount: i64, pay_mask_com: &[u8], hmac_key_com: &[u8],
+const NETIO: u32 = 1;
+const UNIXNETIO: u32 = 2;
+pub type IOCallback = fn(c_uint, c_int);
+
+extern "C" fn io_callback(conn_type: c_uint, party: c_int) -> *mut c_void {
+    println!("selecting the IO callback");
+    if (conn_type == UNIXNETIO) {
+        let io_ptr = unsafe {
+            get_unixnetio_ptr(CString::new("newtmpcon").unwrap().into_raw(), party)
+        };
+        return io_ptr;
+    } else {
+        /* use regular tcp conn */
+        let io_ptr = unsafe {
+            get_netio_ptr(CString::new("127.0.0.1").unwrap().into_raw(), 12345, party)
+        };
+        return io_ptr;
+    }
+}
+
+pub fn mpc_build_masked_tokens_cust(conn_type: u32, amount: i64, pay_mask_com: &[u8], hmac_key_com: &[u8],
                                     merch_escrow_pub_key: secp256k1::PublicKey, merch_dispute_key: secp256k1::PublicKey,
                                     merch_pub_key_hash: [u8; 20], merch_payout_pub_key: secp256k1::PublicKey,
                                     new_state: State, old_state: State, t: &[u8; 32], pt_old: &[u8],
@@ -57,8 +80,7 @@ pub fn mpc_build_masked_tokens_cust(amount: i64, pay_mask_com: &[u8], hmac_key_c
     let mut ct_merch = EcdsaSig_l { sig: sig2_ar };
 
     unsafe {
-        build_masked_tokens_cust(translate_balance(amount), rl_c,
-                                 12345, CString::new("127.0.0.1").unwrap().into_raw(),
+        build_masked_tokens_cust(Some(io_callback), conn_type, translate_balance(amount), rl_c,
                                  paymask_com, key_com,
                                  merch_escrow_pub_key_c, merch_dispute_key_c,
                                  merch_public_key_hash_c, merch_payout_pub_key_c,
@@ -196,7 +218,7 @@ fn u32_to_bytes(input: &[u32]) -> Vec<u8> {
     out
 }
 
-pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, amount: i64, com_new: &[u8], rl: &[u8],
+pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, conn_type: u32, amount: i64, com_new: &[u8], rl: &[u8],
                                              key_com: &[u8], merch_escrow_pub_key: secp256k1::PublicKey, merch_dispute_key: secp256k1::PublicKey,
                                              merch_pub_key_hash: [u8; 20], merch_payout_pub_key: secp256k1::PublicKey,
                                              nonce: [u8; 16],
@@ -242,8 +264,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, amount: i64, com_new: 
     };
 
     unsafe {
-        build_masked_tokens_merch(translate_balance(amount), rl_c,
-                                  12345, CString::new("127.0.0.1").unwrap().into_raw(),
+        build_masked_tokens_merch(Some(io_callback), conn_type, translate_balance(amount), rl_c,
                                   paymask_com, key_com,
                                   merch_escrow_pub_key_c, merch_dispute_key_c,
                                   merch_public_key_hash_c, merch_payout_pub_key_c,
@@ -339,7 +360,7 @@ mod tests {
         let merch_payout_pub_key = secp256k1::PublicKey::from_slice(hex::decode("02f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90").unwrap().as_slice()).unwrap();
 
 
-        mpc_build_masked_tokens_merch(csprng, amount, &paytoken_mask_com, &rev_lock_com,
+        mpc_build_masked_tokens_merch(csprng, UNIXNETIO, amount, &paytoken_mask_com, &rev_lock_com,
                                       &key_com,
                                       merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key, nonce,
                                       &hmac_key,
@@ -448,7 +469,7 @@ mod tests {
         let merch_payout_pub_key = secp256k1::PublicKey::from_slice(hex::decode("02f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90").unwrap().as_slice()).unwrap();
 
 
-        mpc_build_masked_tokens_cust(amount, &paytoken_mask_com, &key_com,
+        mpc_build_masked_tokens_cust(UNIXNETIO, amount, &paytoken_mask_com, &key_com,
                                      merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key,
                                      new_state, old_state, &t,
                                      &old_paytoken, cust_escrow_pub_key, cust_payout_pub_key);
