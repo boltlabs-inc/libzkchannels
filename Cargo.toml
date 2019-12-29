@@ -29,6 +29,7 @@ typenum = "*"
 num = "*"
 hex = "0.3.2"
 hmac = "0.7"
+ripemd160 = "0.8"
 
 [build-dependencies]
 bindgen="*"

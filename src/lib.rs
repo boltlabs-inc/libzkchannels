@@ -37,6 +37,7 @@ extern crate typenum;
 extern crate num;
 extern crate serde_json;
 extern crate hmac;
+extern crate ripemd160;
 
 #[cfg(test)]
 #[macro_use] extern crate rusty_fork;

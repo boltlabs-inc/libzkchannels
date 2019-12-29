@@ -1,8 +1,8 @@
 use super::*;
 use pairing::Engine;
 use ff::{PrimeField};
-use sha2::Digest;
-use sha2::Sha256;
+use sha2::{Sha256, Digest};
+use ripemd160::{Ripemd160};
 use hmac::{Hmac, Mac};
 
 type HmacSha256 = Hmac<Sha256>;
@@ -119,8 +119,20 @@ pub fn hash_to_slice(input_buf: &Vec<u8>) -> [u8; 32] {
     hasher.input(&input_buf.as_slice());
     let sha2_digest = hasher.result();
 
-    let mut hash_buf: [u8; 32] = [0; 32];
+    let mut hash_buf = [0u8; 32];
     hash_buf.copy_from_slice(&sha2_digest);
+    return hash_buf;
+}
+
+pub fn sha2_and_ripemd_to_slice(input_buf: &Vec<u8>) -> [u8; 20] {
+    let sha2_hash_buf = hash_to_slice(input_buf);
+    let mut ripemd_hasher = Ripemd160::new();
+
+    ripemd_hasher.input(sha2_hash_buf);
+    let md = ripemd_hasher.result();
+
+    let mut hash_buf = [0u8; 20];
+    hash_buf.copy_from_slice(&md);
     return hash_buf;
 }
 
@@ -171,6 +183,23 @@ mod tests {
     use super::*;
     use pairing::bls12_381::{Bls12, G2};
     use pairing::CurveProjective;
+
+    #[test]
+    fn double_hash_to_ripemd160_works() {
+        // test on a 0-message buffer
+        let input_buf = [0u8; 32];
+        let result = sha2_and_ripemd_to_slice(&input_buf.to_vec());
+
+        let result_hex = hex::encode(result);
+        assert_eq!(result_hex, "b8bcb07f6344b42ab04250c86a6e8b75d3fdbbc6");
+
+        // test on a public key
+        let input_buf2 = hex::decode("02b4632d08485ff1df2db55b9dafd23347d1c47a457072a1e87be26896549a8737").unwrap();
+        let result2 = sha2_and_ripemd_to_slice(&input_buf2);
+
+        let result2_hex = hex::encode(result2);
+        assert_eq!(result2_hex, "93ce48570b55c42c2af816aeaba06cfee1224fae");
+    }
 
     #[test]
     fn hash_g2_to_fr_works() {

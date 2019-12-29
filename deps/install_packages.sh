@@ -8,6 +8,7 @@ if [ "$(uname)" == "Darwin" ]; then
 	brew list cmake || brew install cmake
 	brew list gmp || brew install gmp
 	brew list boost || brew install boost
+	brew list llvm || brew install llvm
 else
 	CC=`lsb_release -rs | cut -c 1-2`
 	VER=`expr $CC + 0`

@@ -1,7 +1,7 @@
 use super::*;
 use rand::Rng;
 use wallet::{State, NONCE_LEN};
-use util::{hash_to_slice, hmac_sign};
+use util::{hash_to_slice, hmac_sign, sha2_and_ripemd_to_slice};
 use mpcwrapper::{mpc_build_masked_tokens_cust, mpc_build_masked_tokens_merch};
 
 // PROTOTYPE
@@ -45,6 +45,7 @@ pub struct ChannelMPCState {
     R: i32,
     tx_fee: i64,
     dust_limit: i64,
+    pub key_com: [u8; 32],
     pub name: String,
     pub pay_init: bool,
     pub channel_established: bool,
@@ -58,6 +59,7 @@ impl ChannelMPCState {
             R: 0,
             tx_fee: 0,
             dust_limit: 0,
+            key_com: [0u8; 32],
             name: name.to_string(),
             pay_init: false,
             channel_established: false,
@@ -80,6 +82,10 @@ impl ChannelMPCState {
 
     pub fn get_dust_limit(&self) -> i64 {
         return self.dust_limit;
+    }
+
+    pub fn set_key_com(&mut self, key_com: [u8; 32]) {
+        self.key_com = key_com;
     }
 }
 
@@ -104,7 +110,8 @@ pub struct CustomerMPCState {
     state: Option<State>, // vector of field elements that represent current state
     index: i32,
     close_signatures: HashMap<i32, secp256k1::Signature>,
-    pay_tokens: HashMap<i32, secp256k1::Signature>
+    pay_tokens: HashMap<i32, secp256k1::Signature>,
+    payout_sk: secp256k1::SecretKey,
 }
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -129,7 +136,9 @@ impl CustomerMPCState {
 
         // pick random t
         let t: [u8; 32] = [0; 32];
-        //csprng.fill_bytes(&mut t);
+        let mut _payout_sk: [u8; 32] = [0; 32];
+        csprng.fill_bytes(&mut _payout_sk);
+        let payout_sk = secp256k1::SecretKey::from_slice(&_payout_sk).unwrap();
 
         let ct_db = HashMap::new();
         let pt_db = HashMap::new();
@@ -148,6 +157,7 @@ impl CustomerMPCState {
             index: 0,
             close_signatures: ct_db,
             pay_tokens: pt_db,
+            payout_sk: payout_sk
         };
     }
 
@@ -170,7 +180,7 @@ impl CustomerMPCState {
         self.state = Some(state);
     }
 
-    pub fn generate_lock_commitment<R: Rng>(&mut self, csprng: &mut R) -> [u8; 32] {
+    pub fn generate_rev_lock_commitment<R: Rng>(&mut self, csprng: &mut R) -> [u8; 32] {
         // assert!(!self.state.is_none());
         let mut t: [u8; 32] = [0; 32];
         csprng.fill_bytes(&mut t);
@@ -276,21 +286,18 @@ impl CustomerMPCState {
         return true;
     }
 
-//    pub fn generate_revoke_token(&mut self, channel: &ChannelMPCState, close_sig: &secp256k1::Signature) -> ResultBoltType<(RevokedMessage, secp256k1::Signature)> {
-//        if self.verify_close_signature(channel, close_sig) {
-//            let old_state = self.old_kp.unwrap();
-//            // proceed with generating the close token
-//            let secp = secp256k1::Secp256k1::new();
-//            let rm = RevokedMessage::new(String::from("revoked"), old_state.wpk);
-//            let revoke_msg = secp256k1::Message::from_slice(&rm.hash_to_slice()).unwrap();
-//            // msg = "revoked"|| old wsk (for old wallet)
-//            let revoke_sig = secp.sign(&revoke_msg, &old_state.wsk);
+//    pub fn execute_mpc(&self, channel: &ChannelMPCState, old_state: State, new_state: State, paytoken_mask_com: [u8; 32], amount: i64) -> Result<bool, String> {
 //
-//            return Ok((rm, revoke_token));
-//        }
+//        // load the key_com from channel state
+//        let key_com = channel.key_com.clone();
 //
-//        Err(BoltError::new("generate_revoke_token - could not verify the close token."))
+//        let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) =
+//            mpc_build_masked_tokens_cust(UNIXNETIO, amount, &paytoken_mask_com, &key_com,
+//                                     merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key,
+//                                     new_state, old_state, &t,
+//                                     &old_paytoken, cust_escrow_pub_key, cust_payout_pub_key);
 //    }
+
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -304,11 +311,15 @@ pub struct LockMap {
 pub struct MerchantMPCState {
     id: String,
     pk_m: secp256k1::PublicKey, // pk_m
-    sk_m: secp256k1::SecretKey, // sk_m
-    hmac_key: Vec<u8>, // hmac key
+    sk_m: secp256k1::SecretKey, // sk_m - for escrow
+    hmac_key: Vec<u8>, // hmac key => [u8; 64]
+    payout_sk: secp256k1::SecretKey, // for payout pub key
+    dispute_sk: secp256k1::SecretKey, // for dispute pub key
+    pub mask_map: HashMap<[u8; NONCE_LEN], [u8; 32]>,
     pub activate_map: HashMap<String, State>,
     pub lock_map: HashMap<String, LockMap>,
     pub pay_tokens: HashMap<String, secp256k1::Signature>,
+    pub conn_type: u32
 }
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -326,6 +337,19 @@ impl MerchantMPCState {
         csprng.fill_bytes(&mut hmac_key_buf);
         let hmac_key = hmac_key_buf.to_vec();
 
+        let pub_msg= [0u8; 32];
+        // generate the key commitment by signing pub message
+        let key_com = hmac_sign(hmac_key_buf, &pub_msg.to_vec());
+        channel.set_key_com(key_com);
+
+        let mut _payout_sk = [0u8; 32];
+        let mut _dispute_sk = [0u8; 32];
+        csprng.fill_bytes(&mut _payout_sk);
+        csprng.fill_bytes(&mut _dispute_sk);
+
+        let payout_sk = secp256k1::SecretKey::from_slice(&_payout_sk).unwrap();
+        let dispute_sk = secp256k1::SecretKey::from_slice(&_dispute_sk).unwrap();;
+
         let mut ch = channel.clone();
 
         (MerchantMPCState {
@@ -333,14 +357,26 @@ impl MerchantMPCState {
             pk_m: pk_m,
             sk_m: sk_m,
             hmac_key: hmac_key,
+            payout_sk: payout_sk,
+            dispute_sk: dispute_sk,
+            mask_map: HashMap::new(),
             activate_map: HashMap::new(),
             lock_map: HashMap::new(),
             pay_tokens: HashMap::new(),
+            conn_type: 0
         }, ch)
     }
 
-    pub fn get_public_key(&mut self) -> secp256k1::PublicKey {
+    pub fn get_escrow_public_key(&self) -> secp256k1::PublicKey {
         return self.pk_m.clone();
+    }
+
+    pub fn get_public_keys(&self) -> (secp256k1::PublicKey, secp256k1::PublicKey) {
+        let secp = secp256k1::Secp256k1::new();
+        let payout_pub_key = secp256k1::PublicKey::from_secret_key(&secp, &self.payout_sk);
+        let dispute_pub_key = secp256k1::PublicKey::from_secret_key(&secp, &self.dispute_sk);
+
+        return (payout_pub_key, dispute_pub_key);
     }
 
     pub fn activate_channel(&self, channel_token: &ChannelMPCToken, s_0: &State) -> [u8; 32] {
@@ -366,8 +402,35 @@ impl MerchantMPCState {
         return true;
     }
 
-    pub fn initiate_payment<R: Rng>(&self, csprng: &mut R, channel: &mut ChannelMPCState,
-                                    nonce: [u8; NONCE_LEN], r_com: [u8; 32], amount: i64) -> Result<[u8; 32], String> {
+    pub fn generate_pay_mask_commitment<R: Rng>(&mut self, csprng: &mut R, channel: &mut ChannelMPCState,
+                                    nonce: [u8; NONCE_LEN]) -> Result<[u8; 32], String> {
+        // check if n_i not in S
+        let nonce_hex = hex::encode(nonce.to_vec());
+        if self.lock_map.get(&nonce_hex).is_some() {
+            return Err(String::from("nonce has been used already."));
+        }
+
+        // pick mask_pay and form commitment to it
+        let mut pay_mask = [0u8; 32];
+        csprng.fill_bytes(&mut pay_mask);
+
+        // generate commitment to new pay token mask
+        let paytoken_mask_com = hash_to_slice( &pay_mask.to_vec());
+
+        // store pay_mask for use in mpc protocol later
+        self.mask_map.insert(nonce.clone(), pay_mask);
+
+        Ok(paytoken_mask_com)
+    }
+
+    pub fn set_connection(&mut self, conn_type: u32) {
+        self.conn_type = conn_type;
+    }
+
+    pub fn execute_mpc<R: Rng>(&self, csprng: &mut R, channel: &mut ChannelMPCState, nonce: [u8; NONCE_LEN],
+                               rev_lock_com: [u8; 32], paytoken_mask_com: [u8; 32], amount: i64) -> Result<bool, String> {
+        let secp = secp256k1::Secp256k1::new();
+
         // if epsilon > 0, check if acceptable (above dust limit).
         if amount > 0 && amount < channel.get_dust_limit() {
             // if check fails, abort and output an error
@@ -380,14 +443,45 @@ impl MerchantMPCState {
             return Err(String::from("nonce has been used already."));
         }
 
-        // pick mask_pay and form commitment to it
-        let mut pay_mask = [0u8; 32];
-        csprng.fill_bytes(&mut pay_mask);
+        // check the nonce & paytoken_mask (based on the nonce)
+        let pay_mask_bytes = match self.mask_map.get(&nonce) {
+            Some(&n) => n,
+            _ => return Err(String::from("could not find pay mask for specified nonce"))
+        };
 
-        let mask_com = hash_to_slice( &pay_mask.to_vec());
+        let pay_mask_com = hash_to_slice(&pay_mask_bytes.to_vec());
+        if (pay_mask_com != paytoken_mask_com) {
+            return Err(String::from("specified invalid pay mask commitment"));
+        }
 
-        Ok(mask_com)
+        // generate masks for close-escrow and close-merch txs
+        let mut merch_mask_bytes = [0u8; 32];
+        csprng.fill_bytes(&mut merch_mask_bytes);
+
+        let mut escrow_mask_bytes = [0u8; 32];
+        csprng.fill_bytes(&mut escrow_mask_bytes);
+
+        // load the key_com from the channelState
+        let key_com = channel.key_com.clone();
+        // load the hmac key
+        let mut hmac_key = [0u8; 64];
+        hmac_key.copy_from_slice(self.hmac_key.as_slice());
+
+        // get the public keys
+        let merch_escrow_pub_key = self.pk_m.clone(); // escrow key
+        let pk_input_buf = merch_escrow_pub_key.serialize();
+        let mut merch_public_key_hash= sha2_and_ripemd_to_slice(&pk_input_buf.to_vec());
+
+        let (merch_payout_pub_key, merch_dispute_key) = self.get_public_keys();
+
+        mpc_build_masked_tokens_merch(csprng, self.conn_type, amount, &paytoken_mask_com, &rev_lock_com, &key_com,
+                                      merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key, nonce,
+                                      &hmac_key,
+                                      self.sk_m.clone(), &merch_mask_bytes, &pay_mask_bytes, &escrow_mask_bytes);
+
+        Ok(true)
     }
+
 }
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -444,7 +538,7 @@ mod tests {
 
         println!("Begin activate phase for channel");
 
-        let r_com = cust_state.generate_lock_commitment(rng);
+        let r_com = cust_state.generate_rev_lock_commitment(rng);
         let t_0 = cust_state.get_randomness();
         println!("Initial state: {}", s_0);
         println!("Init rev_lock commitment => {:?}", r_com);
@@ -466,7 +560,6 @@ mod tests {
         let pk_m1 = channel_token.pk_m.clone();
         let pk_m2 = channel_token.pk_m.clone();
 
-
 //        let customer_thread = thread::spawn(move || {
 //            println!("hello, customer!");
 //            thread::sleep(Duration::from_millis(1));
@@ -481,25 +574,34 @@ mod tests {
 //                                         s0, s1, &t,
 //                                         &pay_token, &ctx_e, &ctx_m)
 //        });
-//
+
 //        let merchant_thread = thread::spawn(move|| {
 //            println!("hello, merchant!");
 //            let mut rng = &mut rand::thread_rng();
 //
 //            let com_new = [1u8; 32];
-//            let rl = cust_state.rev_lock.clone();
-//            let key_com = [1u8; 32];
+//            let rev_lock_com = r_com.clone();
+//            let mut key_com = [0u8; 32];
+//            key_com.copy_from_slice(hex::decode("e0e14aeda7bcf9bbbf4744ecd03fcdcef0bbc83e0d9fe55c1fb372799e3a0698").unwrap().as_slice());
 //
 //            let hmac_key = merch_state.hmac_key.clone();
 //            let sk_m = merch_state.sk_m.clone();
 //
 //            let close_mask = [2u8; 32];
-//            let pay_mask = [1u8; 32];
+//            let paytoken_mask_com = [1u8; 32];
 //
-//            mpc_build_masked_tokens_merch(&mut rng, pk_m2, amount, &com_new, &rl, &key_com, &hmac_key.as_slice(), sk_m, &close_mask, &pay_mask);
+//            // merch_state.execute_mpc_protocol()
+//
+//            // mpc_build_masked_tokens_merch(&mut rng, pk_m2, amount, &com_new, &rl, &key_com, &hmac_key.as_slice(), sk_m, &close_mask, &pay_mask);
+//            mpc_build_masked_tokens_merch(rng, UNIXNETIO, amount, &paytoken_mask_com, &rev_lock_com,
+//                                      &key_com,
+//                                      merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key, nonce,
+//                                      &hmac_key,
+//                                      sk_m, &merch_mask_bytes, &paytoken_mask_bytes, &escrow_mask_bytes);
+//
 //            thread::sleep(Duration::from_millis(1));
 //        });
-//
+
 //        thread::sleep(Duration::from_millis(5));
 //        customer_thread.join().unwrap();
 //        merchant_thread.join().unwrap();
