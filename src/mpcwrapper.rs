@@ -15,6 +15,7 @@ use std::ptr;
 
 const NETIO: u32 = 1;
 const UNIXNETIO: u32 = 2;
+
 pub type IOCallback = fn(c_uint, c_int);
 
 extern "C" fn io_callback(conn_type: c_uint, party: c_int) -> *mut c_void {
@@ -37,7 +38,7 @@ extern "C" fn io_callback(conn_type: c_uint, party: c_int) -> *mut c_void {
 pub fn mpc_build_masked_tokens_cust(conn_type: u32, amount: i64, pay_mask_com: &[u8], hmac_key_com: &[u8],
                                     merch_escrow_pub_key: secp256k1::PublicKey, merch_dispute_key: secp256k1::PublicKey,
                                     merch_pub_key_hash: [u8; 20], merch_payout_pub_key: secp256k1::PublicKey,
-                                    new_state: State, old_state: State, t: &[u8; 32], pt_old: &[u8],
+                                    new_state: State, old_state: State, pt_old: &[u8],
                                     cust_escrow_pub_key: secp256k1::PublicKey, cust_payout_pub_key: secp256k1::PublicKey,
 ) -> ([u8; 32], [u8; 32], [u8; 32]) {
     // translate wpk
@@ -47,8 +48,6 @@ pub fn mpc_build_masked_tokens_cust(conn_type: u32, amount: i64, pay_mask_com: &
     let mut new_state_c = translate_state(&new_state);
     // translate old_wallet
     let mut old_state_c = translate_state(&old_state);
-    // translate blinding factor
-    let t_str = translate_string(&t[..]);
     // translate payment_token
     let pt_old_c = translate_paytoken(&pt_old);
     //paymask_com
@@ -86,22 +85,17 @@ pub fn mpc_build_masked_tokens_cust(conn_type: u32, amount: i64, pay_mask_com: &
                                  merch_escrow_pub_key_c, merch_dispute_key_c,
                                  merch_public_key_hash_c, merch_payout_pub_key_c,
                                  nonce,
-                                 new_state_c, old_state_c, t_str, pt_old_c,
+                                 new_state_c, old_state_c, pt_old_c,
                                  cust_escrow_pub_key_c, cust_payout_pub_key_c,
                                  &mut pt_return, &mut ct_escrow, &mut ct_merch);
     };
 
-    //TODO: update with values
     let mut pt_masked_ar = [0u8; 32];
     pt_masked_ar.copy_from_slice(u32_to_bytes(&pt_return.paytoken[..]).as_slice());
     let mut ct_escrow_masked_ar = [0u8; 32];
     ct_escrow_masked_ar.copy_from_slice(u32_to_bytes(&ct_escrow.sig[..]).as_slice());
     let mut ct_merch_masked_ar = [0u8; 32];
     ct_merch_masked_ar.copy_from_slice(u32_to_bytes(&ct_merch.sig[..]).as_slice());
-
-    println!("pt_masked_ar={:?}", pt_masked_ar);
-    println!("ct_escrow_masked_ar={:?}", ct_escrow_masked_ar);
-    println!("ct_merch_masked_ar={:?}", ct_merch_masked_ar);
 
     (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar)
 }
@@ -242,9 +236,8 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, conn_type: u32, amount
     // Create ECDSA_params
     let mut params1 = createEcdsaParams(rng, &sk_m.clone());
     let mut params2 = createEcdsaParams(rng, &sk_m.clone());
-    let mut params3 = createEcdsaParams(rng, &sk_m.clone());
 
-    // Create close_mask
+    // Create merch_mask
     let merch_mask = Mask_l { mask: translate_256_string(merch_mask) };
 
     // Create pay_mask
@@ -274,7 +267,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, conn_type: u32, amount
                                   merch_escrow_pub_key_c, merch_dispute_key_c,
                                   merch_public_key_hash_c, merch_payout_pub_key_c,
                                   nonce_c, hmac_key, merch_mask, escrow_mask,
-                                  paytoken_mask_c, params1, params2, params3);
+                                  paytoken_mask_c, params1, params2);
     };
 }
 
@@ -285,6 +278,7 @@ fn createEcdsaParams<R: Rng>(rng: &mut R, sk: &secp256k1::SecretKey) -> EcdsaPar
     let nonce_message = Message::from_slice(&nonce);
     let partial_signature = secp.partial_sign(&nonce_message.unwrap(), &sk);
     let par_sig_compact = partial_signature.0.serialize_compact();
+    println!("params: {}", hex::encode(&par_sig_compact[..]));
     let r_arr = translate_int_256_chars(&par_sig_compact[32..64]);
     let inv = translate_int_256_chars(&par_sig_compact[64..]);
 
@@ -316,17 +310,18 @@ mod tests {
     use std::{str, thread};
     use num::BigInt;
     use std::time::Duration;
+    use rand::rngs::StdRng;
+    use sha2::{Sha256, Digest};
+    use secp256k1::PartialSignature;
 
-    rusty_fork_test! {
+        rusty_fork_test! {
     #[test]
     fn mpc_build_masked_tokens_merch_works() {
         let csprng = &mut rand::thread_rng();
-        let mut seckey = [0u8; 32];
-        csprng.fill_bytes(&mut seckey);
+//        let mut csprng: StdRng = rand::SeedableRng::seed_from_u64(0);
 
-        //TODO: this becomes merch_escrow_pub_key (and corresponding secret key)
-        let sk_m = secp256k1::SecretKey::from_slice(&seckey).unwrap();
-        let pk_m = PublicKey::from_secret_key(&Secp256k1::new(), &sk_m);
+
+        let merch_escrow_secret_key = secp256k1::SecretKey::from_slice(&hex::decode("bbb22af17dc660de6c26ff59e8090dbbc19dcde76beed4f5970c9eaccfbdc96c").unwrap().as_slice()).unwrap();
 
         /* MERCHANT INPUTS */
         /*  HMAC Key, Pt_Mask, Merch_Mask, Escrow_ Mask, 2x Partial Sigs*/
@@ -358,7 +353,7 @@ mod tests {
         let mut nonce = [0u8; 16];
         nonce.copy_from_slice(hex::decode("18670766caf2e5fec5f909d04acd5e86").unwrap().as_slice());
 
-        let merch_escrow_pub_key = secp256k1::PublicKey::from_slice(hex::decode("0342da23a1de903cd7a141a99b5e8051abfcd4d2d1b3c2112bac5c8997d9f12a00").unwrap().as_slice()).unwrap();
+        let merch_escrow_pub_key = secp256k1::PublicKey::from_slice(hex::decode("03f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd").unwrap().as_slice()).unwrap();
         let merch_dispute_key = secp256k1::PublicKey::from_slice(hex::decode("0253be79afe84fd9342c1f52024379b6da6299ea98844aee23838e8e678a765f7c").unwrap().as_slice()).unwrap();
         let mut merch_public_key_hash = [0u8; 20];
         merch_public_key_hash.copy_from_slice(hex::decode("43e9e81bc632ad9cad48fc23f800021c5769a063").unwrap().as_slice());
@@ -369,7 +364,14 @@ mod tests {
                                       &key_com,
                                       merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key, nonce,
                                       &hmac_key,
-                                      sk_m, &merch_mask_bytes, &paytoken_mask_bytes, &escrow_mask_bytes);
+                                      merch_escrow_secret_key, &merch_mask_bytes, &paytoken_mask_bytes, &escrow_mask_bytes);
+
+        let secp = Secp256k1::new();
+        let merch_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff400000000726352210342da23a1de903cd7a141a99b5e8051abfcd4d2d1b3c2112bac5c8997d9f12a002103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae6702cf05b2752102f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90ac688000000000000000ffffffff1d09283c2d7b7c31643a0cf2f5d01912519b7d2f1dfde22f30f45c87852bbc0a0000000001000000").unwrap();
+        let merch_tx_ar = Sha256::digest(merch_preimage.as_slice());
+        let merch_tx = Message::from_slice(merch_tx_ar.as_slice()).unwrap();
+        let signature = secp.compute_sign(&merch_tx, &PartialSignature::from_compact(hex::decode("cee3d2dd61b5fdd7f9e8dcf0545dd59ca54f10d73838ce0c5a346ca79e030fb3263849e0263c1528c1755958847733355aef1e9bfb97b78475ebf8927fabc2802fef39508754408d7d458e536415f0d4e9a6839c2a92856ce48b5580432f3b3c").unwrap().as_slice()).unwrap());
+        println!("merch_tx merch: {}", hex::encode(&signature.serialize_compact()[..]));
     }
     }
 
@@ -385,9 +387,6 @@ mod tests {
 
         let sk_c = secp256k1::SecretKey::from_slice(&seckey).unwrap();
         let pk_c = PublicKey::from_secret_key(&Secp256k1::new(), &sk_c);
-
-        let mut t =  [0u8; 32];
-        t.copy_from_slice(hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap().as_slice());
 
         /*   CUSTOMER SECRET INPUTS */
         /*   old_state, new_state, old_paytoken, 2x public_keys */
@@ -467,31 +466,65 @@ mod tests {
         let mut nonce = [0u8; 16];
         nonce.copy_from_slice(hex::decode("18670766caf2e5fec5f909d04acd5e86").unwrap().as_slice());
 
-        let merch_escrow_pub_key = secp256k1::PublicKey::from_slice(hex::decode("0342da23a1de903cd7a141a99b5e8051abfcd4d2d1b3c2112bac5c8997d9f12a00").unwrap().as_slice()).unwrap();
+        let merch_escrow_pub_key = secp256k1::PublicKey::from_slice(hex::decode("03f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd").unwrap().as_slice()).unwrap();
         let merch_dispute_key = secp256k1::PublicKey::from_slice(hex::decode("0253be79afe84fd9342c1f52024379b6da6299ea98844aee23838e8e678a765f7c").unwrap().as_slice()).unwrap();
         let mut merch_public_key_hash = [0u8; 20];
         merch_public_key_hash.copy_from_slice(hex::decode("43e9e81bc632ad9cad48fc23f800021c5769a063").unwrap().as_slice());
         let merch_payout_pub_key = secp256k1::PublicKey::from_slice(hex::decode("02f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90").unwrap().as_slice()).unwrap();
 
 
-        let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) = 
+        let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) =
             mpc_build_masked_tokens_cust(UNIXNETIO, amount, &paytoken_mask_com, &key_com,
-                                     merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key,
-                                     new_state, old_state, &t,
-                                     &old_paytoken, cust_escrow_pub_key, cust_payout_pub_key);
+                                         merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key,
+                                         new_state, old_state,
+                                         &old_paytoken, cust_escrow_pub_key, cust_payout_pub_key);
 
-        // (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar)
+        let mut paytoken_mask_bytes = [0u8; 32];
+        paytoken_mask_bytes.copy_from_slice(hex::decode("0c8dda801001c9a55f720c5f379ce09e42416780f98fef7900bd26b372b81850").unwrap().as_slice());
+        let mut merch_mask_bytes = [0u8; 32];
+        merch_mask_bytes.copy_from_slice(hex::decode("1c92f6e3dfb5f805a436b727a340fd08d41e4de53b7f6dd5865b5f30fcf80709").unwrap().as_slice());
+        let mut escrow_mask_bytes = [0u8; 32];
+        escrow_mask_bytes.copy_from_slice(hex::decode("2670345a391379cd02514a35ee4fb3f1f0c14b5fb75381b7e797b5dd26ee057d").unwrap().as_slice());
+        let sk_m = secp256k1::SecretKey::from_slice(&hex::decode("bbb22af17dc660de6c26ff59e8090dbbc19dcde76beed4f5970c9eaccfbdc96c").unwrap().as_slice()).unwrap();
+        let secp = Secp256k1::new();
 
         // We are signing this thing (this is post hash): "c76b9fbe0364d533b6ee018de59b3f3d529c6caa1d6fbe28853785e03b006047"
-        // the Preimage is: "020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000004752210342da23a1de903cd7a141a99b5e8051abfcd4d2d1b3c2112bac5c8997d9f12a002103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae8000000000000000ffffffff1d09283c2d7b7c31643a0cf2f5d01912519b7d2f1dfde22f30f45c87852bbc0a0000000001000000"
+        // the escrow Preimage is: "020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000004752210342da23a1de903cd7a141a99b5e8051abfcd4d2d1b3c2112bac5c8997d9f12a002103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae8000000000000000ffffffff1d09283c2d7b7c31643a0cf2f5d01912519b7d2f1dfde22f30f45c87852bbc0a0000000001000000"
+        let escrow_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000004752210342da23a1de903cd7a141a99b5e8051abfcd4d2d1b3c2112bac5c8997d9f12a002103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae8000000000000000ffffffff1d09283c2d7b7c31643a0cf2f5d01912519b7d2f1dfde22f30f45c87852bbc0a0000000001000000").unwrap();
+        let escrow_tx_ar = Sha256::digest(escrow_preimage.as_slice());
+        let escrow_tx = Message::from_slice(escrow_tx_ar.as_slice()).unwrap();
+        // the merch preimage is: "020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff400000000726352210342da23a1de903cd7a141a99b5e8051abfcd4d2d1b3c2112bac5c8997d9f12a002103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae6702cf05b2752102f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90ac688000000000000000ffffffff1d09283c2d7b7c31643a0cf2f5d01912519b7d2f1dfde22f30f45c87852bbc0a0000000001000000"
+        let merch_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff400000000726352210342da23a1de903cd7a141a99b5e8051abfcd4d2d1b3c2112bac5c8997d9f12a002103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae6702cf05b2752102f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90ac688000000000000000ffffffff1d09283c2d7b7c31643a0cf2f5d01912519b7d2f1dfde22f30f45c87852bbc0a0000000001000000").unwrap();
+        let merch_tx_ar = Sha256::digest(merch_preimage.as_slice());
+        let merch_tx = Message::from_slice(merch_tx_ar.as_slice()).unwrap();
         // Asserts
-            // 1. check that 6ccc45f34f720e917794b1a6c25d110e82bbaedfd7e30b0f1f3de4ba7e763474 =  pt_mask ^ pt_masked_ar
-                // 1a. I have checked this manually, and it looks good 
-            // 2. Unmask the escrow token, and check the sig
-                // 2a. I havnt checked
-            // 3. Unmask the merch token, and check the sig
-                // 3a. I havnt checked
+        // 1. check that 6ccc45f34f720e917794b1a6c25d110e82bbaedfd7e30b0f1f3de4ba7e763474 =  pt_mask ^ pt_masked_ar
+        xor_in_place(&mut paytoken_mask_bytes, &pt_masked_ar[..]);
+        assert_eq!(hex::encode(paytoken_mask_bytes), "6ccc45f34f720e917794b1a6c25d110e82bbaedfd7e30b0f1f3de4ba7e763474");
+        // 2. Unmask the escrow token, and check the sig
+        xor_in_place(&mut escrow_mask_bytes, &ct_escrow_masked_ar[..]);
+        println!("unmasked s: {}", hex::encode(escrow_mask_bytes));
+        let mut escrow_sig_vec = hex::decode("802d63a088776c05438f415ca0d7f35026f1b4c5fadf0b152c2b3a3cda925e0d").unwrap();
+        escrow_sig_vec.append(&mut escrow_mask_bytes.to_vec());
+        let escrow_sig = Signature::from_compact(escrow_sig_vec.as_slice()).unwrap();
+        println!("escrow_sig cust: {}", hex::encode(&escrow_sig.serialize_compact()[..]));
+
+//        assert!(secp.verify(&escrow_tx, &escrow_sig, &merch_escrow_pub_key).is_ok());
+        // 3. Unmask the merch token, and check the sig
+        xor_in_place(&mut merch_mask_bytes, &ct_merch_masked_ar[..]);
+        println!("unmasked s: {}", hex::encode(merch_mask_bytes));
+        let mut merch_sig_vec = hex::decode("cee3d2dd61b5fdd7f9e8dcf0545dd59ca54f10d73838ce0c5a346ca79e030fb3").unwrap();
+        merch_sig_vec.append(&mut escrow_mask_bytes.to_vec());
+        let merch_sig = Signature::from_compact(merch_sig_vec.as_slice()).unwrap();
+        println!("merch_sig cust: {}", hex::encode(&merch_sig.serialize_compact()[..]));
+//        assert!(secp.verify(&merch_tx, &merch_sig, &merch_escrow_pub_key).is_ok());
     }
+    }
+
+    pub fn xor_in_place(a: &mut [u8], b: &[u8]) {
+        for (b1, b2) in a.iter_mut().zip(b.iter()) {
+            *b1 ^= *b2;
+        }
     }
 
     #[test]
@@ -529,3 +562,6 @@ mod tests {
         assert!(secp.verify(&mes, &sign, &secp256k1::PublicKey::from_secret_key(&secp, &sk)).is_ok());
     }
 }
+
+//merc: 802d63a088776c05438f415ca0d7f35026f1b4c5fadf0b152c2b3a3cda925e0d48fe45d1fc43902b03f7278d7a2b06263d2729e3c06f44f5ca7fdd6133a84b31
+//cust: 802d63a088776c05438f415ca0d7f35026f1b4c5fadf0b152c2b3a3cda925e0d3ae2c2b9e6a681c8a667fd124d0f4ef924df06ba8c2cec6261cceaedda160274
