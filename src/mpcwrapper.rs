@@ -21,6 +21,7 @@ extern "C" fn io_callback(conn_type: c_uint, party: c_int) -> *mut c_void {
     println!("selecting the IO callback");
     if (conn_type == UNIXNETIO) {
         let io_ptr = unsafe {
+            println!("Running as {} party\n", party);
             get_unixnetio_ptr(CString::new("newtmpcon").unwrap().into_raw(), party)
         };
         return io_ptr;

@@ -3,6 +3,7 @@ use rand::Rng;
 use wallet::{State, NONCE_LEN};
 use util::{hash_to_slice, hmac_sign, sha2_and_ripemd_to_slice};
 use mpcwrapper::{mpc_build_masked_tokens_cust, mpc_build_masked_tokens_merch};
+use secp256k1::ffi::secp256k1_context_no_precomp;
 
 // PROTOTYPE
 #[cfg(feature = "mpc-bitcoin")]
@@ -50,6 +51,8 @@ pub struct ChannelMPCState {
     pub pay_init: bool,
     pub channel_established: bool,
     pub third_party: bool,
+    pub merch_payout_pk: Option<secp256k1::PublicKey>,
+    pub merch_dispute_pk: Option<secp256k1::PublicKey>
 }
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -64,6 +67,8 @@ impl ChannelMPCState {
             pay_init: false,
             channel_established: false,
             third_party: third_party_support,
+            merch_payout_pk: None,
+            merch_dispute_pk: None
         }
     }
 
@@ -86,6 +91,11 @@ impl ChannelMPCState {
 
     pub fn set_key_com(&mut self, key_com: [u8; 32]) {
         self.key_com = key_com;
+    }
+
+    pub fn set_merchant_public_keys(&mut self, merch_payout_pk: secp256k1::PublicKey, merch_dispute_pk: secp256k1::PublicKey) {
+        self.merch_payout_pk = Some(merch_payout_pk);
+        self.merch_dispute_pk = Some(merch_dispute_pk);
     }
 }
 
@@ -110,8 +120,9 @@ pub struct CustomerMPCState {
     state: Option<State>, // vector of field elements that represent current state
     index: i32,
     close_signatures: HashMap<i32, secp256k1::Signature>,
-    pay_tokens: HashMap<i32, secp256k1::Signature>,
+    pay_tokens: HashMap<i32, [u8; 32]>,
     payout_sk: secp256k1::SecretKey,
+    pub conn_type: u32
 }
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -157,8 +168,13 @@ impl CustomerMPCState {
             index: 0,
             close_signatures: ct_db,
             pay_tokens: pt_db,
-            payout_sk: payout_sk
+            payout_sk: payout_sk,
+            conn_type: 0
         };
+    }
+
+    pub fn set_mpc_connect_type(&mut self, conn_type: u32) {
+        self.conn_type = conn_type;
     }
 
     pub fn generate_init_state<R: Rng>(&mut self, csprng: &mut R, channel_token: &mut ChannelMPCToken) {
@@ -200,6 +216,10 @@ impl CustomerMPCState {
     pub fn get_current_state(&self) -> State {
         assert!(self.state.is_some());
         return self.state.unwrap();
+    }
+
+    pub fn store_initial_pay_token(&mut self, pay_token: [u8; 32]) {
+        self.pay_tokens.insert(0, pay_token);
     }
 
     pub fn generate_new_state<R: Rng>(&mut self, csprng: &mut R, channel: &ChannelMPCState, amount: i64) {
@@ -267,9 +287,9 @@ impl CustomerMPCState {
 
     pub fn has_tokens(&self) -> bool {
         let index = self.index;
-        let is_ct = self.close_signatures.get(&index).is_some();
+        // let is_ct = self.close_signatures.get(&index).is_some();
         let is_pt = self.pay_tokens.get(&index).is_some();
-        return is_ct && is_pt;
+        return is_pt;
     }
 
     // update the internal state of the customer wallet
@@ -286,17 +306,39 @@ impl CustomerMPCState {
         return true;
     }
 
-//    pub fn execute_mpc(&self, channel: &ChannelMPCState, old_state: State, new_state: State, paytoken_mask_com: [u8; 32], amount: i64) -> Result<bool, String> {
-//
-//        // load the key_com from channel state
-//        let key_com = channel.key_com.clone();
-//
-//        let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) =
-//            mpc_build_masked_tokens_cust(UNIXNETIO, amount, &paytoken_mask_com, &key_com,
-//                                     merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key,
-//                                     new_state, old_state, &t,
-//                                     &old_paytoken, cust_escrow_pub_key, cust_payout_pub_key);
-//    }
+    // customer side of mpc
+    pub fn execute_mpc(&self, channel: &ChannelMPCState, channel_token: &ChannelMPCToken,
+                       old_state: State, new_state: State, paytoken_mask_com: [u8; 32], amount: i64) -> Result<bool, String> {
+
+        let secp = secp256k1::Secp256k1::new();
+
+        // load the key_com from channel state
+        let key_com = channel.key_com.clone();
+
+        // get cust pub keys
+        let cust_escrow_pub_key = self.pk_c.clone();
+        let cust_payout_pub_key = secp256k1::PublicKey::from_secret_key(&secp, &self.payout_sk);
+
+        let merch_escrow_pub_key= channel_token.pk_m.clone();
+        let pk_input_buf = merch_escrow_pub_key.serialize();
+        let mut merch_public_key_hash= sha2_and_ripemd_to_slice(&pk_input_buf.to_vec());
+
+        let merch_dispute_key= channel.merch_dispute_pk.unwrap();
+        let merch_payout_pub_key = channel.merch_payout_pk.unwrap();
+
+        let old_paytoken = match self.has_tokens() {
+            true => self.pay_tokens.get(&self.index).unwrap(),
+            false => return Err(String::from("you do not have a pay token for previous state"))
+        };
+
+        let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) =
+            mpc_build_masked_tokens_cust(self.conn_type, amount, &paytoken_mask_com, &key_com,
+                                     merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key,
+                                     new_state, old_state, &self.t,
+                                     old_paytoken, cust_escrow_pub_key, cust_payout_pub_key);
+
+        Ok(true)
+    }
 
 }
 
@@ -310,11 +352,13 @@ pub struct LockMap {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct MerchantMPCState {
     id: String,
-    pk_m: secp256k1::PublicKey, // pk_m
+    pub pk_m: secp256k1::PublicKey, // pk_m
     sk_m: secp256k1::SecretKey, // sk_m - for escrow
     hmac_key: Vec<u8>, // hmac key => [u8; 64]
     payout_sk: secp256k1::SecretKey, // for payout pub key
+    pub payout_pk: secp256k1::PublicKey,
     dispute_sk: secp256k1::SecretKey, // for dispute pub key
+    pub dispute_pk: secp256k1::PublicKey,
     pub mask_map: HashMap<[u8; NONCE_LEN], [u8; 32]>,
     pub activate_map: HashMap<String, State>,
     pub lock_map: HashMap<String, LockMap>,
@@ -348,7 +392,12 @@ impl MerchantMPCState {
         csprng.fill_bytes(&mut _dispute_sk);
 
         let payout_sk = secp256k1::SecretKey::from_slice(&_payout_sk).unwrap();
-        let dispute_sk = secp256k1::SecretKey::from_slice(&_dispute_sk).unwrap();;
+        let dispute_sk = secp256k1::SecretKey::from_slice(&_dispute_sk).unwrap();
+
+        let payout_pub_key = secp256k1::PublicKey::from_secret_key(&secp, &payout_sk);
+        let dispute_pub_key = secp256k1::PublicKey::from_secret_key(&secp, &dispute_sk);
+
+        channel.set_merchant_public_keys(payout_pub_key, dispute_pub_key);
 
         let mut ch = channel.clone();
 
@@ -358,7 +407,9 @@ impl MerchantMPCState {
             sk_m: sk_m,
             hmac_key: hmac_key,
             payout_sk: payout_sk,
+            payout_pk: payout_pub_key,
             dispute_sk: dispute_sk,
+            dispute_pk: dispute_pub_key,
             mask_map: HashMap::new(),
             activate_map: HashMap::new(),
             lock_map: HashMap::new(),
@@ -367,17 +418,13 @@ impl MerchantMPCState {
         }, ch)
     }
 
-    pub fn get_escrow_public_key(&self) -> secp256k1::PublicKey {
-        return self.pk_m.clone();
-    }
-
-    pub fn get_public_keys(&self) -> (secp256k1::PublicKey, secp256k1::PublicKey) {
-        let secp = secp256k1::Secp256k1::new();
-        let payout_pub_key = secp256k1::PublicKey::from_secret_key(&secp, &self.payout_sk);
-        let dispute_pub_key = secp256k1::PublicKey::from_secret_key(&secp, &self.dispute_sk);
-
-        return (payout_pub_key, dispute_pub_key);
-    }
+//    pub fn get_escrow_public_key(&self) -> secp256k1::PublicKey {
+//        return self.pk_m.clone();
+//    }
+//
+//    pub fn get_public_keys(&self) -> (secp256k1::PublicKey, secp256k1::PublicKey) {
+//        return (self.payout_pk, self.dispute_pk);
+//    }
 
     pub fn activate_channel(&self, channel_token: &ChannelMPCToken, s_0: &State) -> [u8; 32] {
         // store the state inside the ActivateBucket
@@ -423,11 +470,11 @@ impl MerchantMPCState {
         Ok(paytoken_mask_com)
     }
 
-    pub fn set_connection(&mut self, conn_type: u32) {
+    pub fn set_mpc_connect_type(&mut self, conn_type: u32) {
         self.conn_type = conn_type;
     }
 
-    pub fn execute_mpc<R: Rng>(&self, csprng: &mut R, channel: &mut ChannelMPCState, nonce: [u8; NONCE_LEN],
+    pub fn execute_mpc<R: Rng>(&self, csprng: &mut R, channel: &ChannelMPCState, nonce: [u8; NONCE_LEN],
                                rev_lock_com: [u8; 32], paytoken_mask_com: [u8; 32], amount: i64) -> Result<bool, String> {
         let secp = secp256k1::Secp256k1::new();
 
@@ -472,10 +519,8 @@ impl MerchantMPCState {
         let pk_input_buf = merch_escrow_pub_key.serialize();
         let mut merch_public_key_hash= sha2_and_ripemd_to_slice(&pk_input_buf.to_vec());
 
-        let (merch_payout_pub_key, merch_dispute_key) = self.get_public_keys();
-
         mpc_build_masked_tokens_merch(csprng, self.conn_type, amount, &paytoken_mask_com, &rev_lock_com, &key_com,
-                                      merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key, nonce,
+                                      merch_escrow_pub_key, self.dispute_pk, merch_public_key_hash, self.payout_pk, nonce,
                                       &hmac_key,
                                       self.sk_m.clone(), &merch_mask_bytes, &pay_mask_bytes, &escrow_mask_bytes);
 
@@ -551,60 +596,52 @@ mod tests {
 
         println!("Pay Token on s_0 => {:?}", pay_token_0);
 
+        cust_state.store_initial_pay_token(pay_token_0);
+
         let amount = 10;
 
         cust_state.generate_new_state(rng, &channel, amount);
         let s_1 = cust_state.get_current_state();
         println!("Updated state: {}", s_1);
 
-        let pk_m1 = channel_token.pk_m.clone();
-        let pk_m2 = channel_token.pk_m.clone();
+        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(rng, &mut channel, s_0.nonce).unwrap();
 
-//        let customer_thread = thread::spawn(move || {
-//            println!("hello, customer!");
-//            thread::sleep(Duration::from_millis(1));
-//            let pay_mask_com = [1u8; 32];
-//            let key_com = [1u8; 32];
-//            let t = t_0.clone();
-//            let pay_token = pay_token_0.clone();
-//            let s0 = s_0.clone();
-//            let s1 = s_1.clone();
-//
-//            mpc_build_masked_tokens_cust(pk_m1, amount, &pay_mask_com, &key_com,
-//                                         s0, s1, &t,
-//                                         &pay_token, &ctx_e, &ctx_m)
-//        });
+        cust_state.set_mpc_connect_type(2);
+        merch_state.set_mpc_connect_type(2);
 
-//        let merchant_thread = thread::spawn(move|| {
-//            println!("hello, merchant!");
-//            let mut rng = &mut rand::thread_rng();
-//
-//            let com_new = [1u8; 32];
-//            let rev_lock_com = r_com.clone();
-//            let mut key_com = [0u8; 32];
-//            key_com.copy_from_slice(hex::decode("e0e14aeda7bcf9bbbf4744ecd03fcdcef0bbc83e0d9fe55c1fb372799e3a0698").unwrap().as_slice());
-//
-//            let hmac_key = merch_state.hmac_key.clone();
-//            let sk_m = merch_state.sk_m.clone();
-//
-//            let close_mask = [2u8; 32];
-//            let paytoken_mask_com = [1u8; 32];
-//
-//            // merch_state.execute_mpc_protocol()
-//
-//            // mpc_build_masked_tokens_merch(&mut rng, pk_m2, amount, &com_new, &rl, &key_com, &hmac_key.as_slice(), sk_m, &close_mask, &pay_mask);
-//            mpc_build_masked_tokens_merch(rng, UNIXNETIO, amount, &paytoken_mask_com, &rev_lock_com,
-//                                      &key_com,
-//                                      merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key, nonce,
-//                                      &hmac_key,
-//                                      sk_m, &merch_mask_bytes, &paytoken_mask_bytes, &escrow_mask_bytes);
-//
-//            thread::sleep(Duration::from_millis(1));
-//        });
+        // prepare the customer inputs
+        let cust_channel = channel.clone();
+        let s0 = s_0.clone();
+        println!("old state => {}", s0);
+        let s1 = s_1.clone();
+        println!("new state => {}", s1);
+        let cust_pay_mask_com = pay_token_mask_com.clone();
+        println!("cust pay_mask_com: {:?}", cust_pay_mask_com);
 
-//        thread::sleep(Duration::from_millis(5));
-//        customer_thread.join().unwrap();
-//        merchant_thread.join().unwrap();
+        // prepare the merchant inputs
+        let merch_channel = channel.clone();
+        let rev_lock_com = r_com.clone();
+        let nonce = s_0.nonce.clone();
+        let merch_pay_mask_com = pay_token_mask_com.clone();
+
+        let merchant_thread = thread::spawn(move|| {
+            println!("hello, merchant!");
+            let mut rng = &mut rand::thread_rng();
+            thread::sleep(Duration::from_millis(1));
+
+            merch_state.execute_mpc(rng, &merch_channel, nonce, rev_lock_com, merch_pay_mask_com, amount);
+        });
+
+        let customer_thread = thread::spawn(move || {
+            println!("hello, customer!");
+            thread::sleep(Duration::from_millis(20));
+
+            cust_state.execute_mpc(&cust_channel, &channel_token, s0, s1, cust_pay_mask_com, amount);
+        });
+
+        thread::sleep(Duration::from_millis(5));
+        customer_thread.join().unwrap();
+        merchant_thread.join().unwrap();
 
         println!("mpc threads completed execution!");
 
