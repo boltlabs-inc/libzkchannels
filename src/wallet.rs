@@ -86,7 +86,13 @@ impl fmt::Display for State {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let nonce_hex = hex::encode(self.nonce.to_vec());
         let rev_lock_hex = hex::encode(self.rev_lock.to_vec());
-        write!(f, "State : (\nnonce={:?}\nrev_lock={:?}\npk_c={:?}\npk_m={:?}\nbc={}\nbm={}\n)", // \nescrow_txid={:?}\nmerch_txid={:?}
-               nonce_hex, rev_lock_hex, &self.pk_c, &self.pk_m, &self.bc, &self.bm) // &self.escrow_txid, &self.merch_txid
+        let escrow_txid_hex = hex::encode(self.escrow_txid.to_vec());
+        let escrow_prevout_hex = hex::encode(self.escrow_prevout.to_vec());
+
+        let merch_txid_hex = hex::encode(self.merch_txid.to_vec());
+        let merch_prevout_hex = hex::encode(self.merch_prevout.to_vec());
+
+        write!(f, "State : (\nnonce={:?}\nrev_lock={:?}\npk_c={:?}\npk_m={:?}\nbc={}\nbm={}\nescrow_txid={:?}\nescrow_prevout={:?}\nmerch_txid={:?}\nmerch_prevout={:?}\n)",
+               nonce_hex, rev_lock_hex, &self.pk_c, &self.pk_m, &self.bc, &self.bm, escrow_txid_hex, escrow_prevout_hex, merch_txid_hex, merch_prevout_hex)
     }
 }

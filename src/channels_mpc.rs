@@ -314,6 +314,7 @@ impl CustomerMPCState {
 
         // load the key_com from channel state
         let key_com = channel.key_com.clone();
+        println!("key com: {:?}", key_com);
 
         // get cust pub keys
         let cust_escrow_pub_key = self.pk_c.clone();
@@ -331,11 +332,12 @@ impl CustomerMPCState {
             false => return Err(String::from("you do not have a pay token for previous state"))
         };
 
+        println!("old paytoken = {:?}", old_paytoken);
+
         let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) =
             mpc_build_masked_tokens_cust(self.conn_type, amount, &paytoken_mask_com, &key_com,
                                      merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key,
-                                     new_state, old_state, &self.t,
-                                     old_paytoken, cust_escrow_pub_key, cust_payout_pub_key);
+                                     new_state, old_state,old_paytoken, cust_escrow_pub_key, cust_payout_pub_key);
 
         Ok(true)
     }
@@ -417,15 +419,7 @@ impl MerchantMPCState {
             conn_type: 0
         }, ch)
     }
-
-//    pub fn get_escrow_public_key(&self) -> secp256k1::PublicKey {
-//        return self.pk_m.clone();
-//    }
-//
-//    pub fn get_public_keys(&self) -> (secp256k1::PublicKey, secp256k1::PublicKey) {
-//        return (self.payout_pk, self.dispute_pk);
-//    }
-
+    
     pub fn activate_channel(&self, channel_token: &ChannelMPCToken, s_0: &State) -> [u8; 32] {
         // store the state inside the ActivateBucket
         let channel_id = channel_token.compute_channel_id().unwrap();
@@ -612,11 +606,8 @@ mod tests {
         // prepare the customer inputs
         let cust_channel = channel.clone();
         let s0 = s_0.clone();
-        println!("old state => {}", s0);
         let s1 = s_1.clone();
-        println!("new state => {}", s1);
         let cust_pay_mask_com = pay_token_mask_com.clone();
-        println!("cust pay_mask_com: {:?}", cust_pay_mask_com);
 
         // prepare the merchant inputs
         let merch_channel = channel.clone();
