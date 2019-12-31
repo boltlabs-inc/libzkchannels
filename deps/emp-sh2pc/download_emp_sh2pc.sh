@@ -24,7 +24,7 @@ if [[ ! -f ${EMP_SH2PC}.${FORMAT} ]]; then
     else 
         # archives committed changes
         git archive --output ../${EMP_SH2PC}.test.${FORMAT} HEAD
-   fi
+    fi
 
     echo "Create final tarball: ${EMP_SH2PC}.${FORMAT}"
     cd ..
