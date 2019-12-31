@@ -41,6 +41,7 @@ extern crate ripemd160;
 
 #[cfg(test)]
 #[macro_use] extern crate rusty_fork;
+extern crate rand_xorshift;
 
 pub mod cl;
 pub mod ccs08;

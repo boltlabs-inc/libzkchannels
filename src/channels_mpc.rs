@@ -177,7 +177,8 @@ impl CustomerMPCState {
         self.conn_type = conn_type;
     }
 
-    pub fn generate_init_state<R: Rng>(&mut self, csprng: &mut R, channel_token: &mut ChannelMPCToken) {
+    pub fn generate_init_state<R: Rng>(&mut self, csprng: &mut R, channel_token: &mut ChannelMPCToken,
+                                       escrow_tx_prevout: [u8; 32], merch_tx_prevout: [u8; 32]) {
         assert!(self.state.is_none());
 
         let mut nonce: [u8; NONCE_LEN] = [0; NONCE_LEN];
@@ -186,8 +187,8 @@ impl CustomerMPCState {
         channel_token.set_customer_pk(self.pk_c.clone());
 
         let state = State { nonce: nonce, rev_lock: self.rev_lock, pk_c: self.pk_c, pk_m: channel_token.pk_m.clone(),
-                                bc: self.cust_balance, bm: self.merch_balance, escrow_txid: channel_token.escrow_txid,
-                                merch_txid: channel_token.merch_txid, escrow_prevout: [0u8; 32], merch_prevout: [1u8; 32] };
+                            bc: self.cust_balance, bm: self.merch_balance, escrow_txid: channel_token.escrow_txid,
+                            merch_txid: channel_token.merch_txid, escrow_prevout: escrow_tx_prevout, merch_prevout: merch_tx_prevout };
 
         // generate initial commitment to state of channel
         // let s_com = state.generate_commitment(&t);
@@ -419,7 +420,7 @@ impl MerchantMPCState {
             conn_type: 0
         }, ch)
     }
-    
+
     pub fn activate_channel(&self, channel_token: &ChannelMPCToken, s_0: &State) -> [u8; 32] {
         // store the state inside the ActivateBucket
         let channel_id = channel_token.compute_channel_id().unwrap();
@@ -523,6 +524,10 @@ impl MerchantMPCState {
 
 }
 
+#[cfg(test)]
+use rand::SeedableRng;
+use rand_xorshift::XorShiftRng;
+
 #[cfg(feature = "mpc-bitcoin")]
 #[cfg(test)]
 mod tests {
@@ -531,53 +536,55 @@ mod tests {
     use std::thread;
     use std::time::Duration;
 
-    fn generate_test_txs<R: Rng>(csprng: &mut R) -> ([u8; 32], [u8; 32], [u8; 1024], [u8; 1024]) {
+    fn generate_test_txs<R: Rng>(csprng: &mut R) -> ([u8; 32], [u8; 32], [u8; 32], [u8; 32]) {
         let mut txid1 = [0u8; 32];
         let mut txid2 = [0u8; 32];
 
-        let mut ctx_e = [0u8; 1024];
-        let mut ctx_m = [0u8; 1024];
+        let mut escrow_prevout = [0u8; 32];
+        let mut merch_prevout = [0u8; 32];
 
         csprng.fill_bytes(&mut txid1);
         csprng.fill_bytes(&mut txid2);
 
-        csprng.fill_bytes(&mut ctx_e);
-        csprng.fill_bytes(&mut ctx_m);
+        csprng.fill_bytes(&mut escrow_prevout);
+        csprng.fill_bytes(&mut merch_prevout);
 
         println!("Escrow txid: {:?}", txid1);
         println!("Merch txid: {:?}", txid2);
 
-        return (txid1, txid2, ctx_e, ctx_m)
+        return (txid1, txid2, escrow_prevout, merch_prevout)
     }
 
+rusty_fork_test! {
     #[test]
-    fn mpc_channel_util_works() {
+    fn mpc_channel_util_customer_works() {
         let mut channel = ChannelMPCState::new(String::from("Channel A <-> B"), false);
-        let rng = &mut rand::thread_rng();
+        // let rng = &mut rand::thread_rng();
+        let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d76);
 
         let b0_cust = 100;
         let b0_merch = 20;
         // each party executes the init algorithm on the agreed initial challenge balance
         // in order to derive the channel tokens
         // initialize on the merchant side with balance: b0_merch
-        let (mut merch_state, mut channel) = MerchantMPCState::new(rng, &mut channel, String::from("Merchant B"));
+        let (mut merch_state, mut channel) = MerchantMPCState::new(&mut rng, &mut channel, String::from("Merchant B"));
 
         // initialize on the customer side with balance: b0_cust
-        let mut cust_state = CustomerMPCState::new(rng, b0_cust, b0_merch, String::from("Alice"));
+        let mut cust_state = CustomerMPCState::new(&mut rng, b0_cust, b0_merch, String::from("Customer"));
 
         // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
-        let (escrow_txid, merch_txid, ctx_e, ctx_m) = generate_test_txs(rng);
+        let (escrow_txid, merch_txid, escrow_prevout, merch_prevout) = generate_test_txs(&mut rng);
 
         // initialize the channel token on with pks
         let mut channel_token = cust_state.generate_init_channel_token(&merch_state.pk_m, escrow_txid, merch_txid);
 
         // generate and send initial state to the merchant
-        cust_state.generate_init_state(rng, &mut channel_token);
+        cust_state.generate_init_state(&mut rng, &mut channel_token, escrow_prevout, merch_prevout);
         let s_0 = cust_state.get_current_state();
 
         println!("Begin activate phase for channel");
 
-        let r_com = cust_state.generate_rev_lock_commitment(rng);
+        let r_com = cust_state.generate_rev_lock_commitment(&mut rng);
         let t_0 = cust_state.get_randomness();
         println!("Initial state: {}", s_0);
         println!("Init rev_lock commitment => {:?}", r_com);
@@ -586,7 +593,7 @@ mod tests {
         merch_state.store_initial_state(&channel_token, &s_0);
 
         // activate channel - generate pay_token
-        let pay_token_0= merch_state.activate_channel(&channel_token, &s_0);
+        let pay_token_0 = merch_state.activate_channel(&channel_token, &s_0);
 
         println!("Pay Token on s_0 => {:?}", pay_token_0);
 
@@ -594,47 +601,90 @@ mod tests {
 
         let amount = 10;
 
-        cust_state.generate_new_state(rng, &channel, amount);
+        cust_state.generate_new_state(&mut rng, &channel, amount);
         let s_1 = cust_state.get_current_state();
         println!("Updated state: {}", s_1);
 
-        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(rng, &mut channel, s_0.nonce).unwrap();
+        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, &mut channel, s_0.nonce).unwrap();
 
         cust_state.set_mpc_connect_type(2);
-        merch_state.set_mpc_connect_type(2);
 
         // prepare the customer inputs
-        let cust_channel = channel.clone();
         let s0 = s_0.clone();
         let s1 = s_1.clone();
-        let cust_pay_mask_com = pay_token_mask_com.clone();
 
-        // prepare the merchant inputs
-        let merch_channel = channel.clone();
-        let rev_lock_com = r_com.clone();
-        let nonce = s_0.nonce.clone();
-        let merch_pay_mask_com = pay_token_mask_com.clone();
-
-        let merchant_thread = thread::spawn(move|| {
-            println!("hello, merchant!");
-            let mut rng = &mut rand::thread_rng();
-            thread::sleep(Duration::from_millis(1));
-
-            merch_state.execute_mpc(rng, &merch_channel, nonce, rev_lock_com, merch_pay_mask_com, amount);
-        });
-
-        let customer_thread = thread::spawn(move || {
-            println!("hello, customer!");
-            thread::sleep(Duration::from_millis(20));
-
-            cust_state.execute_mpc(&cust_channel, &channel_token, s0, s1, cust_pay_mask_com, amount);
-        });
-
-        thread::sleep(Duration::from_millis(5));
-        customer_thread.join().unwrap();
-        merchant_thread.join().unwrap();
+        println!("hello, customer!");
+        cust_state.execute_mpc(&channel, &channel_token, s0, s1, pay_token_mask_com, amount);
 
         println!("mpc threads completed execution!");
+    }
+}
+
+rusty_fork_test! {
+    #[test]
+    fn mpc_channel_util_merchant_works() {
+        let mut channel = ChannelMPCState::new(String::from("Channel A <-> B"), false);
+        // let rng = &mut rand::thread_rng();
+        let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d76);
+
+        let b0_cust = 100;
+        let b0_merch = 20;
+        // each party executes the init algorithm on the agreed initial challenge balance
+        // in order to derive the channel tokens
+        // initialize on the merchant side with balance: b0_merch
+        let (mut merch_state, mut channel) = MerchantMPCState::new(&mut rng, &mut channel, String::from("Merchant"));
+
+        // initialize on the customer side with balance: b0_cust
+        let mut cust_state = CustomerMPCState::new(&mut rng, b0_cust, b0_merch, String::from("Customer"));
+
+        // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
+        let (escrow_txid, merch_txid, escrow_prevout, merch_prevout) = generate_test_txs(&mut rng);
+
+        // initialize the channel token on with pks
+        let mut channel_token = cust_state.generate_init_channel_token(&merch_state.pk_m, escrow_txid, merch_txid);
+
+        // generate and send initial state to the merchant
+        cust_state.generate_init_state(&mut rng, &mut channel_token, escrow_prevout, merch_prevout);
+        let s_0 = cust_state.get_current_state();
+
+        println!("Begin activate phase for channel");
+
+        let r_com = cust_state.generate_rev_lock_commitment(&mut rng);
+        let t_0 = cust_state.get_randomness();
+        println!("Initial state: {}", s_0);
+        println!("Init rev_lock commitment => {:?}", r_com);
+
+        // send the initial state s_0 to merchant
+        merch_state.store_initial_state(&channel_token, &s_0);
+
+        // activate channel - generate pay_token
+        let pay_token_0 = merch_state.activate_channel(&channel_token, &s_0);
+
+        println!("Pay Token on s_0 => {:?}", pay_token_0);
+
+        cust_state.store_initial_pay_token(pay_token_0);
+
+        let amount = 10;
+
+        cust_state.generate_new_state(&mut rng, &channel, amount);
+        let s_1 = cust_state.get_current_state();
+        println!("Updated state: {}", s_1);
+
+        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, &mut channel, s_0.nonce).unwrap();
+
+        merch_state.set_mpc_connect_type(2);
+
+        // prepare the merchant inputs
+        let rev_lock_com = r_com.clone();
+        let nonce = s_0.nonce.clone();
+
+        println!("hello, merchant!");
+        merch_state.execute_mpc(&mut rng, &channel, nonce, rev_lock_com, pay_token_mask_com, amount);
+
+        println!("mpc threads completed execution!");
+
+    }
+}
 
         // customer inputs => s_0, s_1, t_0, pay_token_0
         // mpc_build_masked_tokens_cust()
@@ -661,5 +711,4 @@ mod tests {
         // unmask pay-token(i+1)
         // if invalid, abort and output (s_{i+1}, CT_{i+1})
         // otherwise, output (s_{i+1}, CT_{i+1}, pay-token-{i+1})
-    }
 }
