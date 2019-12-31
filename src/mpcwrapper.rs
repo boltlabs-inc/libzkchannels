@@ -516,7 +516,7 @@ mod tests {
         let escrow_sig = Signature::from_compact(escrow_sig_vec.as_slice()).unwrap();
         println!("escrow_sig cust: {}", hex::encode(&escrow_sig.serialize_compact()[..]));
 
-//        assert!(secp.verify(&escrow_tx, &escrow_sig, &merch_escrow_pub_key).is_ok()); //TODO: uncomment
+        assert!(secp.verify(&escrow_tx, &escrow_sig, &merch_escrow_pub_key).is_ok());
 
         // 3. Unmask the merch token, and check the sig
         println!("masked s: {}", hex::encode(merch_mask_bytes));
@@ -526,7 +526,8 @@ mod tests {
         merch_sig_vec.append(&mut merch_mask_bytes.to_vec());
         let merch_sig = Signature::from_compact(merch_sig_vec.as_slice()).unwrap();
         println!("merch_sig cust: {}", hex::encode(&merch_sig.serialize_compact()[..]));
-//        assert!(secp.verify(&merch_tx, &merch_sig, &merch_escrow_pub_key).is_ok()); //TODO: uncomment
+        //TODO: the second part of the signature as returned by the MPC is -s, which forms a valid signature (r,-s), however secp256k1 library doesn't seem to recognize that
+//        assert!(secp.verify(&merch_tx, &merch_sig, &merch_escrow_pub_key).is_ok());
     }
     }
 
@@ -573,3 +574,6 @@ mod tests {
         assert!(secp.verify(&mes, &sign, &secp256k1::PublicKey::from_secret_key(&secp, &sk)).is_ok());
     }
 }
+
+//merc: 802d63a088776c05438f415ca0d7f35026f1b4c5fadf0b152c2b3a3cda925e0d48fe45d1fc43902b03f7278d7a2b06263d2729e3c06f44f5ca7fdd6133a84b31
+//cust: 802d63a088776c05438f415ca0d7f35026f1b4c5fadf0b152c2b3a3cda925e0d3ae2c2b9e6a681c8a667fd124d0f4ef924df06ba8c2cec6261cceaedda160274
