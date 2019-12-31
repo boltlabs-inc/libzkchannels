@@ -305,7 +305,7 @@ impl CustomerMPCState {
 
     // customer side of mpc
     pub fn execute_mpc_context(&mut self, channel: &ChannelMPCState, channel_token: &ChannelMPCToken,
-                       old_state: State, new_state: State, paytoken_mask_com: [u8; 32], amount: i64) -> Result<bool, String> {
+                       old_state: State, new_state: State, paytoken_mask_com: [u8; 32], rev_lock_com: [u8;32], amount: i64) -> Result<bool, String> {
 
         let secp = secp256k1::Secp256k1::new();
 
@@ -329,7 +329,7 @@ impl CustomerMPCState {
         };
 
         let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) =
-            mpc_build_masked_tokens_cust(self.conn_type, amount, &paytoken_mask_com, &key_com,
+            mpc_build_masked_tokens_cust(self.conn_type, amount, &paytoken_mask_com, &rev_lock_com, &key_com,
                                      merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key,
                                      new_state, old_state,old_paytoken, cust_escrow_pub_key, cust_payout_pub_key);
 
@@ -702,7 +702,7 @@ mod tests {
         let s1 = s_1.clone();
 
         println!("hello, customer!");
-        let res = cust_state.execute_mpc_context(&channel, &channel_token, s0, s1, pay_token_mask_com, amount);
+        let res = cust_state.execute_mpc_context(&channel, &channel_token, s0, s1, pay_token_mask_com, r_com, amount);
 
         println!("completed mpc execution!");
 

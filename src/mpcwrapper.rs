@@ -35,14 +35,14 @@ extern "C" fn io_callback(conn_type: c_uint, party: c_int) -> *mut c_void {
     }
 }
 
-pub fn mpc_build_masked_tokens_cust(conn_type: u32, amount: i64, pay_mask_com: &[u8], hmac_key_com: &[u8],
+pub fn mpc_build_masked_tokens_cust(conn_type: u32, amount: i64, pay_mask_com: &[u8], rev_lock_com: &[u8], hmac_key_com: &[u8],
                                     merch_escrow_pub_key: secp256k1::PublicKey, merch_dispute_key: secp256k1::PublicKey,
                                     merch_pub_key_hash: [u8; 20], merch_payout_pub_key: secp256k1::PublicKey,
                                     new_state: State, old_state: State, pt_old: &[u8],
                                     cust_escrow_pub_key: secp256k1::PublicKey, cust_payout_pub_key: secp256k1::PublicKey,
 ) -> ([u8; 32], [u8; 32], [u8; 32]) {
     // translate wpk
-    let mut rl_c = translate_revlock_com(&new_state.rev_lock[..]);
+    let mut rl_c = translate_revlock_com(&rev_lock_com);
 
     // translate new_wallet
     let mut new_state_c = translate_state(&new_state);
@@ -213,13 +213,13 @@ fn u32_to_bytes(input: &[u32]) -> Vec<u8> {
     out
 }
 
-pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, conn_type: u32, amount: i64, com_new: &[u8], rl: &[u8],
+pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, conn_type: u32, amount: i64, com_new: &[u8], rev_lock_com: &[u8],
                                              key_com: &[u8], merch_escrow_pub_key: secp256k1::PublicKey, merch_dispute_key: secp256k1::PublicKey,
                                              merch_pub_key_hash: [u8; 20], merch_payout_pub_key: secp256k1::PublicKey,
                                              nonce: [u8; 16],
                                              hmac_key: &[u8], merch_escrow_secret_key: secp256k1::SecretKey, merch_mask: &[u8; 32], pay_mask: &[u8; 32], escrow_mask: &[u8; 32]) {
     // translate revlock commitment
-    let mut rl_c = translate_revlock_com(rl);
+    let mut rl_c = translate_revlock_com(rev_lock_com);
 
     //translate bitcoin keys
     let merch_escrow_pub_key_c = translate_bitcoin_key(&merch_escrow_pub_key);
@@ -328,7 +328,7 @@ mod tests {
         merch_mask_bytes.copy_from_slice(hex::decode("1c92f6e3dfb5f805a436b727a340fd08d41e4de53b7f6dd5865b5f30fcf80709").unwrap().as_slice());
         let mut escrow_mask_bytes = [0u8; 32];
         escrow_mask_bytes.copy_from_slice(hex::decode("2670345a391379cd02514a35ee4fb3f1f0c14b5fb75381b7e797b5dd26ee057d").unwrap().as_slice());
-   
+
         /* PULBIC MPC INPUTS */
         /* Balance amount, HMACKeyCommit, PT_MaskCommit, RevLockCommit, Nonce, 3x Public Key, 1x PK_Hash*/
 
@@ -479,7 +479,7 @@ mod tests {
 
 
         let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) =
-            mpc_build_masked_tokens_cust(UNIXNETIO, amount, &paytoken_mask_com, &key_com,
+            mpc_build_masked_tokens_cust(UNIXNETIO, amount, &paytoken_mask_com, &rev_lock_com, &key_com,
                                          merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key,
                                          new_state, old_state,
                                          &old_paytoken, cust_escrow_pub_key, cust_payout_pub_key);
@@ -526,8 +526,7 @@ mod tests {
         merch_sig_vec.append(&mut merch_mask_bytes.to_vec());
         let merch_sig = Signature::from_compact(merch_sig_vec.as_slice()).unwrap();
         println!("merch_sig cust: {}", hex::encode(&merch_sig.serialize_compact()[..]));
-        //TODO: the second part of the signature as returned by the MPC is -s, which forms a valid signature (r,-s), however secp256k1 library doesn't seem to recognize that
-//        assert!(secp.verify(&merch_tx, &merch_sig, &merch_escrow_pub_key).is_ok());
+        assert!(secp.verify(&merch_tx, &merch_sig, &merch_escrow_pub_key).is_ok());
     }
     }
 
