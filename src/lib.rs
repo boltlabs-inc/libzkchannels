@@ -36,8 +36,12 @@ extern crate bit_array;
 extern crate typenum;
 extern crate num;
 extern crate serde_json;
+extern crate hmac;
+extern crate ripemd160;
+
 #[cfg(test)]
 #[macro_use] extern crate rusty_fork;
+extern crate rand_xorshift;
 
 pub mod cl;
 pub mod ccs08;

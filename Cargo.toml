@@ -13,6 +13,7 @@ links = "token-utils"
 
 [dependencies]
 rand = "0.7"
+rand_xorshift = "0.2"
 ff_bl = { git = "https://github.com/boltlabs-inc/ff", branch = "master" }
 pairing_bl = { git = "https://github.com/boltlabs-inc/pairing", branch = "master", features = ["serde"] }
 libc = "*"
@@ -27,7 +28,9 @@ sha2 = { version = "0.8", default-features = false }
 bit-array = "*"
 typenum = "*"
 num = "*"
-hex="0.3.2"
+hex = "0.3.2"
+hmac = "0.7"
+ripemd160 = "0.8"
 
 [build-dependencies]
 bindgen="*"

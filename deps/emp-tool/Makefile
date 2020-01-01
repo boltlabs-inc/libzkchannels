@@ -20,6 +20,10 @@ emp-tool-$(VERSION): emp-tool-$(VERSION).tar.gz
 package: checkenv
 	./download_emp_tool.sh emp-tool-$(VERSION)
 
+local: emp-tool-$(VERSION).git
+	./download_emp_tool.sh emp-tool-$(VERSION) local
+	make emp-tool-$(VERSION)
+	make emp-tool-$(VERSION)/.built
 clean:
 	rm -rf emp-tool-$(VERSION) build-*
 

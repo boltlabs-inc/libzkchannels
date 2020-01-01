@@ -1,4 +1,4 @@
-.PHONY: all clean
+.PHONY: all clean local
 
 VERSION=0.1
 TMP=$(shell mktemp -d build-XXXX)
@@ -16,6 +16,11 @@ emp-sh2pc-$(VERSION)/.built: emp-sh2pc-${VERSION}
 
 emp-sh2pc-$(VERSION): emp-sh2pc-$(VERSION).tar.gz
 	tar xf $^
+
+local: emp-sh2pc-$(VERSION).git
+	./download_emp_sh2pc.sh emp-sh2pc-$(VERSION) local
+	make emp-sh2pc-$(VERSION)
+	make emp-sh2pc-$(VERSION)/.built
 
 package: checkenv
 	./download_emp_sh2pc.sh emp-sh2pc-$(VERSION)

@@ -46,16 +46,20 @@ impl<E: Engine> fmt::Display for Wallet<E> {
     }
 }
 
+pub const NONCE_LEN: usize = 16;
+
 #[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct State {
-    pub nonce: [u8; 12], // 96-bits
+    pub nonce: [u8; NONCE_LEN], // 128-bits
     pub rev_lock: [u8; 32], // 32 bytes for hash
     pub pk_c: secp256k1::PublicKey,
     pub pk_m: secp256k1::PublicKey,
     pub bc: i64,
     pub bm: i64,
     pub escrow_txid: [u8; 32],
+    pub escrow_prevout: [u8; 32],
     pub merch_txid: [u8; 32],
+    pub merch_prevout: [u8; 32]
 }
 
 impl State {
@@ -69,6 +73,9 @@ impl State {
         input_buf.extend_from_slice(&self.bm.to_string().as_bytes());
         input_buf.extend_from_slice(&self.escrow_txid);
         input_buf.extend_from_slice(&self.merch_txid);
+        input_buf.extend_from_slice(&self.escrow_prevout);
+        input_buf.extend_from_slice(&self.merch_prevout);
+
         input_buf.extend_from_slice(t);
 
         return hash_to_slice(&input_buf);
@@ -79,7 +86,13 @@ impl fmt::Display for State {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let nonce_hex = hex::encode(self.nonce.to_vec());
         let rev_lock_hex = hex::encode(self.rev_lock.to_vec());
-        write!(f, "State : (\nnonce={:?}\nrev_lock={:?}\npk_c={:?}\npk_m={:?}\nbc={}\nbm={}\n)", // \nescrow_txid={:?}\nmerch_txid={:?}
-               nonce_hex, rev_lock_hex, &self.pk_c, &self.pk_m, &self.bc, &self.bm) // &self.escrow_txid, &self.merch_txid
+        let escrow_txid_hex = hex::encode(self.escrow_txid.to_vec());
+        let escrow_prevout_hex = hex::encode(self.escrow_prevout.to_vec());
+
+        let merch_txid_hex = hex::encode(self.merch_txid.to_vec());
+        let merch_prevout_hex = hex::encode(self.merch_prevout.to_vec());
+
+        write!(f, "State : (\nnonce={:?}\nrev_lock={:?}\npk_c={:?}\npk_m={:?}\nbc={}\nbm={}\nescrow_txid={:?}\nescrow_prevout={:?}\nmerch_txid={:?}\nmerch_prevout={:?}\n)",
+               nonce_hex, rev_lock_hex, &self.pk_c, &self.pk_m, &self.bc, &self.bm, escrow_txid_hex, escrow_prevout_hex, merch_txid_hex, merch_prevout_hex)
     }
 }
