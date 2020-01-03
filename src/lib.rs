@@ -39,6 +39,9 @@ extern crate serde_json;
 extern crate hmac;
 extern crate ripemd160;
 
+extern crate wagyu_bitcoin as bitcoin;
+extern crate wagyu_model;
+
 #[cfg(test)]
 #[macro_use] extern crate rusty_fork;
 extern crate rand_xorshift;
@@ -55,6 +58,7 @@ pub mod ffishim;
 pub mod mpcwrapper;
 pub mod ffishim_bn256;
 pub mod bindings;
+pub mod transactions;
 
 use std::fmt;
 use std::str;

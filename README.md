@@ -8,13 +8,14 @@ BOLT is a system for conducting **privacy-preserving off-chain payments** betwee
 
 The libzkchannels library is a proof of concept implementation that relies on experimental libraries and dependencies at the moment. It is not suitable for production software yet.
 
-# Dependencies
+# Major Dependencies
 
 * secp256k1
 * ff
 * pairing
 * serde
-* sha2
+* sha2, ripemd160, hmac, hex
+* wagyu-bitcoin, wagyu-model
 
 Note that the above rust dependencies will be compiled and installed as a result of running the `make` command.
 
