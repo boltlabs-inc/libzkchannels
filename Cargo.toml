@@ -5,8 +5,8 @@ authors = ["Bolt Labs, Inc <info@boltlabs.io>"]
 description = "library implements zkChannels which was formerly Blind Off-chain Lightweight Transactions (BOLT)"
 keywords = ["bitcoin", "zcash", "anonymous payment channels", "zkchannels"]
 readme = "README.md"
-homepage = "https://github.com/jakinyele/libzkchannels"
-repository = "https://github.com/jakinyele/libzkchannels"
+homepage = "https://github.com/boltlabs-inc/libzkchannels"
+repository = "https://github.com/boltlabs-inc/libzkchannels"
 license = "MIT License"
 build = "build.rs"
 links = "token-utils"
@@ -21,16 +21,18 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_with = "1.0"
 serde_bytes = "0.11.2"
-time = "*"
-# secp256k1 = { version = "0.15.0", features = ["rand", "serde"] }
-secp256k1 = { git = "https://github.com/boltlabs-inc/rust-secp256k1", branch = "master", features = ["serde"] }
+time = "0.1"
+#secp256k1 = { version = "0.15.5", features = ["serde"] }
+secp256k1 = { git = "https://github.com/boltlabs-inc/rust-secp256k1", branch = "0.15.5-partial-sig", features = ["serde"] }
 sha2 = { version = "0.8", default-features = false }
+ripemd160 = "0.8"
+hmac = "0.7"
 bit-array = "*"
 typenum = "*"
 num = "*"
 hex = "0.3.2"
-hmac = "0.7"
-ripemd160 = "0.8"
+wagyu-model = { git = "https://github.com/boltlabs-inc/wagyu", branch = "feature/transactions" }
+wagyu-bitcoin = { git = "https://github.com/boltlabs-inc/wagyu", branch = "feature/transactions" }
 
 [build-dependencies]
 bindgen="*"
