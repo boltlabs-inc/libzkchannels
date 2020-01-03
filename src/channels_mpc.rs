@@ -106,6 +106,22 @@ pub struct MaskedMPCInputs {
     merch_mask: [u8; 32]
 }
 
+#[cfg(feature = "mpc-bitcoin")]
+impl MaskedMPCInputs {
+    pub fn get_tx_masks(&self) -> MaskedTxMPCInputs {
+        return MaskedTxMPCInputs {
+            escrow_mask: self.escrow_mask,
+            merch_mask: self.merch_mask,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Serialize, Deserialize)]
+pub struct MaskedTxMPCInputs {
+    pub escrow_mask: [u8; 32],
+    pub merch_mask: [u8; 32]
+}
+
 #[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct MaskedMPCOutputs {
     pt_masked: [u8; 32],
@@ -267,6 +283,7 @@ impl CustomerMPCState {
         new_state.rev_lock.copy_from_slice(&new_rev_lock);
 
         self.rev_secret.copy_from_slice(&new_rev_secret);
+        self.rev_lock.copy_from_slice(&new_rev_lock);
         self.cust_balance = new_state.bc;
         self.merch_balance = new_state.bm;
 
@@ -344,11 +361,26 @@ impl CustomerMPCState {
         Ok(true)
     }
 
-    pub fn unmask_and_verify(&self, mask_bytes: MaskedMPCInputs) -> bool {
-
-        let mut pt_mask_bytes = mask_bytes.pt_mask.clone();
+    pub fn unmask_and_verify_transactions(&self, mask_bytes: MaskedTxMPCInputs) -> bool {
         let mut escrow_mask_bytes = mask_bytes.escrow_mask.clone();
         let mut merch_mask_bytes = mask_bytes.merch_mask.clone();
+
+        if self.masked_outputs.get(&self.index).is_none() {
+            println!("could not find masked output");
+            return false;
+        }
+
+        let mpc_out = self.masked_outputs.get(&self.index).unwrap();
+        xor_in_place(&mut escrow_mask_bytes, &mpc_out.escrow_masked[..]);
+        xor_in_place(&mut merch_mask_bytes, &mpc_out.merch_masked[..]);
+
+        // TODO: verify the signatures and output updated state and sigs for close-txs (s_i+1, CT_i+1)
+        // if valid, output (s_{i+1}, CT_{i+1}, pay-token-{i+1})
+        return true;
+    }
+
+    pub fn unmask_and_verify_pay_token(&mut self, pt_mask_bytes_in: [u8; 32]) -> bool {
+        let mut pt_mask_bytes = pt_mask_bytes_in.clone();
 
         if self.masked_outputs.get(&self.index).is_none() {
             println!("could not find masked output");
@@ -365,11 +397,8 @@ impl CustomerMPCState {
 
         let mpc_out = self.masked_outputs.get(&self.index).unwrap();
         xor_in_place(&mut pt_mask_bytes, &mpc_out.pt_masked[..]);
-        xor_in_place(&mut escrow_mask_bytes, &mpc_out.escrow_masked[..]);
-        xor_in_place(&mut merch_mask_bytes, &mpc_out.merch_masked[..]);
 
-        // TODO: verify the signatures and output updated state and sigs for close-txs (s_i+1, CT_i+1)
-        // if valid, output (s_{i+1}, CT_{i+1}, pay-token-{i+1})
+        self.pay_tokens.insert(self.index, pt_mask_bytes);
         return true;
     }
 
@@ -537,7 +566,7 @@ impl MerchantMPCState {
         };
 
         let pay_mask_com = hash_to_slice(&pay_mask_bytes.to_vec());
-        if (pay_mask_com != paytoken_mask_com) {
+        if pay_mask_com != paytoken_mask_com {
             return Err(String::from("specified invalid pay mask commitment"));
         }
 
@@ -575,7 +604,7 @@ impl MerchantMPCState {
         Ok(true)
     }
 
-    pub fn verify_revoked_state(&mut self, nonce: [u8; NONCE_LEN], rev_lock_com: [u8; 32], rev_lock: [u8; 32], rev_sec: [u8; 32], t: [u8; 32]) -> Option<MaskedMPCInputs> {
+    pub fn verify_revoked_state(&mut self, nonce: [u8; NONCE_LEN], rev_lock_com: [u8; 32], rev_lock: [u8; 32], rev_sec: [u8; 32], t: [u8; 32]) -> Option<[u8; 32]> {
         // check rev_lock_com opens to RL_i / t_i
         // check that RL_i is derived from RS_i
         if compute_commitment(&rev_lock, &t) != rev_lock_com || 
@@ -588,8 +617,8 @@ impl MerchantMPCState {
         //let pay_mask_bytes = self.nonce_mask_map.get(&nonce).unwrap();
 
         // retrieve masked bytes from rev_lock_com (output error, if not)
-        let (is_ok, mask_bytes) = match self.mask_mpc_bytes.get(&rev_lock_com) {
-            Some(&n) => (true, Some(n)),
+        let (is_ok, pt_mask) = match self.mask_mpc_bytes.get(&rev_lock_com) {
+            Some(&n) => (true, Some(n.pt_mask)),
             _ => (false, None)
         };
 
@@ -605,7 +634,7 @@ impl MerchantMPCState {
             self.lock_map_state.insert(nonce, None);
         }
 
-        return mask_bytes;
+        return pt_mask;
     }
 
 }
@@ -729,7 +758,8 @@ mod tests {
             println!("merch_masked: {:?}", mb.merch_mask);
 
             println!("now, unmask and verify...");
-            cust_state.unmask_and_verify(mb);
+            cust_state.unmask_and_verify_transactions(mb.get_tx_masks());
+            cust_state.unmask_and_verify_pay_token(mb.pt_mask);
         }
 
         // (5) customer checks validity of commitment opening and if valid,
@@ -806,14 +836,12 @@ rusty_fork_test!
 
         println!("completed mpc execution!");
 
-        let mask_bytes = merch_state.verify_revoked_state(nonce, rev_lock_com, rev_lock, rev_secret, t);
-        assert!(!mask_bytes.is_none());
+        let pt_mask_bytes = merch_state.verify_revoked_state(nonce, rev_lock_com, rev_lock, rev_secret, t);
+        assert!(!pt_mask_bytes.is_none());
 
-        if mask_bytes.is_some() {
-            let mb = mask_bytes.unwrap();
-            println!("pt_masked: {:?}", mb.pt_mask);
-            println!("escrow_masked: {:?}", mb.escrow_mask);
-            println!("merch_masked: {:?}", mb.merch_mask);
+        if pt_mask_bytes.is_some() {
+            let pt_mask = pt_mask_bytes.unwrap();
+            println!("pt_masked: {:?}", pt_mask);
         }
     }
 }
