@@ -43,7 +43,8 @@ extern crate wagyu_bitcoin as bitcoin;
 extern crate wagyu_model;
 
 #[cfg(test)]
-#[macro_use] extern crate rusty_fork;
+#[macro_use]
+extern crate rusty_fork;
 extern crate rand_xorshift;
 
 pub mod cl;
@@ -549,8 +550,12 @@ pub mod wtp_utils {
         let close = util::hash_to_fr::<Bls12>(String::from("close").into_bytes());
 
         return Wallet {
-            channelId, wpk: wpk_h, bc: cust_bal as i64, bm: merch_bal as i64, close: Some(close)
-        }
+            channelId,
+            wpk: wpk_h,
+            bc: cust_bal as i64,
+            bm: merch_bal as i64,
+            close: Some(close),
+        };
     }
 
     pub fn reconstruct_signature_bls12(sig: &Vec<u8>) -> BoltResult<cl::Signature<Bls12>> {
@@ -560,13 +565,13 @@ pub mod wtp_utils {
 
         let mut cur_index = 0;
         let mut end_index = BLS12_381_G1_LEN;
-        let ser_cl_h = sig[cur_index .. end_index].to_vec();
+        let ser_cl_h = sig[cur_index..end_index].to_vec();
         let str_cl_h = util::encode_as_hexstring(&ser_cl_h);
         let h = str_cl_h.as_bytes();
 
         cur_index = end_index;
         end_index += BLS12_381_G1_LEN;
-        let ser_cl_H = sig[cur_index .. end_index].to_vec();
+        let ser_cl_H = sig[cur_index..end_index].to_vec();
         let str_cl_H = util::encode_as_hexstring(&ser_cl_H);
         let H = str_cl_H.as_bytes();
 
@@ -583,41 +588,41 @@ pub mod wtp_utils {
         }
 
         let num_y_elems = 5;
-        let num_com_params= 6;
+        let num_com_params = 6;
 
         let mut cur_index = 0;
         let mut end_index = SECP256K1_PK_LEN;
-        let pkc = secp256k1::PublicKey::from_slice(&channel_token[cur_index .. end_index]).unwrap();
+        let pkc = secp256k1::PublicKey::from_slice(&channel_token[cur_index..end_index]).unwrap();
 
         cur_index = end_index;
         end_index += SECP256K1_PK_LEN;
-        let pkm = secp256k1::PublicKey::from_slice(&channel_token[cur_index .. end_index]).unwrap();
+        let pkm = secp256k1::PublicKey::from_slice(&channel_token[cur_index..end_index]).unwrap();
 
         cur_index = end_index;
         end_index += BLS12_381_G2_LEN; // pk_M => (X, Y)
-        let ser_cl_x = channel_token[cur_index .. end_index].to_vec();
+        let ser_cl_x = channel_token[cur_index..end_index].to_vec();
         let str_cl_x = util::encode_as_hexstring(&ser_cl_x);
         let X = str_cl_x.as_bytes();
 
         let mut Y = Vec::new();
-        for _ in 0 .. num_y_elems {
+        for _ in 0..num_y_elems {
             cur_index = end_index;
             end_index += BLS12_381_G2_LEN;
-            let cl_y = channel_token[cur_index .. end_index].to_vec();
+            let cl_y = channel_token[cur_index..end_index].to_vec();
             let ser_cl_y = util::encode_as_hexstring(&cl_y);
             let str_cl_y = ser_cl_y.as_bytes();
             Y.extend(str_cl_y);
         }
-        let cl_pk= cl::PublicKey::<Bls12>::from_slice(&X, &Y.as_slice(), str_cl_x.len(), num_y_elems);
+        let cl_pk = cl::PublicKey::<Bls12>::from_slice(&X, &Y.as_slice(), str_cl_x.len(), num_y_elems);
 
         cur_index = end_index;
         end_index += BLS12_381_G1_LEN;
-        let g1 = channel_token[cur_index .. end_index].to_vec();
+        let g1 = channel_token[cur_index..end_index].to_vec();
         let ser_mpk_g1 = util::encode_as_hexstring(&g1);
 
         cur_index = end_index;
         end_index += BLS12_381_G2_LEN;
-        let g2 = channel_token[cur_index .. end_index].to_vec();
+        let g2 = channel_token[cur_index..end_index].to_vec();
         let ser_mpk_g2 = util::encode_as_hexstring(&g2);
 
         let ser_g1 = ser_mpk_g1.as_bytes();
@@ -626,10 +631,10 @@ pub mod wtp_utils {
         let mpk = cl::PublicParams::<Bls12>::from_slice(&ser_g1, &ser_g2);
 
         let mut comparams = Vec::new();
-        for _ in 0 .. num_com_params {
+        for _ in 0..num_com_params {
             cur_index = end_index;
             end_index += BLS12_381_G1_LEN;
-            let com = channel_token[cur_index .. end_index].to_vec();
+            let com = channel_token[cur_index..end_index].to_vec();
             let ser_com = util::encode_as_hexstring(&com);
             let str_com = ser_com.as_bytes();
             comparams.extend(str_com);
@@ -638,7 +643,11 @@ pub mod wtp_utils {
         let com_params = CSMultiParams::<Bls12>::from_slice(&comparams.as_slice(), ser_mpk_g1.len(), num_com_params);
 
         Ok(Some(ChannelToken {
-            pk_c: Some(pkc), pk_m: pkm, cl_pk_m: cl_pk, mpk: mpk, comParams: com_params
+            pk_c: Some(pkc),
+            pk_m: pkm,
+            cl_pk_m: cl_pk,
+            mpk: mpk,
+            comParams: com_params,
         }))
     }
 
@@ -678,7 +687,7 @@ pub mod wtp_utils {
         let secp = secp256k1::Secp256k1::verification_only();
         let msg = secp256k1::Message::from_slice(hash.as_slice()).unwrap();
 
-        return secp.verify(&msg, &sig, &pubkey).is_ok()
+        return secp.verify(&msg, &sig, &pubkey).is_ok();
     }
 
     pub fn reconstruct_secp_channel_close_m(address: &[u8; ADDRESS_LEN], ser_revoke_token: &Vec<u8>, ser_sig: &Vec<u8>) -> ChannelcloseM {
@@ -700,46 +709,179 @@ pub mod mpc {
     use secp256k1;
     use HashMap;
 
-    use serde::{Serialize, Deserialize};
     pub use channels_mpc::{ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState};
-
-    pub struct Payment { }
+    use secp256k1::PublicKey;
+    use wallet::State;
+    use channels_mpc::MaskedTxMPCInputs;
 
     ///
     /// init_merchant - takes as input the public params, merchant balance and keypair.
     /// Generates merchant data which consists of channel token and merchant state.
+    /// output: merchant state
     ///
-    pub fn init_merchant<'a, R: Rng>(csprng: &mut R, channel_state: &mut ChannelMPCState, name: &'a str) -> (MerchantMPCState, ChannelMPCState) {
+    pub fn init_merchant<'a, R: Rng>(csprng: &mut R, channel_state: &mut ChannelMPCState, name: &'a str) -> MerchantMPCState {
         // create new merchant state
         let merch_name = String::from(name);
         let (mut merch_state, mut channel_state) = MerchantMPCState::new(csprng, channel_state, merch_name);
         // initialize the merchant state
         // let channel_token = merch_state.init(&mut channel_state);
 
-        return (merch_state, channel_state.clone());
+        return merch_state;
     }
 
-//    ///
-//    /// init_customer - takes as input the public params, channel state, commitment params, keypair,
-//    /// and initial balance for customer and merchant. Generate initial customer channel token,
-//    /// and wallet commitment.
-//    ///
-//    pub fn init_customer<'a, R: Rng>(csprng: &mut R, channel_token: &mut ChannelMPCToken,
-//                                                b0_cust: i64, b0_merch: i64, name: &'a str) -> CustomerMPCState
-//    {
-//        assert!(b0_cust >= 0);
-//        assert!(b0_merch >= 0);
-//
-//        let cust_name = String::from(name);
-//        return CustomerMPCState::new(csprng, channel_token, b0_cust, b0_merch, cust_name);
-//    }
-//
-//    pub fn establish_commitment<R: Rng>(csprng: &mut R, channel_token: &ChannelMPCToken,
-//                                       cust_state: &CustomerMPCState) -> [u8; 32] {
-//        let cust_com = cust_state;
-//        return (cust_state.s_com.clone());
-//    }
+    ///
+    /// init_customer - takes as input the merchant's public key, and initial balance for customer and merchant.
+    /// Generate initial customer channel state and channel token.
+    /// output: a channel token and customer state
+    ///
+    pub fn init_customer<'a, R: Rng>(csprng: &mut R, pk_m: &PublicKey,
+                                     b0_cust: i64, b0_merch: i64, name: &'a str) -> (ChannelMPCToken, CustomerMPCState) {
+        assert!(b0_cust >= 0);
+        assert!(b0_merch >= 0);
 
+        let cust_name = String::from(name);
+        let mut cust_state = CustomerMPCState::new(csprng, b0_cust, b0_merch, cust_name);
+
+        //TODO: fill transactions
+        let escrow_txid = [0u8; 32];
+        let escrow_prevout = [0u8; 32];
+        let merch_txid = [0u8; 32];
+        let merch_prevout = [0u8; 32];
+
+        let mut channel_token = cust_state.generate_init_channel_token(pk_m, escrow_txid, merch_txid);
+        cust_state.generate_init_state(csprng, &mut channel_token, escrow_prevout, merch_prevout);
+
+        (channel_token, cust_state)
+    }
+
+    ///
+    /// activate_customer - takes as input an rng and the customer state.
+    /// Prepare to activate the channel for the customer (call activate_customer_finalize to finalize activation)
+    /// output: initial state
+    ///
+    pub fn activate_customer<R: Rng>(csprng: &mut R, cust_state: &mut CustomerMPCState) -> State {
+        let r_com = cust_state.generate_rev_lock_commitment(csprng);
+        let t_0 = cust_state.get_randomness();
+
+        cust_state.get_current_state()
+    }
+
+    ///
+    /// activate_merchant - takes as input a channel token, the intial state, and the merchant state.
+    /// Activate the channel for the merchant
+    /// output: intial pay token
+    ///
+    pub fn activate_merchant(channel_token: ChannelMPCToken, s0: &State, merch_state: &mut MerchantMPCState) -> [u8; 32] {
+        merch_state.store_initial_state(&channel_token, s0);
+
+        // activate channel - generate pay_token
+        merch_state.activate_channel(&channel_token, s0)
+    }
+
+    ///
+    /// activate_customer_finalize - takes as input the initial pay token and the customer state.
+    /// Finalize activation of the channel for customer
+    /// no output
+    ///
+    pub fn activate_customer_finalize(pay_token_0: [u8; 32], cust_state: &mut CustomerMPCState) {
+        cust_state.store_initial_pay_token(pay_token_0);
+    }
+
+    ///
+    /// pay_prepare_customer - takes as input an rng, the channel state, the payment amount, and the customer state.
+    /// Prepare payment for customer
+    /// output: new state (after payment), revocation lock commitment, revocation lock, revocation secret
+    /// (only send revocation lock commitment to merchant)
+    ///
+    pub fn pay_prepare_customer<R: Rng>(csprng: &mut R, channel: &mut ChannelMPCState, amount: i64, cust_state: &mut CustomerMPCState) -> (State, [u8; 32], [u8; 32], [u8; 32]) {
+        let (rev_lock, rev_secret) = cust_state.get_rev_pair();
+        let r_com = cust_state.generate_rev_lock_commitment(csprng);
+
+        cust_state.generate_new_state(csprng, &channel, amount);
+        let state = cust_state.get_current_state();
+
+        (state, r_com, rev_lock, rev_secret)
+    }
+
+    ///
+    /// pay_prepare_merchant - takes as input an rng, the channel state, the nonce of the old state, and the merchant state.
+    /// Prepare payment for merchant
+    /// output: commitment of the payment token mask
+    ///
+    pub fn pay_prepare_merchant<R: Rng>(csprng: &mut R, channel: &mut ChannelMPCState, nonce: [u8; 16], merch_state: &mut MerchantMPCState) -> [u8; 32] {
+        merch_state.generate_pay_mask_commitment(csprng, channel, nonce).unwrap()
+    }
+
+    ///
+    /// pay_customer - takes as input the channel state, the channel token, the intial state, the final state, a commitment for the mask for the pay token,
+    /// the revocation lock commitment, the payment amount, and the customer state.
+    /// Start the MPC for a payment for the Customer
+    /// output: a success boolean, or error
+    ///
+    pub fn pay_customer(channel: &mut ChannelMPCState, channel_token: ChannelMPCToken, s0: State, s1: State, pay_token_mask_com: [u8; 32],
+                        rev_lock_com: [u8; 32], amount: i64, cust_state: &mut CustomerMPCState) -> Result<bool, String> {
+        cust_state.update_pay_com(pay_token_mask_com);
+        cust_state.set_mpc_connect_type(2);
+        cust_state.execute_mpc_context(&channel, &channel_token, s0, s1,
+                                       pay_token_mask_com, rev_lock_com, amount)
+    }
+
+    ///
+    /// pay_merchant - takes as input an rng, the channel state, the intial state, a commitment for the mask for the pay token,
+    /// the revocation lock commitment, the payment amount, and the merchant state.
+    /// Start the MPC for a payment for the Merchant
+    /// output: the transaction masks (escrow and merch tx), or error
+    ///
+    pub fn pay_merchant<R: Rng>(csprng: &mut R, channel: &mut ChannelMPCState, s0: &State, pay_token_mask_com: [u8; 32],
+                                rev_lock_com: [u8; 32], amount: i64, merch_state: &mut MerchantMPCState) -> Result<MaskedTxMPCInputs, String> {
+        merch_state.set_mpc_connect_type(2);
+        let result = merch_state.execute_mpc_context(csprng, &channel, s0.nonce, rev_lock_com, pay_token_mask_com, amount);
+        match result.is_err() {
+            false => {
+                let mask_bytes = match merch_state.mask_mpc_bytes.get(&rev_lock_com) {
+                    Some(&n) => {
+                        Some(n)
+                    },
+                    _ => return Err(String::from("Couldn't find rev_lock for the commitment"))
+                };
+                let mask_bytes_unwrapped = mask_bytes.unwrap();
+                return Ok(mask_bytes_unwrapped.get_tx_masks());
+            },
+            _ => return Err(result.err().unwrap())
+        }
+    }
+
+    ///
+    /// pay_unmask_tx_customer - takes as input the transaction masks and the customer state.
+    /// Unmask the transactions received from the MPC
+    /// output: a success boolean
+    ///
+    pub fn pay_unmask_tx_customer(mask_bytes: MaskedTxMPCInputs, cust_state: &mut CustomerMPCState) -> bool {
+        cust_state.unmask_and_verify_transactions(mask_bytes)
+    }
+
+    ///
+    /// pay_validate_rev_lock_merchant - takes as input the nonce, the revocation lock commitment, the revocation lock,
+    /// the revocation secret and the merchant state.
+    /// Verify the revocation lock commitment
+    /// output: the pay token mask
+    ///
+    pub fn pay_validate_rev_lock_merchant(nonce: [u8;16], rev_lock_com: [u8; 32], rev_lock: [u8; 32], rev_sec: [u8; 32], t: [u8;32], merch_state: &mut MerchantMPCState) -> Result<[u8; 32], String> {
+        let pt_mask_option = merch_state.verify_revoked_state(nonce, rev_lock_com, rev_lock, rev_sec, t);
+        match pt_mask_option.is_some() {
+            true => return Ok(pt_mask_option.unwrap()),
+            _ => return Err(String::from("Pay token mask not found"))
+        }
+    }
+
+    ///
+    /// pay_unmask_pay_token_customer - takes as input the paytoken mask and the customer state.
+    /// Verify the paytoken mask commitment and unmask paytoken
+    /// output: success boolean
+    ///
+    pub fn pay_unmask_pay_token_customer(pt_mask_bytes: [u8;32], cust_state: &mut CustomerMPCState) -> bool {
+        cust_state.unmask_and_verify_pay_token(pt_mask_bytes)
+    }
 }
 
 
@@ -758,8 +900,10 @@ mod benches {
 mod tests {
     use super::*;
     use pairing::bls12_381::Bls12;
-    use rand::Rng;
+    use rand::{Rng, SeedableRng};
     use sha2::Digest;
+    use rand_xorshift::XorShiftRng;
+    use channels_mpc::MaskedTxMPCInputs;
 
     fn setup_new_channel_helper(channel_state: &mut zkproofs::ChannelState<Bls12>,
                                 init_cust_bal: i64, init_merch_bal: i64)
@@ -796,7 +940,7 @@ mod tests {
         // obtain close token for closing out channel
         //let pk_h = hash_pubkey_to_fr::<Bls12>(&cust_state.pk_c.clone());
         let option = zkproofs::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &cust_state.get_wallet().channelId,
-                                                                         cust_balance, merch_balance, &merch_state);
+                                                                    cust_balance, merch_balance, &merch_state);
         let close_token = match option {
             Ok(n) => n.unwrap(),
             Err(e) => panic!("Failed - zkproofs::establish_merchant_issue_close_token(): {}", e)
@@ -853,7 +997,7 @@ mod tests {
 
         // obtain close token for closing out channel
         let option = zkproofs::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &cust_state.get_wallet().channelId,
-                                                                         b0_customer, b0_merchant, &merch_state);
+                                                                    b0_customer, b0_merchant, &merch_state);
         let close_token = match option {
             Ok(n) => n.unwrap(),
             Err(e) => panic!("Failed - zkproofs::establish_merchant_issue_close_token(): {}", e)
@@ -991,9 +1135,9 @@ mod tests {
         let _cur_cust_close_msg = zkproofs::customer_close(&channel_state, &cust_state);
 
         let merch_close_result = zkproofs::merchant_close(&channel_state,
-                                                               &channel_token,
-                                                               &old_cust_close_msg,
-                                                               &merch_state);
+                                                          &channel_token,
+                                                          &old_cust_close_msg,
+                                                          &merch_state);
         let merch_close_msg = match merch_close_result {
             Ok(n) => n.unwrap(),
             Err(err) => panic!("Merchant close msg: {}", err)
@@ -1034,9 +1178,9 @@ mod tests {
         let cust_close_msg = zkproofs::customer_close(&channel_state, &cust_state);
 
         let merch_close_result = zkproofs::merchant_close(&channel_state,
-                                                               &channel_token,
-                                                               &cust_close_msg,
-                                                               &merch_state);
+                                                          &channel_token,
+                                                          &cust_close_msg,
+                                                          &merch_state);
         let _merch_close_msg = match merch_close_result {
             Ok(n) => n.unwrap(),
             Err(err) => panic!("Merchant close msg: {}", err)
@@ -1096,7 +1240,7 @@ mod tests {
         let revoke_token_bob = zkproofs::generate_revoke_token(&channel_state, &mut bob_cust_state, new_bob_cust_state, &bob_cond_close_token);
 
         // send both revoke tokens to intermediary and get pay-tokens in response
-        let new_pay_token_result: BoltResult<(cl::Signature<Bls12>,cl::Signature<Bls12>)> = zkproofs::verify_multiple_revoke_tokens(&revoke_token_alice, &revoke_token_bob, &mut merch_state);
+        let new_pay_token_result: BoltResult<(cl::Signature<Bls12>, cl::Signature<Bls12>)> = zkproofs::verify_multiple_revoke_tokens(&revoke_token_alice, &revoke_token_bob, &mut merch_state);
         let (new_pay_token_alice, new_pay_token_bob) = handle_bolt_result!(new_pay_token_result).unwrap();
 
         // verify the pay tokens and update internal state
@@ -1222,5 +1366,95 @@ mod tests {
         assert_eq!(channelClose.address, "0a1111111111111111111111111111111111111111111111111111111111111111");
         assert_eq!(format!("{:?}", channelClose.revoke.unwrap()), "3044022041932b376fe2c5e9e9ad0a3804e2290c3bc40617ea4f7b913be858dbcc3760b50220429d6eb1aabbd4135db4e0776c0b768af844b0af44f2f8f9da5a65e8541b4e9f");
         assert_eq!(format!("{:?}", channelClose.signature), "3045022100e76653c5f8cb4c2f39efc7c5450d4f68ef3d84d482305534f5dfc310095a3124022003c4651ce1305cffe5e483ab99925cc4c9c5df2b5449bb18a51d52b21d789716");
+    }
+
+    #[test]
+    #[cfg(feature = "mpc-bitcoin")]
+    fn test_establish_mpc_channel() {
+        let rng = &mut rand::thread_rng();
+
+        let mut channel = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
+        let mut merch_state = mpc::init_merchant(rng, &mut channel, "Bob");
+        let (channel_token, mut cust_state) = mpc::init_customer(rng, &merch_state.pk_m, 100, 100, "Alice");
+
+        let s0 = mpc::activate_customer(rng, &mut cust_state);
+
+        let pay_token = mpc::activate_merchant(channel_token, &s0, &mut merch_state);
+
+        mpc::activate_customer_finalize(pay_token, &mut cust_state);
+
+        //TODO: unlink
+    }
+
+    #[test]
+    #[cfg(feature = "mpc-bitcoin")]
+    fn test_payment_mpc_channel() {
+        let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d76);
+
+        let mut channel = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
+        let mut merch_state = mpc::init_merchant(&mut rng, &mut channel, "Bob");
+        let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, 100, 100, "Alice");
+
+        let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
+
+        let pay_token = mpc::activate_merchant(channel_token.clone(), &s0, &mut merch_state);
+
+        mpc::activate_customer_finalize(pay_token, &mut cust_state);
+
+        let (state, rev_lock_com, rev_lock, rev_sec) = mpc::pay_prepare_customer(&mut rng, &mut channel, 10, &mut cust_state);
+        let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &mut channel, s0.nonce, &mut merch_state);
+
+        let res_merch = mpc::pay_merchant(&mut rng, &mut channel, &s0, pay_mask_com, rev_lock_com, 10, &mut merch_state);
+        assert!(res_merch.is_ok());
+
+        let t = cust_state.get_randomness();
+
+        let result = mpc::pay_validate_rev_lock_merchant(s0.nonce, rev_lock_com, rev_lock, rev_sec, t, &mut merch_state);
+        assert!(result.is_ok());
+    }
+
+    rusty_fork_test! {
+    #[test]
+    #[cfg(feature = "mpc-bitcoin")]
+    fn test_payment_mpc_channel_cust() {
+        let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d76);
+
+        let mut channel = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
+        let mut merch_state = mpc::init_merchant(&mut rng, &mut channel, "Bob");
+        let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, 100, 100, "Alice");
+
+        let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
+
+        let pay_token = mpc::activate_merchant(channel_token.clone(), &s0, &mut merch_state);
+
+        mpc::activate_customer_finalize(pay_token, &mut cust_state);
+
+        let (state, rev_lock_com, rev_lock, rev_sec) = mpc::pay_prepare_customer(&mut rng, &mut channel, 10, &mut cust_state);
+        let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &mut channel, state.nonce, &mut merch_state);
+
+
+
+        let res_cust = mpc::pay_customer(&mut channel, channel_token.clone(), s0, state, pay_mask_com, rev_lock_com, 10, &mut cust_state);
+        assert!(res_cust.is_ok() && res_cust.unwrap());
+        let mut pt_mask = [0u8; 32];
+        pt_mask.copy_from_slice(hex::decode("b3ce8f76678fac15c4cd426df45a5e86dae6ac8edf970aff17495d84922aa0f0").unwrap().as_slice());
+        let mut escrow_mask = [0u8; 32];
+        escrow_mask.copy_from_slice(hex::decode("6cd32e3254e7adaf3e742870ecab92aee1b863eabe75342a427d8e1954787822").unwrap().as_slice());
+        let mut merch_mask = [0u8; 32];
+        merch_mask.copy_from_slice(hex::decode("6a98d319e040ccb25fb2b7dce1e7b22df53a27a851a43c7843c4781962a54fa3").unwrap().as_slice());
+        let masks = MaskedTxMPCInputs {
+            escrow_mask,
+            merch_mask,
+        };
+
+        let is_ok = mpc::pay_unmask_tx_customer(masks, &mut cust_state);
+        assert!(is_ok);
+
+        let mut pt_mask = [0u8; 32];
+        pt_mask.copy_from_slice(hex::decode("b3ce8f76678fac15c4cd426df45a5e86dae6ac8edf970aff17495d84922aa0f0").unwrap().as_slice());
+
+        let is_ok = mpc::pay_unmask_pay_token_customer(pt_mask, &mut cust_state);
+        assert!(is_ok);
+    }
     }
 }

@@ -311,7 +311,7 @@ mod tests {
     use std::str::FromStr;
     use rand::rngs::mock::StepRng;
 
-        rusty_fork_test! {
+    rusty_fork_test! {
     #[test]
     fn mpc_build_masked_tokens_merch_works() {
         let mut csprng = StepRng::new(172873415, 20);
@@ -573,6 +573,3 @@ mod tests {
         assert!(secp.verify(&mes, &sign, &secp256k1::PublicKey::from_secret_key(&secp, &sk)).is_ok());
     }
 }
-
-//merc: 802d63a088776c05438f415ca0d7f35026f1b4c5fadf0b152c2b3a3cda925e0d48fe45d1fc43902b03f7278d7a2b06263d2729e3c06f44f5ca7fdd6133a84b31
-//cust: 802d63a088776c05438f415ca0d7f35026f1b4c5fadf0b152c2b3a3cda925e0d3ae2c2b9e6a681c8a667fd124d0f4ef924df06ba8c2cec6261cceaedda160274
