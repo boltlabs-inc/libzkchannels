@@ -159,7 +159,6 @@ keyhash = hash160(public_key)
 
 scriptcode = bytes.fromhex(f"1976a914{keyhash.hex()}88ac")
 if verbose:
-    print("keyhash: ", keyhash.hex())
     print("Script code: ", scriptcode.hex())
 
 # serialized bip_143 object
