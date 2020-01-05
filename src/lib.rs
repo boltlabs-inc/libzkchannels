@@ -41,6 +41,7 @@ extern crate ripemd160;
 
 extern crate wagyu_bitcoin as bitcoin;
 extern crate wagyu_model;
+extern crate bs58;
 
 #[cfg(test)]
 #[macro_use]

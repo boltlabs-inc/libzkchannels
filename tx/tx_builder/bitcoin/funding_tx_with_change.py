@@ -33,18 +33,22 @@ def privkey_to_pubkey(privkey):
 ################################
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--funding_privkey", "-fsk", help="private key of outpoint as hex string")
-parser.add_argument("--txid", "-tx", help="txid of outpoint as hex string")
-parser.add_argument("--index", "-ind", help="index of outpoint")
-parser.add_argument("--amount_btc", "-a", help="amount of btc in")
-parser.add_argument("--cust_pubkey", "-cpk", help="pubkey of customer for escrow")
-parser.add_argument("--merch_pubkey", "-mpk", help="pubkey of merchant for escrow")
-parser.add_argument("--change_pubkey", "-chpk", help="pubkey for change output")
-parser.add_argument("--escrow_btc", "-e", help="escrow transaction btc")
-parser.add_argument("--change_btc", "-c", help="change transaction btc")
+parser.add_argument("--funding_privkey", "-fsk", help="private key of outpoint as hex string", required=True)
+parser.add_argument("--txid", "-tx", help="txid of outpoint as hex string", required=True)
+parser.add_argument("--index", "-ind", help="index of outpoint", required=True)
+parser.add_argument("--amount_btc", "-a", help="amount of btc in", required=True)
+parser.add_argument("--cust_pubkey", "-cpk", help="pubkey of customer for escrow", required=True)
+parser.add_argument("--merch_pubkey", "-mpk", help="pubkey of merchant for escrow", required=True)
+parser.add_argument("--change_pubkey", "-chpk", help="pubkey for change output", required=True)
+parser.add_argument("--escrow_btc", "-e", help="escrow transaction btc", required=True)
+parser.add_argument("--change_btc", "-c", help="change transaction btc", required=True)
+parser.add_argument("--verbose", "-v", help="increase output verbosity", action="store_true")
 args = parser.parse_args()
 
 ################################
+verbose = args.verbose
+if verbose:
+    print("<============Tx Details============>")
 
 # version is 4-bytes little endian. Version 2 should be default
 version = bytes.fromhex("0200 0000")
@@ -122,9 +126,13 @@ outpoint = (
 )
 
 hashPrevOuts = dSHA256(outpoint)
+if verbose:
+    print("hashPrevOuts: ", hashPrevOuts.hex())
 
 # hashSequence
 hashSequence = dSHA256(sequence)
+if verbose:
+    print("hashSequence: ", hashSequence.hex())
 
 # hashOutputs and output
 output = (
@@ -136,9 +144,13 @@ output = (
     + (len(output2_scriptPK)).to_bytes(1, byteorder="little", signed=False)
     + output2_scriptPK
 )
+if verbose:
+    print("output1_scriptPK: ", output1_scriptPK.hex())
+    print("Tx outputs: ", output.hex())
 
 hashOutputs = dSHA256(output)
-
+if verbose:
+    print("hashOutputs: ", hashOutputs.hex())
 signing_key = ecdsa.SigningKey.from_string(private_key, curve=ecdsa.SECP256k1) # Don't forget to specify the curve
 
 public_key = privkey_to_pubkey(private_key)
@@ -146,6 +158,9 @@ public_key = privkey_to_pubkey(private_key)
 keyhash = hash160(public_key)
 
 scriptcode = bytes.fromhex(f"1976a914{keyhash.hex()}88ac")
+if verbose:
+    print("keyhash: ", keyhash.hex())
+    print("Script code: ", scriptcode.hex())
 
 # serialized bip_143 object
 bip_143 = (
@@ -160,9 +175,11 @@ bip_143 = (
     + locktime
     + sighash
 )
+if verbose:
+    print("\nTx preimage: ", bip_143.hex())
+    print()
 
 hashed_bip_143 = dSHA256(bip_143)
-
 signature = signing_key.sign_digest(hashed_bip_143, sigencode=ecdsa.util.sigencode_der_canonize)
 
 witness = (
@@ -182,14 +199,19 @@ witness = (
     + (len(public_key)).to_bytes(1, byteorder="little", signed=False)
     + public_key
 )
+if verbose:
+    print("Witness: ", witness.hex())
 
 # redeem script
-# This is the script that the creator of this transaction needs to privide, and
+# This is the script that the creator of this transaction needs to provide, and
 # solve, in order to redeem the UTXO listed in the input
 
 # 0x0014 is because we are using a (P2SH)-P2WPKH
 # 0x00 = OP_0, 0x14 is to push 20 bytes of the keyhash onto the stack
 redeemScript = bytes.fromhex(f"0014{keyhash.hex()}")
+if verbose:
+    print("Redeem script: ", redeemScript.hex())
+    print("<============Tx Details============>\n")
 
 scriptSig = (
     # length of redeem script + 1, length of redeem script
@@ -212,7 +234,7 @@ final_tx = (
     + locktime
 )
 
-print(final_tx.hex())
+print("Raw Transaction Hex: ", final_tx.hex())
 
 
 # Calculate txid of the tx we have just created:
