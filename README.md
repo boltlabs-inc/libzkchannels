@@ -227,7 +227,7 @@ See the `intermediary_payment_basics_works()` unit test in `src/lib.rs` for more
 
 ### Channel Setup
 
-
+	// create channel mpc state
     let mut channel = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
 
 
@@ -236,43 +236,59 @@ See the `intermediary_payment_basics_works()` unit test in `src/lib.rs` for more
 	let cust_bal = 100;
 	let merch_bal = 100;
 	
+	// merchant initializes state for all channels it will open with customers
 	let mut merch_state = mpc::init_merchant(&mut rng, &mut channel, "Bob");
 	
-	let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, cust_bal, merch_bal, "Alice");
+	// form all the transactions: escrow-tx and merch-close-tx 
+	// extract the txids, prevout hashes from both transactions
+	let tx = getFundingTxDetails(...)
+	
+	// customer initializes state for channel with initial balances
+	let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, &tx, cust_bal, merch_bal, "Alice");
 
-### Activate
+### Activate & Unlink
 
-    let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
+	// prepare to active the channel by generating initial rev lock commitment and initial randomness
+	// returns the initial state of channel
+	let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
+	
+	// merchant stores the initial state and returns an initial pay token for channel
+	let pay_token = mpc::activate_merchant(channel_token, &s0, &mut merch_state);
+	
+	// customer stores the initial pay token
+	mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
-    let pay_token = mpc::activate_merchant(channel_token.clone(), &s0, &mut merch_state);
-
-    mpc::activate_customer_finalize(pay_token, &mut cust_state);
-
+	// customer unlinks initial pay-token by running the following pay protocol with a 0-payment
 
 ### Pay Protocol
 
 Prepare phase
+	
+	// customer prepares payment by generating a new state, new revocation lock and secret, and 
+	let (new_state, rev_lock_com, rev_lock, rev_sec) = mpc::pay_prepare_customer(&mut rng, &mut channel, 10, &mut cust_state);
 
-	let (state, rev_lock_com, rev_lock, rev_sec) = mpc::pay_prepare_customer(&mut rng, &mut channel, 10, &mut cust_state);
-
-	let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &mut channel, state.nonce, &mut merch_state);
+	// merchant generates a pay token mask and return a commitment to it 
+	let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, new_state.nonce, &mut merch_state);
 
 Execute MPC phase
-
-	let res_cust = mpc::pay_customer(&mut channel, channel_token.clone(), s0, state, pay_mask_com, rev_lock_com, 10, &mut cust_state);
-
-	let res_merch = mpc::pay_merchant(&mut rng, &mut channel, &s0, pay_mask_com, rev_lock_com, 10, &mut merch_state);
 	
-	// customer sends success/error back to merchant
+	// customer executes mpc protocol with old/new state, pay mask commitment, rev lock commitment and payment amount
+	let ok_cust = mpc::pay_customer(&mut channel, &channel_token, s0, new_state, pay_mask_com, rev_lock_com, 10, &mut cust_state);
+	
+	// merchant executes mpc protocol with customer nonce, pay mask commitment, rev lock commitment and payment amount
+	let ok_merch = mpc::pay_merchant(&mut rng, &mut channel, nonce, pay_mask_com, rev_lock_com, 10, &mut merch_state);
+	
+	// customer sends success/error back to merchant if the customer obtains 3 masked outputs for both closing transactions and pay token
 
-Unmask phase
+Unmask/Revoke phase
 
-	// Unmask the transactions received from the MPC
+	// unmask the closing transactions received from the MPC to close the channel
 	let is_ok = mpc::pay_unmask_tx_customer(masks, &mut cust_state);
-		
+
 	// customer revokes the previous state if the unmasking was successful
 	let result = mpc::pay_validate_rev_lock_merchant(s0.nonce, rev_lock_com, rev_lock, rev_sec, t, &mut merch_state);
-
+	
+	// customer unmasks the pay token and checks validity of pay-token mask commitment opening 
 	let is_ok = mpc::pay_unmask_pay_token_customer(pt_mask, &mut cust_state);
 
 

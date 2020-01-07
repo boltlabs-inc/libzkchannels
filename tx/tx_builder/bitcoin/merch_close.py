@@ -30,14 +30,15 @@ def privkey_to_pubkey(privkey):
 ################################
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--cust_privkey", "-csk", help="private key of customer for escrow")
-parser.add_argument("--merch_privkey", "-msk", help="private key of merchant for escrow")
-parser.add_argument("--merch_close_pubkey", "-mcpk", help="public key of merchant close to-self output")
-parser.add_argument("--to_self_delay", "-tsd", help="to_self_delay (in unit of blocks) for the merchant's to-self output")
-parser.add_argument("--txid", "-tx", help="txid of outpoint as hex string")
-parser.add_argument("--index", "-ind", help="index of outpoint")
-parser.add_argument("--amount_btc", "-a", help="amount of btc in")
-parser.add_argument("--output_btc", "-o", help="btc to output")
+parser.add_argument("--cust_privkey", "-csk", help="private key of customer for escrow", required=True)
+parser.add_argument("--merch_privkey", "-msk", help="private key of merchant for escrow", required=True)
+parser.add_argument("--merch_close_pubkey", "-mcpk", help="public key of merchant close to-self output", required=True)
+parser.add_argument("--to_self_delay", "-tsd", help="to_self_delay (in unit of blocks) for the merchant's to-self output", required=True)
+parser.add_argument("--txid", "-tx", help="txid of outpoint as hex string", required=True)
+parser.add_argument("--index", "-ind", help="index of outpoint (default=0)", default=0, required=False)
+parser.add_argument("--amount_btc", "-a", help="amount of btc in", required=True)
+parser.add_argument("--output_btc", "-o", help="btc to output", required=True)
+parser.add_argument("--verbose", "-v", help="increase output verbosity", action="store_true")
 args = parser.parse_args()
 
 ################################

@@ -518,8 +518,7 @@ impl MerchantMPCState {
         return true;
     }
 
-    pub fn generate_pay_mask_commitment<R: Rng>(&mut self, csprng: &mut R, channel: &mut ChannelMPCState,
-                                    nonce: [u8; NONCE_LEN]) -> Result<[u8; 32], String> {
+    pub fn generate_pay_mask_commitment<R: Rng>(&mut self, csprng: &mut R, nonce: [u8; NONCE_LEN]) -> Result<[u8; 32], String> {
         // check if n_i not in S
         // let nonce_hex = hex::encode(nonce.to_vec());
         if self.lock_map_state.get(&nonce).is_some() {
@@ -721,7 +720,7 @@ mod tests {
         let s_1 = cust_state.get_current_state();
         println!("Updated state: {}", s_1);
 
-        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, &mut channel, s_0.nonce).unwrap();
+        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, s_0.nonce).unwrap();
         cust_state.update_pay_com(pay_token_mask_com);
 
         cust_state.set_mpc_connect_type(2);
@@ -822,7 +821,7 @@ rusty_fork_test!
         let s_1 = cust_state.get_current_state();
         println!("Updated state: {}", s_1);
 
-        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, &mut channel, s_0.nonce).unwrap();
+        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, s_0.nonce).unwrap();
         cust_state.update_pay_com(pay_token_mask_com);
 
         merch_state.set_mpc_connect_type(2);

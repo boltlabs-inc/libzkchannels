@@ -49,11 +49,18 @@ pub fn createP2PKHAddress<N: BitcoinNetwork>(private_key: &'static str) -> (Bitc
     return (private_key, public_key, address);
 }
 
-pub fn createPublicKey(pubkey_bytes: &Vec<u8>) -> secp256k1::PublicKey {
-    let pk = secp256k1::PublicKey::from_slice(pubkey_bytes).unwrap();
-    return pk;
+pub fn generateRedeemScript(pubkey1: Vec<u8>, pubkey2: Vec<u8>) -> Vec<u8> {
+    let mut script: Vec<u8> = Vec::new();
+    script.extend(vec![0x52, 0x21]); // OP_2 + OP_DATA (pk1 len)
+    script.extend(pubkey1.iter());
+    script.push(0x21); // OP_DATA (pk2 len)
+    script.extend(pubkey2.iter());
+    script.extend(vec![0x52, 0xae]); // OP_2 OP_CHECKMULTISIG
+
+    return script;
 }
 
+// given two public keys, create a multi-sig address via P2SH script
 pub fn createMultiSigAddress<N: BitcoinNetwork>(pubkey1: &Vec<u8>, pubkey2: &Vec<u8>) -> (Vec<u8>, String) {
     let mut script: Vec<u8> = Vec::new();
     script.extend(vec![0x52, 0x21]); // OP_2 + OP_DATA (pk1 len)
@@ -158,6 +165,33 @@ pub fn createBitcoinEscrowTx<N: BitcoinNetwork>(config: &TxConfig, input: &Input
     return (raw_preimage, signed_tx, tx_id);
 }
 
+pub fn createBitcoinMerchCloseTx<N: BitcoinNetwork>(config: &TxConfig, input: &Input, output1: &MultiSigOutput, output2: &Output) { // -> (Vec<u8>, String, BitcoinTransactionId)
+
+    let transaction_id = hex::decode(input.transaction_id).unwrap();
+    let sequence = input.sequence.map(|seq| seq.to_vec());
+    let address = None;
+    let redeem_script = None;
+    let script_pub_key = None;
+    let escrow_tx_input = BitcoinTransactionInput::<N>::new(
+            transaction_id,
+            input.index,
+            address,
+            Some(BitcoinAmount::from_satoshi(input.utxo_amount.unwrap()).unwrap()),
+            redeem_script,
+            script_pub_key,
+            sequence,
+            SIGHASH_ALL,
+        )
+        .unwrap();
+
+    let mut input_vec = vec![];
+    input_vec.push(escrow_tx_input);
+
+    // let mut output_vec = vec![];
+    // outut_vec.push()
+
+}
+
 // pub fn createBitcoinCustCloseFromEscrowTx<N: BitcoinNetwork>(config: &TxConfig)
 // pub fn createBitcoinCustCloseFromMerchTx<N: BitcoinNetwork>(config: &TxConfig)
 
@@ -225,6 +259,34 @@ mod tests {
         println!("escrow tx: {}", escrow_tx);
         println!("tx id: {}", txid.to_string());
         assert_eq!(escrow_tx_preimage, hex::decode(expected_escrow_preimage).unwrap());
+    }
+
+    #[test]
+    fn test_bitcoin_testnet_merch_close_tx() {
+        let raw_tx = "02000000000101d9827f206a476a0d61db36348599bc39a5ab39f384da7c50885b726f0ec5b05e0000000000ffffffff018060333c000000002200204de4a2361c5f251e23b9aa799012a9c94131ab51ec4be0e2a9857125c375e19d0400483045022100ccbbc1d45af69e5071d8e23bfce035a422925d44e3967cb6b618099a032d0f4502205573432be4b797123a2107b46189f4120b2a9a9a61a7978391abbe2abd8c74e601483045022100ff658f9b62b027dc7b6ebcad2d7bf62311f6805f5d75a5de08064686479de57602205c3a3fd6b81413b68de1d75240935b57f0df8d5b7c4929f7c870c2ba87157d2d01475221024596d7b33733c28101dbc6c85901dffaed0cdac63ab0b2ea141217d1990ad4b1210253be79afe84fd9342c1f52024379b6da6299ea98844aee23838e8e678a765f7c52ae00000000";
+        let mut new_transaction = BitcoinTransaction::<Testnet>::from_str(&raw_tx).unwrap();
+        println!("new_tx txid: {}", new_transaction.to_transaction_id().unwrap());
+
+        let input = Input {
+            private_key: "cPmiXrwUfViwwkvZ5NXySiHEudJdJ5aeXU4nx4vZuKWTUibpJdrn", // testnet
+            address_format: "p2sh_p2wpkh",
+            // outpoint + txid
+            transaction_id: "f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1",
+            index: 0,
+            //
+            redeem_script: None,
+            script_pub_key: None,
+            utxo_amount: Some(39 * SATOSHI),
+            sequence: Some([0xff, 0xff, 0xff, 0xff]) // 4294967295
+        };
+
+        let config = TxConfig {
+            version: 2,
+            lock_time: 0,
+            expiry_height: 499999999
+        };
+
+        // transactions::createBitcoinMerchCloseTx(&config);
     }
 
     #[test]

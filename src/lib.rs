@@ -712,7 +712,7 @@ pub mod mpc {
 
     pub use channels_mpc::{ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState};
     use secp256k1::PublicKey;
-    use wallet::State;
+    use wallet::{State, NONCE_LEN};
     use channels_mpc::MaskedTxMPCInputs;
 
     ///
@@ -724,8 +724,6 @@ pub mod mpc {
         // create new merchant state
         let merch_name = String::from(name);
         let (mut merch_state, mut channel_state) = MerchantMPCState::new(csprng, channel_state, merch_name);
-        // initialize the merchant state
-        // let channel_token = merch_state.init(&mut channel_state);
 
         return merch_state;
     }
@@ -799,9 +797,9 @@ pub mod mpc {
         let r_com = cust_state.generate_rev_lock_commitment(csprng);
 
         cust_state.generate_new_state(csprng, &channel, amount);
-        let state = cust_state.get_current_state();
+        let new_state = cust_state.get_current_state();
 
-        (state, r_com, rev_lock, rev_secret)
+        (new_state, r_com, rev_lock, rev_secret)
     }
 
     ///
@@ -809,8 +807,8 @@ pub mod mpc {
     /// Prepare payment for merchant
     /// output: commitment of the payment token mask
     ///
-    pub fn pay_prepare_merchant<R: Rng>(csprng: &mut R, channel: &mut ChannelMPCState, nonce: [u8; 16], merch_state: &mut MerchantMPCState) -> [u8; 32] {
-        merch_state.generate_pay_mask_commitment(csprng, channel, nonce).unwrap()
+    pub fn pay_prepare_merchant<R: Rng>(csprng: &mut R, nonce: [u8; NONCE_LEN], merch_state: &mut MerchantMPCState) -> [u8; 32] {
+        merch_state.generate_pay_mask_commitment(csprng, nonce).unwrap()
     }
 
     ///
@@ -833,10 +831,10 @@ pub mod mpc {
     /// Start the MPC for a payment for the Merchant
     /// output: the transaction masks (escrow and merch tx), or error
     ///
-    pub fn pay_merchant<R: Rng>(csprng: &mut R, channel: &mut ChannelMPCState, s0: &State, pay_token_mask_com: [u8; 32],
+    pub fn pay_merchant<R: Rng>(csprng: &mut R, channel: &mut ChannelMPCState, nonce: [u8; NONCE_LEN], pay_token_mask_com: [u8; 32],
                                 rev_lock_com: [u8; 32], amount: i64, merch_state: &mut MerchantMPCState) -> Result<MaskedTxMPCInputs, String> {
         merch_state.set_mpc_connect_type(2);
-        let result = merch_state.execute_mpc_context(csprng, &channel, s0.nonce, rev_lock_com, pay_token_mask_com, amount);
+        let result = merch_state.execute_mpc_context(csprng, &channel, nonce, rev_lock_com, pay_token_mask_com, amount);
         match result.is_err() {
             false => {
                 let mask_bytes = match merch_state.mask_mpc_bytes.get(&rev_lock_com) {
@@ -867,7 +865,7 @@ pub mod mpc {
     /// Verify the revocation lock commitment
     /// output: the pay token mask
     ///
-    pub fn pay_validate_rev_lock_merchant(nonce: [u8;16], rev_lock_com: [u8; 32], rev_lock: [u8; 32], rev_sec: [u8; 32], t: [u8;32], merch_state: &mut MerchantMPCState) -> Result<[u8; 32], String> {
+    pub fn pay_validate_rev_lock_merchant(nonce: [u8; NONCE_LEN], rev_lock_com: [u8; 32], rev_lock: [u8; 32], rev_sec: [u8; 32], t: [u8;32], merch_state: &mut MerchantMPCState) -> Result<[u8; 32], String> {
         let pt_mask_option = merch_state.verify_revoked_state(nonce, rev_lock_com, rev_lock, rev_sec, t);
         match pt_mask_option.is_some() {
             true => return Ok(pt_mask_option.unwrap()),
@@ -1403,9 +1401,9 @@ mod tests {
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
         let (state, rev_lock_com, rev_lock, rev_sec) = mpc::pay_prepare_customer(&mut rng, &mut channel, 10, &mut cust_state);
-        let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &mut channel, s0.nonce, &mut merch_state);
+        let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, s0.nonce, &mut merch_state);
 
-        let res_merch = mpc::pay_merchant(&mut rng, &mut channel, &s0, pay_mask_com, rev_lock_com, 10, &mut merch_state);
+        let res_merch = mpc::pay_merchant(&mut rng, &mut channel, s0.nonce.clone(), pay_mask_com, rev_lock_com, 10, &mut merch_state);
         assert!(res_merch.is_ok());
 
         let t = cust_state.get_randomness();
@@ -1431,7 +1429,7 @@ mod tests {
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
         let (state, rev_lock_com, rev_lock, rev_sec) = mpc::pay_prepare_customer(&mut rng, &mut channel, 10, &mut cust_state);
-        let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &mut channel, state.nonce, &mut merch_state);
+        let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, state.nonce, &mut merch_state);
 
 
 
