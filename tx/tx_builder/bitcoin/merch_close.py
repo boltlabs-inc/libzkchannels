@@ -42,6 +42,9 @@ parser.add_argument("--verbose", "-v", help="increase output verbosity", action=
 args = parser.parse_args()
 
 ################################
+verbose = args.verbose
+if verbose:
+    print("<============Tx Details============>")
 
 # version is 4-bytes little endian. Version 2 should be default
 version = bytes.fromhex("0200 0000")
@@ -127,6 +130,9 @@ merch_close_script = (
     + bytes.fromhex("ac68")
 )
 
+if verbose:
+    print("Merch close script: ", merch_close_script.hex())
+
 script_sha32 = hashlib.sha256(merch_close_script).digest()
 output_scriptPK = bytes.fromhex("0020") + script_sha32
 
@@ -178,6 +184,10 @@ bip_143 = (
     + locktime
     + sighash
 )
+
+if verbose:
+    print("\nTx preimage: ", bip_143.hex())
+    print("<============Tx Details============>\n")
 
 hashed_bip_143 = dSHA256(bip_143)
 

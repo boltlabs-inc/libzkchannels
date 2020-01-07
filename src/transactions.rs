@@ -1,6 +1,6 @@
 use super::*;
 use bitcoin::network::BitcoinNetwork;
-use bitcoin::{BitcoinFormat, BitcoinTransaction, BitcoinTransactionInput, BitcoinTransactionOutput, BitcoinTransactionParameters, BitcoinAmount, BitcoinPrivateKey, BitcoinPublicKey, BitcoinTransactionId};
+use bitcoin::{BitcoinFormat, BitcoinTransaction, BitcoinTransactionInput, BitcoinTransactionOutput, BitcoinTransactionParameters, BitcoinAmount, BitcoinPrivateKey, BitcoinPublicKey};
 use bitcoin::address::BitcoinAddress;
 use bitcoin::SignatureHash::SIGHASH_ALL;
 use wagyu_model::crypto::hash160;
@@ -49,7 +49,7 @@ pub fn createP2PKHAddress<N: BitcoinNetwork>(private_key: &'static str) -> (Bitc
     return (private_key, public_key, address);
 }
 
-pub fn generateRedeemScript(pubkey1: Vec<u8>, pubkey2: Vec<u8>) -> Vec<u8> {
+pub fn generateRedeemScript(pubkey1: [u8; 33], pubkey2: [u8; 33]) -> Vec<u8> {
     let mut script: Vec<u8> = Vec::new();
     script.extend(vec![0x52, 0x21]); // OP_2 + OP_DATA (pk1 len)
     script.extend(pubkey1.iter());
@@ -87,22 +87,50 @@ pub fn createMultiSigAddress<N: BitcoinNetwork>(pubkey1: &Vec<u8>, pubkey2: &Vec
     return (output_hash, address);
 }
 
+pub fn createTimelockedMultiSigAddress<N: BitcoinNetwork>(cust_pubkey: [u8; 33], merch_pubkey: [u8; 33], merch_close_pubkey: [u8; 33], to_self_delay: [u8; 2]) -> String {
+
+    let mut script: Vec<u8> = Vec::new();
+    script.extend(vec![0x63, 0x52, 0x21]); // OP_IF + OP_2 + OP_DATA (pk1 len)
+    script.extend(merch_pubkey.iter());
+    script.push(0x21); // OP_DATA (pk2 len)
+    script.extend(cust_pubkey.iter());
+    script.extend(vec![0x52, 0xae, 0x67]); // OP_2 OP_CHECKMULTISIG
+    script.push(0x02); // len for sequence
+    script.extend(to_self_delay.iter()); // short sequence
+    script.extend(vec![0xb2, 0x75, 0x21]);
+    script.extend(merch_close_pubkey.iter());
+    script.extend(vec![0xac, 0x68]);
+
+    // compute SHA256 hash of script
+    let script_hash = hash_to_slice(&script);
+
+    let mut redeem_script_hash = hash160(&script);
+    let prefix_byte = N::to_address_prefix(&BitcoinFormat::P2SH_P2WPKH)[0];
+    redeem_script_hash.insert(0, prefix_byte);
+
+    let script_hash2 = hash_to_slice(&script_hash.to_vec());
+    redeem_script_hash.extend(&script_hash2[0..4]);
+    let address = bs58::encode(redeem_script_hash).into_string();
+
+    return address;
+}
+
 // creates a funding transaction with the following input/outputs
 // input => p2pkh or p2sh_p2wpkh
 // output1 => multi-sig addr via p2wsh
 // output2 => change output to p2pkh
-pub fn createBitcoinEscrowTx<N: BitcoinNetwork>(config: &TxConfig, input: &Input, output1: &MultiSigOutput, output2: &Output) -> (Vec<u8>, String, BitcoinTransactionId) {
+pub fn createBitcoinEscrowTx<N: BitcoinNetwork>(config: &TxConfig, input: &Input, output1: &MultiSigOutput, output2: &Output) -> (Vec<u8>, BitcoinTransaction<N>) {
     // retrieve signing key for funding input
     let private_key = BitcoinPrivateKey::<N>::from_str(input.private_key).unwrap();
     // types of UTXO inputs to support
     let address_format = match input.address_format {
         "p2pkh" => BitcoinFormat::P2PKH,
         "p2sh_p2wpkh" => BitcoinFormat::P2SH_P2WPKH,
+        "native_p2wsh" => BitcoinFormat::P2SH_P2WPKH, // TODO: add correct support for p2wsh inputs (script code is currently wrong)
         _ => panic!("do not currently support specified address format as funding input")
     };
     let address = private_key.to_address(&address_format).unwrap();
     let transaction_id = hex::decode(input.transaction_id).unwrap();
-    // TODO: add logic for generating P2PKH redeem script below
     let redeem_script = match (input.redeem_script, address_format.clone()) {
         (Some(script), _) => Some(hex::decode(script).unwrap()),
         (None, BitcoinFormat::P2SH_P2WPKH) => {
@@ -158,24 +186,49 @@ pub fn createBitcoinEscrowTx<N: BitcoinNetwork>(config: &TxConfig, input: &Input
     let mut transaction = BitcoinTransaction::<N>::new(&transaction_parameters).unwrap();
     let raw_preimage = transaction.segwit_hash_preimage(0, SIGHASH_ALL).unwrap();
 
-    transaction = transaction.sign(&private_key).unwrap();
-    let signed_tx = hex::encode(transaction.to_transaction_bytes().unwrap());
-    let tx_id = transaction.to_transaction_id().unwrap();
+    // transaction = transaction.sign(&private_key).unwrap();
+    // let signed_tx = hex::encode(transaction.to_transaction_bytes().unwrap());
+    // let tx_id = transaction.to_transaction_id().unwrap();
 
-    return (raw_preimage, signed_tx, tx_id);
+    return (raw_preimage, transaction);
 }
 
-pub fn createBitcoinMerchCloseTx<N: BitcoinNetwork>(config: &TxConfig, input: &Input, output1: &MultiSigOutput, output2: &Output) { // -> (Vec<u8>, String, BitcoinTransactionId)
+// creates a merch-close-tx that spends from a P2WSH to another
+pub fn createBitcoinMerchCloseTx<N: BitcoinNetwork>(config: &TxConfig, input: &Input, merch_pk: Vec<u8>, merch_close_pk: Vec<u8>, self_delay: [u8; 2]) -> (Vec<u8>, BitcoinTransaction<N>) {
+    // TODO: error handling on the inputs
+    let private_key = BitcoinPrivateKey::<N>::from_str(input.private_key).unwrap();
+    let _merch_pubkey = secp256k1::PublicKey::from_slice(merch_pk.as_slice()).unwrap();
+    let _merch_close_pubkey = secp256k1::PublicKey::from_slice(merch_close_pk.as_slice()).unwrap();
 
+    // convert to compressed pubkeys then move forward
+    let cust_pubkey = private_key.to_public_key().to_secp256k1_public_key().serialize();
+    let merch_pubkey = _merch_pubkey.serialize();
+    let merch_close_pubkey = _merch_close_pubkey.serialize();
+
+    let address_format = match input.address_format {
+        "p2pkh" => BitcoinFormat::P2PKH,
+        "p2sh_p2wpkh" => BitcoinFormat::P2SH_P2WPKH,
+        "native_p2wsh" => BitcoinFormat::P2SH_P2WPKH, // TODO: add correct support for p2wsh inputs (script code is currently wrong)
+        _ => panic!("do not currently support specified address format as funding input")
+    };
+    let address = private_key.to_address(&address_format).unwrap();
     let transaction_id = hex::decode(input.transaction_id).unwrap();
+    let redeem_script = match (input.redeem_script, address_format.clone()) {
+        (Some(script), _) => Some(hex::decode(script).unwrap()),
+        (None, BitcoinFormat::P2SH_P2WPKH) => {
+            let mut redeem_script = generateRedeemScript(cust_pubkey, merch_pubkey);
+            println!("redeem_script: {}", hex::encode(&redeem_script));
+            Some(redeem_script)
+        }
+        (None, _) => None,
+    };
+    let script_pub_key = input.script_pub_key.map(|script| hex::decode(script).unwrap());
     let sequence = input.sequence.map(|seq| seq.to_vec());
-    let address = None;
-    let redeem_script = None;
-    let script_pub_key = None;
+
     let escrow_tx_input = BitcoinTransactionInput::<N>::new(
             transaction_id,
             input.index,
-            address,
+            Some(address),
             Some(BitcoinAmount::from_satoshi(input.utxo_amount.unwrap()).unwrap()),
             redeem_script,
             script_pub_key,
@@ -187,9 +240,26 @@ pub fn createBitcoinMerchCloseTx<N: BitcoinNetwork>(config: &TxConfig, input: &I
     let mut input_vec = vec![];
     input_vec.push(escrow_tx_input);
 
-    // let mut output_vec = vec![];
-    // outut_vec.push()
+    let musig_address = createTimelockedMultiSigAddress::<N>(cust_pubkey, merch_pubkey, merch_close_pubkey, self_delay);
+    println!("Multi-sig address: {}", musig_address);
+    let out_address = BitcoinAddress::<N>::from_str(musig_address.as_str()).unwrap();
+    let multisig_output = BitcoinTransactionOutput::new(&out_address, BitcoinAmount::from_satoshi(input.utxo_amount.unwrap()).unwrap()).unwrap();
 
+    let mut output_vec = vec![];
+    output_vec.push(multisig_output);
+
+    let transaction_parameters = BitcoinTransactionParameters::<N> {
+        version: config.version,
+        inputs: input_vec,
+        outputs: output_vec,
+        lock_time: config.lock_time,
+        segwit_flag: true,
+    };
+
+    let mut transaction = BitcoinTransaction::<N>::new(&transaction_parameters).unwrap();
+    let raw_preimage = transaction.segwit_hash_preimage(0, SIGHASH_ALL).unwrap();
+
+    return (raw_preimage, transaction);
 }
 
 // pub fn createBitcoinCustCloseFromEscrowTx<N: BitcoinNetwork>(config: &TxConfig)
@@ -243,7 +313,7 @@ mod tests {
         let musig_output = MultiSigOutput {
             pubkey1: hex::decode("037bed6ab680a171ef2ab564af25eff15c0659313df0bbfb96414da7c7d1e65882").unwrap(),
             pubkey2: hex::decode("027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb").unwrap(),
-            address_format: "p2sh",
+            address_format: "native_p2wsh",
             amount: 39 * SATOSHI
         };
 
@@ -251,14 +321,16 @@ mod tests {
         let change_output = Output { private_key: "cVKYvWfApKiQJjLJhHokq7eEEFcx8Y1vsJYE9tVb5ccj3ZaCY82X", // testnet
                                      amount: (1 * SATOSHI) };
 
-        let (escrow_tx_preimage, escrow_tx, txid) = transactions::createBitcoinEscrowTx::<Testnet>(&config, &input, &musig_output, &change_output);
+        let (escrow_tx_preimage, full_escrow_tx) = transactions::createBitcoinEscrowTx::<Testnet>(&config, &input, &musig_output, &change_output);
 
         let expected_escrow_preimage = "020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000001976a914a496306b960746361e3528534d04b1ac4726655a88ac00286bee00000000ffffffff371372a8e81a87ad9d45b865f8893a2e4449f966622f3e3f74ab9791f434d11b0000000001000000";
 
         println!("escrow tx raw preimage: {}", hex::encode(&escrow_tx_preimage));
-        println!("escrow tx: {}", escrow_tx);
-        println!("tx id: {}", txid.to_string());
+        // println!("escrow tx: {}", full_escrow_tx);
+        // println!("tx id: {}", txid.to_string());
         assert_eq!(escrow_tx_preimage, hex::decode(expected_escrow_preimage).unwrap());
+
+        // TODO: add step for signing transaction with input.private_key
     }
 
     #[test]
@@ -269,14 +341,13 @@ mod tests {
 
         let input = Input {
             private_key: "cPmiXrwUfViwwkvZ5NXySiHEudJdJ5aeXU4nx4vZuKWTUibpJdrn", // testnet
-            address_format: "p2sh_p2wpkh",
+            address_format: "native_p2wsh",
             // outpoint + txid
-            transaction_id: "f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1",
+            transaction_id: "5eb0c50e6f725b88507cda84f339aba539bc99853436db610d6a476a207f82d9",
             index: 0,
-            //
             redeem_script: None,
             script_pub_key: None,
-            utxo_amount: Some(39 * SATOSHI),
+            utxo_amount: Some(10 * SATOSHI),
             sequence: Some([0xff, 0xff, 0xff, 0xff]) // 4294967295
         };
 
@@ -286,7 +357,14 @@ mod tests {
             expiry_height: 499999999
         };
 
-        // transactions::createBitcoinMerchCloseTx(&config);
+        let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
+        let merch_pk = hex::decode("0253be79afe84fd9342c1f52024379b6da6299ea98844aee23838e8e678a765f7c").unwrap();
+        let merch_close_pk = hex::decode("024596d7b33733c28101dbc6c85901dffaed0cdac63ab0b2ea141217d1990ad4b1").unwrap();
+        let (merch_tx_preimage, full_tx) = transactions::createBitcoinMerchCloseTx::<Testnet>(&config, &input, merch_pk, merch_close_pk, to_self_delay);
+
+        println!("merch-close tx raw preimage: {}", hex::encode(&merch_tx_preimage));
+
+
     }
 
     #[test]

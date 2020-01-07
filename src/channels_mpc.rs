@@ -99,6 +99,7 @@ impl ChannelMPCState {
     }
 }
 
+#[cfg(feature = "mpc-bitcoin")]
 #[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct MaskedMPCInputs {
     pt_mask: [u8; 32],
@@ -666,8 +667,6 @@ mod tests {
         return (txid1, txid2, escrow_prevout, merch_prevout)
     }
 
-//rusty_fork_test!
-//{
     #[test]
     fn mpc_channel_util_customer_works() {
         let mut channel = ChannelMPCState::new(String::from("Channel A <-> B"), false);
@@ -765,7 +764,6 @@ mod tests {
         // unmask pay-token(i+1)
 
     }
-// }
 
 rusty_fork_test!
 {

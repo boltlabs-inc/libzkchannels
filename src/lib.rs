@@ -714,6 +714,24 @@ pub mod mpc {
     use secp256k1::PublicKey;
     use wallet::{State, NONCE_LEN};
     use channels_mpc::MaskedTxMPCInputs;
+    use serde::{Serialize, Deserialize};
+
+    #[derive(Clone, Serialize, Deserialize)]
+    pub struct FundingTxInfo {
+        pub escrow_txid: [u8; 32],
+        pub escrow_prevout: [u8; 32],
+        pub merch_txid: [u8; 32],
+        pub merch_prevout: [u8; 32]
+    }
+
+    #[derive(Clone, Serialize, Deserialize)]
+    pub struct RevokedState {
+        pub nonce: [u8; NONCE_LEN],
+        pub rev_lock_com: [u8; 32],
+        pub rev_lock: [u8; 32],
+        pub rev_secret: [u8; 32],
+        pub t: [u8; 32]
+    }
 
     ///
     /// init_merchant - takes as input the public params, merchant balance and keypair.
@@ -733,7 +751,7 @@ pub mod mpc {
     /// Generate initial customer channel state and channel token.
     /// output: a channel token and customer state
     ///
-    pub fn init_customer<'a, R: Rng>(csprng: &mut R, pk_m: &PublicKey,
+    pub fn init_customer<'a, R: Rng>(csprng: &mut R, pk_m: &PublicKey, tx: FundingTxInfo,
                                      b0_cust: i64, b0_merch: i64, name: &'a str) -> (ChannelMPCToken, CustomerMPCState) {
         assert!(b0_cust >= 0);
         assert!(b0_merch >= 0);
@@ -741,14 +759,8 @@ pub mod mpc {
         let cust_name = String::from(name);
         let mut cust_state = CustomerMPCState::new(csprng, b0_cust, b0_merch, cust_name);
 
-        //TODO: fill transactions
-        let escrow_txid = [0u8; 32];
-        let escrow_prevout = [0u8; 32];
-        let merch_txid = [0u8; 32];
-        let merch_prevout = [0u8; 32];
-
-        let mut channel_token = cust_state.generate_init_channel_token(pk_m, escrow_txid, merch_txid);
-        cust_state.generate_init_state(csprng, &mut channel_token, escrow_prevout, merch_prevout);
+        let mut channel_token = cust_state.generate_init_channel_token(pk_m, tx.escrow_txid, tx.merch_txid);
+        cust_state.generate_init_state(csprng, &mut channel_token, tx.escrow_prevout, tx.merch_prevout);
 
         (channel_token, cust_state)
     }
@@ -865,8 +877,10 @@ pub mod mpc {
     /// Verify the revocation lock commitment
     /// output: the pay token mask
     ///
-    pub fn pay_validate_rev_lock_merchant(nonce: [u8; NONCE_LEN], rev_lock_com: [u8; 32], rev_lock: [u8; 32], rev_sec: [u8; 32], t: [u8;32], merch_state: &mut MerchantMPCState) -> Result<[u8; 32], String> {
-        let pt_mask_option = merch_state.verify_revoked_state(nonce, rev_lock_com, rev_lock, rev_sec, t);
+    pub fn pay_validate_rev_lock_merchant(rev_state: RevokedState, merch_state: &mut MerchantMPCState) -> Result<[u8; 32], String> {
+        // nonce: [u8; NONCE_LEN], rev_lock_com: [u8; 32], rev_lock: [u8; 32], rev_sec: [u8; 32], t: [u8;32]
+        let pt_mask_option = merch_state.verify_revoked_state(rev_state.nonce, rev_state.rev_lock_com,
+                                                              rev_state.rev_lock, rev_state.rev_secret, rev_state.t);
         match pt_mask_option.is_some() {
             true => return Ok(pt_mask_option.unwrap()),
             _ => return Err(String::from("Pay token mask not found"))
@@ -1370,11 +1384,13 @@ mod tests {
     #[test]
     #[cfg(feature = "mpc-bitcoin")]
     fn test_establish_mpc_channel() {
-        let rng = &mut rand::thread_rng();
+        let mut rng = &mut rand::thread_rng();
 
         let mut channel = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
         let mut merch_state = mpc::init_merchant(rng, &mut channel, "Bob");
-        let (channel_token, mut cust_state) = mpc::init_customer(rng, &merch_state.pk_m, 100, 100, "Alice");
+
+        let funding_tx_info = generate_funding_tx(&mut rng);
+        let (channel_token, mut cust_state) = mpc::init_customer(rng, &merch_state.pk_m,funding_tx_info, 100, 100, "Alice");
 
         let s0 = mpc::activate_customer(rng, &mut cust_state);
 
@@ -1382,8 +1398,26 @@ mod tests {
 
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
-        //TODO: unlink
+        //TODO: test unlinking with a 0-payment of pay protocol
     }
+
+    #[cfg(feature = "mpc-bitcoin")]
+    fn generate_funding_tx<R: Rng>(csprng: &mut R) -> mpc::FundingTxInfo {
+        let mut txid1 = [0u8; 32];
+        let mut txid2 = [0u8; 32];
+
+        let mut escrow_prevout = [0u8; 32];
+        let mut merch_prevout = [0u8; 32];
+
+        csprng.fill_bytes(&mut txid1);
+        csprng.fill_bytes(&mut txid2);
+
+        csprng.fill_bytes(&mut escrow_prevout);
+        csprng.fill_bytes(&mut merch_prevout);
+
+        return mpc::FundingTxInfo { escrow_txid: txid1, merch_txid: txid2, escrow_prevout, merch_prevout };
+    }
+
 
     #[test]
     #[cfg(feature = "mpc-bitcoin")]
@@ -1392,7 +1426,9 @@ mod tests {
 
         let mut channel = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
         let mut merch_state = mpc::init_merchant(&mut rng, &mut channel, "Bob");
-        let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, 100, 100, "Alice");
+
+        let funding_tx_info = generate_funding_tx(&mut rng);
+        let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, funding_tx_info,100, 100, "Alice");
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
 
@@ -1400,7 +1436,7 @@ mod tests {
 
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
-        let (state, rev_lock_com, rev_lock, rev_sec) = mpc::pay_prepare_customer(&mut rng, &mut channel, 10, &mut cust_state);
+        let (state, rev_lock_com, rev_lock, rev_secret) = mpc::pay_prepare_customer(&mut rng, &mut channel, 10, &mut cust_state);
         let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, s0.nonce, &mut merch_state);
 
         let res_merch = mpc::pay_merchant(&mut rng, &mut channel, s0.nonce.clone(), pay_mask_com, rev_lock_com, 10, &mut merch_state);
@@ -1408,11 +1444,18 @@ mod tests {
 
         let t = cust_state.get_randomness();
 
-        let result = mpc::pay_validate_rev_lock_merchant(s0.nonce, rev_lock_com, rev_lock, rev_sec, t, &mut merch_state);
+        let revoked_state = mpc::RevokedState {
+            nonce: s0.nonce.clone(),
+            rev_lock_com,
+            rev_lock,
+            rev_secret,
+            t
+        };
+        let result = mpc::pay_validate_rev_lock_merchant(revoked_state, &mut merch_state);
         assert!(result.is_ok());
     }
 
-    rusty_fork_test! {
+rusty_fork_test! {
     #[test]
     #[cfg(feature = "mpc-bitcoin")]
     fn test_payment_mpc_channel_cust() {
@@ -1420,7 +1463,9 @@ mod tests {
 
         let mut channel = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
         let mut merch_state = mpc::init_merchant(&mut rng, &mut channel, "Bob");
-        let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, 100, 100, "Alice");
+
+        let funding_tx_info = generate_funding_tx(&mut rng);
+        let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, funding_tx_info, 100, 100, "Alice");
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
 
@@ -1455,5 +1500,6 @@ mod tests {
         let is_ok = mpc::pay_unmask_pay_token_customer(pt_mask, &mut cust_state);
         assert!(is_ok);
     }
-    }
+}
+
 }
