@@ -102,6 +102,7 @@ escrow_script = (
     + bytes.fromhex("52ae")
 )
 
+# P2WSH scriptPubKey
 script_sha32 = hashlib.sha256(escrow_script).digest()
 output1_scriptPK = bytes.fromhex("0020") + script_sha32
 
@@ -145,8 +146,16 @@ output = (
     + output2_scriptPK
 )
 if verbose:
-    print("output1_scriptPK: ", output1_scriptPK.hex())
-    print("Tx outputs: ", output.hex())
+    print("")
+    print("output1_scriptPubKey: ", (output1_value
+    + (len(output1_scriptPK)).to_bytes(1, byteorder="little", signed=False)
+    + output1_scriptPK).hex())
+
+    print("output2_scriptPubKey: ", (output2_value
+    + (len(output2_scriptPK)).to_bytes(1, byteorder="little", signed=False)
+    + output2_scriptPK).hex())
+    print("Full tx output preimage: ", output.hex())
+    print("")
 
 hashOutputs = dSHA256(output)
 if verbose:

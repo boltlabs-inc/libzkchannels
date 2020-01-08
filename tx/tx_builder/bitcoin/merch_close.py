@@ -1,5 +1,5 @@
 # p2wsh input (2-of-2 multisig)
-# p2wpkh output
+# p2wsh output
 
 import argparse
 import hashlib
