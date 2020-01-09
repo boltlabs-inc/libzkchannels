@@ -1,0 +1,14 @@
+language = "C"
+
+[export]
+exclude = ["build_masked_tokens_merch","build_masked_tokens_cust","get_netio_ptr","get_unixnetio_ptr"]
+
+[defines]
+"feature = mpc-bitcoin" = "DEFINE_MPC_BITCOIN"
+
+[parse]
+parse_deps = true
+include = ["secp256k1"]
+
+[parse.expand]
+features = ["mpc-bitcoin"]
