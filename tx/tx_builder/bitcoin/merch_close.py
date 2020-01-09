@@ -91,6 +91,9 @@ escrow_script = (
     + bytes.fromhex("52ae")
 )
 
+if verbose:
+    print("Redeem_script: ", escrow_script.hex())
+
 # P2WSH merch-close scriptPubKey
 # 0x63      OP_IF
 # 0x52      OP_2
@@ -163,6 +166,8 @@ output = (
     + (len(output_scriptPK)).to_bytes(1, byteorder="little", signed=False)
     + output_scriptPK
 )
+if verbose:
+    print("hashOutputs preimage: ", output_scriptPK.hex())
 
 hashOutputs = dSHA256(output)
 
