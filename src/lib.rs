@@ -57,6 +57,7 @@ pub mod nizk;
 pub mod util;
 pub mod wallet;
 pub mod ffishim;
+pub mod ffishim_mpc;
 pub mod mpcwrapper;
 pub mod ffishim_bn256;
 pub mod bindings;
@@ -849,7 +850,8 @@ pub mod mpc {
         let result = merch_state.execute_mpc_context(csprng, &channel, nonce, rev_lock_com, pay_token_mask_com, amount);
         match result.is_err() {
             false => {
-                let mask_bytes = match merch_state.mask_mpc_bytes.get(&rev_lock_com) {
+                let rev_lock_com_hex = hex::encode(rev_lock_com);
+                let mask_bytes = match merch_state.mask_mpc_bytes.get(&rev_lock_com_hex) {
                     Some(&n) => {
                         Some(n)
                     },
@@ -1428,6 +1430,7 @@ mod tests {
         let mut merch_state = mpc::init_merchant(&mut rng, &mut channel, "Bob");
 
         let funding_tx_info = generate_funding_tx(&mut rng);
+        println!("{}", serde_json::to_string(&funding_tx_info).unwrap());
         let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, funding_tx_info,100, 100, "Alice");
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state);

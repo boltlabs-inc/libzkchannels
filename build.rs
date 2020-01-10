@@ -1,4 +1,5 @@
 extern crate bindgen;
+extern crate cbindgen;
 
 use std::env;
 
@@ -27,4 +28,9 @@ fn main() {
         .expect("Couldn't write bindings!");
 
     // TODO: Create build for libtoken-utils here
+
+    let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    cbindgen::generate(crate_dir)
+        .expect("Unable to generate bindings")
+        .write_to_file("go/include/bindings.h");
 }

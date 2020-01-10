@@ -1,3 +1,4 @@
+go/include/bindings.h
 src/bindings.rs
 .idea
 deps/root/*
