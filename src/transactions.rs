@@ -14,7 +14,7 @@ const SATOSHI: i64 = 100000000;
 pub struct Input {
     pub private_key: &'static str,
     pub address_format: &'static str,
-    pub transaction_id: &'static str,
+    pub transaction_id: String,
     pub index: u32,
     pub redeem_script: Option<Vec<u8>>,
     pub script_pub_key: Option<&'static str>,
@@ -173,6 +173,21 @@ fn create_opreturn_output(rev_lock: &[u8; 20], cust_close_pubkey: &Vec<u8>) -> V
     return ret_val;
 }
 
+pub fn create_input(txid: &[u8; 32], index: u32, input_amount: i64) -> Input {
+    let txid_str = hex::encode(txid);
+    Input {
+        private_key: "",
+        address_format: "native_p2wsh",
+        // outpoint + txid
+        transaction_id: txid_str,
+        index: index,
+        redeem_script: None,
+        script_pub_key: None,
+        utxo_amount: Some(input_amount * SATOSHI),
+        sequence: Some([0xff, 0xff, 0xff, 0xff]) // 4294967295
+    }
+}
+
 // creates a funding transaction with the following input/outputs
 // input => p2pkh or p2sh_p2wpkh
 // output1 => multi-sig addr via p2wsh
@@ -188,7 +203,7 @@ pub fn create_bitcoin_escrow_tx<N: BitcoinNetwork>(config: &BitcoinTxConfig, inp
         _ => panic!("do not currently support specified address format as funding input: {}", input.address_format)
     };
     let address = private_key.to_address(&address_format).unwrap();
-    let transaction_id = hex::decode(input.transaction_id).unwrap();
+    let transaction_id = hex::decode(input.transaction_id.as_str()).unwrap();
     let redeem_script = match (input.redeem_script.as_ref(), address_format.clone()) {
         (Some(script), _) => Some(script.clone()),
         (None, BitcoinFormat::P2SH_P2WPKH) => {
@@ -274,7 +289,7 @@ pub fn create_bitcoin_merch_close_tx<N: BitcoinNetwork>(config: &BitcoinTxConfig
         _ => panic!("do not currently support specified address format: {}", input.address_format)
     };
 
-    let transaction_id = hex::decode(input.transaction_id).unwrap();
+    let transaction_id = hex::decode(input.transaction_id.as_str()).unwrap();
     let redeem_script = match (input.redeem_script.as_ref(), address_format.clone()) {
         (Some(script), _) => Some(script.clone()),
         (None, BitcoinFormat::P2SH_P2WPKH) => {
@@ -341,16 +356,15 @@ pub struct ClosePublicKeys {
 pub fn create_bitcoin_cust_close_transaction<N: BitcoinNetwork>(config: &BitcoinTxConfig, input: &Input, pubkeys: &ClosePublicKeys, self_delay: &[u8; 2],
                                                              cust_bal: i64, merch_bal: i64, from_escrow: bool) -> (Vec<u8>, BitcoinTransaction<N>){
 
-    let private_key = BitcoinPrivateKey::<N>::from_str(input.private_key).unwrap();
-    let cust_pubkey = private_key.to_public_key().to_secp256k1_public_key().serialize();
+    // let private_key = BitcoinPrivateKey::<N>::from_str(input.private_key).unwrap();
+    // let cust_pubkey = private_key.to_public_key().to_secp256k1_public_key().serialize();
     // check that cust_pubkey == cust_pk
-
     let address_format = match input.address_format {
         "native_p2wsh" => BitcoinFormat::NATIVE_P2WSH,
         _ => panic!("do not currently support specified address format: {}", input.address_format)
     };
 
-    let transaction_id = hex::decode(input.transaction_id).unwrap();
+    let transaction_id = hex::decode(input.transaction_id.as_str()).unwrap();
     let redeem_script = match from_escrow {
         true => {
             let redeem_script = serialize_p2wsh_escrow_redeem_script(&pubkeys.merch_pk, &pubkeys.cust_pk);
@@ -363,7 +377,7 @@ pub fn create_bitcoin_cust_close_transaction<N: BitcoinNetwork>(config: &Bitcoin
             Some(redeem_script)
         }
     };
-    let mut address = match address_format {
+    let address = match address_format {
         BitcoinFormat::NATIVE_P2WSH => BitcoinAddress::<N>::p2wsh(redeem_script.as_ref().unwrap()).unwrap(),
         _ => panic!("do not currently support specified address format")
     };
@@ -448,7 +462,7 @@ mod tests {
         let input = Input {
             private_key: "cPmiXrwUfViwwkvZ5NXySiHEudJdJ5aeXU4nx4vZuKWTUibpJdrn", // testnet
             address_format: "p2sh_p2wpkh",
-            transaction_id: "f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1",
+            transaction_id: String::from("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1"),
             index: 0,
             redeem_script: None,
             script_pub_key: None,
@@ -505,7 +519,7 @@ mod tests {
             private_key: "cPmiXrwUfViwwkvZ5NXySiHEudJdJ5aeXU4nx4vZuKWTUibpJdrn", // testnet
             address_format: "native_p2wsh",
             // outpoint + txid
-            transaction_id: "5eb0c50e6f725b88507cda84f339aba539bc99853436db610d6a476a207f82d9",
+            transaction_id: String::from("5eb0c50e6f725b88507cda84f339aba539bc99853436db610d6a476a207f82d9"),
             index: 0,
             redeem_script: Some(redeem_script),
             script_pub_key: None,
@@ -535,7 +549,7 @@ mod tests {
             private_key: "cPmiXrwUfViwwkvZ5NXySiHEudJdJ5aeXU4nx4vZuKWTUibpJdrn", // testnet
             address_format: "native_p2wsh",
             // outpoint + txid
-            transaction_id: "f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1",
+            transaction_id: String::from("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1"),
             index: 0,
             redeem_script: None,
             script_pub_key: None,
@@ -582,7 +596,7 @@ mod tests {
             private_key: "cPmiXrwUfViwwkvZ5NXySiHEudJdJ5aeXU4nx4vZuKWTUibpJdrn", // testnet
             address_format: "native_p2wsh",
             // outpoint + txid
-            transaction_id: "f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1",
+            transaction_id: String::from("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1"),
             index: 0,
             redeem_script: None,
             script_pub_key: None,

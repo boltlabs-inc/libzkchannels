@@ -1,3 +1,3 @@
 #!/bin/bash
 
-cargo +nightly test --release --lib transactions #-- --nocapture
+cargo +nightly test --release --lib transactions -- --nocapture

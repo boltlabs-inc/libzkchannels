@@ -9,6 +9,9 @@ use num::bigint::Sign;
 use bindings::{get_netio_ptr, get_unixnetio_ptr, build_masked_tokens_cust, build_masked_tokens_merch,
                EcdsaPartialSig_l, State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l, PayToken_l,
                Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l, BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l};
+use transactions::{ClosePublicKeys, BitcoinTxConfig, Input, create_input, create_bitcoin_cust_close_transaction};
+use bitcoin::Testnet;
+use util::compute_hash160;
 use std::slice;
 use wallet::State;
 use std::ptr;
@@ -380,7 +383,7 @@ mod tests {
     }
     }
 
-    rusty_fork_test! {
+rusty_fork_test! {
     #[test]
     fn mpc_build_masked_tokens_cust_works() {
         let csprng = &mut rand::thread_rng();
@@ -409,9 +412,11 @@ mod tests {
 
         let mut tx_id_merch = [0u8; 32];
         tx_id_merch.copy_from_slice(hex::decode("e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4").unwrap().as_slice());
+        // tx_id_merch.copy_from_slice(hex::decode("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1").unwrap().as_slice());
 
         let mut tx_id_esc = [0u8; 32];
         tx_id_esc.copy_from_slice(hex::decode("e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4").unwrap().as_slice());
+        // tx_id_esc.copy_from_slice(hex::decode("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1").unwrap().as_slice());
 
         let mut hashouts_merch = [0u8; 32];
         hashouts_merch.copy_from_slice(hex::decode("7d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d738").unwrap().as_slice());
@@ -496,6 +501,31 @@ mod tests {
         // We are signing this thing (this is post hash): "c76b9fbe0364d533b6ee018de59b3f3d529c6caa1d6fbe28853785e03b006047"
         // the escrow Preimage is: "020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000004752210342da23a1de903cd7a141a99b5e8051abfcd4d2d1b3c2112bac5c8997d9f12a002103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae8000000000000000ffffffff1d09283c2d7b7c31643a0cf2f5d01912519b7d2f1dfde22f30f45c87852bbc0a0000000001000000"
         let escrow_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff40000000047522103f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd2103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae8000000000000000ffffffff1d09283c2d7b7c31643a0cf2f5d01912519b7d2f1dfde22f30f45c87852bbc0a0000000001000000").unwrap();
+        // automatically generate the escrow_preimage
+        let config = BitcoinTxConfig {
+            version: 2,
+            lock_time: 0
+        };
+        let input = create_input(&tx_id_esc, 0, 128);
+        let mut pubkeys = ClosePublicKeys {
+            cust_pk: cust_escrow_pub_key.serialize().to_vec(),
+            cust_close_pk: cust_payout_pub_key.serialize().to_vec(),
+            merch_pk: merch_escrow_pub_key.serialize().to_vec(),
+            merch_close_pk: merch_payout_pub_key.serialize().to_vec(),
+            merch_disp_pk: merch_dispute_key.serialize().to_vec(),
+            rev_lock: [0u8; 20]
+        };
+        let _rev_lock = compute_hash160(&new_state.rev_lock.to_vec());
+        pubkeys.rev_lock.copy_from_slice(&_rev_lock);
+        let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
+        let (tx_preimage, full_tx) = create_bitcoin_cust_close_transaction::<Testnet>(&config, &input,
+                                                                                                 &pubkeys,
+                                                                                                 &to_self_delay,
+                                                                                                 new_state.bc,
+                                                                                                 new_state.bm, true);
+        println!("TX BUILDER: generated escrow tx preimage: {}", hex::encode(&tx_preimage)); // doesn't match example above in escrow_preimage
+        // assert_eq!(tx_preimage, escrow_preimage);
+
         let escrow_tx_ar = Sha256::digest(escrow_preimage.as_slice());
         let escrow_tx = Message::from_slice(escrow_tx_ar.as_slice()).unwrap();
         // the merch preimage is: "020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff400000000726352210342da23a1de903cd7a141a99b5e8051abfcd4d2d1b3c2112bac5c8997d9f12a002103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae6702cf05b2752102f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90ac688000000000000000ffffffff1d09283c2d7b7c31643a0cf2f5d01912519b7d2f1dfde22f30f45c87852bbc0a0000000001000000"
@@ -506,6 +536,7 @@ mod tests {
         // 1. check that 6ccc45f34f720e917794b1a6c25d110e82bbaedfd7e30b0f1f3de4ba7e763474 =  pt_mask ^ pt_masked_ar
         xor_in_place(&mut paytoken_mask_bytes, &pt_masked_ar[..]);
         assert_eq!(hex::encode(paytoken_mask_bytes), "6ccc45f34f720e917794b1a6c25d110e82bbaedfd7e30b0f1f3de4ba7e763474");
+        //assert_eq!(hex::encode(paytoken_mask_bytes), "f372257feffe365aa08df3a0c8631f61bdbe987f06701086ff42d94c8d47e7af");
 
         // 2. Unmask the escrow token, and check the sig
         println!("masked s: {}", hex::encode(escrow_mask_bytes));
@@ -528,7 +559,7 @@ mod tests {
         println!("merch_sig cust: {}", hex::encode(&merch_sig.serialize_compact()[..]));
         assert!(secp.verify(&merch_tx, &merch_sig, &merch_escrow_pub_key).is_ok());
     }
-    }
+}
 
     pub fn xor_in_place(a: &mut [u8], b: &[u8]) {
         for (b1, b2) in a.iter_mut().zip(b.iter()) {
