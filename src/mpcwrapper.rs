@@ -9,7 +9,7 @@ use num::bigint::Sign;
 use bindings::{get_netio_ptr, get_unixnetio_ptr, build_masked_tokens_cust, build_masked_tokens_merch,
                EcdsaPartialSig_l, State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l, PayToken_l,
                Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l, BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l};
-use transactions::{ClosePublicKeys, BitcoinTxConfig, Input, create_input, create_bitcoin_cust_close_transaction};
+use transactions::{ClosePublicKeys, BitcoinTxConfig, Input, create_input, create_bitcoin_cust_close_transaction, SATOSHI};
 use bitcoin::Testnet;
 use util::compute_hash160;
 use std::slice;
@@ -411,12 +411,12 @@ rusty_fork_test! {
         rl_ar2.copy_from_slice(hex::decode("0b744cf3475f300fe77d2e85c3a5911e603e725b17932ee90f99fc7a869b8307").unwrap().as_slice());
 
         let mut tx_id_merch = [0u8; 32];
-        tx_id_merch.copy_from_slice(hex::decode("e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4").unwrap().as_slice());
-        // tx_id_merch.copy_from_slice(hex::decode("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1").unwrap().as_slice());
+        // tx_id_merch.copy_from_slice(hex::decode("e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4").unwrap().as_slice());
+        tx_id_merch.copy_from_slice(hex::decode("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1").unwrap().as_slice());
 
         let mut tx_id_esc = [0u8; 32];
-        tx_id_esc.copy_from_slice(hex::decode("e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4").unwrap().as_slice());
-        // tx_id_esc.copy_from_slice(hex::decode("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1").unwrap().as_slice());
+        // tx_id_esc.copy_from_slice(hex::decode("e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4").unwrap().as_slice());
+        tx_id_esc.copy_from_slice(hex::decode("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1").unwrap().as_slice());
 
         let mut hashouts_merch = [0u8; 32];
         hashouts_merch.copy_from_slice(hex::decode("7d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d738").unwrap().as_slice());
@@ -535,8 +535,8 @@ rusty_fork_test! {
         // Asserts
         // 1. check that 6ccc45f34f720e917794b1a6c25d110e82bbaedfd7e30b0f1f3de4ba7e763474 =  pt_mask ^ pt_masked_ar
         xor_in_place(&mut paytoken_mask_bytes, &pt_masked_ar[..]);
-        assert_eq!(hex::encode(paytoken_mask_bytes), "6ccc45f34f720e917794b1a6c25d110e82bbaedfd7e30b0f1f3de4ba7e763474");
-        //assert_eq!(hex::encode(paytoken_mask_bytes), "f372257feffe365aa08df3a0c8631f61bdbe987f06701086ff42d94c8d47e7af");
+        // assert_eq!(hex::encode(paytoken_mask_bytes), "6ccc45f34f720e917794b1a6c25d110e82bbaedfd7e30b0f1f3de4ba7e763474");
+        assert_eq!(hex::encode(paytoken_mask_bytes), "f372257feffe365aa08df3a0c8631f61bdbe987f06701086ff42d94c8d47e7af");
 
         // 2. Unmask the escrow token, and check the sig
         println!("masked s: {}", hex::encode(escrow_mask_bytes));

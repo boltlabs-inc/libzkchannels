@@ -9,7 +9,7 @@ use wagyu_model::PrivateKey;
 use std::str::FromStr;
 use util::hash_to_slice;
 
-const SATOSHI: i64 = 100000000;
+pub const SATOSHI: i64 = 100000000;
 
 pub struct Input {
     pub private_key: &'static str,
@@ -183,7 +183,7 @@ pub fn create_input(txid: &[u8; 32], index: u32, input_amount: i64) -> Input {
         index: index,
         redeem_script: None,
         script_pub_key: None,
-        utxo_amount: Some(input_amount * SATOSHI),
+        utxo_amount: Some(input_amount),
         sequence: Some([0xff, 0xff, 0xff, 0xff]) // 4294967295
     }
 }
@@ -278,7 +278,7 @@ pub fn sign_transaction<N: BitcoinNetwork>(unsigned_tx: BitcoinTransaction<N>, i
 }
 
 // creates a merch-close-tx that spends from a P2WSH to another
-pub fn create_bitcoin_merch_close_tx<N: BitcoinNetwork>(config: &BitcoinTxConfig, input: &Input, merch_pubkey: &Vec<u8>, merch_close_pubkey: &Vec<u8>, self_delay: &[u8; 2]) -> (Vec<u8>, BitcoinTransaction<N>) {
+pub fn create_bitcoin_merch_close_transaction<N: BitcoinNetwork>(config: &BitcoinTxConfig, input: &Input, merch_pubkey: &Vec<u8>, merch_close_pubkey: &Vec<u8>, self_delay: &[u8; 2]) -> (Vec<u8>, BitcoinTransaction<N>) {
     let private_key = BitcoinPrivateKey::<N>::from_str(input.private_key).unwrap();
     let cust_pubkey = private_key.to_public_key().to_secp256k1_public_key().serialize();
 
@@ -533,7 +533,7 @@ mod tests {
         };
 
         let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
-        let (merch_tx_preimage, full_tx) = transactions::create_bitcoin_merch_close_tx::<Testnet>(&config, &input, &merch_pk, &merch_close_pk, &to_self_delay);
+        let (merch_tx_preimage, full_tx) = transactions::create_bitcoin_merch_close_transaction::<Testnet>(&config, &input, &merch_pk, &merch_close_pk, &to_self_delay);
 
         println!("merch-close tx raw preimage: {}", hex::encode(&merch_tx_preimage));
         let expected_merch_tx_preimage = hex::decode("02000000fdd1def69203bbf96a6ebc56166716401302fcd06eadd147682e8898ba19bee43bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044d9827f206a476a0d61db36348599bc39a5ab39f384da7c50885b726f0ec5b05e00000000475221024596d7b33733c28101dbc6c85901dffaed0cdac63ab0b2ea141217d1990ad4b121027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb52ae00ca9a3b00000000ffffffff480dafb4ad69ea75b066cc3f5a869af9ab5d64b15ab6c627dce37286b32a4c070000000001000000").unwrap();
