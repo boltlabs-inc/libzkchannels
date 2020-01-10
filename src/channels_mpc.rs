@@ -1,7 +1,7 @@
 use super::*;
 use rand::Rng;
 use wallet::{State, NONCE_LEN};
-use util::{hash_to_slice, hmac_sign, sha2_and_ripemd_to_slice};
+use util::{hash_to_slice, hmac_sign, compute_hash160};
 use mpcwrapper::{mpc_build_masked_tokens_cust, mpc_build_masked_tokens_merch};
 use secp256k1::ffi::secp256k1_context_no_precomp;
 
@@ -336,7 +336,7 @@ impl CustomerMPCState {
 
         let merch_escrow_pub_key= channel_token.pk_m.clone();
         let pk_input_buf = merch_escrow_pub_key.serialize();
-        let mut merch_public_key_hash= sha2_and_ripemd_to_slice(&pk_input_buf.to_vec());
+        let mut merch_public_key_hash= compute_hash160(&pk_input_buf.to_vec());
 
         let merch_dispute_key= channel.merch_dispute_pk.unwrap();
         let merch_payout_pub_key = channel.merch_payout_pk.unwrap();
@@ -588,7 +588,7 @@ impl MerchantMPCState {
         // get the public keys
         let merch_escrow_pub_key = self.pk_m.clone(); // escrow key
         let pk_input_buf = merch_escrow_pub_key.serialize();
-        let mut merch_public_key_hash= sha2_and_ripemd_to_slice(&pk_input_buf.to_vec());
+        let mut merch_public_key_hash= compute_hash160(&pk_input_buf.to_vec());
 
         mpc_build_masked_tokens_merch(csprng, self.conn_type, amount, &paytoken_mask_com, &rev_lock_com, &key_com,
                                       merch_escrow_pub_key, self.dispute_pk, merch_public_key_hash, self.payout_pk, nonce,

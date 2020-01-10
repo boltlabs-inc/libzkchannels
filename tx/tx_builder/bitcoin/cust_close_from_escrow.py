@@ -30,21 +30,25 @@ def privkey_to_pubkey(privkey):
 ################################
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--cust_privkey", "-csk", help="private key of customer for escrow")
-parser.add_argument("--merch_privkey", "-msk", help="private key of merchant for escrow")
-parser.add_argument("--merch_close_pubkey", "-mcpk", help="public key of merchant output")
-parser.add_argument("--cust_close_pubkey", "-ccpk", help="public key of cust close to-self output")
-parser.add_argument("--revocation_lock", "-rl", help="revocation lock (hash160{revocation_secret})")
-parser.add_argument("--merch_disp_pubkey", "-mdpk", help="public key of merchant dispute")
-parser.add_argument("--to_self_delay", "-tsd", help="to_self_delay (in unit of blocks) for the merchant's to-self output")
-parser.add_argument("--txid", "-tx", help="txid of outpoint as hex string")
-parser.add_argument("--index", "-ind", help="index of outpoint")
-parser.add_argument("--amount_btc", "-a", help="amount of btc in")
-parser.add_argument("--script_output_btc", "-cso", help="btc to cust close script output")
-parser.add_argument("--merch_output_btc", "-mo", help="btc to merchant close output")
+parser.add_argument("--cust_privkey", "-csk", help="private key of customer for escrow", required=True)
+parser.add_argument("--merch_privkey", "-msk", help="private key of merchant for escrow", required=True)
+parser.add_argument("--merch_close_pubkey", "-mcpk", help="public key of merchant output", required=True)
+parser.add_argument("--cust_close_pubkey", "-ccpk", help="public key of cust close to-self output", required=True)
+parser.add_argument("--revocation_lock", "-rl", help="revocation lock (hash160{revocation_secret})", required=True)
+parser.add_argument("--merch_disp_pubkey", "-mdpk", help="public key of merchant dispute", required=True)
+parser.add_argument("--to_self_delay", "-tsd", help="to_self_delay (in unit of blocks) for the merchant's to-self output", required=True)
+parser.add_argument("--txid", "-tx", help="txid of outpoint as hex string", required=True)
+parser.add_argument("--index", "-ind", help="index of outpoint (default=0)", default=0, required=False)
+parser.add_argument("--amount_btc", "-a", help="amount of btc in", required=True)
+parser.add_argument("--script_output_btc", "-cso", help="btc to cust close script output", required=True)
+parser.add_argument("--merch_output_btc", "-mo", help="btc to merchant close output", required=True)
+parser.add_argument("--verbose", "-v", help="increase output verbosity", action="store_true")
 args = parser.parse_args()
 
 ################################
+verbose = args.verbose
+if verbose:
+    print("<============Tx Details============>")
 
 # version is 4-bytes little endian. Version 2 should be default
 version = bytes.fromhex("0200 0000")
@@ -100,8 +104,8 @@ escrow_script = (
 
 # P2WSH cust-close scriptPubKey
 # 0x63      OP_IF
-# 0xa9      OP_HASH160
-# 0x14      OP_DATA - len(revocation_lock {hash160[revocation-secret]})
+# 0xa8      OP_SHA256
+# 0x20      OP_DATA - len(revocation_lock {sha256[revocation-secret]})
 # revocation_lock
 # 0x88      OP_EQUALVERIFY
 # 0x21      OP_DATA - len(merch_disp_pubkey)
@@ -124,7 +128,7 @@ short_sequence = nSequence_as_blocks.to_bytes(l, byteorder="little", signed=Fals
 
 
 cust_close_script = (
-    bytes.fromhex("63 a9 14")
+    bytes.fromhex("63 a8 20")
     + revocation_lock
     + bytes.fromhex("88 21")
     + merch_disp_pubkey
@@ -149,6 +153,10 @@ op_return_scriptPK = (
     + revocation_lock
     + cust_close_pubkey
 )
+if verbose:
+    print("1 - to_customer: ", output_scriptPK.hex())
+    print("2 - to_merchant: ", to_merch_scriptPK.hex())
+    print("3 - OP_RETURN script_pubkey: ", op_return_scriptPK.hex())
 
 locktime = bytes.fromhex("00000000")
 
@@ -185,8 +193,12 @@ outputs = (
     + (len(op_return_scriptPK)).to_bytes(1, byteorder="little", signed=False)
     + op_return_scriptPK
 )
+if verbose:
+    print("hashOutputs preimage: ", outputs.hex())
 
 hashOutputs = dSHA256(outputs)
+if verbose:
+    print("hashOutputs: ", hashOutputs.hex())
 
 scriptcode = (
     (len(escrow_script)).to_bytes(1, byteorder="little", signed=False)
@@ -206,6 +218,9 @@ bip_143 = (
     + locktime
     + sighash
 )
+if verbose:
+    print("Tx Preimage: ", bip_143.hex())
+    print("<============Tx Details============>")
 
 hashed_bip_143 = dSHA256(bip_143)
 
