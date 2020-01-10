@@ -96,13 +96,13 @@ func runPayCust(channelState map[string]interface{}, channelToken map[string]int
 	c.Env = os.Environ()
 	out, _ := c.Output()
 	os.Setenv("custStateRet", strings.Split(string(out), "|||")[1])
+	os.Setenv("runTest", "")
 }
 
 func TestPayCustomer(t *testing.T) {
 	if os.Getenv("runTest") == "" {
 		t.Skip("Skip test when not called from other test")
 	}
-	os.Setenv("runTest", "")
 
 	channelState := make(map[string]interface{})
 	err := json.Unmarshal([]byte(os.Getenv("channelState")), &channelState)
