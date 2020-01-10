@@ -513,10 +513,9 @@ rusty_fork_test! {
             merch_pk: merch_escrow_pub_key.serialize().to_vec(),
             merch_close_pk: merch_payout_pub_key.serialize().to_vec(),
             merch_disp_pk: merch_dispute_key.serialize().to_vec(),
-            rev_lock: [0u8; 20]
+            rev_lock: [0u8; 32]
         };
-        let _rev_lock = compute_hash160(&new_state.rev_lock.to_vec());
-        pubkeys.rev_lock.copy_from_slice(&_rev_lock);
+        pubkeys.rev_lock.copy_from_slice(&new_state.rev_lock);
         let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
         let (tx_preimage, full_tx) = create_bitcoin_cust_close_transaction::<Testnet>(&config, &input,
                                                                                                  &pubkeys,
