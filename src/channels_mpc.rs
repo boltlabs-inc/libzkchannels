@@ -437,10 +437,10 @@ pub struct MerchantMPCState {
     pub payout_pk: secp256k1::PublicKey,
     dispute_sk: secp256k1::SecretKey, // for dispute pub key
     pub dispute_pk: secp256k1::PublicKey,
-    pub nonce_mask_map: HashMap<[u8; NONCE_LEN], [u8; 32]>,
+    pub nonce_mask_map: HashMap<String, [u8; 32]>,
     pub activate_map: HashMap<String, State>,
-    pub lock_map_state: HashMap<[u8; NONCE_LEN], Option<LockMap>>,
-    pub mask_mpc_bytes: HashMap<[u8; 32], MaskedMPCInputs>,
+    pub lock_map_state: HashMap<String, Option<LockMap>>,
+    pub mask_mpc_bytes: HashMap<String, MaskedMPCInputs>,
     pub conn_type: u32
 }
 
@@ -522,7 +522,8 @@ impl MerchantMPCState {
     pub fn generate_pay_mask_commitment<R: Rng>(&mut self, csprng: &mut R, nonce: [u8; NONCE_LEN]) -> Result<[u8; 32], String> {
         // check if n_i not in S
         // let nonce_hex = hex::encode(nonce.to_vec());
-        if self.lock_map_state.get(&nonce).is_some() {
+        let nonce_hex = hex::encode(nonce);
+        if self.lock_map_state.get(&nonce_hex).is_some() {
             return Err(String::from("nonce has been used already."));
         }
 
@@ -534,7 +535,7 @@ impl MerchantMPCState {
         let paytoken_mask_com = hash_to_slice( &pay_mask.to_vec());
 
         // store pay_mask for use in mpc protocol later
-        self.nonce_mask_map.insert(nonce.clone(), pay_mask);
+        self.nonce_mask_map.insert(nonce_hex, pay_mask);
 
         Ok(paytoken_mask_com)
     }
@@ -555,12 +556,13 @@ impl MerchantMPCState {
         }
 
         // check if n_i not in S
-        if self.lock_map_state.get(&nonce).is_some() {
+        let nonce_hex = hex::encode(nonce);
+        if self.lock_map_state.get(&nonce_hex).is_some() {
             return Err(String::from("nonce has been used already."));
         }
 
         // check the nonce & paytoken_mask (based on the nonce)
-        let pay_mask_bytes = match self.nonce_mask_map.get(&nonce) {
+        let pay_mask_bytes = match self.nonce_mask_map.get(&nonce_hex) {
             Some(&n) => n,
             _ => return Err(String::from("could not find pay mask for specified nonce"))
         };
@@ -599,7 +601,8 @@ impl MerchantMPCState {
             escrow_mask: escrow_mask_bytes,
             merch_mask: merch_mask_bytes
         };
-        self.mask_mpc_bytes.insert( rev_lock_com.clone(), mask_bytes);
+        let rev_lock_com_hex = hex::encode(rev_lock_com);
+        self.mask_mpc_bytes.insert( rev_lock_com_hex, mask_bytes);
 
         Ok(true)
     }
@@ -609,7 +612,8 @@ impl MerchantMPCState {
         // check that RL_i is derived from RS_i
         if compute_commitment(&rev_lock, &t) != rev_lock_com || 
             hash_to_slice(&rev_sec.to_vec()) != rev_lock {
-            self.lock_map_state.insert(nonce, None);
+            let nonce_hex = hex::encode(nonce);
+            self.lock_map_state.insert(nonce_hex, None);
             return None;
         }
 
@@ -617,21 +621,23 @@ impl MerchantMPCState {
         //let pay_mask_bytes = self.nonce_mask_map.get(&nonce).unwrap();
 
         // retrieve masked bytes from rev_lock_com (output error, if not)
-        let (is_ok, pt_mask) = match self.mask_mpc_bytes.get(&rev_lock_com) {
+        let rev_lock_com_hex = hex::encode(rev_lock_com);
+        let (is_ok, pt_mask) = match self.mask_mpc_bytes.get(&rev_lock_com_hex) {
             Some(&n) => (true, Some(n.pt_mask)),
             _ => (false, None)
         };
 
 
+        let nonce_hex = hex::encode(nonce);
         if is_ok {
             // add (n_i, RS_i, RL_i) to state
             let revoked_lock_pair = LockMap {
                 lock: rev_lock,
                 secret: rev_sec
             };
-            self.lock_map_state.insert(nonce, Some(revoked_lock_pair));
+            self.lock_map_state.insert(nonce_hex, Some(revoked_lock_pair));
         } else {
-            self.lock_map_state.insert(nonce, None);
+            self.lock_map_state.insert(nonce_hex, None);
         }
 
         return pt_mask;

@@ -202,7 +202,7 @@ pub mod ffishim_mpc {
         let rng = &mut rand::thread_rng();
 
         // Deserialize nonce
-        let nonce_result = deserialize_hex_string(ser_nonce);
+        let nonce_result: ResultSerdeType<Vec<u8>> = deserialize_result_object(ser_nonce);
         let nonce = handle_errors!(nonce_result);
         let mut nonce_ar = [0u8; 16];
         nonce_ar.copy_from_slice(nonce.as_slice());
@@ -269,7 +269,7 @@ pub mod ffishim_mpc {
         let mut channel_state = handle_errors!(channel_state_result);
 
         // Deserialize nonce
-        let nonce_result = deserialize_hex_string(ser_nonce);
+        let nonce_result: ResultSerdeType<Vec<u8>> = deserialize_result_object(ser_nonce);
         let nonce = handle_errors!(nonce_result);
         let mut nonce_ar = [0u8; 16];
         nonce_ar.copy_from_slice(nonce.as_slice());
@@ -293,7 +293,7 @@ pub mod ffishim_mpc {
         // We change the channel state
         let result = mpc::pay_merchant(rng, &mut channel_state, nonce_ar, pay_token_mask_com_ar, rev_lock_com_ar, amount, &mut merch_state);
         let masked_tx_inputs = handle_errors!(result);
-        let ser = ["{\'masked_tx_inputs\':", serde_json::to_string(&masked_tx_inputs).unwrap().as_str(), ", \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
+        let ser = ["{\'masked_tx_inputs\':\'", serde_json::to_string(&masked_tx_inputs).unwrap().as_str(), "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -310,7 +310,7 @@ pub mod ffishim_mpc {
 
         // We change the channel state
         let is_ok = mpc::pay_unmask_tx_customer(masked_tx_inputs, &mut cust_state);
-        let ser = ["{\'is_ok\':\'", &is_ok.to_string(), "\', \'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\'}"].concat();
+        let ser = ["{\'is_ok\':", &is_ok.to_string(), ", \'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -347,7 +347,7 @@ pub mod ffishim_mpc {
 
         // We change the channel state
         let is_ok = mpc::pay_unmask_pay_token_customer(pt_mask_bytes_ar, &mut cust_state);
-        let ser = ["{\'is_ok\':\'", &is_ok.to_string(), "\', \'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\'}"].concat();
+        let ser = ["{\'is_ok\':", &is_ok.to_string(), ", \'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }

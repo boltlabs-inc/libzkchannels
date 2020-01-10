@@ -1,9 +1,15 @@
 package libzkchannels
 
 import (
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"os"
+	"os/exec"
+	"strings"
 	"testing"
+	"time"
 )
 
 func Test_fullProtocol(t *testing.T) {
@@ -26,15 +32,99 @@ func Test_fullProtocol(t *testing.T) {
 	custState, err = ActivateCustomerFinalize(payToken0, custState)
 	assert.Nil(t, err)
 
-	revLockCom, revLock, revSecret, state, channelState, custState, err := PreparePaymentCustomer(channelState, 10, custState)
+	revLockCom, revLock, revSecret, newState, channelState, custState, err := PreparePaymentCustomer(channelState, 10, custState)
 	assert.Nil(t, err)
-	fmt.Println(revLock)
-	fmt.Println(revLockCom)
-	fmt.Println(revSecret)
 
-	fmt.Println(state)
-	_, merchState, err = PreparePaymentMerchant(fmt.Sprintf("%v", state["nonce"]), merchState)
+	payTokenMaskCom, merchState, err := PreparePaymentMerchant(fmt.Sprintf("%v", state["nonce"]), merchState)
 	assert.Nil(t, err)
-	//fmt.Println(payTokenMaskCom)
+
+	go runPayCust(channelState, channelToken, state, newState, payTokenMaskCom, revLockCom, custState)
+	maskedTxInputs, merchState, err := PayMerchant(channelState, fmt.Sprintf("%v", state["nonce"]), payTokenMaskCom, revLockCom, 10, merchState)
+	assert.Nil(t, err)
+	time.Sleep(time.Second * 5)
+
+	serCustState := os.Getenv("custStateRet")
+	err = json.Unmarshal([]byte(serCustState), &custState)
+	assert.Nil(t, err)
+	isOk, custState, err := PayUnmaskTxCustomer(maskedTxInputs, custState)
+	assert.Nil(t, err)
+	assert.True(t, isOk)
+
+	revLockComBytes, _ := hex.DecodeString(revLockCom)
+	revLockBytes, _ := hex.DecodeString(revLock)
+	revSecretBytes, _ := hex.DecodeString(revSecret)
+	revokedState := map[string]interface{}{
+		"nonce":        state["nonce"],
+		"rev_lock_com": BAtoIA(revLockComBytes),
+		"rev_lock":     BAtoIA(revLockBytes),
+		"rev_secret":   BAtoIA(revSecretBytes),
+		"t":            custState["t"],
+	}
+	payTokenMask, merchState, err := PayValidateRevLockMerchant(revokedState, merchState)
+	assert.Nil(t, err)
+
+	isOk, custState, err = PayUnmaskPayTokenCustomer(payTokenMask, custState)
+	assert.Nil(t, err)
+	assert.True(t, isOk)
 }
 
+func BAtoIA(bytes []byte) []int {
+	out := make([]int, len(bytes))
+	for i, b := range bytes {
+		out[i] = int(b)
+	}
+	return out
+}
+
+func runPayCust(channelState map[string]interface{}, channelToken map[string]interface{}, state map[string]interface{}, newState map[string]interface{}, payTokenMaskCom string, revLockCom string, custState map[string]interface{}) {
+	serChannelState, _ := json.Marshal(channelState)
+	os.Setenv("channelState", string(serChannelState))
+	serChannelToken, _ := json.Marshal(channelToken)
+	os.Setenv("channelToken", string(serChannelToken))
+	serState, _ := json.Marshal(state)
+	os.Setenv("state", string(serState))
+	serNewState, _ := json.Marshal(newState)
+	os.Setenv("newState", string(serNewState))
+	os.Setenv("payTokenMaskCom", payTokenMaskCom)
+	os.Setenv("revLockCom", revLockCom)
+	serCustState, _ := json.Marshal(custState)
+	os.Setenv("custState", string(serCustState))
+
+	os.Setenv("runTest", "true")
+
+	c := exec.Command("go", "test", "-v", "libzkchannels.go", "libzkchannels_test.go", "-run", "TestPayCustomer")
+	c.Env = os.Environ()
+	out, _ := c.Output()
+	os.Setenv("custStateRet", strings.Split(string(out), "|||")[1])
+}
+
+func TestPayCustomer(t *testing.T) {
+	if os.Getenv("runTest") == "" {
+		t.Skip("Skip test when not called from other test")
+	}
+	os.Setenv("runTest", "")
+
+	channelState := make(map[string]interface{})
+	err := json.Unmarshal([]byte(os.Getenv("channelState")), &channelState)
+	assert.Nil(t, err)
+	channelToken := make(map[string]interface{})
+	err = json.Unmarshal([]byte(os.Getenv("channelToken")), &channelToken)
+	assert.Nil(t, err)
+	state := make(map[string]interface{})
+	err = json.Unmarshal([]byte(os.Getenv("state")), &state)
+	assert.Nil(t, err)
+	newState := make(map[string]interface{})
+	err = json.Unmarshal([]byte(os.Getenv("newState")), &newState)
+	assert.Nil(t, err)
+	payTokenMaskCom := os.Getenv("payTokenMaskCom")
+	revLockCom := os.Getenv("revLockCom")
+	custState := make(map[string]interface{})
+	err = json.Unmarshal([]byte(os.Getenv("custState")), &custState)
+	assert.Nil(t, err)
+
+	isOk, custState, err := PayCustomer(channelState, channelToken, state, newState, payTokenMaskCom, revLockCom, 10, custState)
+	serCustState, err := json.Marshal(custState)
+	t.Log("\n|||", string(serCustState), "|||\n")
+	assert.True(t, isOk)
+	assert.Nil(t, err)
+}

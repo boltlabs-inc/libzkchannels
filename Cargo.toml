@@ -37,6 +37,7 @@ wagyu-bitcoin = { git = "https://github.com/boltlabs-inc/wagyu", branch = "featu
 
 [build-dependencies]
 bindgen="*"
+cbindgen="*"
 
 [dev-dependencies]
 rusty-fork = "0.2.1"

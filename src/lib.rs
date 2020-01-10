@@ -850,7 +850,8 @@ pub mod mpc {
         let result = merch_state.execute_mpc_context(csprng, &channel, nonce, rev_lock_com, pay_token_mask_com, amount);
         match result.is_err() {
             false => {
-                let mask_bytes = match merch_state.mask_mpc_bytes.get(&rev_lock_com) {
+                let rev_lock_com_hex = hex::encode(rev_lock_com);
+                let mask_bytes = match merch_state.mask_mpc_bytes.get(&rev_lock_com_hex) {
                     Some(&n) => {
                         Some(n)
                     },
