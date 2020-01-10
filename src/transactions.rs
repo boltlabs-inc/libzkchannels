@@ -128,7 +128,7 @@ fn get_merch_close_timelocked_p2wsh_address(cust_pubkey: &Vec<u8>, merch_pubkey:
 fn get_cust_close_timelocked_p2wsh_address(rev_lock: &[u8; 32], merch_disp_pubkey: &Vec<u8>, cust_close_pubkey: &Vec<u8>, to_self_delay: &[u8; 2]) -> Vec<u8> {
 //    # P2WSH cust-close scriptPubKey
 //    # 0x63      OP_IF
-//    # 0xa9      OP_HASH160
+//    # 0xa8      OP_SHA256
 //    # 0x20      OP_DATA - len(revocation_lock {sha256[revocation-secret]})
 //    # revocation_lock
 //    # 0x88      OP_EQUALVERIFY
@@ -144,7 +144,7 @@ fn get_cust_close_timelocked_p2wsh_address(rev_lock: &[u8; 32], merch_disp_pubke
 //    # 0x68      OP_ENDIF
 //    # 0xac      OP_CHECKSIG
     let mut script: Vec<u8> = Vec::new();
-    script.extend(vec![0x63, 0xa9, 0x20]);
+    script.extend(vec![0x63, 0xa8, 0x20]);
     script.extend(rev_lock.iter());
     script.extend( vec![0x88, 0x21]);
     script.extend(merch_disp_pubkey.iter());
@@ -154,6 +154,8 @@ fn get_cust_close_timelocked_p2wsh_address(rev_lock: &[u8; 32], merch_disp_pubke
     script.extend(vec![0xb2, 0x75, 0x21]);
     script.extend(cust_close_pubkey.iter());
     script.extend(vec![0x68, 0xac]);
+
+    // println!("get_cust_close_timelocked_p2wsh_address script: {}", hex::encode(&script));
 
     // compute SHA256 hash of script
     let script_hash = hash_to_slice(&script);
@@ -173,8 +175,10 @@ fn create_opreturn_output(rev_lock: &[u8; 32], cust_close_pubkey: &Vec<u8>) -> V
     return ret_val;
 }
 
-pub fn create_input(txid: &[u8; 32], index: u32, input_amount: i64) -> Input {
-    let txid_str = hex::encode(txid);
+pub fn create_input(txid_be: &[u8; 32], index: u32, input_amount: i64) -> Input {
+    let mut txid_buf = txid_be.clone();
+    txid_buf.reverse();
+    let txid_str = hex::encode(txid_buf);
     Input {
         private_key: "",
         address_format: "native_p2wsh",
@@ -403,19 +407,19 @@ pub fn create_bitcoin_cust_close_transaction<N: BitcoinNetwork>(config: &Bitcoin
     let output1_script_pubkey = get_cust_close_timelocked_p2wsh_address(&pubkeys.rev_lock, &pubkeys.merch_disp_pk, &pubkeys.cust_close_pk, self_delay);
     // println!("(1) to_customer: {}", hex::encode(&output1_script_pubkey));
     let to_customer = BitcoinTransactionOutput { amount: BitcoinAmount::from_satoshi(cust_bal).unwrap(), script_pub_key: output1_script_pubkey };
-    println!("to_customer: {}", hex::encode(to_customer.serialize().unwrap()));
+    // println!("to_customer: {}", hex::encode(to_customer.serialize().unwrap()));
 
     // output 2: P2WPKH output to merchant
     let output2_script_pubkey = create_p2wpkh_scriptpubkey::<N>(&pubkeys.merch_close_pk);
     // println!("(2) to_merchant: {}", hex::encode(&output2_script_pubkey));
     let to_merchant = BitcoinTransactionOutput { amount: BitcoinAmount::from_satoshi(merch_bal).unwrap(), script_pub_key: output2_script_pubkey };
-    println!("to_merchant: {}", hex::encode(to_merchant.serialize().unwrap()));
+    // println!("to_merchant: {}", hex::encode(to_merchant.serialize().unwrap()));
 
     // output 3: OP_RETURN output
     let output3_script_pubkey = create_opreturn_output(&pubkeys.rev_lock, &pubkeys.cust_close_pk);
     // println!("(3) OP_RETURN: {}", hex::encode(&output3_script_pubkey));
     let op_return_out = BitcoinTransactionOutput { amount: BitcoinAmount::from_satoshi(0).unwrap(), script_pub_key: output3_script_pubkey };
-    println!("op_return: {}", hex::encode(op_return_out.serialize().unwrap()));
+    // println!("op_return: {}", hex::encode(op_return_out.serialize().unwrap()));
 
     let mut output_vec = vec![];
     output_vec.push(to_customer);
@@ -452,8 +456,7 @@ mod tests {
         let pubkey1 = hex::decode("023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb").unwrap();
         let pubkey2 = hex::decode("030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c1").unwrap();
         let output_scriptpubkey = create_p2wsh_scriptpubkey::<Testnet>(&pubkey1, &pubkey2);
-        
-        
+
         println!("expected script_pubkey: {}", hex::encode(&output_scriptpubkey));
 
          assert_eq!(output_scriptpubkey, expected_scriptpubkey);
@@ -585,7 +588,7 @@ mod tests {
                                                                                                  cust_bal,
                                                                                                  merch_bal,spend_from_escrow);
         println!("cust-close from escrow tx raw preimage: {}", hex::encode(&tx_preimage));
-        let expected_tx_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff400000000475221024596d7b33733c28101dbc6c85901dffaed0cdac63ab0b2ea141217d1990ad4b121027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb52ae00ca9a3b00000000ffffffffb8b3b4dac6f44dc2eabfb883265f07bd999c78a9422b0732d259f522420174190000000001000000").unwrap();
+        let expected_tx_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff400000000475221024596d7b33733c28101dbc6c85901dffaed0cdac63ab0b2ea141217d1990ad4b121027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb52ae00ca9a3b00000000ffffffff73bca1a59fcb04fe71d242be5d73021d02bbc6cdec66e9cb963060ff5028928e0000000001000000").unwrap();
         assert_eq!(tx_preimage, expected_tx_preimage);
 
     }
@@ -632,7 +635,7 @@ mod tests {
                                                                                                  merch_bal,
                                                                                                  spend_from_escrow);
         println!("cust-close from merch tx raw preimage: {}", hex::encode(&tx_preimage));
-        let expected_tx_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff40000000072635221024596d7b33733c28101dbc6c85901dffaed0cdac63ab0b2ea141217d1990ad4b121027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb52ae6702cf05b2752102ab573100532827bd0e44b4353e4eaa9c79afbc93f69454a4a44d9fea8c45b5afac6800ca9a3b00000000ffffffffb8b3b4dac6f44dc2eabfb883265f07bd999c78a9422b0732d259f522420174190000000001000000").unwrap();
+        let expected_tx_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff40000000072635221024596d7b33733c28101dbc6c85901dffaed0cdac63ab0b2ea141217d1990ad4b121027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb52ae6702cf05b2752102ab573100532827bd0e44b4353e4eaa9c79afbc93f69454a4a44d9fea8c45b5afac6800ca9a3b00000000ffffffff73bca1a59fcb04fe71d242be5d73021d02bbc6cdec66e9cb963060ff5028928e0000000001000000").unwrap();
         assert_eq!(tx_preimage, expected_tx_preimage);
     }
 

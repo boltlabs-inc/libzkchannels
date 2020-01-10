@@ -411,12 +411,10 @@ rusty_fork_test! {
         rl_ar2.copy_from_slice(hex::decode("0b744cf3475f300fe77d2e85c3a5911e603e725b17932ee90f99fc7a869b8307").unwrap().as_slice());
 
         let mut tx_id_merch = [0u8; 32];
-        // tx_id_merch.copy_from_slice(hex::decode("e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4").unwrap().as_slice());
-        tx_id_merch.copy_from_slice(hex::decode("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1").unwrap().as_slice());
+        tx_id_merch.copy_from_slice(hex::decode("e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4").unwrap().as_slice());
 
         let mut tx_id_esc = [0u8; 32];
-        // tx_id_esc.copy_from_slice(hex::decode("e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4").unwrap().as_slice());
-        tx_id_esc.copy_from_slice(hex::decode("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1").unwrap().as_slice());
+        tx_id_esc.copy_from_slice(hex::decode("e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4").unwrap().as_slice());
 
         let mut hashouts_merch = [0u8; 32];
         hashouts_merch.copy_from_slice(hex::decode("7d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d738").unwrap().as_slice());
@@ -506,7 +504,7 @@ rusty_fork_test! {
             version: 2,
             lock_time: 0
         };
-        let input = create_input(&tx_id_esc, 0, 128);
+        let input1 = create_input(&tx_id_esc, 0, 128);
         let mut pubkeys = ClosePublicKeys {
             cust_pk: cust_escrow_pub_key.serialize().to_vec(),
             cust_close_pk: cust_payout_pub_key.serialize().to_vec(),
@@ -517,13 +515,13 @@ rusty_fork_test! {
         };
         pubkeys.rev_lock.copy_from_slice(&new_state.rev_lock);
         let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
-        let (tx_preimage, full_tx) = create_bitcoin_cust_close_transaction::<Testnet>(&config, &input,
+        let (tx_preimage, ct1_full_tx) = create_bitcoin_cust_close_transaction::<Testnet>(&config, &input1,
                                                                                                  &pubkeys,
                                                                                                  &to_self_delay,
                                                                                                  new_state.bc,
                                                                                                  new_state.bm, true);
-        println!("TX BUILDER: generated escrow tx preimage: {}", hex::encode(&tx_preimage)); // doesn't match example above in escrow_preimage
-        // assert_eq!(tx_preimage, escrow_preimage);
+        println!("TX BUILDER: generated escrow tx preimage: {}", hex::encode(&tx_preimage));
+        assert_eq!(tx_preimage, escrow_preimage);
 
         let escrow_tx_ar = Sha256::digest(escrow_preimage.as_slice());
         let escrow_tx = Message::from_slice(escrow_tx_ar.as_slice()).unwrap();
@@ -531,11 +529,21 @@ rusty_fork_test! {
         let merch_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000007263522103f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd2103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae6702cf05b2752102f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90ac688000000000000000ffffffff1d09283c2d7b7c31643a0cf2f5d01912519b7d2f1dfde22f30f45c87852bbc0a0000000001000000").unwrap();
         let merch_tx_ar = Sha256::digest(merch_preimage.as_slice());
         let merch_tx = Message::from_slice(merch_tx_ar.as_slice()).unwrap();
+
+        // automatically generate the escrow_preimage
+        let input2 = create_input(&tx_id_merch, 0, 128);
+        let (m_tx_preimage, ct2_full_tx) = create_bitcoin_cust_close_transaction::<Testnet>(&config, &input2,
+                                                                                                 &pubkeys,
+                                                                                                 &to_self_delay,
+                                                                                                 new_state.bc,
+                                                                                                 new_state.bm, false);
+        println!("TX BUILDER: generated merch tx preimage: {}", hex::encode(&m_tx_preimage));
+        assert_eq!(m_tx_preimage, merch_preimage);
+
         // Asserts
         // 1. check that 6ccc45f34f720e917794b1a6c25d110e82bbaedfd7e30b0f1f3de4ba7e763474 =  pt_mask ^ pt_masked_ar
         xor_in_place(&mut paytoken_mask_bytes, &pt_masked_ar[..]);
-        // assert_eq!(hex::encode(paytoken_mask_bytes), "6ccc45f34f720e917794b1a6c25d110e82bbaedfd7e30b0f1f3de4ba7e763474");
-        assert_eq!(hex::encode(paytoken_mask_bytes), "f372257feffe365aa08df3a0c8631f61bdbe987f06701086ff42d94c8d47e7af");
+        assert_eq!(hex::encode(paytoken_mask_bytes), "6ccc45f34f720e917794b1a6c25d110e82bbaedfd7e30b0f1f3de4ba7e763474");
 
         // 2. Unmask the escrow token, and check the sig
         println!("masked s: {}", hex::encode(escrow_mask_bytes));

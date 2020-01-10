@@ -133,7 +133,7 @@ merch_close_script = (
 
 # P2WSH cust-close scriptPubKey
 # 0x63      OP_IF
-# 0xa9      OP_HASH160
+# 0xa8      OP_SHA256
 # 0x20      OP_DATA - len(revocation_lock {sha256[revocation-secret]})
 # revocation_lock
 # 0x88      OP_EQUALVERIFY
@@ -157,7 +157,7 @@ short_sequence = nSequence_as_blocks.to_bytes(l, byteorder="little", signed=Fals
 
 
 cust_close_script = (
-    bytes.fromhex("63 a9 20")
+    bytes.fromhex("63 a8 20")
     + revocation_lock
     + bytes.fromhex("88 21")
     + merch_disp_pubkey
