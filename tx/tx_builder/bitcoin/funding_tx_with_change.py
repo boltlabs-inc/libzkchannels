@@ -128,6 +128,8 @@ outpoint = (
 
 hashPrevOuts = dSHA256(outpoint)
 if verbose:
+    print("txid: ", txid.hex())
+    print("index: ", index.hex())
     print("hashPrevOuts: ", hashPrevOuts.hex())
 
 # hashSequence

@@ -9,7 +9,8 @@ use num::bigint::Sign;
 use bindings::{get_netio_ptr, get_unixnetio_ptr, build_masked_tokens_cust, build_masked_tokens_merch,
                EcdsaPartialSig_l, State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l, PayToken_l,
                Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l, BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l};
-use transactions::{ClosePublicKeys, BitcoinTxConfig, Input, create_input, create_bitcoin_cust_close_transaction, SATOSHI};
+use transactions::{ClosePublicKeys, BitcoinTxConfig, Input, SATOSHI};
+use transactions::btc::{create_input, create_cust_close_transaction};
 use bitcoin::Testnet;
 use util::compute_hash160;
 use std::slice;
@@ -515,7 +516,7 @@ rusty_fork_test! {
         };
         pubkeys.rev_lock.copy_from_slice(&new_state.rev_lock);
         let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
-        let (tx_preimage, ct1_full_tx) = create_bitcoin_cust_close_transaction::<Testnet>(&config, &input1,
+        let (tx_preimage, ct1_full_tx) = create_cust_close_transaction::<Testnet>(&config, &input1,
                                                                                                  &pubkeys,
                                                                                                  &to_self_delay,
                                                                                                  new_state.bc,
@@ -532,7 +533,7 @@ rusty_fork_test! {
 
         // automatically generate the escrow_preimage
         let input2 = create_input(&tx_id_merch, 0, 128);
-        let (m_tx_preimage, ct2_full_tx) = create_bitcoin_cust_close_transaction::<Testnet>(&config, &input2,
+        let (m_tx_preimage, ct2_full_tx) = create_cust_close_transaction::<Testnet>(&config, &input2,
                                                                                                  &pubkeys,
                                                                                                  &to_self_delay,
                                                                                                  new_state.bc,

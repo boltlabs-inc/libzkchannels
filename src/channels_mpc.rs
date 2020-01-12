@@ -239,7 +239,6 @@ impl CustomerMPCState {
         input.extend_from_slice(&self.rev_lock);
         input.extend_from_slice(&self.t);
         return hash_to_slice(&input);
-        // return self.state.unwrap().generate_commitment(&self.t);
     }
 
     pub fn get_randomness(&self) -> [u8; 32] {

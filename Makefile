@@ -1,4 +1,4 @@
-.PHONY: all deps mpc debug bench test mpctest update doc clean distclean
+.PHONY: all deps mpc debug bench test mpctest mpcgotests update doc clean distclean
 
 all:
 	export RUSTFLAGS=-Awarnings
@@ -53,9 +53,10 @@ deps:
 #	@LD_LIBRARY_PATH=./target/release/ ./cpp_test
 #	@rm cpp_test
 
-#gotests:
-#	cargo +nightly build --release
-#	go test go/libbolt.go go/libbolt_test.go
+mpcgotests:
+	cargo +nightly build --release --features=mpc-bitcoin
+	go test -v go/libzkchannels.go go/libzkchannels_test.go
+	#go test go/libzkchannels.go go/libzkchannels_test.go -run Test_fullProtocol -v
 
 #alltests:
 #	cargo +nightly clean
