@@ -225,6 +225,9 @@ witness = (
     + (len(escrow_script)).to_bytes(1, byteorder="little", signed=False)
     + escrow_script
 )
+if verbose:
+    print("Witness: ", witness.hex())
+    print()
 
 scriptSig = (
     bytes.fromhex("00") # length of empty scriptSig
