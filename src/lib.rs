@@ -1444,6 +1444,7 @@ mod tests {
 
         let res_merch = mpc::pay_merchant(&mut rng, &mut channel, s0.nonce.clone(), pay_mask_com, rev_lock_com, 10, &mut merch_state);
         assert!(res_merch.is_ok());
+        let inputs = res_merch.unwrap();
 
         let t = cust_state.get_randomness();
 
@@ -1456,6 +1457,7 @@ mod tests {
         };
         let result = mpc::pay_validate_rev_lock_merchant(revoked_state, &mut merch_state);
         assert!(result.is_ok());
+        assert_eq!(hex::encode(result.unwrap()), "671687f7cecc583745cd86342ddcccd4fddc371be95df8ea164916e88dcd895a");
     }
 
 rusty_fork_test! {
@@ -1504,7 +1506,7 @@ rusty_fork_test! {
         assert!(is_ok);
 
         let mut pt_mask = [0u8; 32];
-        pt_mask.copy_from_slice(hex::decode("b3ce8f76678fac15c4cd426df45a5e86dae6ac8edf970aff17495d84922aa0f0").unwrap().as_slice());
+        pt_mask.copy_from_slice(hex::decode("671687f7cecc583745cd86342ddcccd4fddc371be95df8ea164916e88dcd895a").unwrap().as_slice());
 
         let is_ok = mpc::pay_unmask_pay_token_customer(pt_mask, &mut cust_state);
         assert!(is_ok);
