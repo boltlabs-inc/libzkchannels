@@ -235,8 +235,10 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, conn_type: u32, amount
     let nonce_c = translate_nonce(&nonce);
 
     // Create ECDSA_params
-    let (r1, params1) = createEcdsaParams(rng, &merch_escrow_secret_key.clone());
-    let (r2, params2) = createEcdsaParams(rng, &merch_escrow_secret_key.clone());
+    let pp1 = EcdsaPartialSig::New(rng, &merch_escrow_secret_key.clone());
+    let params1 = pp1.getMpcRepr();
+    let pp2 = EcdsaPartialSig::New(rng, &merch_escrow_secret_key.clone());
+    let params2 = pp2.getMpcRepr();
 
     // Create merch_mask
     let merch_mask = Mask_l { mask: translate_256_string(merch_mask) };
@@ -271,46 +273,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, conn_type: u32, amount
                                   paytoken_mask_c, params1, params2);
     };
 
-    (r1, r2)
-}
-
-fn createEcdsaParamsPair<R: Rng>(rng: &mut R, sk: &secp256k1::SecretKey) -> ([u8; 32], EcdsaPartialSig_l, secp256k1::PartialSignature) {
-    let secp = secp256k1::Secp256k1::new();
-    let mut nonce = [0u8; 32];
-    rng.fill_bytes(&mut nonce);
-    let nonce_message = Message::from_slice(&nonce);
-    let partial_signature = secp.partial_sign(&nonce_message.unwrap(), &sk);
-    let par_sig_compact = partial_signature.0.serialize_compact();
-    let mut r_arr = translate_rx(&par_sig_compact[32..64]);
-    let inv = translate_rx(&par_sig_compact[64..]);
-    let mut first_part = [0u8; 32];
-    first_part.copy_from_slice(&par_sig_compact[0..32]);
-    (first_part, EcdsaPartialSig_l {
-        r: r_arr,
-        k_inv: inv,
-    },partial_signature.0)
-}
-
-fn createEcdsaParams<R: Rng>(rng: &mut R, sk: &secp256k1::SecretKey) -> ([u8; 32], EcdsaPartialSig_l) {
-    let (first, mps, sps) = createEcdsaParamsPair(rng, sk);
-    (first,mps)
-}
-
-fn translate_rx(rx: &[u8]) -> [i8; 256] {
-    let int = BigInt::from_bytes_be(Sign::Plus, rx);
-    let out = CString::new(int.to_string()).unwrap();
-    let mut out_ptr = out.as_ptr();
-    let mut out_slice = unsafe { slice::from_raw_parts(out_ptr, int.to_string().len()) };
-    let mut out_vec = out_slice.to_vec();
-    let pad = 256 - out_vec.len();
-    let mut padding_vec = Vec::new();
-    for i in 0..pad {
-        padding_vec.push(0x0 as i8);
-    }
-    out_vec.append(&mut padding_vec);
-    let mut out_ar = [0i8; 256];
-    out_ar.copy_from_slice(out_vec.as_slice());
-    out_ar
+    (pp1.getK(), pp2.getK())
 }
 
 #[cfg(test)]
@@ -576,6 +539,7 @@ mod tests {
     }
 
     #[test]
+    // todo what does this actually test? there are no assertions
     fn createEcdsaParamsWorks() {
         let csprng = &mut rand::thread_rng();
         let mut seckey = [0u8; 32];
@@ -583,7 +547,7 @@ mod tests {
 
         let sk = secp256k1::SecretKey::from_slice(&seckey).unwrap();
         println!("secret key: {}", sk.to_string());
-        let (r, params) = createEcdsaParams(csprng, &sk);
+        let params = EcdsaPartialSig::New(csprng, &sk).getMpcRepr();
         let index_r = params.r.to_vec().iter().position(|&r| r == 0x0).unwrap();
         let index_k_inv = params.k_inv.to_vec().iter().position(|&r| r == 0x0).unwrap();
         let rx = unsafe { str::from_utf8(CStr::from_ptr(params.r[0..index_r].as_ptr()).to_bytes()).unwrap() };
@@ -600,7 +564,6 @@ mod tests {
         let sk = secp256k1::SecretKey::from_slice(&seckey).unwrap();
 
        //let (eps,sps) = createEcdsaParamsPair(csprng,&sk);
-        let ps = EcdsaPartialSig::New(csprng,&sk);
 
         /*
 
