@@ -638,7 +638,7 @@ impl MerchantMPCState {
         let rev_lock_com_hex = hex::encode(rev_lock_com);
         self.mask_mpc_bytes.insert( rev_lock_com_hex, mask_bytes);
 
-        Ok(bool)
+        Ok(true)
     }
 
     pub fn verify_revoked_state(&mut self, nonce: [u8; NONCE_LEN], rev_lock_com: [u8; 32], rev_lock: [u8; 32], rev_sec: [u8; 32], t: [u8; 32]) -> Option<[u8; 32]> {
@@ -786,8 +786,14 @@ mod tests {
         escrow_mask.copy_from_slice(hex::decode("1522fcff163fc3d70182c78d91d3369928a6c48749023149e45657f824b8d2d7").unwrap().as_slice());
         let mut merch_mask = [0u8; 32];
         merch_mask.copy_from_slice(hex::decode("671687f7cecc583745cd86342ddcccd4fddc371be95df8ea164916e88dcd895a").unwrap().as_slice());
+        let mut r_merch_sig = [0u8; 32];
+        //TODO: fill with correct value
+        r_merch_sig.copy_from_slice(hex::decode("2144e9c90f5799c98610719d735bd53dc6edbfc1e11c8a193070bf42230bc176").unwrap().as_slice());
+        let mut r_escrow_sig = [0u8; 32];
+        //TODO: fill with correct value
+        r_escrow_sig.copy_from_slice(hex::decode("ca1248d5e6ac123c1a0d5b19dacec544d1068427a8cd3fc5d0a40c844c0dba4f").unwrap().as_slice());
 
-        let mask_bytes = Some(MaskedMPCInputs { pt_mask, escrow_mask, merch_mask });
+        let mask_bytes = Some(MaskedMPCInputs { pt_mask, escrow_mask, merch_mask, r_escrow_sig, r_merch_sig });
 
         if mask_bytes.is_some() {
             let mb = mask_bytes.unwrap();
