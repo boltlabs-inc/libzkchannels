@@ -106,7 +106,9 @@ impl ChannelMPCState {
 pub struct MaskedMPCInputs {
     pt_mask: [u8; 32],
     escrow_mask: [u8; 32],
-    merch_mask: [u8; 32]
+    merch_mask: [u8; 32],
+    r_escrow_sig: [u8; 32],
+    r_merch_sig: [u8; 32],
 }
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -115,6 +117,8 @@ impl MaskedMPCInputs {
         return MaskedTxMPCInputs {
             escrow_mask: self.escrow_mask,
             merch_mask: self.merch_mask,
+            r_escrow_sig: self.r_escrow_sig,
+            r_merch_sig: self.r_merch_sig,
         }
     }
 }
@@ -122,7 +126,9 @@ impl MaskedMPCInputs {
 #[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct MaskedTxMPCInputs {
     pub escrow_mask: [u8; 32],
-    pub merch_mask: [u8; 32]
+    pub merch_mask: [u8; 32],
+    r_escrow_sig: [u8; 32],
+    r_merch_sig: [u8; 32],
 }
 
 #[derive(Copy, Clone, Serialize, Deserialize)]
@@ -616,21 +622,23 @@ impl MerchantMPCState {
         let pk_input_buf = merch_escrow_pub_key.serialize();
         let mut merch_public_key_hash= compute_hash160(&pk_input_buf.to_vec());
 
-        mpc_build_masked_tokens_merch(csprng, self.conn_type, amount, &paytoken_mask_com, &rev_lock_com, &key_com,
-                                      merch_escrow_pub_key, self.dispute_pk, merch_public_key_hash, self.payout_pk, nonce,
-                                      &hmac_key,
-                                      self.sk_m.clone(), &merch_mask_bytes, &pay_mask_bytes, &escrow_mask_bytes);
+        let (r_merch, r_esc) = mpc_build_masked_tokens_merch(csprng, self.conn_type, amount, &paytoken_mask_com, &rev_lock_com, &key_com,
+                                                  merch_escrow_pub_key, self.dispute_pk, merch_public_key_hash, self.payout_pk, nonce,
+                                                  &hmac_key,
+                                                  self.sk_m.clone(), &merch_mask_bytes, &pay_mask_bytes, &escrow_mask_bytes);
 
         // store the rev_lock_com => (pt_mask_bytes, escrow_mask_bytes, merch_mask_bytes)
         let mask_bytes = MaskedMPCInputs {
             pt_mask: pay_mask_bytes,
             escrow_mask: escrow_mask_bytes,
-            merch_mask: merch_mask_bytes
+            merch_mask: merch_mask_bytes,
+            r_escrow_sig: r_esc,
+            r_merch_sig: r_merch,
         };
         let rev_lock_com_hex = hex::encode(rev_lock_com);
         self.mask_mpc_bytes.insert( rev_lock_com_hex, mask_bytes);
 
-        Ok(true)
+        Ok(bool)
     }
 
     pub fn verify_revoked_state(&mut self, nonce: [u8; NONCE_LEN], rev_lock_com: [u8; 32], rev_lock: [u8; 32], rev_sec: [u8; 32], t: [u8; 32]) -> Option<[u8; 32]> {

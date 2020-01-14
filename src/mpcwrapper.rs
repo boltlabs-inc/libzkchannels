@@ -221,7 +221,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, conn_type: u32, amount
                                              key_com: &[u8], merch_escrow_pub_key: secp256k1::PublicKey, merch_dispute_key: secp256k1::PublicKey,
                                              merch_pub_key_hash: [u8; 20], merch_payout_pub_key: secp256k1::PublicKey,
                                              nonce: [u8; 16],
-                                             hmac_key: &[u8], merch_escrow_secret_key: secp256k1::SecretKey, merch_mask: &[u8; 32], pay_mask: &[u8; 32], escrow_mask: &[u8; 32]) {
+                                             hmac_key: &[u8], merch_escrow_secret_key: secp256k1::SecretKey, merch_mask: &[u8; 32], pay_mask: &[u8; 32], escrow_mask: &[u8; 32]) -> ([u8; 32], [u8; 32]) {
     // translate revlock commitment
     let mut rl_c = translate_revlock_com(rev_lock_com);
 
@@ -234,8 +234,8 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, conn_type: u32, amount
     let nonce_c = translate_nonce(&nonce);
 
     // Create ECDSA_params
-    let mut params1 = createEcdsaParams(rng, &merch_escrow_secret_key.clone());
-    let mut params2 = createEcdsaParams(rng, &merch_escrow_secret_key.clone());
+    let (r1, params1) = createEcdsaParams(rng, &merch_escrow_secret_key.clone());
+    let (r2, params2) = createEcdsaParams(rng, &merch_escrow_secret_key.clone());
 
     // Create merch_mask
     let merch_mask = Mask_l { mask: translate_256_string(merch_mask) };
@@ -269,9 +269,11 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, conn_type: u32, amount
                                   nonce_c, hmac_key, merch_mask, escrow_mask,
                                   paytoken_mask_c, params1, params2);
     };
+
+    (r1, r2)
 }
 
-fn createEcdsaParams<R: Rng>(rng: &mut R, sk: &secp256k1::SecretKey) -> EcdsaPartialSig_l {
+fn createEcdsaParams<R: Rng>(rng: &mut R, sk: &secp256k1::SecretKey) -> ([u8; 32], EcdsaPartialSig_l) {
     let secp = secp256k1::Secp256k1::new();
     let mut nonce = [0u8; 32];
     rng.fill_bytes(&mut nonce);
@@ -280,10 +282,12 @@ fn createEcdsaParams<R: Rng>(rng: &mut R, sk: &secp256k1::SecretKey) -> EcdsaPar
     let par_sig_compact = partial_signature.0.serialize_compact();
     let mut r_arr = translate_rx(&par_sig_compact[32..64]);
     let inv = translate_rx(&par_sig_compact[64..]);
-    EcdsaPartialSig_l {
+    let mut first_part = [0u8; 32];
+    first_part.copy_from_slice(&par_sig_compact[0..32]);
+    (first_part, EcdsaPartialSig_l {
         r: r_arr,
         k_inv: inv,
-    }
+    })
 }
 
 fn translate_rx(rx: &[u8]) -> [i8; 256] {
@@ -359,12 +363,14 @@ mod tests {
         let merch_payout_pub_key = secp256k1::PublicKey::from_slice(hex::decode("02f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90").unwrap().as_slice()).unwrap();
 
 
-        mpc_build_masked_tokens_merch(&mut csprng, UNIXNETIO, amount, &paytoken_mask_com, &rev_lock_com,
+        let (r1, r2) = mpc_build_masked_tokens_merch(&mut csprng, UNIXNETIO, amount, &paytoken_mask_com, &rev_lock_com,
                                       &key_com,
                                       merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key, nonce,
                                       &hmac_key,
                                       merch_escrow_secret_key, &merch_mask_bytes, &paytoken_mask_bytes, &escrow_mask_bytes);
 
+        assert_eq!(r1.to_vec(), hex::decode("2144e9c90f5799c98610719d735bd53dc6edbfc1e11c8a193070bf42230bc176").unwrap());
+        assert_eq!(r2.to_vec(), hex::decode("ca1248d5e6ac123c1a0d5b19dacec544d1068427a8cd3fc5d0a40c844c0dba4f").unwrap());
         let secp = Secp256k1::new();
         let merch_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000007263522103f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd2103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae6702cf05b2752102f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90ac688000000000000000ffffffff1d09283c2d7b7c31643a0cf2f5d01912519b7d2f1dfde22f30f45c87852bbc0a0000000001000000").unwrap();
         let merch_tx_ar = Sha256::digest(merch_preimage.as_slice());
@@ -384,7 +390,7 @@ mod tests {
     }
     }
 
-rusty_fork_test! {
+    rusty_fork_test! {
     #[test]
     fn mpc_build_masked_tokens_cust_works() {
         let csprng = &mut rand::thread_rng();
@@ -571,7 +577,7 @@ rusty_fork_test! {
 
         let sk = secp256k1::SecretKey::from_slice(&seckey).unwrap();
         println!("secret key: {}", sk.to_string());
-        let params = createEcdsaParams(csprng, &sk);
+        let (r, params) = createEcdsaParams(csprng, &sk);
         let index_r = params.r.to_vec().iter().position(|&r| r == 0x0).unwrap();
         let index_k_inv = params.k_inv.to_vec().iter().position(|&r| r == 0x0).unwrap();
         let rx = unsafe { str::from_utf8(CStr::from_ptr(params.r[0..index_r].as_ptr()).to_bytes()).unwrap() };
