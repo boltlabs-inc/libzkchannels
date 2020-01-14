@@ -47,9 +47,7 @@ impl EcdsaPartialSig {
         }
     }
 
-    // returns k 
-    // e.g. the first half of a valid signature with these parameters
-    pub fn getK(&self) -> [0u8; 32] {
+    pub fn getK(&self) -> [u8;32] {
         let partial_compact = self.partial.serialize_compact();
         let mut k = [0u8; 32];
         k.copy_from_slice(&partial_compact[0..32]);
