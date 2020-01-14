@@ -322,6 +322,37 @@ pub mod btc {
     }
 
     // TODO: add error handling here
+    pub fn merch_sign_multi_sig_transaction<N: BitcoinNetwork>(tx_params: &BitcoinTransactionParameters<N>, signature: &Vec<u8>, private_key: String) -> BitcoinTransaction<N> {
+        let private_key = BitcoinPrivateKey::<N>::from_str(private_key.as_str()).unwrap();
+        let mut tx_params2 = tx_params.clone();
+        let checksig_bug = vec![0x00]; // TODO: only if it uses OP_CHECKSIG
+        tx_params2.inputs[0].witnesses.append( &mut vec![checksig_bug, signature.clone()]);
+        let mut transaction = BitcoinTransaction::<N>::new(&tx_params2).unwrap();
+
+        let signed_tx = transaction.sign(&private_key).unwrap();
+        return signed_tx;
+    }
+
+//    pub fn cust_sign_multi_sig_transaction<N: BitcoinNetwork>(merch_signed_tx: BitcoinTransaction<N>, private_key: String) -> (BitcoinTransaction<N>, [u8; 32], [u8; 32]) {
+//        let private_key = BitcoinPrivateKey::<N>::from_str(private_key.as_str()).unwrap();
+//        let signed_tx = merch_signed_tx.sign(&private_key).unwrap();
+//        let tx_id_hex = signed_tx.to_transaction_id().unwrap();
+//
+//        let txid = hex::decode(tx_id_hex.to_string()).unwrap();
+//
+//        let mut txid_buf = [0u8; 32];
+//        let mut hash_prevout = [0u8; 32];
+//        txid_buf.copy_from_slice(txid.as_slice());
+//
+//        let mut prevout_preimage: Vec<u8> = Vec::new();
+//        prevout_preimage.extend(txid_buf.iter()); // txid
+//        prevout_preimage.extend(vec![0x00, 0x00, 0x00, 0x00]); // index
+//        let result = Sha256::digest(&Sha256::digest(&prevout_preimage));
+//        hash_prevout.copy_from_slice(&result);
+//
+//        return (signed_tx, txid_buf, hash_prevout);
+//    }
+
     pub fn sign_multi_sig_transaction<N: BitcoinNetwork>(preimage: &Vec<u8>, privkey: String) -> Result<Vec<u8>, String> {
         let private_key = BitcoinPrivateKey::<N>::from_str(privkey.as_str()).unwrap();
         let transaction_hash = Sha256::digest(&Sha256::digest(preimage));
@@ -412,29 +443,31 @@ pub mod btc {
         return transaction_parameters;
     }
 
-    pub fn create_merch_close_transaction_preimage<N: BitcoinNetwork>(transaction_parameters: &BitcoinTransactionParameters<N>) -> Vec<u8> {
+    pub fn create_merch_close_transaction_preimage<N: BitcoinNetwork>(transaction_parameters: &BitcoinTransactionParameters<N>) -> (Vec<u8>, BitcoinTransaction<N>) {
         let mut transaction = BitcoinTransaction::<N>::new(transaction_parameters).unwrap();
         let hash_preimage = transaction.segwit_hash_preimage(0, SIGHASH_ALL).unwrap();
 
-        return hash_preimage;
+        return (hash_preimage, transaction);
     }
 
     // sign the merch-close transaction with specified witnesses
-    pub fn create_signed_merch_close_transaction<N: BitcoinNetwork>(transaction_parameters: &BitcoinTransactionParameters<N>,
-                                                                    cust_sig: &Vec<u8>, merch_sig: &Vec<u8>, witness_script: &Vec<u8>) -> Result<String, String> { // -> (String, [u8; 32], [u8; 32]) {
-        let mut tx_params = transaction_parameters.clone();
-        let prefix_bytes: Vec<u8> = vec![0x04, 0x00];
-        let script = [get_var_length_int(witness_script.len() as u64)?, witness_script.clone()].concat();
-        let mut witness: Vec<Vec<u8>> = vec![prefix_bytes, cust_sig.clone(), merch_sig.clone(), script];
-
-        assert!(tx_params.inputs.len() > 0);
-        tx_params.inputs[0].witnesses.append(&mut witness);
-        tx_params.inputs[0].is_signed = true;
-        let mut transaction = BitcoinTransaction::<N>::new(&tx_params).unwrap();
-        let signed_tx_hex = hex::encode(transaction.to_transaction_bytes().unwrap());
-
-        Ok(signed_tx_hex)
-    }
+    // TODO: debug
+//    pub fn create_signed_merch_close_transaction<N: BitcoinNetwork>(transaction_parameters: &BitcoinTransactionParameters<N>,
+//                                                                    cust_sig: &Vec<u8>, merch_sig: &Vec<u8>, witness_script: &Vec<u8>) -> Result<String, String> { // -> (String, [u8; 32], [u8; 32]) {
+//        let mut tx_params = transaction_parameters.clone();
+//        let prefix_bytes: Vec<u8> = vec![0x04, 0x00];
+//        let script = [get_var_length_int(witness_script.len() as u64)?, witness_script.clone()].concat();
+//        let mut witness: Vec<Vec<u8>> = vec![prefix_bytes, cust_sig.clone(), merch_sig.clone(), script];
+//
+//        assert!(tx_params.inputs.len() > 0);
+//        tx_params.segwit_flag = true;
+//        tx_params.inputs[0].witnesses = witness;
+//        tx_params.inputs[0].is_signed = true;
+//        let mut transaction = BitcoinTransaction::<N>::new(&tx_params).unwrap();
+//        let signed_tx_hex = hex::encode(transaction.to_transaction_bytes().unwrap());
+//
+//        Ok(signed_tx_hex)
+//    }
 
     pub fn create_cust_close_transaction<N: BitcoinNetwork>(config: &BitcoinTxConfig, input: &Input, pubkeys: &ClosePublicKeys, self_delay: &[u8; 2],
                                                             cust_bal: i64, merch_bal: i64, from_escrow: bool) -> (Vec<u8>, BitcoinTransaction<N>) {
@@ -624,19 +657,29 @@ mod tests {
         let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
         let tx_params= transactions::btc::create_merch_close_transaction_params::<Testnet>(&config, &input, &merch_pk, &merch_close_pk, &to_self_delay);
 
-        let merch_tx_preimage = transactions::btc::create_merch_close_transaction_preimage::<Testnet>(&tx_params);
+        let (merch_tx_preimage, unsigned_tx) = transactions::btc::create_merch_close_transaction_preimage::<Testnet>(&tx_params);
         println!("merch-close tx raw preimage: {}", hex::encode(&merch_tx_preimage));
         let expected_merch_tx_preimage = hex::decode("02000000fdd1def69203bbf96a6ebc56166716401302fcd06eadd147682e8898ba19bee43bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044d9827f206a476a0d61db36348599bc39a5ab39f384da7c50885b726f0ec5b05e0000000047522103af0530f244a154b278b34de709b84bb85bb39ff3f1302fc51ae275e5a45fb35321027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb52ae00ca9a3b00000000ffffffffa87408648d6dfa0d6bd01786008047f225669b9fc634a38452e9ea1448a524b00000000001000000").unwrap();
         assert_eq!(merch_tx_preimage, expected_merch_tx_preimage);
 
+        // customer signs the preimage and sends signature to merchant
         let cust_signature = transactions::btc::sign_multi_sig_transaction::<Testnet>(&merch_tx_preimage, String::from(input.private_key)).unwrap();
-        let merch_signature = transactions::btc::sign_multi_sig_transaction::<Testnet>(&merch_tx_preimage, String::from(merch_private_key)).unwrap();
 
-        println!("cust signature: {}", hex::encode(&cust_signature));
-        println!("merch signature: {}", hex::encode(&merch_signature));
+        // merchant takes the signature and
+        let signed_merch_close_tx = transactions::btc::merch_sign_multi_sig_transaction::<Testnet>(&tx_params, &cust_signature, String::from(merch_private_key));
+        let merch_tx = hex::encode(signed_merch_close_tx.to_transaction_bytes().unwrap());
+        println!("========================");
+        println!("CUST/MERCH signed_tx: {}", merch_tx);
+        println!("========================");
 
-        let signed_tx = transactions::btc::create_signed_merch_close_transaction::<Testnet>(&tx_params, &cust_signature, &merch_signature, &expected_redeem_script).unwrap();
-        println!("merch-close signed_tx: {}", signed_tx);
+//        println!("cust signature: {}", hex::encode(&cust_signature));
+//        println!("merch signature: {}", hex::encode(&merch_signature));
+
+//        let (final_signed_tx, txid, prevout) = transactions::btc::cust_sign_multi_sig_transaction::<Testnet>(merch_signed_tx, String::from(input.private_key));
+//        let tx_hex = hex::encode(final_signed_tx.to_transaction_bytes().unwrap());
+//        println!("merch-close signed_tx: {}", tx_hex);
+//        println!("txid: {}", hex::encode(txid));
+//        println!("prevout: {}", hex::encode(prevout));
     }
 
     #[test]

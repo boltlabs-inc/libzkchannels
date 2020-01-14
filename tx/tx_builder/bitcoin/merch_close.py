@@ -246,6 +246,20 @@ final_tx = (
     + witness
     + locktime
 )
+if verbose:
+    print("<====== FULL TX ======>")
+    print("1 => version:\t", version.hex(), len(version))
+    print("2 => marker:\t", marker.hex(), len(marker))
+    print("3 => flag:\t", flag.hex(), len(flag))
+    print("4 => tx_in_cnt:\t", tx_in_count.hex(), len(tx_in_count))
+    print("5 => outpoint:\t", outpoint.hex(), len(outpoint))
+    print("6 => scriptSig:\t", scriptSig.hex(), len(scriptSig))
+    print("7 => sequence:\t", sequence.hex(), len(sequence))
+    print("8 => tx_out_cnt:", tx_out_count.hex(), len(tx_out_count))
+    print("9 => output:\t", output.hex(), len(output))
+    print("10 => witness:\t", witness.hex(), len(witness))
+    print("11 => locktime:\t", locktime.hex(), len(locktime))
+    print("<====== FULL TX ======>")
 
-print(final_tx.hex())
+print("Raw Transaction: ", final_tx.hex())
 # print(merch_close_script.hex())
