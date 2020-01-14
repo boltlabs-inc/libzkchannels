@@ -4,6 +4,10 @@ use wallet::{State, NONCE_LEN};
 use util::{hash_to_slice, hmac_sign, compute_hash160};
 use mpcwrapper::{mpc_build_masked_tokens_cust, mpc_build_masked_tokens_merch};
 use secp256k1::ffi::secp256k1_context_no_precomp;
+use transactions::{ClosePublicKeys, Input, BitcoinTxConfig, Output, MultiSigOutput};
+use transactions::btc::{create_escrow_transaction, create_merch_close_transaction_params, create_merch_close_transaction_preimage, sign_escrow_transaction};
+use transactions::btc::{create_input, create_cust_close_transaction, generate_signature_for_multi_sig_transaction, completely_sign_multi_sig_transaction};
+use bitcoin::Testnet;
 
 // PROTOTYPE
 #[cfg(feature = "mpc-bitcoin")]
@@ -35,8 +39,6 @@ impl ChannelMPCToken {
 
         return Ok(hash_to_slice(&input));
     }
-
-    // add a method to compute hash on chain: SHA256 + RIPEMD160?
 }
 
 
@@ -197,7 +199,6 @@ impl CustomerMPCState {
             pay_token_mask_com: [0u8; 32],
             payout_sk: payout_sk,
             conn_type: 0
-
         };
     }
 
@@ -221,9 +222,6 @@ impl CustomerMPCState {
         let state = State { nonce: nonce, rev_lock: self.rev_lock, pk_c: self.pk_c, pk_m: channel_token.pk_m.clone(),
                             bc: self.cust_balance, bm: self.merch_balance, escrow_txid: channel_token.escrow_txid,
                             merch_txid: channel_token.merch_txid, escrow_prevout: escrow_tx_prevout, merch_prevout: merch_tx_prevout };
-
-        // generate initial commitment to state of channel
-        // let s_com = state.generate_commitment(&t);
 
         assert!(channel_token.is_init());
         self.state = Some(state);
@@ -359,6 +357,35 @@ impl CustomerMPCState {
         // save the masked outputs (will unmask later)
         self.masked_outputs.insert(self.index, masked_output);
         Ok(true)
+    }
+
+    pub fn construct_close_transaction_preimage(&self, channel: &ChannelMPCState, channel_token: &ChannelMPCToken) -> Vec<u8> {
+        let secp = secp256k1::Secp256k1::new();
+        let cust_escrow_pub_key = self.pk_c.serialize();
+        let cust_payout_pub_key = secp256k1::PublicKey::from_secret_key(&secp, &self.payout_sk).serialize();
+
+        let merch_escrow_pub_key= channel_token.pk_m.serialize();
+        let merch_dispute_key= channel.merch_dispute_pk.unwrap().serialize();
+        let merch_payout_pub_key = channel.merch_payout_pk.unwrap().serialize();
+
+        let init_balance = self.cust_balance + self.merch_balance; // is this right?
+        let escrow_index = 0; // TODO: make part of state
+
+        let mut pubkeys = ClosePublicKeys {
+            cust_pk: cust_escrow_pub_key.to_vec(),
+            cust_close_pk: cust_payout_pub_key.to_vec(),
+            merch_pk: merch_escrow_pub_key.to_vec(),
+            merch_close_pk: merch_payout_pub_key.to_vec(),
+            merch_disp_pk: merch_dispute_key.to_vec(),
+            rev_lock: [0u8; 32]
+        };
+        pubkeys.rev_lock.copy_from_slice(&self.state.unwrap().rev_lock);
+        let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
+        let escrow_input = create_input(&channel_token.escrow_txid, escrow_index, init_balance);
+        let (tx_preimage, tx_params, _) =
+            create_cust_close_transaction::<Testnet>(&escrow_input, &pubkeys, &to_self_delay,self.cust_balance,self.merch_balance, true);
+
+        return tx_preimage;
     }
 
     pub fn unmask_and_verify_transactions(&self, mask_bytes: MaskedTxMPCInputs) -> bool {
@@ -656,18 +683,18 @@ mod tests {
     use std::thread;
     use std::time::Duration;
 
-    fn generate_test_txs<R: Rng>(csprng: &mut R) -> ([u8; 32], [u8; 32], [u8; 32], [u8; 32]) {
+    fn generate_test_txs<R: Rng>(csprng: &mut R, b0_cust: i64, b0_merch: i64) -> ([u8; 32], [u8; 32], [u8; 32], [u8; 32]) {
         let mut txid1 = [0u8; 32];
         let mut txid2 = [0u8; 32];
 
         let mut escrow_prevout = [0u8; 32];
         let mut merch_prevout = [0u8; 32];
 
-        csprng.fill_bytes(&mut txid1);
-        csprng.fill_bytes(&mut txid2);
-
-        csprng.fill_bytes(&mut escrow_prevout);
-        csprng.fill_bytes(&mut merch_prevout);
+//        csprng.fill_bytes(&mut txid1);
+//        csprng.fill_bytes(&mut txid2);
+//
+//        csprng.fill_bytes(&mut escrow_prevout);
+//        csprng.fill_bytes(&mut merch_prevout);
 
         return (txid1, txid2, escrow_prevout, merch_prevout)
     }
@@ -689,7 +716,7 @@ mod tests {
         let mut cust_state = CustomerMPCState::new(&mut rng, b0_cust, b0_merch, String::from("Customer"));
 
         // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
-        let (escrow_txid, merch_txid, escrow_prevout, merch_prevout) = generate_test_txs(&mut rng);
+        let (escrow_txid, merch_txid, escrow_prevout, merch_prevout) = generate_test_txs(&mut rng, b0_cust, b0_merch);
 
         // initialize the channel token on with pks
         let mut channel_token = cust_state.generate_init_channel_token(&merch_state.pk_m, escrow_txid, merch_txid);
@@ -789,7 +816,7 @@ rusty_fork_test!
         let mut cust_state = CustomerMPCState::new(&mut rng, b0_cust, b0_merch, String::from("Customer"));
 
         // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
-        let (escrow_txid, merch_txid, escrow_prevout, merch_prevout) = generate_test_txs(&mut rng);
+        let (escrow_txid, merch_txid, escrow_prevout, merch_prevout) = generate_test_txs(&mut rng, b0_cust, b0_merch);
 
         // initialize the channel token on with pks
         let mut channel_token = cust_state.generate_init_channel_token(&merch_state.pk_m, escrow_txid, merch_txid);

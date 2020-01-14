@@ -1376,7 +1376,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "wagyu-bitcoin"
 version = "0.6.1"
-source = "git+https://github.com/boltlabs-inc/wagyu?branch=feature/transactions#318c3e04d1d3761d97b1a683b75c96f0849e9861"
+source = "git+https://github.com/boltlabs-inc/wagyu?branch=feature/transactions#f325e3ceef47c353574eaf9e32e9f50dacfa61f9"
 dependencies = [
  "base58 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "bech32 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1399,7 +1399,7 @@ dependencies = [
 [[package]]
 name = "wagyu-model"
 version = "0.6.1"
-source = "git+https://github.com/boltlabs-inc/wagyu?branch=feature/transactions#318c3e04d1d3761d97b1a683b75c96f0849e9861"
+source = "git+https://github.com/boltlabs-inc/wagyu?branch=feature/transactions#f325e3ceef47c353574eaf9e32e9f50dacfa61f9"
 dependencies = [
  "base58 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "base58-monero 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",

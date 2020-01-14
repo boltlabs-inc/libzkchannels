@@ -501,10 +501,6 @@ rusty_fork_test! {
         // the escrow Preimage is: "020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000004752210342da23a1de903cd7a141a99b5e8051abfcd4d2d1b3c2112bac5c8997d9f12a002103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae8000000000000000ffffffff1d09283c2d7b7c31643a0cf2f5d01912519b7d2f1dfde22f30f45c87852bbc0a0000000001000000"
         let escrow_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff40000000047522103f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd2103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae8000000000000000ffffffff1d09283c2d7b7c31643a0cf2f5d01912519b7d2f1dfde22f30f45c87852bbc0a0000000001000000").unwrap();
         // automatically generate the escrow_preimage
-        let config = BitcoinTxConfig {
-            version: 2,
-            lock_time: 0
-        };
         let input1 = create_input(&tx_id_esc, 0, 128);
         let mut pubkeys = ClosePublicKeys {
             cust_pk: cust_escrow_pub_key.serialize().to_vec(),
@@ -516,11 +512,7 @@ rusty_fork_test! {
         };
         pubkeys.rev_lock.copy_from_slice(&new_state.rev_lock);
         let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
-        let (tx_preimage, ct1_full_tx) = create_cust_close_transaction::<Testnet>(&config, &input1,
-                                                                                                 &pubkeys,
-                                                                                                 &to_self_delay,
-                                                                                                 new_state.bc,
-                                                                                                 new_state.bm, true);
+        let (tx_preimage, _, _) = create_cust_close_transaction::<Testnet>(&input1, &pubkeys, &to_self_delay, new_state.bc, new_state.bm, true);
         println!("TX BUILDER: generated escrow tx preimage: {}", hex::encode(&tx_preimage));
         assert_eq!(tx_preimage, escrow_preimage);
 
@@ -533,11 +525,7 @@ rusty_fork_test! {
 
         // automatically generate the escrow_preimage
         let input2 = create_input(&tx_id_merch, 0, 128);
-        let (m_tx_preimage, ct2_full_tx) = create_cust_close_transaction::<Testnet>(&config, &input2,
-                                                                                                 &pubkeys,
-                                                                                                 &to_self_delay,
-                                                                                                 new_state.bc,
-                                                                                                 new_state.bm, false);
+        let (m_tx_preimage, _, _) = create_cust_close_transaction::<Testnet>(&input2, &pubkeys, &to_self_delay, new_state.bc, new_state.bm, false);
         println!("TX BUILDER: generated merch tx preimage: {}", hex::encode(&m_tx_preimage));
         assert_eq!(m_tx_preimage, merch_preimage);
 
