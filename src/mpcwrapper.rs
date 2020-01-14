@@ -15,6 +15,7 @@ use bitcoin::Testnet;
 use util::compute_hash160;
 use std::slice;
 use wallet::State;
+use ecdsa_partial::EcdsaPartialSig;
 use std::ptr;
 use std::str;
 
@@ -273,7 +274,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, conn_type: u32, amount
     (r1, r2)
 }
 
-fn createEcdsaParams<R: Rng>(rng: &mut R, sk: &secp256k1::SecretKey) -> ([u8; 32], EcdsaPartialSig_l) {
+fn createEcdsaParamsPair<R: Rng>(rng: &mut R, sk: &secp256k1::SecretKey) -> ([u8; 32], EcdsaPartialSig_l, secp256k1::PartialSignature) {
     let secp = secp256k1::Secp256k1::new();
     let mut nonce = [0u8; 32];
     rng.fill_bytes(&mut nonce);
@@ -287,7 +288,12 @@ fn createEcdsaParams<R: Rng>(rng: &mut R, sk: &secp256k1::SecretKey) -> ([u8; 32
     (first_part, EcdsaPartialSig_l {
         r: r_arr,
         k_inv: inv,
-    })
+    },partial_signature.0)
+}
+
+fn createEcdsaParams<R: Rng>(rng: &mut R, sk: &secp256k1::SecretKey) -> ([u8; 32], EcdsaPartialSig_l) {
+    let (first, mps, sps) = createEcdsaParamsPair(rng, sk);
+    (first,mps)
 }
 
 fn translate_rx(rx: &[u8]) -> [i8; 256] {
@@ -584,6 +590,37 @@ mod tests {
         let k_inv = unsafe { str::from_utf8(CStr::from_ptr(params.k_inv[0..index_k_inv].as_ptr()).to_bytes()).unwrap() };
         print!("r: {}\n", rx);
         print!("k^-1: {}\n", k_inv);
+    }
+
+    #[test]
+    fn test_mpc_ecdsa() {
+        let csprng = &mut rand::thread_rng();
+        let mut seckey = [0u8; 32];
+        csprng.fill_bytes(&mut seckey);
+        let sk = secp256k1::SecretKey::from_slice(&seckey).unwrap();
+
+       //let (eps,sps) = createEcdsaParamsPair(csprng,&sk);
+        let ps = EcdsaPartialSig::New(csprng,&sk);
+
+        /*
+
+        // compute signature locally
+        let mut msg = [0u8; 32];
+        csprng.fill_bytes(&mut msg);
+        let mut hasher = Sha256::new();
+        hasher.input(msg);
+        let hash = hasher.result();
+        //println!("{:x} --> {:x}", BigInt::from_bytes_be(Sign::Plus,&msg), hash);
+
+        let secp = secp256k1::Secp256k1::new();
+        let signature = secp.compute_sign(&Message::from_slice(&hash).unwrap(), &sps);
+        println!("{}", hex::encode(signature.serialize_compact()));
+        */
+
+        // compute signature under mpc
+
+        // compare
+
     }
 
     #[test]
