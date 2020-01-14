@@ -56,6 +56,7 @@ pub mod channels_mpc;
 pub mod nizk;
 pub mod util;
 pub mod wallet;
+pub mod ecdsa_partial;
 pub mod ffishim;
 pub mod ffishim_mpc;
 pub mod mpcwrapper;
