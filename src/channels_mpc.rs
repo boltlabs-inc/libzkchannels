@@ -127,8 +127,8 @@ impl MaskedMPCInputs {
 pub struct MaskedTxMPCInputs {
     pub escrow_mask: [u8; 32],
     pub merch_mask: [u8; 32],
-    r_escrow_sig: [u8; 32],
-    r_merch_sig: [u8; 32],
+    pub r_escrow_sig: [u8; 32],
+    pub r_merch_sig: [u8; 32],
 }
 
 #[derive(Copy, Clone, Serialize, Deserialize)]
@@ -787,11 +787,9 @@ mod tests {
         let mut merch_mask = [0u8; 32];
         merch_mask.copy_from_slice(hex::decode("671687f7cecc583745cd86342ddcccd4fddc371be95df8ea164916e88dcd895a").unwrap().as_slice());
         let mut r_merch_sig = [0u8; 32];
-        //TODO: fill with correct value
-        r_merch_sig.copy_from_slice(hex::decode("2144e9c90f5799c98610719d735bd53dc6edbfc1e11c8a193070bf42230bc176").unwrap().as_slice());
+        r_merch_sig.copy_from_slice(hex::decode("94cd1a81469c1f1e6898ebc15e22263bd34ed56495e319d9df729fbe785f0356").unwrap().as_slice());
         let mut r_escrow_sig = [0u8; 32];
-        //TODO: fill with correct value
-        r_escrow_sig.copy_from_slice(hex::decode("ca1248d5e6ac123c1a0d5b19dacec544d1068427a8cd3fc5d0a40c844c0dba4f").unwrap().as_slice());
+        r_escrow_sig.copy_from_slice(hex::decode("00eaba730837840db5242a22f3024c96f351633a46aa9983e05b4c437edbd170").unwrap().as_slice());
 
         let mask_bytes = Some(MaskedMPCInputs { pt_mask, escrow_mask, merch_mask, r_escrow_sig, r_merch_sig });
 

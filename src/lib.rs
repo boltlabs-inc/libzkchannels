@@ -1489,9 +1489,15 @@ rusty_fork_test! {
         escrow_mask.copy_from_slice(hex::decode("6cd32e3254e7adaf3e742870ecab92aee1b863eabe75342a427d8e1954787822").unwrap().as_slice());
         let mut merch_mask = [0u8; 32];
         merch_mask.copy_from_slice(hex::decode("6a98d319e040ccb25fb2b7dce1e7b22df53a27a851a43c7843c4781962a54fa3").unwrap().as_slice());
+        let mut r_merch_sig = [0u8; 32];
+        r_merch_sig.copy_from_slice(hex::decode("94cd1a81469c1f1e6898ebc15e22263bd34ed56495e319d9df729fbe785f0356").unwrap().as_slice());
+        let mut r_escrow_sig = [0u8; 32];
+        r_escrow_sig.copy_from_slice(hex::decode("00eaba730837840db5242a22f3024c96f351633a46aa9983e05b4c437edbd170").unwrap().as_slice());
         let masks = MaskedTxMPCInputs {
             escrow_mask,
             merch_mask,
+            r_escrow_sig,
+            r_merch_sig,
         };
 
         let is_ok = mpc::pay_unmask_tx_customer(masks, &mut cust_state);
