@@ -26,9 +26,9 @@ test:
 	cargo +nightly test --release #-- --nocapture
 
 mpctest:
-	cargo +nightly test --release --features mpc-bitcoin -- --nocapture
-	./test_mpcwrapper.sh
-	./test_channels_mpc.sh
+	cargo +nightly test --release --features mpc-bitcoin -- --ignored --nocapture
+	#./test_mpcwrapper.sh
+	#./test_channels_mpc.sh
 
 update:
 	cargo +nightly update

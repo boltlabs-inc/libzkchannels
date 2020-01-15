@@ -329,7 +329,6 @@ impl CustomerMPCState {
                        old_state: State, new_state: State, paytoken_mask_com: [u8; 32], rev_lock_com: [u8;32], amount: i64) -> Result<bool, String> {
 
         let secp = secp256k1::Secp256k1::new();
-
         // load the key_com from channel state
         let key_com = channel.key_com.clone();
 
@@ -338,11 +337,10 @@ impl CustomerMPCState {
         let cust_payout_pub_key = secp256k1::PublicKey::from_secret_key(&secp, &self.payout_sk);
 
         let merch_escrow_pub_key= channel_token.pk_m.clone();
-        let pk_input_buf = merch_escrow_pub_key.serialize();
-        let mut merch_public_key_hash= compute_hash160(&pk_input_buf.to_vec());
-
         let merch_dispute_key= channel.merch_dispute_pk.unwrap();
         let merch_payout_pub_key = channel.merch_payout_pk.unwrap();
+        let pk_input_buf = merch_payout_pub_key.serialize();
+        let mut merch_public_key_hash= compute_hash160(&pk_input_buf.to_vec());
 
         let old_paytoken = match self.has_tokens() {
             true => self.pay_tokens.get(&self.index).unwrap(),

@@ -1423,6 +1423,7 @@ mod tests {
 
 
     #[test]
+    #[ignore]
     #[cfg(feature = "mpc-bitcoin")]
     fn test_payment_mpc_channel() {
         let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d76);
@@ -1463,6 +1464,7 @@ mod tests {
 
 rusty_fork_test! {
     #[test]
+    #[ignore]
     #[cfg(feature = "mpc-bitcoin")]
     fn test_payment_mpc_channel_cust() {
         let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d76);
