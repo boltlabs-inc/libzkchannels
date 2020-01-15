@@ -9,6 +9,8 @@ if [ "$(uname)" == "Darwin" ]; then
 	brew list gmp || brew install gmp
 	brew list boost || brew install boost
 	brew list llvm || brew install llvm
+	brew list cryptopp || brew install cryptopp
+
 else
 	CC=`lsb_release -rs | cut -c 1-2`
 	VER=`expr $CC + 0`
