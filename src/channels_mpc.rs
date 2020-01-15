@@ -359,8 +359,13 @@ impl CustomerMPCState {
             merch_masked: ct_merch_masked_ar
         };
 
+        println!("CUSTOMER");
+        println!("escrow_masked: {}", hex::encode(&ct_escrow_masked_ar));
+        println!("merch_masked: {}", hex::encode(&ct_merch_masked_ar));
+        println!("CUSTOMER");
+
         // save the masked outputs (will unmask later)
-        self.masked_outputs.insert(self.index, masked_output);
+        self.masked_outputs.insert(self.index, masked_output.clone());
         Ok(true)
     }
 
@@ -404,7 +409,9 @@ impl CustomerMPCState {
         }
 
         let mpc_out = self.masked_outputs.get(&self.index).unwrap();
+        println!("masked escrow: {}", hex::encode(&mpc_out.escrow_masked));
         xor_in_place(&mut escrow_mask_bytes, &mpc_out.escrow_masked[..]);
+        println!("unmasked escrow: {}", hex::encode(&escrow_mask_bytes));
         xor_in_place(&mut merch_mask_bytes, &mpc_out.merch_masked[..]);
 
         // TODO: verify the signatures and output updated state and sigs for close-txs (s_i+1, CT_i+1)
@@ -415,11 +422,12 @@ impl CustomerMPCState {
         let mut escrow_sig_vec = mask_bytes.r_escrow_sig.to_vec();
         escrow_sig_vec.append(&mut escrow_mask_bytes.to_vec());
         let escrow_sig = secp256k1::Signature::from_compact(&escrow_sig_vec.as_slice()).unwrap();
+        println!("Escrow Signature: {}", &escrow_sig);
 
         let tx_hash = Sha256::digest(&Sha256::digest(&tx_preimage));
-        println!("tx hash: {}", hex::encode(&tx_hash));
+        println!("Tx hash: {}", hex::encode(&tx_hash));
         let msg = secp256k1::Message::from_slice(&tx_hash).unwrap();
-        let secp = secp256k1::Secp256k1::new();
+        let secp = secp256k1::Secp256k1::verification_only();
         let is_escrow_sig = secp.verify(&msg, &escrow_sig, &channel_token.pk_m).is_ok();
 
         return is_escrow_sig;
@@ -639,12 +647,14 @@ impl MerchantMPCState {
                                                   merch_escrow_pub_key, self.dispute_pk, merch_public_key_hash, self.payout_pk, nonce,
                                                   &hmac_key,
                                                   self.sk_m.clone(), &merch_mask_bytes, &pay_mask_bytes, &escrow_mask_bytes);
-
+        println!("START MERCHANT");
         println!("escrow_mask_bytes: {}", hex::encode(&escrow_mask_bytes));
         println!("merch_mask_bytes: {}", hex::encode(&merch_mask_bytes));
+        println!("pay_mask_bytes: {}", hex::encode(&pay_mask_bytes));
 
         println!("r_esc: {}", hex::encode(&r_esc));
         println!("r_merch: {}", hex::encode(&r_merch));
+        println!("END MERCHANT");
 
         // store the rev_lock_com => (pt_mask_bytes, escrow_mask_bytes, merch_mask_bytes)
         let mask_bytes = MaskedMPCInputs {
@@ -812,7 +822,7 @@ mod tests {
         //assert!(!mask_bytes.is_none());
 
         let mut pt_mask = [0u8; 32];
-        pt_mask.copy_from_slice(hex::decode("4a682bd5d46e3b5c7c6c353636086ed7a943895982cb43deba0a8843459500e4").unwrap().as_slice());
+        pt_mask.copy_from_slice(hex::decode("6a98d319e040ccb25fb2b7dce1e7b22df53a27a851a43c7843c4781962a54fa3").unwrap().as_slice());
         let mut escrow_mask = [0u8; 32];
         escrow_mask.copy_from_slice(hex::decode("4a682bd5d46e3b5c7c6c353636086ed7a943895982cb43deba0a8843459500e4").unwrap().as_slice());
         let mut merch_mask = [0u8; 32];
@@ -826,19 +836,15 @@ mod tests {
 
         if mask_bytes.is_some() {
             let mb = mask_bytes.unwrap();
-            println!("pt_masked: {:?}", mb.pt_mask);
-            println!("escrow_masked: {:?}", mb.escrow_mask);
-            println!("merch_masked: {:?}", mb.merch_mask);
+            println!("pt_masked: {:?}", hex::encode(&mb.pt_mask));
+            println!("escrow_masked: {:?}", hex::encode(&mb.escrow_mask));
+            println!("merch_masked: {:?}", hex::encode(&mb.merch_mask));
 
             println!("now, unmask and verify...");
             let is_ok = cust_state.unmask_and_verify_transactions(&channel_state, &channel_token, mb.get_tx_masks());
             assert!(is_ok);
             cust_state.unmask_and_verify_pay_token(mb.pt_mask);
         }
-
-        // (5) customer checks validity of commitment opening and if valid,
-        // unmask pay-token(i+1)
-
     }
 
 rusty_fork_test!

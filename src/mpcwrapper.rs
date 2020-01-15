@@ -102,6 +102,10 @@ pub fn mpc_build_masked_tokens_cust(conn_type: u32, amount: i64, pay_mask_com: &
     let mut ct_merch_masked_ar = [0u8; 32];
     ct_merch_masked_ar.copy_from_slice(u32_to_bytes(&ct_merch.sig[..]).as_slice());
 
+    println!("mpc_build_masked_tokens_cust =>");
+    println!("pt_masked_ar: {}", hex::encode(&pt_masked_ar));
+    println!("ct_escrow_masked_ar: {}", hex::encode(&ct_escrow_masked_ar));
+
     (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar)
 }
 
