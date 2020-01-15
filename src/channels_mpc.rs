@@ -8,6 +8,7 @@ use transactions::{ClosePublicKeys, Input, BitcoinTxConfig, Output, MultiSigOutp
 use transactions::btc::{create_escrow_transaction, create_merch_close_transaction_params, create_merch_close_transaction_preimage, sign_escrow_transaction};
 use transactions::btc::{create_input, create_cust_close_transaction, generate_signature_for_multi_sig_transaction, completely_sign_multi_sig_transaction};
 use bitcoin::Testnet;
+use sha2::{Sha256, Digest};
 
 // PROTOTYPE
 #[cfg(feature = "mpc-bitcoin")]
@@ -363,14 +364,14 @@ impl CustomerMPCState {
         Ok(true)
     }
 
-    pub fn construct_close_transaction_preimage(&self, channel: &ChannelMPCState, channel_token: &ChannelMPCToken) -> Vec<u8> {
+    pub fn construct_close_transaction_preimage(&self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken) -> Vec<u8> {
         let secp = secp256k1::Secp256k1::new();
         let cust_escrow_pub_key = self.pk_c.serialize();
         let cust_payout_pub_key = secp256k1::PublicKey::from_secret_key(&secp, &self.payout_sk).serialize();
 
         let merch_escrow_pub_key= channel_token.pk_m.serialize();
-        let merch_dispute_key= channel.merch_dispute_pk.unwrap().serialize();
-        let merch_payout_pub_key = channel.merch_payout_pk.unwrap().serialize();
+        let merch_dispute_key= channel_state.merch_dispute_pk.unwrap().serialize();
+        let merch_payout_pub_key = channel_state.merch_payout_pk.unwrap().serialize();
 
         let init_balance = self.cust_balance + self.merch_balance; // is this right?
         let escrow_index = 0; // TODO: make part of state
@@ -385,6 +386,7 @@ impl CustomerMPCState {
         };
         pubkeys.rev_lock.copy_from_slice(&self.state.unwrap().rev_lock);
         let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
+        println!("Escrow TXID: {}", hex::encode(channel_token.escrow_txid));
         let escrow_input = create_input(&channel_token.escrow_txid, escrow_index, init_balance);
         let (tx_preimage, tx_params, _) =
             create_cust_close_transaction::<Testnet>(&escrow_input, &pubkeys, &to_self_delay,self.cust_balance,self.merch_balance, true);
@@ -407,7 +409,20 @@ impl CustomerMPCState {
 
         // TODO: verify the signatures and output updated state and sigs for close-txs (s_i+1, CT_i+1)
         // if valid, output (s_{i+1}, CT_{i+1}, pay-token-{i+1})
-        return true;
+        let tx_preimage = self.construct_close_transaction_preimage(channel_state, channel_token);
+        println!("Close Tx preimage: {}", hex::encode(&tx_preimage));
+
+        let mut escrow_sig_vec = mask_bytes.r_escrow_sig.to_vec();
+        escrow_sig_vec.append(&mut escrow_mask_bytes.to_vec());
+        let escrow_sig = secp256k1::Signature::from_compact(&escrow_sig_vec.as_slice()).unwrap();
+
+        let tx_hash = Sha256::digest(&Sha256::digest(&tx_preimage));
+        println!("tx hash: {}", hex::encode(&tx_hash));
+        let msg = secp256k1::Message::from_slice(&tx_hash).unwrap();
+        let secp = secp256k1::Secp256k1::new();
+        let is_escrow_sig = secp.verify(&msg, &escrow_sig, &channel_token.pk_m).is_ok();
+
+        return is_escrow_sig;
     }
 
     pub fn unmask_and_verify_pay_token(&mut self, pt_mask_bytes_in: [u8; 32]) -> bool {
@@ -625,6 +640,12 @@ impl MerchantMPCState {
                                                   &hmac_key,
                                                   self.sk_m.clone(), &merch_mask_bytes, &pay_mask_bytes, &escrow_mask_bytes);
 
+        println!("escrow_mask_bytes: {}", hex::encode(&escrow_mask_bytes));
+        println!("merch_mask_bytes: {}", hex::encode(&merch_mask_bytes));
+
+        println!("r_esc: {}", hex::encode(&r_esc));
+        println!("r_merch: {}", hex::encode(&r_merch));
+
         // store the rev_lock_com => (pt_mask_bytes, escrow_mask_bytes, merch_mask_bytes)
         let mask_bytes = MaskedMPCInputs {
             pt_mask: pay_mask_bytes,
@@ -680,6 +701,7 @@ impl MerchantMPCState {
 #[cfg(test)]
 use rand::SeedableRng;
 use rand_xorshift::XorShiftRng;
+use wagyu_model::AddressError::Message;
 
 #[cfg(feature = "mpc-bitcoin")]
 #[cfg(test)]
@@ -688,19 +710,30 @@ mod tests {
     use channels_mpc::{ChannelMPCState, MerchantMPCState, CustomerMPCState};
     use std::thread;
     use std::time::Duration;
+    use sha2::Digest;
+    use sha2::Sha256;
 
     fn generate_test_txs<R: Rng>(csprng: &mut R, b0_cust: i64, b0_merch: i64) -> ([u8; 32], [u8; 32], [u8; 32], [u8; 32]) {
         let mut txid1 = [0u8; 32];
         let mut txid2 = [0u8; 32];
 
+        csprng.fill_bytes(&mut txid1);
+        csprng.fill_bytes(&mut txid2);
+
         let mut escrow_prevout = [0u8; 32];
         let mut merch_prevout = [0u8; 32];
 
-//        csprng.fill_bytes(&mut txid1);
-//        csprng.fill_bytes(&mut txid2);
-//
-//        csprng.fill_bytes(&mut escrow_prevout);
-//        csprng.fill_bytes(&mut merch_prevout);
+        let mut prevout_preimage1: Vec<u8> = Vec::new();
+        prevout_preimage1.extend(txid1.iter()); // txid1
+        prevout_preimage1.extend(vec![0x00, 0x00, 0x00, 0x00]); // index
+        let result1 = Sha256::digest(&Sha256::digest(&prevout_preimage1));
+        escrow_prevout.copy_from_slice(&result1);
+
+        let mut prevout_preimage2: Vec<u8> = Vec::new();
+        prevout_preimage2.extend(txid2.iter()); // txid2
+        prevout_preimage2.extend(vec![0x00, 0x00, 0x00, 0x00]); // index
+        let result2 = Sha256::digest(&Sha256::digest(&prevout_preimage2));
+        merch_prevout.copy_from_slice(&result2);
 
         return (txid1, txid2, escrow_prevout, merch_prevout)
     }
@@ -781,13 +814,13 @@ mod tests {
         let mut pt_mask = [0u8; 32];
         pt_mask.copy_from_slice(hex::decode("4a682bd5d46e3b5c7c6c353636086ed7a943895982cb43deba0a8843459500e4").unwrap().as_slice());
         let mut escrow_mask = [0u8; 32];
-        escrow_mask.copy_from_slice(hex::decode("1522fcff163fc3d70182c78d91d3369928a6c48749023149e45657f824b8d2d7").unwrap().as_slice());
+        escrow_mask.copy_from_slice(hex::decode("4a682bd5d46e3b5c7c6c353636086ed7a943895982cb43deba0a8843459500e4").unwrap().as_slice());
         let mut merch_mask = [0u8; 32];
-        merch_mask.copy_from_slice(hex::decode("671687f7cecc583745cd86342ddcccd4fddc371be95df8ea164916e88dcd895a").unwrap().as_slice());
+        merch_mask.copy_from_slice(hex::decode("6cd32e3254e7adaf3e742870ecab92aee1b863eabe75342a427d8e1954787822").unwrap().as_slice());
         let mut r_merch_sig = [0u8; 32];
-        r_merch_sig.copy_from_slice(hex::decode("94cd1a81469c1f1e6898ebc15e22263bd34ed56495e319d9df729fbe785f0356").unwrap().as_slice());
+        r_merch_sig.copy_from_slice(hex::decode("f7ca10b9563c6490200e77ed2b2bae74cdd2c82ef3e578b84ccdaf877036af6d").unwrap().as_slice());
         let mut r_escrow_sig = [0u8; 32];
-        r_escrow_sig.copy_from_slice(hex::decode("00eaba730837840db5242a22f3024c96f351633a46aa9983e05b4c437edbd170").unwrap().as_slice());
+        r_escrow_sig.copy_from_slice(hex::decode("6f1badfa1b06afb2129e36d331919d445c48698d6a838619aa3239075c21dd5c").unwrap().as_slice());
 
         let mask_bytes = Some(MaskedMPCInputs { pt_mask, escrow_mask, merch_mask, r_escrow_sig, r_merch_sig });
 
@@ -798,7 +831,8 @@ mod tests {
             println!("merch_masked: {:?}", mb.merch_mask);
 
             println!("now, unmask and verify...");
-            cust_state.unmask_and_verify_transactions(&channel_state, &channel_token, mb.get_tx_masks());
+            let is_ok = cust_state.unmask_and_verify_transactions(&channel_state, &channel_token, mb.get_tx_masks());
+            assert!(is_ok);
             cust_state.unmask_and_verify_pay_token(mb.pt_mask);
         }
 
