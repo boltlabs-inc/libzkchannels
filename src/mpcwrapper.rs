@@ -342,7 +342,7 @@ mod tests {
         assert_eq!(r2.to_vec(), hex::decode("ca1248d5e6ac123c1a0d5b19dacec544d1068427a8cd3fc5d0a40c844c0dba4f").unwrap());
         let secp = Secp256k1::new();
         let merch_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000007263522103f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd2103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae6702cf05b2752102f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90ac688000000000000000ffffffff1d09283c2d7b7c31643a0cf2f5d01912519b7d2f1dfde22f30f45c87852bbc0a0000000001000000").unwrap();
-        let merch_tx_ar = Sha256::digest(merch_preimage.as_slice());
+        let merch_tx_ar = Sha256::digest(&Sha256::digest(merch_preimage.as_slice()));
         println!("merch hash: {}", hex::encode(&merch_tx_ar[..]));
         let merch_tx = Message::from_slice(merch_tx_ar.as_slice()).unwrap();
         let signature = secp.compute_sign(&merch_tx, &PartialSignature::from_compact(hex::decode("2144e9c90f5799c98610719d735bd53dc6edbfc1e11c8a193070bf42230bc176ee304aefd29b5e379f1c6a3fa4a54728d422ccf5ec79b0f7469c67860180dc50f065220323875dc15ddf131486a481444116894dc3cd52e74248a99f506b213c").unwrap().as_slice()).unwrap());
@@ -350,7 +350,7 @@ mod tests {
         assert!(secp.verify(&merch_tx, &signature, &merch_escrow_pub_key).is_ok());
 
         let escrow_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff40000000047522103f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd2103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae8000000000000000ffffffff1d09283c2d7b7c31643a0cf2f5d01912519b7d2f1dfde22f30f45c87852bbc0a0000000001000000").unwrap();
-        let escrow_tx_ar = Sha256::digest(escrow_preimage.as_slice());
+        let escrow_tx_ar = Sha256::digest(&Sha256::digest(escrow_preimage.as_slice()));
         println!("escrow hash: {}", hex::encode(&escrow_tx_ar[..]));
         let escrow_tx = Message::from_slice(escrow_tx_ar.as_slice()).unwrap();
         let signature_esc = secp.compute_sign(&escrow_tx, &PartialSignature::from_compact(hex::decode("ca1248d5e6ac123c1a0d5b19dacec544d1068427a8cd3fc5d0a40c844c0dba4fbb5ed98428e59d079676bd33bd88560cd0a4eb6d1d01a23f6802509da43908e4af898142598eb9b16ea6266072074477fdf565b2aedf3ed1a71e84beb46fc719").unwrap().as_slice()).unwrap());
@@ -491,11 +491,11 @@ mod tests {
         println!("TX BUILDER: generated escrow tx preimage: {}", hex::encode(&tx_preimage));
         assert_eq!(tx_preimage, escrow_preimage);
 
-        let escrow_tx_ar = Sha256::digest(escrow_preimage.as_slice());
+        let escrow_tx_ar = Sha256::digest(&Sha256::digest(escrow_preimage.as_slice()));
         let escrow_tx = Message::from_slice(escrow_tx_ar.as_slice()).unwrap();
         // the merch preimage is: "020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff400000000726352210342da23a1de903cd7a141a99b5e8051abfcd4d2d1b3c2112bac5c8997d9f12a002103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae6702cf05b2752102f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90ac688000000000000000ffffffff1d09283c2d7b7c31643a0cf2f5d01912519b7d2f1dfde22f30f45c87852bbc0a0000000001000000"
         let merch_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000007263522103f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd2103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae6702cf05b2752102f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90ac688000000000000000ffffffff1d09283c2d7b7c31643a0cf2f5d01912519b7d2f1dfde22f30f45c87852bbc0a0000000001000000").unwrap();
-        let merch_tx_ar = Sha256::digest(merch_preimage.as_slice());
+        let merch_tx_ar = Sha256::digest(&Sha256::digest(merch_preimage.as_slice()));
         let merch_tx = Message::from_slice(merch_tx_ar.as_slice()).unwrap();
 
         // automatically generate the escrow_preimage
