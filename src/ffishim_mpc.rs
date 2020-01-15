@@ -226,7 +226,7 @@ pub mod ffishim_mpc {
 
         // Deserialize the ChannelToken
         let channel_token_result: ResultSerdeType<ChannelMPCToken> = deserialize_result_object(ser_channel_token);
-        let mut channel_token = handle_errors!(channel_token_result);
+        let channel_token = handle_errors!(channel_token_result);
 
         // Deserialize the start_state
         let start_state_result: ResultSerdeType<State> = deserialize_result_object(ser_start_state);
@@ -253,7 +253,7 @@ pub mod ffishim_mpc {
         let mut cust_state = handle_errors!(cust_state_result);
 
         // We change the channel state
-        let result = mpc::pay_customer(&mut channel_state, channel_token, start_state, end_state, pay_token_mask_com_ar, rev_lock_com_ar, amount, &mut cust_state);
+        let result = mpc::pay_customer(&mut channel_state, &channel_token, start_state, end_state, pay_token_mask_com_ar, rev_lock_com_ar, amount, &mut cust_state);
         let is_ok: bool = handle_errors!(result);
         let ser = ["{\'is_ok\':", &is_ok.to_string(), ", \'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
@@ -299,17 +299,25 @@ pub mod ffishim_mpc {
     }
 
     #[no_mangle]
-    pub extern fn mpc_pay_unmask_tx_customer(ser_masked_tx_inputs: *mut c_char, ser_cust_state: *mut c_char) -> *mut c_char {
+    pub extern fn mpc_pay_unmask_tx_customer(ser_channel_state: *mut c_char, ser_channel_token: *mut c_char, ser_masked_tx_inputs: *mut c_char, ser_cust_state: *mut c_char) -> *mut c_char {
+        // Deserialize the channel_state
+        let channel_state_result: ResultSerdeType<ChannelMPCState> = deserialize_result_object(ser_channel_state);
+        let channel_state = handle_errors!(channel_state_result);
+
+        // Deserialize the ChannelToken
+        let channel_token_result: ResultSerdeType<ChannelMPCToken> = deserialize_result_object(ser_channel_token);
+        let channel_token = handle_errors!(channel_token_result);
+
         // Deserialize masked_tx_inputs
         let masked_tx_inputs_result: ResultSerdeType<MaskedTxMPCInputs> = deserialize_result_object(ser_masked_tx_inputs);
-        let mut masked_tx_inputs = handle_errors!(masked_tx_inputs_result);
+        let masked_tx_inputs = handle_errors!(masked_tx_inputs_result);
 
         // Deserialize the cust_state
         let cust_state_result: ResultSerdeType<CustomerMPCState> = deserialize_result_object(ser_cust_state);
         let mut cust_state = handle_errors!(cust_state_result);
 
         // We change the channel state
-        let is_ok = mpc::pay_unmask_tx_customer(masked_tx_inputs, &mut cust_state);
+        let is_ok = mpc::pay_unmask_tx_customer(&channel_state, &channel_token, masked_tx_inputs, &mut cust_state);
         let ser = ["{\'is_ok\':", &is_ok.to_string(), ", \'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()

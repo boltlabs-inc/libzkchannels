@@ -392,7 +392,7 @@ impl CustomerMPCState {
         return tx_preimage;
     }
 
-    pub fn unmask_and_verify_transactions(&self, mask_bytes: MaskedTxMPCInputs) -> bool {
+    pub fn unmask_and_verify_transactions(&self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken, mask_bytes: MaskedTxMPCInputs) -> bool {
         let mut escrow_mask_bytes = mask_bytes.escrow_mask.clone();
         let mut merch_mask_bytes = mask_bytes.merch_mask.clone();
 
@@ -617,7 +617,7 @@ impl MerchantMPCState {
 
         // get the public keys
         let merch_escrow_pub_key = self.pk_m.clone(); // escrow key
-        let pk_input_buf = merch_escrow_pub_key.serialize();
+        let pk_input_buf = self.payout_pk.serialize();
         let mut merch_public_key_hash= compute_hash160(&pk_input_buf.to_vec());
 
         let (r_merch, r_esc) = mpc_build_masked_tokens_merch(csprng, self.conn_type, amount, &paytoken_mask_com, &rev_lock_com, &key_com,
@@ -707,7 +707,7 @@ mod tests {
 
     #[test]
     fn mpc_channel_util_customer_works() {
-        let mut channel = ChannelMPCState::new(String::from("Channel A <-> B"), false);
+        let mut channel_state = ChannelMPCState::new(String::from("Channel A <-> B"), false);
         // let rng = &mut rand::thread_rng();
         let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d76);
 
@@ -716,7 +716,7 @@ mod tests {
         // each party executes the init algorithm on the agreed initial challenge balance
         // in order to derive the channel tokens
         // initialize on the merchant side with balance: b0_merch
-        let (mut merch_state, mut channel) = MerchantMPCState::new(&mut rng, &mut channel, String::from("Merchant B"));
+        let (mut merch_state, mut channel) = MerchantMPCState::new(&mut rng, &mut channel_state, String::from("Merchant B"));
 
         // initialize on the customer side with balance: b0_cust
         let mut cust_state = CustomerMPCState::new(&mut rng, b0_cust, b0_merch, String::from("Customer"));
@@ -753,7 +753,7 @@ mod tests {
 
         let amount = 10;
 
-        cust_state.generate_new_state(&mut rng, &channel, amount);
+        cust_state.generate_new_state(&mut rng, &channel_state, amount);
         let s_1 = cust_state.get_current_state();
         println!("Updated state: {}", s_1);
 
@@ -767,7 +767,7 @@ mod tests {
         let s1 = s_1.clone();
 
         println!("hello, customer!");
-        let res = cust_state.execute_mpc_context(&channel, &channel_token, s0, s1, pay_token_mask_com, r_com, amount);
+        let res = cust_state.execute_mpc_context(&channel_state, &channel_token, s0, s1, pay_token_mask_com, r_com, amount);
 
         println!("completed mpc execution!");
 
@@ -798,7 +798,7 @@ mod tests {
             println!("merch_masked: {:?}", mb.merch_mask);
 
             println!("now, unmask and verify...");
-            cust_state.unmask_and_verify_transactions(mb.get_tx_masks());
+            cust_state.unmask_and_verify_transactions(&channel_state, &channel_token, mb.get_tx_masks());
             cust_state.unmask_and_verify_pay_token(mb.pt_mask);
         }
 

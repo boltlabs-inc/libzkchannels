@@ -46,7 +46,7 @@ func Test_fullProtocol(t *testing.T) {
 	serCustState := os.Getenv("custStateRet")
 	err = json.Unmarshal([]byte(serCustState), &custState)
 	assert.Nil(t, err)
-	isOk, custState, err := PayUnmaskTxCustomer(maskedTxInputs, custState)
+	isOk, custState, err := PayUnmaskTxCustomer(channelState, channelToken, maskedTxInputs, custState)
 	assert.Nil(t, err)
 	assert.True(t, isOk)
 
