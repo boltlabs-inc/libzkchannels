@@ -4,7 +4,11 @@ use std::ffi::{CString, CStr};
 use rand::{RngCore, Rng};
 use num::BigInt;
 use num::bigint::Sign;
-use bindings::{get_netio_ptr, get_unixnetio_ptr, build_masked_tokens_cust, build_masked_tokens_merch, EcdsaPartialSig_l, State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l, PayToken_l, Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l, BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l, ConnType_UNIXNETIO};
+use bindings::{get_netio_ptr, get_unixnetio_ptr, build_masked_tokens_cust, build_masked_tokens_merch,
+               EcdsaPartialSig_l, State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l,
+               PayToken_l, Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l,
+               BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l,
+               ConnType_NETIO, ConnType_UNIXNETIO, ConnType_TORNETIO};
 use transactions::{ClosePublicKeys, BitcoinTxConfig, Input, SATOSHI};
 use transactions::btc::{create_input, create_cust_close_transaction};
 use bitcoin::Testnet;
@@ -18,10 +22,12 @@ use std::str;
 pub type IOCallback = fn(c_uint, c_int);
 
 extern "C" fn io_callback(conn_type: c_uint, party: c_int) -> *mut c_void {
-
+    // TODO: add network config
     let conn_debug = match conn_type {
         ConnType_UNIXNETIO => "Unix domain socket connection",
-        ConnType_NETIO => "TCP socket connection"
+        ConnType_NETIO => "TCP socket connection",
+        ConnType_TORNETIO => "Tor connection",
+        _ => "Unsupported connection type"
     };
     println!("IO callback: {}", conn_debug);
     if (conn_type == ConnType_UNIXNETIO) {
