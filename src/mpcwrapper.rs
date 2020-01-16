@@ -1,9 +1,9 @@
-use libc::{c_int, c_uint, c_char, c_void};
+use libc::{c_int, c_uint, c_void};
 use secp256k1::{Signature, Message, PublicKey, Secp256k1};
 use std::ffi::{CString, CStr};
 use rand::{RngCore, Rng};
-use bit_array::BitArray;
-use typenum::{U264, U64};
+// use bit_array::BitArray;
+// use typenum::{U264, U64};
 use num::BigInt;
 use num::bigint::Sign;
 use bindings::{get_netio_ptr, get_unixnetio_ptr, build_masked_tokens_cust, build_masked_tokens_merch,
@@ -12,7 +12,6 @@ use bindings::{get_netio_ptr, get_unixnetio_ptr, build_masked_tokens_cust, build
 use transactions::{ClosePublicKeys, BitcoinTxConfig, Input, SATOSHI};
 use transactions::btc::{create_input, create_cust_close_transaction};
 use bitcoin::Testnet;
-use util::compute_hash160;
 use util::hmac_sign;
 use std::slice;
 use wallet::State;
@@ -24,18 +23,6 @@ const NETIO: u32 = 1;
 const UNIXNETIO: u32 = 2;
 
 pub type IOCallback = fn(c_uint, c_int);
-
-macro_rules! check_output {
-    ($x: expr) => {
-        {
-            println
-            let res = $x;
-            let e = s.elapsed();
-            (res, e.as_millis())
-        };
-    }
-}
-
 
 extern "C" fn io_callback(conn_type: c_uint, party: c_int) -> *mut c_void {
     println!("selecting the IO callback");
@@ -114,7 +101,7 @@ pub fn mpc_build_masked_tokens_cust(conn_type: u32, amount: i64, pay_mask_com: &
     ct_escrow_masked_ar.copy_from_slice(u32_to_bytes(&ct_escrow.sig[..]).as_slice());
     let mut ct_merch_masked_ar = [0u8; 32];
     ct_merch_masked_ar.copy_from_slice(u32_to_bytes(&ct_merch.sig[..]).as_slice());
-    
+
     (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar)
 }
 
@@ -201,13 +188,11 @@ fn translate_512_string(input: &[u8]) -> [u32; 16] {
 }
 
 fn translate_revlock(rl: &[u8]) -> RevLock_l {
-    let mut res = RevLock_l { revlock: translate_256_string(rl) };
-    res
+    RevLock_l { revlock: translate_256_string(rl) }
 }
 
 fn translate_revlock_com(rl: &[u8]) -> RevLockCommitment_l {
-    let mut res = RevLockCommitment_l { commitment: translate_256_string(rl) };
-    res
+    RevLockCommitment_l { commitment: translate_256_string(rl) }
 }
 
 fn bytes_to_u32(input: &[u8], size: usize) -> Vec<u32> {
@@ -237,7 +222,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, conn_type: u32, amount
                                              nonce: [u8; 16],
                                              hmac_key: &[u8], merch_escrow_secret_key: secp256k1::SecretKey, merch_mask: &[u8; 32], pay_mask: &[u8; 32], escrow_mask: &[u8; 32]) -> ([u8; 32], [u8; 32]) {
     // translate revlock commitment
-    let mut rl_c = translate_revlock_com(rev_lock_com);
+    let rl_c = translate_revlock_com(rev_lock_com);
 
     //translate bitcoin keys
     let merch_escrow_pub_key_c = translate_bitcoin_key(&merch_escrow_pub_key);

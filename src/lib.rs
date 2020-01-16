@@ -743,7 +743,7 @@ pub mod mpc {
     pub fn init_merchant<'a, R: Rng>(csprng: &mut R, channel_state: &mut ChannelMPCState, name: &'a str) -> MerchantMPCState {
         // create new merchant state
         let merch_name = String::from(name);
-        let (mut merch_state, mut channel_state) = MerchantMPCState::new(csprng, channel_state, merch_name);
+        let merch_state = MerchantMPCState::new(csprng, channel_state, merch_name);
 
         return merch_state;
     }
@@ -917,7 +917,7 @@ mod tests {
     use super::*;
     use pairing::bls12_381::Bls12;
     use rand::{Rng, SeedableRng};
-    use sha2::Digest;
+    use sha2::{Sha256, Digest};
     use rand_xorshift::XorShiftRng;
     use channels_mpc::MaskedTxMPCInputs;
 
@@ -1406,19 +1406,28 @@ mod tests {
 
     #[cfg(feature = "mpc-bitcoin")]
     fn generate_funding_tx<R: Rng>(csprng: &mut R) -> mpc::FundingTxInfo {
-        let mut txid1 = [0u8; 32];
-        let mut txid2 = [0u8; 32];
+        let mut escrow_txid = [0u8; 32];
+        let mut merch_txid = [0u8; 32];
+
+        csprng.fill_bytes(&mut escrow_txid);
+        csprng.fill_bytes(&mut merch_txid);
 
         let mut escrow_prevout = [0u8; 32];
         let mut merch_prevout = [0u8; 32];
 
-        csprng.fill_bytes(&mut txid1);
-        csprng.fill_bytes(&mut txid2);
+        let mut prevout_preimage1: Vec<u8> = Vec::new();
+        prevout_preimage1.extend(escrow_txid.iter()); // txid1
+        prevout_preimage1.extend(vec![0x00, 0x00, 0x00, 0x00]); // index
+        let result1 = Sha256::digest(&Sha256::digest(&prevout_preimage1));
+        escrow_prevout.copy_from_slice(&result1);
 
-        csprng.fill_bytes(&mut escrow_prevout);
-        csprng.fill_bytes(&mut merch_prevout);
+        let mut prevout_preimage2: Vec<u8> = Vec::new();
+        prevout_preimage2.extend(merch_txid.iter()); // txid2
+        prevout_preimage2.extend(vec![0x00, 0x00, 0x00, 0x00]); // index
+        let result2 = Sha256::digest(&Sha256::digest(&prevout_preimage2));
+        merch_prevout.copy_from_slice(&result2);
 
-        return mpc::FundingTxInfo { escrow_txid: txid1, merch_txid: txid2, escrow_prevout, merch_prevout };
+        return mpc::FundingTxInfo { escrow_txid, merch_txid, escrow_prevout, merch_prevout };
     }
 
 
@@ -1457,9 +1466,9 @@ mod tests {
             rev_secret,
             t
         };
-        let result = mpc::pay_validate_rev_lock_merchant(revoked_state, &mut merch_state);
-        assert!(result.is_ok());
-        assert_eq!(hex::encode(result.unwrap()), "671687f7cecc583745cd86342ddcccd4fddc371be95df8ea164916e88dcd895a");
+        let pay_token_mask = mpc::pay_validate_rev_lock_merchant(revoked_state, &mut merch_state);
+        assert!(pay_token_mask.is_ok());
+        assert_eq!(hex::encode(pay_token_mask.unwrap()), "6cd32e3254e7adaf3e742870ecab92aee1b863eabe75342a427d8e1954787822");
     }
 
 rusty_fork_test! {
@@ -1487,15 +1496,15 @@ rusty_fork_test! {
         let res_cust = mpc::pay_customer(&mut channel_state, &channel_token, s0, state, pay_mask_com, rev_lock_com, 10, &mut cust_state);
         assert!(res_cust.is_ok() && res_cust.unwrap());
         let mut pt_mask = [0u8; 32];
-        pt_mask.copy_from_slice(hex::decode("b3ce8f76678fac15c4cd426df45a5e86dae6ac8edf970aff17495d84922aa0f0").unwrap().as_slice());
+        pt_mask.copy_from_slice(hex::decode("6cd32e3254e7adaf3e742870ecab92aee1b863eabe75342a427d8e1954787822").unwrap().as_slice());
         let mut escrow_mask = [0u8; 32];
-        escrow_mask.copy_from_slice(hex::decode("6cd32e3254e7adaf3e742870ecab92aee1b863eabe75342a427d8e1954787822").unwrap().as_slice());
+        escrow_mask.copy_from_slice(hex::decode("671687f7cecc583745cd86342ddcccd4fddc371be95df8ea164916e88dcd895a").unwrap().as_slice());
         let mut merch_mask = [0u8; 32];
-        merch_mask.copy_from_slice(hex::decode("6a98d319e040ccb25fb2b7dce1e7b22df53a27a851a43c7843c4781962a54fa3").unwrap().as_slice());
+        merch_mask.copy_from_slice(hex::decode("4a682bd5d46e3b5c7c6c353636086ed7a943895982cb43deba0a8843459500e4").unwrap().as_slice());
         let mut r_merch_sig = [0u8; 32];
-        r_merch_sig.copy_from_slice(hex::decode("94cd1a81469c1f1e6898ebc15e22263bd34ed56495e319d9df729fbe785f0356").unwrap().as_slice());
+        r_merch_sig.copy_from_slice(hex::decode("6f1badfa1b06afb2129e36d331919d445c48698d6a838619aa3239075c21dd5c").unwrap().as_slice());
         let mut r_escrow_sig = [0u8; 32];
-        r_escrow_sig.copy_from_slice(hex::decode("00eaba730837840db5242a22f3024c96f351633a46aa9983e05b4c437edbd170").unwrap().as_slice());
+        r_escrow_sig.copy_from_slice(hex::decode("1c242c510c2e11e8b00e0198cb6a58c42b83465004190ddf39ed6cfc5be26257").unwrap().as_slice());
         let masks = MaskedTxMPCInputs {
             escrow_mask,
             merch_mask,
@@ -1507,7 +1516,7 @@ rusty_fork_test! {
         assert!(is_ok);
 
         let mut pt_mask = [0u8; 32];
-        pt_mask.copy_from_slice(hex::decode("671687f7cecc583745cd86342ddcccd4fddc371be95df8ea164916e88dcd895a").unwrap().as_slice());
+        pt_mask.copy_from_slice(hex::decode("6cd32e3254e7adaf3e742870ecab92aee1b863eabe75342a427d8e1954787822").unwrap().as_slice());
 
         let is_ok = mpc::pay_unmask_pay_token_customer(pt_mask, &mut cust_state);
         assert!(is_ok);

@@ -1,6 +1,7 @@
 use super::*;
 use bitcoin::network::BitcoinNetwork;
-use bitcoin::{BitcoinFormat, BitcoinTransaction, BitcoinTransactionInput, BitcoinTransactionOutput, BitcoinTransactionParameters, BitcoinAmount, BitcoinPrivateKey, BitcoinPublicKey, BitcoinTransactionId};
+use bitcoin::{BitcoinFormat, BitcoinTransaction, BitcoinTransactionInput, BitcoinTransactionOutput,
+              BitcoinTransactionParameters, BitcoinAmount, BitcoinPrivateKey};
 use bitcoin::address::BitcoinAddress;
 use bitcoin::SignatureHash::SIGHASH_ALL;
 use wagyu_model::crypto::hash160;
@@ -326,7 +327,7 @@ pub mod btc {
         let mut tx_params2 = tx_params.clone();
         let checksig_bug = vec![0x00]; // OP_CHECKSIG bug
         tx_params2.inputs[0].witnesses.append( &mut vec![checksig_bug, signature.clone()]);
-        let mut transaction = BitcoinTransaction::<N>::new(&tx_params2).unwrap();
+        let transaction = BitcoinTransaction::<N>::new(&tx_params2).unwrap();
 
         let signed_tx = transaction.sign(&private_key).unwrap();
         let tx_id_hex = signed_tx.to_transaction_id().unwrap();
@@ -397,7 +398,7 @@ pub mod btc {
             (None, _) => None,
         };
 
-        let mut address = match address_format {
+        let address = match address_format {
             BitcoinFormat::NATIVE_P2WSH => BitcoinAddress::<N>::p2wsh(redeem_script.as_ref().unwrap()).unwrap(),
             _ => private_key.to_address(&address_format).unwrap()
         };
@@ -405,7 +406,7 @@ pub mod btc {
         let sequence = input.sequence.map(|seq| seq.to_vec());
         // println!("redeem_script: {}", hex::encode(redeem_script.as_ref().unwrap()));
 
-        let mut escrow_tx_input = BitcoinTransactionInput::<N>::new(
+        let escrow_tx_input = BitcoinTransactionInput::<N>::new(
             transaction_id,
             input.index,
             Some(address),
@@ -438,7 +439,7 @@ pub mod btc {
     }
 
     pub fn create_merch_close_transaction_preimage<N: BitcoinNetwork>(transaction_parameters: &BitcoinTransactionParameters<N>) -> (Vec<u8>, BitcoinTransaction<N>) {
-        let mut transaction = BitcoinTransaction::<N>::new(transaction_parameters).unwrap();
+        let transaction = BitcoinTransaction::<N>::new(transaction_parameters).unwrap();
         let hash_preimage = transaction.segwit_hash_preimage(0, SIGHASH_ALL).unwrap();
 
         return (hash_preimage, transaction);
@@ -476,7 +477,7 @@ pub mod btc {
         // println!("address: {}", address);
         let sequence = input.sequence.map(|seq| seq.to_vec());
 
-        let mut escrow_tx_input = BitcoinTransactionInput::<N>::new(
+        let escrow_tx_input = BitcoinTransactionInput::<N>::new(
             transaction_id,
             input.index,
             Some(address),
@@ -522,7 +523,7 @@ pub mod btc {
             segwit_flag: true,
         };
 
-        let mut transaction = BitcoinTransaction::<N>::new(&transaction_parameters).unwrap();
+        let transaction = BitcoinTransaction::<N>::new(&transaction_parameters).unwrap();
         let hash_preimage = transaction.segwit_hash_preimage(0, SIGHASH_ALL).unwrap();
 
         return (hash_preimage, transaction_parameters, transaction);
@@ -533,10 +534,8 @@ pub mod btc {
 mod tests {
     use super::*;
     use transactions::{Input, Output, BitcoinTxConfig, MultiSigOutput};
-    use std::intrinsics::transmute;
     use std::str::FromStr;
     use bitcoin::Testnet;
-    use bitcoin::Denomination::Satoshi;
 
     #[test]
     fn test_bitcoin_p2sh_address() {

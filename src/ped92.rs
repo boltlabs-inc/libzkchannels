@@ -1,5 +1,5 @@
 // ped92.rs
-use rand::{Rng, AsByteSliceMut};
+use rand::Rng;
 use pairing::{Engine, CurveProjective};
 use ff::{Rand, Field, PrimeField};
 use std::fmt;

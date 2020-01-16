@@ -3,14 +3,12 @@ use rand::Rng;
 use wallet::{State, NONCE_LEN};
 use util::{hash_to_slice, hmac_sign, compute_hash160};
 use mpcwrapper::{mpc_build_masked_tokens_cust, mpc_build_masked_tokens_merch};
-use secp256k1::ffi::secp256k1_context_no_precomp;
-use transactions::{ClosePublicKeys, Input, BitcoinTxConfig, Output, MultiSigOutput};
+use transactions::ClosePublicKeys;
 use transactions::btc::{create_escrow_transaction, create_merch_close_transaction_params, create_merch_close_transaction_preimage, sign_escrow_transaction};
 use transactions::btc::{create_input, create_cust_close_transaction, generate_signature_for_multi_sig_transaction, completely_sign_multi_sig_transaction};
 use bitcoin::Testnet;
 use sha2::{Sha256, Digest};
 
-// PROTOTYPE
 #[cfg(feature = "mpc-bitcoin")]
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ChannelMPCToken {
@@ -370,7 +368,7 @@ impl CustomerMPCState {
         Ok(true)
     }
 
-    pub fn construct_close_transaction_preimage(&self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken) -> Vec<u8> {
+    pub fn construct_close_transaction_preimage(&self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken) -> (Vec<u8>, Vec<u8>) {
         let secp = secp256k1::Secp256k1::new();
         let cust_escrow_pub_key = self.pk_c.serialize();
         let cust_payout_pub_key = secp256k1::PublicKey::from_secret_key(&secp, &self.payout_sk).serialize();
@@ -380,7 +378,10 @@ impl CustomerMPCState {
         let merch_payout_pub_key = channel_state.merch_payout_pk.unwrap().serialize();
 
         let init_balance = self.cust_balance + self.merch_balance; // is this right?
-        let escrow_index = 0; // TODO: make part of state
+        // TODO: should be configurable via a tx_config
+        let escrow_index = 0;
+        let merch_index = 0;
+        let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
 
         let mut pubkeys = ClosePublicKeys {
             cust_pk: cust_escrow_pub_key.to_vec(),
@@ -391,13 +392,18 @@ impl CustomerMPCState {
             rev_lock: [0u8; 32]
         };
         pubkeys.rev_lock.copy_from_slice(&self.state.unwrap().rev_lock);
-        let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
-        println!("Escrow TXID: {}", hex::encode(channel_token.escrow_txid));
+        // println!("Escrow TXID: {}", hex::encode(channel_token.escrow_txid));
         let escrow_input = create_input(&channel_token.escrow_txid, escrow_index, init_balance);
-        let (tx_preimage, tx_params, _) =
+        let merch_input = create_input(&channel_token.merch_txid, merch_index, init_balance);
+
+        let (escrow_tx_preimage, escrow_tx_params, _) =
             create_cust_close_transaction::<Testnet>(&escrow_input, &pubkeys, &to_self_delay,self.cust_balance,self.merch_balance, true);
 
-        return tx_preimage;
+        let (merch_tx_preimage, merch_tx_params, _) =
+            create_cust_close_transaction::<Testnet>(&merch_input, &pubkeys, &to_self_delay, self.cust_balance, self.merch_balance, false);
+
+
+        return (escrow_tx_preimage, merch_tx_preimage);
     }
 
     pub fn unmask_and_verify_transactions(&self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken, mask_bytes: MaskedTxMPCInputs) -> bool {
@@ -410,28 +416,39 @@ impl CustomerMPCState {
         }
 
         let mpc_out = self.masked_outputs.get(&self.index).unwrap();
-        println!("masked escrow: {}", hex::encode(&mpc_out.escrow_masked));
+        // println!("masked escrow: {}", hex::encode(&mpc_out.escrow_masked));
         xor_in_place(&mut escrow_mask_bytes, &mpc_out.escrow_masked[..]);
-        println!("unmasked escrow: {}", hex::encode(&escrow_mask_bytes));
+        // println!("unmasked escrow: {}", hex::encode(&escrow_mask_bytes));
         xor_in_place(&mut merch_mask_bytes, &mpc_out.merch_masked[..]);
 
-        // TODO: verify the signatures and output updated state and sigs for close-txs (s_i+1, CT_i+1)
         // if valid, output (s_{i+1}, CT_{i+1}, pay-token-{i+1})
-        let tx_preimage = self.construct_close_transaction_preimage(channel_state, channel_token);
-        println!("Close Tx preimage: {}", hex::encode(&tx_preimage));
+        let (escrow_tx_preimage, merch_tx_preimage) = self.construct_close_transaction_preimage(channel_state, channel_token);
+        println!("Close-Escrow Tx preimage: {}", hex::encode(&escrow_tx_preimage));
+        println!("Close-Merch Tx preimage: {}", hex::encode(&merch_tx_preimage));
 
         let mut escrow_sig_vec = mask_bytes.r_escrow_sig.to_vec();
         escrow_sig_vec.append(&mut escrow_mask_bytes.to_vec());
         let escrow_sig = secp256k1::Signature::from_compact(&escrow_sig_vec.as_slice()).unwrap();
-        println!("Escrow Signature: {}", &escrow_sig);
+        println!("Close from Escrow Signature: {}", &escrow_sig);
 
-        let tx_hash = Sha256::digest(&Sha256::digest(&tx_preimage));
-        println!("Tx hash: {}", hex::encode(&tx_hash));
-        let msg = secp256k1::Message::from_slice(&tx_hash).unwrap();
+        let mut merch_sig_vec = mask_bytes.r_merch_sig.to_vec();
+        merch_sig_vec.append(&mut merch_mask_bytes.to_vec());
+        let merch_sig = secp256k1::Signature::from_compact(&merch_sig_vec.as_slice()).unwrap();
+        println!("Close from Merch Signature: {}", &merch_sig);
+
+        let escrow_tx_hash = Sha256::digest(&Sha256::digest(&escrow_tx_preimage));
+        let merch_tx_hash = Sha256::digest(&Sha256::digest(&merch_tx_preimage));
+
+        // println!("Tx hash: {}", hex::encode(&escrow_tx_hash));
+        let msg1 = secp256k1::Message::from_slice(&escrow_tx_hash).unwrap();
+        let msg2 = secp256k1::Message::from_slice(&merch_tx_hash).unwrap();
         let secp = secp256k1::Secp256k1::verification_only();
-        let is_escrow_sig = secp.verify(&msg, &escrow_sig, &channel_token.pk_m).is_ok();
+        let escrow_sig_valid = secp.verify(&msg1, &escrow_sig, &channel_token.pk_m).is_ok();
 
-        return is_escrow_sig;
+        let merch_sig_valid = secp.verify(&msg2, &merch_sig, &channel_token.pk_m).is_ok();
+
+        // TODO: customer sign the transactions to complete multi-sig and store CT bytes locally
+        return escrow_sig_valid && merch_sig_valid;
     }
 
     pub fn unmask_and_verify_pay_token(&mut self, pt_mask_bytes_in: [u8; 32]) -> bool {
@@ -461,7 +478,7 @@ impl CustomerMPCState {
 
 }
 
-fn compute_rev_lock_commitment(input: &[u8; 32], r: &[u8; 32]) -> [u8; 32] {
+fn compute_rev_lock_commitment(input: &[u8; 32], _r: &[u8; 32]) -> [u8; 32] {
     let mut input_buf = Vec::new();
     input_buf.extend_from_slice(input);
     // input_buf.extend_from_slice(r);
@@ -500,7 +517,7 @@ pub struct MerchantMPCState {
 
 #[cfg(feature = "mpc-bitcoin")]
 impl MerchantMPCState {
-    pub fn new<R: Rng>(csprng: &mut R, channel: &mut ChannelMPCState, id: String) -> (Self, ChannelMPCState) {
+    pub fn new<R: Rng>(csprng: &mut R, channel: &mut ChannelMPCState, id: String) -> Self {
         let secp = secp256k1::Secp256k1::new();
         let mut seckey = [0u8; 32];
         csprng.fill_bytes(&mut seckey);
@@ -514,7 +531,6 @@ impl MerchantMPCState {
         let hmac_key = hmac_key_buf.to_vec();
 
         let key_com = hash_to_slice(&hmac_key);
-        println!("channels_mpc => (key_com) : {}", hex::encode(&key_com.to_vec()));
         channel.set_key_com(key_com);
 
         let mut _payout_sk = [0u8; 32];
@@ -530,9 +546,9 @@ impl MerchantMPCState {
 
         channel.set_merchant_public_keys(payout_pub_key, dispute_pub_key);
 
-        let mut ch = channel.clone();
+        //let mut ch = channel.clone();
 
-        (MerchantMPCState {
+        MerchantMPCState {
             id: id.clone(),
             pk_m: pk_m,
             sk_m: sk_m,
@@ -546,7 +562,7 @@ impl MerchantMPCState {
             lock_map_state: HashMap::new(),
             mask_mpc_bytes: HashMap::new(),
             conn_type: 0
-        }, ch)
+        }
     }
 
     pub fn activate_channel(&self, channel_token: &ChannelMPCToken, s_0: &State) -> [u8; 32] {
@@ -646,14 +662,6 @@ impl MerchantMPCState {
                                                   merch_escrow_pub_key, self.dispute_pk, merch_public_key_hash, self.payout_pk, nonce,
                                                   &hmac_key,
                                                   self.sk_m.clone(), &merch_mask_bytes, &pay_mask_bytes, &escrow_mask_bytes);
-        println!("START MERCHANT");
-        println!("escrow_mask_bytes: {}", hex::encode(&escrow_mask_bytes));
-        println!("merch_mask_bytes: {}", hex::encode(&merch_mask_bytes));
-        println!("pay_mask_bytes: {}", hex::encode(&pay_mask_bytes));
-
-        println!("r_esc: {}", hex::encode(&r_esc));
-        println!("r_merch: {}", hex::encode(&r_merch));
-        println!("END MERCHANT");
 
         // store the rev_lock_com => (pt_mask_bytes, escrow_mask_bytes, merch_mask_bytes)
         let mask_bytes = MaskedMPCInputs {
@@ -678,9 +686,6 @@ impl MerchantMPCState {
             self.lock_map_state.insert(nonce_hex, None);
             return None;
         }
-
-        // check that we've seen the nonce before?
-        //let pay_mask_bytes = self.nonce_mask_map.get(&nonce).unwrap();
 
         // retrieve masked bytes from rev_lock_com (output error, if not)
         let rev_lock_com_hex = hex::encode(rev_lock_com);
@@ -723,28 +728,28 @@ mod tests {
     use sha2::Sha256;
 
     fn generate_test_txs<R: Rng>(csprng: &mut R, b0_cust: i64, b0_merch: i64) -> ([u8; 32], [u8; 32], [u8; 32], [u8; 32]) {
-        let mut txid1 = [0u8; 32];
-        let mut txid2 = [0u8; 32];
+        let mut escrow_txid = [0u8; 32];
+        let mut merch_txid = [0u8; 32];
 
-        csprng.fill_bytes(&mut txid1);
-        csprng.fill_bytes(&mut txid2);
+        csprng.fill_bytes(&mut escrow_txid);
+        csprng.fill_bytes(&mut merch_txid);
 
         let mut escrow_prevout = [0u8; 32];
         let mut merch_prevout = [0u8; 32];
 
         let mut prevout_preimage1: Vec<u8> = Vec::new();
-        prevout_preimage1.extend(txid1.iter()); // txid1
+        prevout_preimage1.extend(escrow_txid.iter()); // txid1
         prevout_preimage1.extend(vec![0x00, 0x00, 0x00, 0x00]); // index
         let result1 = Sha256::digest(&Sha256::digest(&prevout_preimage1));
         escrow_prevout.copy_from_slice(&result1);
 
         let mut prevout_preimage2: Vec<u8> = Vec::new();
-        prevout_preimage2.extend(txid2.iter()); // txid2
+        prevout_preimage2.extend(merch_txid.iter()); // txid2
         prevout_preimage2.extend(vec![0x00, 0x00, 0x00, 0x00]); // index
         let result2 = Sha256::digest(&Sha256::digest(&prevout_preimage2));
         merch_prevout.copy_from_slice(&result2);
 
-        return (txid1, txid2, escrow_prevout, merch_prevout)
+        return (escrow_txid, merch_txid, escrow_prevout, merch_prevout)
     }
 
 rusty_fork_test!
@@ -760,7 +765,7 @@ rusty_fork_test!
         // each party executes the init algorithm on the agreed initial challenge balance
         // in order to derive the channel tokens
         // initialize on the merchant side with balance: b0_merch
-        let (mut merch_state, mut channel) = MerchantMPCState::new(&mut rng, &mut channel_state, String::from("Merchant B"));
+        let mut merch_state = MerchantMPCState::new(&mut rng, &mut channel_state, String::from("Merchant B"));
 
         // initialize on the customer side with balance: b0_cust
         let mut cust_state = CustomerMPCState::new(&mut rng, b0_cust, b0_merch, String::from("Customer"));
@@ -860,7 +865,7 @@ rusty_fork_test!
         // each party executes the init algorithm on the agreed initial challenge balance
         // in order to derive the channel tokens
         // initialize on the merchant side with balance: b0_merch
-        let (mut merch_state, mut channel) = MerchantMPCState::new(&mut rng, &mut channel, String::from("Merchant"));
+        let mut merch_state = MerchantMPCState::new(&mut rng, &mut channel, String::from("Merchant"));
 
         // initialize on the customer side with balance: b0_cust
         let mut cust_state = CustomerMPCState::new(&mut rng, b0_cust, b0_merch, String::from("Customer"));
@@ -923,22 +928,4 @@ rusty_fork_test!
             println!("pt_masked: {:?}", pt_mask);
         }
     }
-
-// success/failure bit phase
-// (1) if customer gets mpc output, it sends a success or failure message
-
-// unmask phase
-// (2) if success, merchant sends mask for sigs(CT) (on-chain)
-// (3) customer unmasks sig(CT) and checks for validity of signature.
-// if valid, send RL_i, t_j (opening of r_com) + RL/RS for state i
-
-// revoke phase
-// (4) merchant checks revealed RS corresponds to RL. Opens com(RL_i).
-// if yes, add (n_i, RS_i/RL_i) to S and send pay-mask(i+1)
-// if no, abort and store (n_i, error) in S and output (n_i, error)
-
-// (5) customer checks validity of commitment opening and if valid,
-// unmask pay-token(i+1)
-// if invalid, abort and output (s_{i+1}, CT_{i+1})
-// otherwise, output (s_{i+1}, CT_{i+1}, pay-token-{i+1})
 }
