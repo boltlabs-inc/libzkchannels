@@ -13,6 +13,7 @@ use transactions::{ClosePublicKeys, BitcoinTxConfig, Input, SATOSHI};
 use transactions::btc::{create_input, create_cust_close_transaction};
 use bitcoin::Testnet;
 use util::compute_hash160;
+use util::hmac_sign;
 use std::slice;
 use wallet::State;
 use ecdsa_partial::EcdsaPartialSig;
@@ -23,6 +24,18 @@ const NETIO: u32 = 1;
 const UNIXNETIO: u32 = 2;
 
 pub type IOCallback = fn(c_uint, c_int);
+
+macro_rules! check_output {
+    ($x: expr) => {
+        {
+            println
+            let res = $x;
+            let e = s.elapsed();
+            (res, e.as_millis())
+        };
+    }
+}
+
 
 extern "C" fn io_callback(conn_type: c_uint, party: c_int) -> *mut c_void {
     println!("selecting the IO callback");
@@ -101,11 +114,7 @@ pub fn mpc_build_masked_tokens_cust(conn_type: u32, amount: i64, pay_mask_com: &
     ct_escrow_masked_ar.copy_from_slice(u32_to_bytes(&ct_escrow.sig[..]).as_slice());
     let mut ct_merch_masked_ar = [0u8; 32];
     ct_merch_masked_ar.copy_from_slice(u32_to_bytes(&ct_merch.sig[..]).as_slice());
-
-    println!("mpc_build_masked_tokens_cust =>");
-    println!("pt_masked_ar: {}", hex::encode(&pt_masked_ar));
-    println!("ct_escrow_masked_ar: {}", hex::encode(&ct_escrow_masked_ar));
-
+    
     (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar)
 }
 
@@ -427,8 +436,15 @@ mod tests {
             merch_prevout: hashouts_merch,
         };
 
+        let mut hmac_key = [0u8; 64];
+        hmac_key.copy_from_slice(hex::decode("439452e56db2398e05396328c5e037086c5167565736ce7041356f12d161821715656a1a16eeff47615e0494d7b3757d730517f1beebc45575beb1644ba48a1a").unwrap().as_slice());
+        // confirm that initial pay token is computed correctly
+        let ser_old_state = old_state.serialize_compact();
+        let rec_old_paytoken = hmac_sign(hmac_key, &ser_old_state);
+
         let mut old_paytoken = [0u8; 32];
         old_paytoken.copy_from_slice(hex::decode("5d40f4be8e4babcd5b588212c01d79d4ad1fbb08050c4efeb427b52d02938946").unwrap().as_slice());
+        assert_eq!(old_paytoken, rec_old_paytoken);
 
         let cust_escrow_pub_key = secp256k1::PublicKey::from_slice(hex::decode("03fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d7").unwrap().as_slice()).unwrap();
         let cust_payout_pub_key = secp256k1::PublicKey::from_slice(hex::decode("03195e272df2310ded35f9958fd0c2847bf73b5b429a716c005d465009bd768641").unwrap().as_slice()).unwrap();

@@ -904,7 +904,7 @@ pub mod mpc {
 #[cfg(all(test, feature = "unstable"))]
 mod benches {
     use rand::{Rng, thread_rng};
-    use test::{Bencher, black_box};
+    use test::{Bencher};
 
     #[bench]
     pub fn bench_one(bh: &mut Bencher) {

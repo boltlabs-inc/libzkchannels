@@ -80,6 +80,22 @@ impl State {
 
         return hash_to_slice(&input_buf);
     }
+
+    pub fn serialize_compact(&self) -> Vec<u8> {
+        let mut output_buf = Vec::new();
+        output_buf.extend_from_slice(&self.nonce);
+        output_buf.extend_from_slice(&self.rev_lock);
+        // output_buf.extend_from_slice(&self.pk_c.serialize());
+        // output_buf.extend_from_slice(&self.pk_m.serialize());
+        output_buf.extend_from_slice(&self.bc.to_be_bytes());
+        output_buf.extend_from_slice(&self.bm.to_be_bytes());
+        output_buf.extend_from_slice(&self.merch_txid);
+        output_buf.extend_from_slice(&self.escrow_txid);
+        output_buf.extend_from_slice(&self.merch_prevout);
+        output_buf.extend_from_slice(&self.escrow_prevout);
+
+        return output_buf;
+    }
 }
 
 impl fmt::Display for State {

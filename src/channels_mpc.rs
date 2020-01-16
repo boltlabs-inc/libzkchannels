@@ -242,7 +242,7 @@ impl CustomerMPCState {
 
         let mut input = Vec::new();
         input.extend_from_slice(&self.rev_lock);
-        input.extend_from_slice(&self.t);
+        // input.extend_from_slice(&self.t);
         return hash_to_slice(&input);
     }
 
@@ -360,6 +360,7 @@ impl CustomerMPCState {
         };
 
         println!("CUSTOMER");
+        println!("pt_masked: {}", hex::encode(&pt_masked_ar));
         println!("escrow_masked: {}", hex::encode(&ct_escrow_masked_ar));
         println!("merch_masked: {}", hex::encode(&ct_merch_masked_ar));
         println!("CUSTOMER");
@@ -460,10 +461,10 @@ impl CustomerMPCState {
 
 }
 
-fn compute_commitment(input: &[u8; 32], r: &[u8; 32]) -> [u8; 32] {
+fn compute_rev_lock_commitment(input: &[u8; 32], r: &[u8; 32]) -> [u8; 32] {
     let mut input_buf = Vec::new();
     input_buf.extend_from_slice(input);
-    input_buf.extend_from_slice(r);
+    // input_buf.extend_from_slice(r);
     return hash_to_slice(&input_buf);
 }
 
@@ -512,9 +513,8 @@ impl MerchantMPCState {
         csprng.fill_bytes(&mut hmac_key_buf);
         let hmac_key = hmac_key_buf.to_vec();
 
-        let pub_msg= [0u8; 32];
-        // generate the key commitment by signing pub message
-        let key_com = hmac_sign(hmac_key_buf, &pub_msg.to_vec());
+        let key_com = hash_to_slice(&hmac_key);
+        println!("channels_mpc => (key_com) : {}", hex::encode(&key_com.to_vec()));
         channel.set_key_com(key_com);
 
         let mut _payout_sk = [0u8; 32];
@@ -554,11 +554,10 @@ impl MerchantMPCState {
         let channel_id = channel_token.compute_channel_id().unwrap();
         let channel_id_str= hex::encode(channel_id.to_vec());
 
-        // does MPC verify that s_com was generated from s_0 in activate bucket?
-
         let mut key = [0; 64];
         key.copy_from_slice(&self.hmac_key);
-        let s_vec = serde_json::to_vec(s_0).unwrap();
+        let s_vec= s_0.serialize_compact();
+        // println!("initial state: {}", hex::encode(&s_vec));
         let init_pay_token = hmac_sign(key, &s_vec);
 
         return init_pay_token;
@@ -673,7 +672,7 @@ impl MerchantMPCState {
     pub fn verify_revoked_state(&mut self, nonce: [u8; NONCE_LEN], rev_lock_com: [u8; 32], rev_lock: [u8; 32], rev_sec: [u8; 32], t: [u8; 32]) -> Option<[u8; 32]> {
         // check rev_lock_com opens to RL_i / t_i
         // check that RL_i is derived from RS_i
-        if compute_commitment(&rev_lock, &t) != rev_lock_com || 
+        if compute_rev_lock_commitment(&rev_lock, &t) != rev_lock_com ||
             hash_to_slice(&rev_sec.to_vec()) != rev_lock {
             let nonce_hex = hex::encode(nonce);
             self.lock_map_state.insert(nonce_hex, None);
@@ -748,6 +747,8 @@ mod tests {
         return (txid1, txid2, escrow_prevout, merch_prevout)
     }
 
+rusty_fork_test!
+{
     #[test]
     fn mpc_channel_util_customer_works() {
         let mut channel_state = ChannelMPCState::new(String::from("Channel A <-> B"), false);
@@ -846,9 +847,8 @@ mod tests {
             cust_state.unmask_and_verify_pay_token(mb.pt_mask);
         }
     }
+}
 
-rusty_fork_test!
-{
     #[test]
     fn mpc_channel_util_merchant_works() {
         let mut channel = ChannelMPCState::new(String::from("Channel A <-> B"), false);
@@ -923,7 +923,6 @@ rusty_fork_test!
             println!("pt_masked: {:?}", pt_mask);
         }
     }
-}
 
 // success/failure bit phase
 // (1) if customer gets mpc output, it sends a success or failure message
