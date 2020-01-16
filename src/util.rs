@@ -103,8 +103,7 @@ pub fn compute_pub_key_fingerprint(wpk: &secp256k1::PublicKey) -> String {
     let mut hasher = sha2::Sha256::new();
     hasher.input(&x_slice.to_vec());
     let sha2_digest = hasher.result();
-    let h = format!("{:x}", HexSlice::new(&sha2_digest[0..16]));
-    return h;
+    hex::encode(&sha2_digest[0..16])
 }
 
 pub fn hash_buffer_to_fr<'a, E: Engine>(prefix: &'a str, buf: &[u8; 64]) -> E::Fr {

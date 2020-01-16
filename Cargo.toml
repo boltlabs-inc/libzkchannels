@@ -31,7 +31,6 @@ bit-array = "*"
 typenum = "*"
 num = "*"
 hex = "0.3.2"
-bs58 = "0.3.0"
 wagyu-model = { git = "https://github.com/boltlabs-inc/wagyu", branch = "feature/transactions" }
 wagyu-bitcoin = { git = "https://github.com/boltlabs-inc/wagyu", branch = "feature/transactions" }
 

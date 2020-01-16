@@ -41,7 +41,6 @@ extern crate ripemd160;
 
 extern crate wagyu_bitcoin as bitcoin;
 extern crate wagyu_model;
-extern crate bs58;
 
 #[cfg(test)]
 #[macro_use]
@@ -72,40 +71,6 @@ use ff::{Rand, Field};
 use serde::{Serialize, Deserialize};
 
 ////////////////////////////////// Utilities //////////////////////////////////
-
-struct HexSlice<'a>(&'a [u8]);
-
-impl<'a> HexSlice<'a> {
-    fn new<T>(data: &'a T) -> HexSlice<'a>
-        where T: ?Sized + AsRef<[u8]> + 'a
-    {
-        HexSlice(data.as_ref())
-    }
-}
-
-impl<'a> fmt::LowerHex for HexSlice<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for byte in self.0 {
-            // Decide if you want upper- or lowercase results,
-            // padding the values to two characters, spaces
-            // between bytes, etc.
-            write!(f, "{:x}", byte)?;
-        }
-        Ok(())
-    }
-}
-
-impl<'a> fmt::UpperHex for HexSlice<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for byte in self.0 {
-            // Decide if you want upper- or lowercase results,
-            // padding the values to two characters, spaces
-            // between bytes, etc.
-            write!(f, "{:X}", byte)?;
-        }
-        Ok(())
-    }
-}
 
 pub type BoltResult<T> = Result<Option<T>, String>;
 
@@ -717,6 +682,7 @@ pub mod mpc {
     use wallet::{State, NONCE_LEN};
     use channels_mpc::MaskedTxMPCInputs;
     use serde::{Serialize, Deserialize};
+    use bindings::ConnType_NETIO;
 
     #[derive(Clone, Serialize, Deserialize)]
     pub struct FundingTxInfo {
@@ -834,7 +800,7 @@ pub mod mpc {
     pub fn pay_customer(channel_state: &mut ChannelMPCState, channel_token: &ChannelMPCToken, s0: State, s1: State, pay_token_mask_com: [u8; 32],
                         rev_lock_com: [u8; 32], amount: i64, cust_state: &mut CustomerMPCState) -> Result<bool, String> {
         cust_state.update_pay_com(pay_token_mask_com);
-        cust_state.set_mpc_connect_type(2);
+        cust_state.set_mpc_connect_type(ConnType_NETIO);
         cust_state.execute_mpc_context(&channel_state, &channel_token, s0, s1,
                                        pay_token_mask_com, rev_lock_com, amount)
     }
@@ -847,7 +813,7 @@ pub mod mpc {
     ///
     pub fn pay_merchant<R: Rng>(csprng: &mut R, channel: &mut ChannelMPCState, nonce: [u8; NONCE_LEN], pay_token_mask_com: [u8; 32],
                                 rev_lock_com: [u8; 32], amount: i64, merch_state: &mut MerchantMPCState) -> Result<MaskedTxMPCInputs, String> {
-        merch_state.set_mpc_connect_type(2);
+        merch_state.set_mpc_connect_type(ConnType_NETIO);
         let result = merch_state.execute_mpc_context(csprng, &channel, nonce, rev_lock_com, pay_token_mask_com, amount);
         match result.is_err() {
             false => {
@@ -919,6 +885,8 @@ mod tests {
     use rand::{Rng, SeedableRng};
     use sha2::{Sha256, Digest};
     use rand_xorshift::XorShiftRng;
+
+    #[cfg(feature = "mpc-bitcoin")]
     use channels_mpc::MaskedTxMPCInputs;
 
     fn setup_new_channel_helper(channel_state: &mut zkproofs::ChannelState<Bls12>,

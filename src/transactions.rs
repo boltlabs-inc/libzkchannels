@@ -280,7 +280,7 @@ pub mod btc {
             segwit_flag: true,
         };
 
-        let mut transaction = BitcoinTransaction::<N>::new(&transaction_parameters).unwrap();
+        let transaction = BitcoinTransaction::<N>::new(&transaction_parameters).unwrap();
         let hash_preimage = transaction.segwit_hash_preimage(0, SIGHASH_ALL).unwrap();
         // return hash preimage of transaction and the transaction itself (for later signing)
         return (hash_preimage, transaction);
@@ -391,7 +391,7 @@ pub mod btc {
         let redeem_script = match (input.redeem_script.as_ref(), address_format.clone()) {
             (Some(script), _) => Some(script.clone()),
             (None, BitcoinFormat::P2SH_P2WPKH) => {
-                let mut redeem_script = serialize_p2wsh_escrow_redeem_script(merch_pubkey, &cust_pubkey.to_vec());
+                let redeem_script = serialize_p2wsh_escrow_redeem_script(merch_pubkey, &cust_pubkey.to_vec());
                 // println!("redeem_script: {}", hex::encode(&redeem_script));
                 Some(redeem_script)
             }
@@ -596,10 +596,6 @@ mod tests {
 
     #[test]
     fn test_bitcoin_testnet_merch_close_tx() {
-        //let raw_tx = "02000000000101d9827f206a476a0d61db36348599bc39a5ab39f384da7c50885b726f0ec5b05e0000000000ffffffff018060333c000000002200204de4a2361c5f251e23b9aa799012a9c94131ab51ec4be0e2a9857125c375e19d0400483045022100ccbbc1d45af69e5071d8e23bfce035a422925d44e3967cb6b618099a032d0f4502205573432be4b797123a2107b46189f4120b2a9a9a61a7978391abbe2abd8c74e601483045022100ff658f9b62b027dc7b6ebcad2d7bf62311f6805f5d75a5de08064686479de57602205c3a3fd6b81413b68de1d75240935b57f0df8d5b7c4929f7c870c2ba87157d2d01475221024596d7b33733c28101dbc6c85901dffaed0cdac63ab0b2ea141217d1990ad4b1210253be79afe84fd9342c1f52024379b6da6299ea98844aee23838e8e678a765f7c52ae00000000";
-        //let mut new_transaction = BitcoinTransaction::<Testnet>::from_str(&raw_tx).unwrap();
-        //println!("new_tx txid: {}", new_transaction.to_transaction_id().unwrap());
-
         // construct redeem script for this transaction to be able to spend from escrow-tx
         let cust_pk = hex::decode("027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb").unwrap();
         let merch_pk = hex::decode("03af0530f244a154b278b34de709b84bb85bb39ff3f1302fc51ae275e5a45fb353").unwrap();

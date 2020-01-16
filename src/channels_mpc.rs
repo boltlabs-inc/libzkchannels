@@ -2,12 +2,23 @@ use super::*;
 use rand::Rng;
 use wallet::{State, NONCE_LEN};
 use util::{hash_to_slice, hmac_sign, compute_hash160};
+
+#[cfg(feature = "mpc-bitcoin")]
 use mpcwrapper::{mpc_build_masked_tokens_cust, mpc_build_masked_tokens_merch};
 use transactions::ClosePublicKeys;
 use transactions::btc::{create_escrow_transaction, create_merch_close_transaction_params, create_merch_close_transaction_preimage, sign_escrow_transaction};
 use transactions::btc::{create_input, create_cust_close_transaction, generate_signature_for_multi_sig_transaction, completely_sign_multi_sig_transaction};
 use bitcoin::Testnet;
 use sha2::{Sha256, Digest};
+
+#[cfg(feature = "mpc-bitcoin")]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct NetworkConfig {
+    pub conn_type: ConnType,
+    pub dest_ip: String,
+    pub dest_port: u32,
+    pub path: String
+}
 
 #[cfg(feature = "mpc-bitcoin")]
 #[derive(Clone, Serialize, Deserialize)]
@@ -39,7 +50,6 @@ impl ChannelMPCToken {
         return Ok(hash_to_slice(&input));
     }
 }
-
 
 #[cfg(feature = "mpc-bitcoin")]
 #[derive(Clone, Serialize, Deserialize)]
@@ -122,6 +132,7 @@ impl MaskedMPCInputs {
     }
 }
 
+#[cfg(feature = "mpc-bitcoin")]
 #[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct MaskedTxMPCInputs {
     pub escrow_mask: [u8; 32],
@@ -130,6 +141,7 @@ pub struct MaskedTxMPCInputs {
     pub r_merch_sig: [u8; 32],
 }
 
+#[cfg(feature = "mpc-bitcoin")]
 #[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct MaskedMPCOutputs {
     pt_masked: [u8; 32],
@@ -147,7 +159,7 @@ pub struct CustomerMPCState {
     pub merch_balance: i64,
     rev_lock: [u8; 32],
     rev_secret: [u8; 32],
-    old_kp: Option<LockMap>, // old lock and preimage pair
+    // old_kp: Option<LockMap>, // old lock and preimage pair
     t: [u8; 32], // randomness used to form the commitment
     state: Option<State>, // vector of field elements that represent current state
     index: i32,
@@ -195,7 +207,7 @@ impl CustomerMPCState {
             merch_balance: merch_bal,
             rev_lock: rev_lock,
             rev_secret: rev_secret,
-            old_kp: None,
+            // old_kp: None,
             t: t,
             state: None,
             index: 0,
@@ -309,19 +321,19 @@ impl CustomerMPCState {
         return is_pt;
     }
 
-    // update the internal state of the customer wallet
-    pub fn update(&mut self, new_state: CustomerMPCState) -> bool {
-        // update everything except for the wpk/wsk pair
-        assert!(self.name == new_state.name);
-        self.cust_balance = new_state.cust_balance;
-        self.merch_balance = new_state.merch_balance;
-        self.old_kp = new_state.old_kp;
-        self.index = new_state.index;
-        self.masked_outputs = new_state.masked_outputs;
-        self.pay_tokens = new_state.pay_tokens;
-
-        return true;
-    }
+//    // update the internal state of the customer wallet
+//    pub fn update(&mut self, new_state: CustomerMPCState) -> bool {
+//        // update everything except for the wpk/wsk pair
+//        assert!(self.name == new_state.name);
+//        self.cust_balance = new_state.cust_balance;
+//        self.merch_balance = new_state.merch_balance;
+//        self.old_kp = new_state.old_kp;
+//        self.index = new_state.index;
+//        self.masked_outputs = new_state.masked_outputs;
+//        self.pay_tokens = new_state.pay_tokens;
+//
+//        return true;
+//    }
 
     // customer side of mpc
     pub fn execute_mpc_context(&mut self, channel: &ChannelMPCState, channel_token: &ChannelMPCToken,
@@ -339,7 +351,7 @@ impl CustomerMPCState {
         let merch_dispute_key= channel.merch_dispute_pk.unwrap();
         let merch_payout_pub_key = channel.merch_payout_pk.unwrap();
         let pk_input_buf = merch_payout_pub_key.serialize();
-        let mut merch_public_key_hash= compute_hash160(&pk_input_buf.to_vec());
+        let merch_public_key_hash = compute_hash160(&pk_input_buf.to_vec());
 
         let old_paytoken = match self.has_tokens() {
             true => self.pay_tokens.get(&self.index).unwrap(),
@@ -471,6 +483,7 @@ impl CustomerMPCState {
         xor_in_place(&mut pt_mask_bytes, &mpc_out.pt_masked[..]);
 
         self.pay_tokens.insert(self.index, pt_mask_bytes);
+        // self.index += 1;
         return true;
     }
 
@@ -716,6 +729,7 @@ impl MerchantMPCState {
 use rand::SeedableRng;
 use rand_xorshift::XorShiftRng;
 use wagyu_model::AddressError::Message;
+use bindings::ConnType;
 
 #[cfg(feature = "mpc-bitcoin")]
 #[cfg(test)]

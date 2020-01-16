@@ -2,13 +2,9 @@ use libc::{c_int, c_uint, c_void};
 use secp256k1::{Signature, Message, PublicKey, Secp256k1};
 use std::ffi::{CString, CStr};
 use rand::{RngCore, Rng};
-// use bit_array::BitArray;
-// use typenum::{U264, U64};
 use num::BigInt;
 use num::bigint::Sign;
-use bindings::{get_netio_ptr, get_unixnetio_ptr, build_masked_tokens_cust, build_masked_tokens_merch,
-               EcdsaPartialSig_l, State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l, PayToken_l,
-               Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l, BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l};
+use bindings::{get_netio_ptr, get_unixnetio_ptr, build_masked_tokens_cust, build_masked_tokens_merch, EcdsaPartialSig_l, State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l, PayToken_l, Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l, BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l, ConnType_UNIXNETIO};
 use transactions::{ClosePublicKeys, BitcoinTxConfig, Input, SATOSHI};
 use transactions::btc::{create_input, create_cust_close_transaction};
 use bitcoin::Testnet;
@@ -19,14 +15,16 @@ use ecdsa_partial::EcdsaPartialSig;
 use std::ptr;
 use std::str;
 
-const NETIO: u32 = 1;
-const UNIXNETIO: u32 = 2;
-
 pub type IOCallback = fn(c_uint, c_int);
 
 extern "C" fn io_callback(conn_type: c_uint, party: c_int) -> *mut c_void {
-    println!("selecting the IO callback");
-    if (conn_type == UNIXNETIO) {
+
+    let conn_debug = match conn_type {
+        ConnType_UNIXNETIO => "Unix domain socket connection",
+        ConnType_NETIO => "TCP socket connection"
+    };
+    println!("IO callback: {}", conn_debug);
+    if (conn_type == ConnType_UNIXNETIO) {
         let io_ptr = unsafe {
             get_unixnetio_ptr(CString::new("newtmpcon").unwrap().into_raw(), party)
         };
@@ -330,7 +328,7 @@ mod tests {
         let merch_payout_pub_key = secp256k1::PublicKey::from_slice(hex::decode("02f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90").unwrap().as_slice()).unwrap();
 
 
-        let (r1, r2) = mpc_build_masked_tokens_merch(&mut csprng, UNIXNETIO, amount, &paytoken_mask_com, &rev_lock_com,
+        let (r1, r2) = mpc_build_masked_tokens_merch(&mut csprng, ConnType_UNIXNETIO, amount, &paytoken_mask_com, &rev_lock_com,
                                       &key_com,
                                       merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key, nonce,
                                       &hmac_key,
@@ -463,7 +461,7 @@ mod tests {
 
 
         let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) =
-            mpc_build_masked_tokens_cust(UNIXNETIO, amount, &paytoken_mask_com, &rev_lock_com, &key_com,
+            mpc_build_masked_tokens_cust(ConnType_UNIXNETIO, amount, &paytoken_mask_com, &rev_lock_com, &key_com,
                                          merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key,
                                          new_state, old_state,
                                          &old_paytoken, cust_escrow_pub_key, cust_payout_pub_key);
@@ -595,7 +593,7 @@ mod tests {
     fn signature() {
         let secp = Secp256k1::new();
         let sig = hex::decode("96fec178aea8d00c83f36b3424dd56762a5440547938ecc82b5c204435418fd968bafe1af248ec2c9ff9aba262cfcf801b486c685467ebc567b9b4e5e5674135").unwrap();
-        let mut signature = secp256k1::Signature::from_compact(&sig).unwrap();
+        let signature = secp256k1::Signature::from_compact(&sig).unwrap();
         let par_sig_ser = hex::decode("96fec178aea8d00c83f36b3424dd56762a5440547938ecc82b5c204435418fd99eedce5c89bba8897758b7d7454eb5300657f6da1132d3a930fd9721c352b6e6ce6f2c740f993c6c60931ee965241e5a0527e4ab466d97dcc3436860370700d1").unwrap();
         let par_sig = secp256k1::PartialSignature::from_compact(&par_sig_ser).unwrap();
         let sk_ser = hex::decode("c71ffda863b14b3a9434a8799561cb15ac082cba2ad16bebae89a507cda267a2").unwrap();
