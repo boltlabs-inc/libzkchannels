@@ -864,6 +864,24 @@ pub mod mpc {
     pub fn pay_unmask_pay_token_customer(pt_mask_bytes: [u8;32], cust_state: &mut CustomerMPCState) -> bool {
         cust_state.unmask_and_verify_pay_token(pt_mask_bytes)
     }
+
+    ///
+    ///  get_cust_close_from_escrow_tx - takes customer state and returns the most recent
+    ///  closing transaction that spends from the escrow-tx
+    ///  output: hex encoding of tx bytes (customer can broadcast to blockchain)
+    ///
+    pub fn get_cust_close_from_escrow_tx(cust_state: &CustomerMPCState) -> String {
+        cust_state.get_cust_close_escrow_tx()
+    }
+
+    ///
+    ///  get_cust_close_from_merch_tx - takes customer state and returns the most recent
+    ///  closing transaction that spends from the merch-close-tx
+    ///  output: hex encoding of tx bytes (customer can broadcast to blockchain)
+    ///
+    pub fn get_cust_close_from_merch_tx(cust_state: &CustomerMPCState) -> String {
+        cust_state.get_cust_close_merch_tx()
+    }
 }
 
 

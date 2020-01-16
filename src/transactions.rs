@@ -322,14 +322,13 @@ pub mod btc {
         }
     }
 
-    pub fn completely_sign_multi_sig_transaction<N: BitcoinNetwork>(tx_params: &BitcoinTransactionParameters<N>, signature: &Vec<u8>, private_key: String) -> (BitcoinTransaction<N>, [u8; 32], [u8; 32]) {
-        let private_key = BitcoinPrivateKey::<N>::from_str(private_key.as_str()).unwrap();
+    pub fn completely_sign_multi_sig_transaction<N: BitcoinNetwork>(tx_params: &BitcoinTransactionParameters<N>, signature: &Vec<u8>, private_key: &BitcoinPrivateKey<N>) -> (BitcoinTransaction<N>, [u8; 32], [u8; 32]) {
         let mut tx_params2 = tx_params.clone();
         let checksig_bug = vec![0x00]; // OP_CHECKSIG bug
         tx_params2.inputs[0].witnesses.append( &mut vec![checksig_bug, signature.clone()]);
         let transaction = BitcoinTransaction::<N>::new(&tx_params2).unwrap();
 
-        let signed_tx = transaction.sign(&private_key).unwrap();
+        let signed_tx = transaction.sign(private_key).unwrap();
         let tx_id_hex = signed_tx.to_transaction_id().unwrap();
 
         let txid = hex::decode(tx_id_hex.to_string()).unwrap();
@@ -638,7 +637,8 @@ mod tests {
         let cust_signature = transactions::btc::generate_signature_for_multi_sig_transaction::<Testnet>(&merch_tx_preimage, String::from(input.private_key)).unwrap();
 
         // merchant takes the signature and signs the transaction
-        let (signed_merch_close_tx, txid, hash_prevout) = transactions::btc::completely_sign_multi_sig_transaction::<Testnet>(&tx_params, &cust_signature, String::from(merch_private_key));
+        let m_private_key = BitcoinPrivateKey::<Testnet>::from_str(merch_private_key).unwrap();
+        let (signed_merch_close_tx, txid, hash_prevout) = transactions::btc::completely_sign_multi_sig_transaction::<Testnet>(&tx_params, &cust_signature, &m_private_key);
         let merch_tx = hex::encode(signed_merch_close_tx.to_transaction_bytes().unwrap());
         println!("========================");
         println!("merch-close signed_tx: {}", merch_tx);
@@ -692,7 +692,9 @@ mod tests {
         // merchant signs the preimage (note this would happen via MPC)
         let merch_signature = transactions::btc::generate_signature_for_multi_sig_transaction::<Testnet>(&tx_preimage, String::from(merch_private_key)).unwrap();
 
-        let (signed_cust_close_tx, txid, hash_prevout) = transactions::btc::completely_sign_multi_sig_transaction::<Testnet>(&tx_params, &merch_signature, String::from(input.private_key));
+        // customer signs the transaction and embed the merch-signature
+        let c_private_key = BitcoinPrivateKey::<Testnet>::from_str(input.private_key).unwrap();
+        let (signed_cust_close_tx, txid, hash_prevout) = transactions::btc::completely_sign_multi_sig_transaction::<Testnet>(&tx_params, &merch_signature, &c_private_key);
         let cust_close_tx = hex::encode(signed_cust_close_tx.to_transaction_bytes().unwrap());
 
         println!("========================");
