@@ -6,8 +6,9 @@ package libzkchannels
 import "C"
 import (
 	"encoding/json"
-	"github.com/getlantern/errors"
 	"strings"
+
+	"github.com/getlantern/errors"
 )
 
 type setupResp struct {
@@ -73,6 +74,8 @@ type CustState struct {
 	PayTokenMaskCom []int                   `json:"pay_token_mask_com"`
 	PayoutSk        string                  `json:"payout_sk"`
 	ConnType        int                     `json:"conn_type"`
+	CloseEscrowTx   string                  `json:"cust_close_escrow_tx"`
+	CloseMerchTx    string                  `json:"cust_close_merch_tx"`
 }
 
 type State struct {

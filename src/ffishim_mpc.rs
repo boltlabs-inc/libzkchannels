@@ -4,9 +4,7 @@ pub mod ffishim_mpc {
     extern crate libc;
 
     use mpc;
-
     use serde::Deserialize;
-
     use libc::c_char;
     use std::ffi::{CStr, CString};
     use std::str;
@@ -359,4 +357,5 @@ pub mod ffishim_mpc {
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
+
 }

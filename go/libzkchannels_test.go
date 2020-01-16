@@ -4,12 +4,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"os/exec"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_fullProtocol(t *testing.T) {
@@ -67,6 +68,10 @@ func Test_fullProtocol(t *testing.T) {
 	isOk, custState, err = PayUnmaskPayTokenCustomer(payTokenMask, custState)
 	assert.Nil(t, err)
 	assert.True(t, isOk)
+
+	fmt.Println("Get most recent close transactions...")
+	fmt.Println("CloseEscrowTx: ", string(custState.CloseEscrowTx))
+	fmt.Println("CloseEscrowTx: ", string(custState.CloseMerchTx))
 }
 
 func BAtoIA(bytes []byte) []int {

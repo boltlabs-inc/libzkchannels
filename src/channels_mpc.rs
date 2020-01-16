@@ -167,9 +167,9 @@ pub struct CustomerMPCState {
     pay_tokens: HashMap<i32, [u8; 32]>,
     pay_token_mask_com: [u8; 32],
     payout_sk: secp256k1::SecretKey,
-    cust_close_escrow_tx: Vec<u8>,
-    cust_close_merch_tx: Vec<u8>,
-    pub conn_type: u32
+    pub conn_type: u32,
+    cust_close_escrow_tx: String,
+    cust_close_merch_tx: String
 }
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -209,7 +209,6 @@ impl CustomerMPCState {
             merch_balance: merch_bal,
             rev_lock: rev_lock,
             rev_secret: rev_secret,
-            // old_kp: None,
             t: t,
             state: None,
             index: 0,
@@ -217,9 +216,9 @@ impl CustomerMPCState {
             pay_tokens: pt_db,
             pay_token_mask_com: [0u8; 32],
             payout_sk: payout_sk,
-            cust_close_escrow_tx: Vec::new(),
-            cust_close_merch_tx: Vec::new(),
-            conn_type: 0
+            conn_type: 0,
+            cust_close_escrow_tx: String::new(),
+            cust_close_merch_tx: String::new()
         };
     }
 
@@ -473,12 +472,12 @@ impl CustomerMPCState {
         // sign the cust-close-from-escrow-tx
         let (signed_cust_close_escrow_tx, _, _) =
             transactions::btc::completely_sign_multi_sig_transaction::<Testnet>(&escrow_tx_params, &enc_escrow_signature, &private_key);
-        self.cust_close_escrow_tx = signed_cust_close_escrow_tx.to_transaction_bytes().unwrap();
+        self.cust_close_escrow_tx = hex::encode(&signed_cust_close_escrow_tx.to_transaction_bytes().unwrap());
 
         // sign the cust-close-from-merch-tx
         let (signed_cust_close_merch_tx, _, _) =
             transactions::btc::completely_sign_multi_sig_transaction::<Testnet>(&merch_tx_params, &enc_merch_signature, &private_key);
-        self.cust_close_merch_tx = signed_cust_close_merch_tx.to_transaction_bytes().unwrap();
+        self.cust_close_merch_tx = hex::encode(&signed_cust_close_merch_tx.to_transaction_bytes().unwrap());
 
         return escrow_sig_valid && merch_sig_valid;
     }
@@ -508,11 +507,11 @@ impl CustomerMPCState {
     }
 
     pub fn get_cust_close_escrow_tx(&self) -> String {
-        return hex::encode(&self.cust_close_escrow_tx);
+        return self.cust_close_escrow_tx.clone();
     }
 
     pub fn get_cust_close_merch_tx(&self) -> String {
-        return hex::encode(&self.cust_close_merch_tx);
+        return self.cust_close_merch_tx.clone();
     }
 }
 
