@@ -2,7 +2,7 @@
 
 VERSION=0.1
 FORMAT=tar.gz
-LINK=git@github.com:boltlabs-inc/emp-sh2pc.git
+LINK=https://github.com/boltlabs-inc/emp-sh2pc.git
 EMP_SH2PC=${1:-emp-sh2pc-${VERSION}}
 
 LOCAL=${2:false} # literally any argument will prevent this from pulling the repo

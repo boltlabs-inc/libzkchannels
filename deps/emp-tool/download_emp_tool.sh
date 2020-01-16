@@ -2,7 +2,7 @@
 
 VERSION=0.1
 FORMAT=tar.gz
-LINK=git@github.com:boltlabs-inc/emp-tool.git
+LINK=https://github.com/boltlabs-inc/emp-tool.git
 EMP_TOOL=${1:-emp-tool-${VERSION}}
 
 LOCAL=${2:false} # literally any argument will prevent this from pulling the repo
