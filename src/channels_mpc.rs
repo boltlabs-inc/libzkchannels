@@ -2,6 +2,8 @@ use super::*;
 use rand::Rng;
 use wallet::{State, NONCE_LEN};
 use util::{hash_to_slice, hmac_sign, compute_hash160};
+use serde::ser::{Serialize, Serializer, SerializeStruct};
+use serde::de::{self, Deserialize, Deserializer, Visitor, MapAccess};
 
 #[cfg(feature = "mpc-bitcoin")]
 use mpcwrapper::{mpc_build_masked_tokens_cust, mpc_build_masked_tokens_merch};
@@ -52,31 +54,187 @@ impl ChannelMPCToken {
 }
 
 #[cfg(feature = "mpc-bitcoin")]
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone)]
 pub struct ChannelMPCState {
-    R: i32,
     tx_fee: i64,
     dust_limit: i64,
     pub key_com: [u8; 32],
     pub name: String,
     pub pay_init: bool,
-    pub channel_established: bool,
     pub third_party: bool,
     pub merch_payout_pk: Option<secp256k1::PublicKey>,
     pub merch_dispute_pk: Option<secp256k1::PublicKey>
+}
+
+impl ::serde::Serialize for ChannelMPCState {
+    fn serialize<S: ::serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error>
+    {
+        let mut state = s.serialize_struct("ChannelMPCState", 8)?;
+        state.serialize_field("tx_fee", &self.tx_fee)?;
+        state.serialize_field("dust_limit", &self.dust_limit)?;
+        state.serialize_field("key_com", &hex::encode(&self.key_com))?;
+        state.serialize_field("name", &self.name)?;
+        state.serialize_field("pay_init", &self.pay_init)?;
+        state.serialize_field("third_party", &self.third_party)?;
+        state.serialize_field("merch_payout_pk", &self.merch_payout_pk)?;
+        state.serialize_field("merch_dispute_pk", &self.merch_dispute_pk)?;
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for ChannelMPCState {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        enum Field { TxFee, DustLimit, KeyCom, Name, PayInit, ThirdParty, MerchPayoutPk, MerchDisputePk  };
+
+        impl<'de> Deserialize<'de> for Field {
+            fn deserialize<D>(deserializer: D) -> Result<Field, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                struct FieldVisitor;
+                impl<'de> Visitor<'de> for FieldVisitor {
+                    type Value = Field;
+
+                    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                        formatter.write_str("`tx_fee` or `dust_limit`")
+                    }
+
+                    fn visit_str<E>(self, value: &str) -> Result<Field, E>
+                    where
+                        E: de::Error,
+                    {
+                        match value {
+                            "tx_fee" => Ok(Field::TxFee),
+                            "dust_limit" => Ok(Field::DustLimit),
+                            "key_com" => Ok(Field::KeyCom),
+                            "name" => Ok(Field::Name),
+                            "pay_init" => Ok(Field::PayInit),
+                            "third_party" => Ok(Field::ThirdParty),
+                            "merch_payout_pk" => Ok(Field::MerchPayoutPk),
+                            "merch_dispute_pk" => Ok(Field::MerchDisputePk),
+                            _ => Err(de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+
+                deserializer.deserialize_identifier(FieldVisitor)
+            }
+        }
+
+        struct ChannelMPCStateVisitor;
+        impl<'de> Visitor<'de> for ChannelMPCStateVisitor {
+            type Value = ChannelMPCState;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("struct ChannelMPCState")
+            }
+
+            fn visit_map<V>(self, mut map: V) -> Result<ChannelMPCState, V::Error>
+            where
+                V: MapAccess<'de>
+            {
+                let mut name = None;
+                let mut dust_limit = None;
+                let mut key_com = [0u8; 32];
+                let mut tx_fee: Option<i64> = None;
+                let mut pay_init: bool = false;
+                let mut third_party: bool = false;
+                let mut merch_payout_pk: Option<secp256k1::PublicKey> = None;
+                let mut merch_dispute_pk: Option<secp256k1::PublicKey> = None;
+
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::TxFee => {
+                            if tx_fee.is_some() {
+                                return Err(de::Error::duplicate_field("tx_fee"));
+                            }
+                            tx_fee = map.next_value()?;
+                        }
+                        Field::DustLimit => {
+                            dust_limit = Some(map.next_value()?);
+                        }
+                        Field::Name => {
+                            name = Some(map.next_value()?);
+                        }
+                        Field::PayInit => {
+                            pay_init = map.next_value()?;
+                        }
+                        Field::KeyCom => {
+                            let k: String = map.next_value()?;
+                            match hex::decode(k.as_str()) {
+                                Ok(n) => key_com.copy_from_slice(&n),
+                                Err(e) => return Err(de::Error::missing_field("key_com"))
+                            };
+                        }
+                        Field::DustLimit => {
+                            dust_limit = Some(map.next_value()?);
+                        }
+                        Field::ThirdParty => {
+                            third_party = map.next_value()?;
+                        }
+                        Field::MerchPayoutPk => {
+                            let _merch_payout_pk: String = map.next_value()?;
+                            merch_payout_pk = match hex::decode(_merch_payout_pk.as_str()) {
+                                Ok(n) => {
+                                    let res = secp256k1::PublicKey::from_slice(&n);
+                                    if res.is_ok() {
+                                        Some(res.unwrap())
+                                    } else {
+                                        return Err(de::Error::missing_field("merch_payout_pk")) // TODO: replace with appropriate error
+                                    }
+                                },
+                                Err(e) => return Err(de::Error::missing_field("merch_payout_pk"))
+                            };
+                        }
+                        Field::MerchDisputePk => {
+                            let _merch_dispute_pk: String = map.next_value()?;
+                            merch_dispute_pk = match hex::decode(_merch_dispute_pk.as_str()) {
+                                Ok(n) => {
+                                    let res = secp256k1::PublicKey::from_slice(&n);
+                                    if res.is_ok() {
+                                        Some(res.unwrap())
+                                    } else {
+                                        return Err(de::Error::missing_field("merch_dispute_pk"))
+                                    }
+                                },
+                                Err(e) => return Err(de::Error::missing_field("merch_dispute_pk"))
+                            };
+                        }
+                    }
+                }
+
+                let name = name.ok_or_else(|| de::Error::missing_field("name"))?;
+                let tx_fee = tx_fee.ok_or_else(|| de::Error::missing_field("tx_fee"))?;
+
+                let dust_limit = dust_limit.ok_or_else(|| de::Error::missing_field("dust_limit"))?;
+                let mut cms = ChannelMPCState::new(name, third_party);
+                let merch_payout_pk = merch_payout_pk.ok_or_else(|| de::Error::missing_field("merch_payout_pk"))?;
+                let merch_dispute_pk = merch_dispute_pk.ok_or_else(|| de::Error::missing_field("merch_dispute_pk"))?;
+
+                cms.set_channel_fee(tx_fee);
+                cms.set_key_com(key_com);
+                cms.set_dust_limit(dust_limit);
+                cms.set_merchant_public_keys(merch_payout_pk, merch_dispute_pk);
+                Ok(cms)
+            }
+        }
+        const FIELDS: &'static [&'static str] = &["name", "key_com", "dust_limit", ""];
+        deserializer.deserialize_struct("ChannelMPCState", FIELDS, ChannelMPCStateVisitor)
+    }
 }
 
 #[cfg(feature = "mpc-bitcoin")]
 impl ChannelMPCState {
     pub fn new(name: String, third_party_support: bool) -> ChannelMPCState {
         ChannelMPCState {
-            R: 0,
             tx_fee: 0,
             dust_limit: 0,
             key_com: [0u8; 32],
             name: name.to_string(),
             pay_init: false,
-            channel_established: false,
             third_party: third_party_support,
             merch_payout_pk: None,
             merch_dispute_pk: None
@@ -685,7 +843,10 @@ impl MerchantMPCState {
         csprng.fill_bytes(&mut escrow_mask_bytes);
 
         // load the key_com from the channelState
-        let key_com = channel.key_com.clone();
+        let _key_com = channel.key_com.clone();
+        let mut key_com = [0u8; 32];
+        key_com.copy_from_slice(&_key_com);
+
         // load the hmac key
         let mut hmac_key = [0u8; 64];
         hmac_key.copy_from_slice(self.hmac_key.as_slice());
@@ -765,6 +926,7 @@ mod tests {
     use std::time::Duration;
     use sha2::Digest;
     use sha2::Sha256;
+    use serde::de::value::Error;
 
     fn generate_test_txs<R: Rng>(csprng: &mut R, b0_cust: i64, b0_merch: i64) -> ([u8; 32], [u8; 32], [u8; 32], [u8; 32]) {
         let mut escrow_txid = [0u8; 32];
@@ -978,4 +1140,26 @@ rusty_fork_test!
             println!("pt_masked: {:?}", pt_mask);
         }
     }
+
+    #[test]
+    fn mpc_test_serialization() {
+        let mut channel_state = ChannelMPCState::new(String::from("Channel A <-> B"), false);
+        let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d863e54);
+
+        let b0_cust = 1000;
+        let b0_merch = 10;
+
+        let mut merch_state = MerchantMPCState::new(&mut rng, &mut channel_state, String::from("Merchant"));
+
+        let ser_channel_state = serde_json::to_string(&channel_state).unwrap();
+        println!("Ser channel state: {}", ser_channel_state);
+
+        let orig_channel_state: ChannelMPCState = serde_json::from_str(&ser_channel_state).unwrap();
+        println!("Original channel state: {}", orig_channel_state.name);
+        println!("Original channel state: {:?}", orig_channel_state.key_com);
+        println!("Original channel state: {:?}", orig_channel_state.merch_payout_pk.unwrap());
+        println!("Original channel state: {:?}", orig_channel_state.merch_dispute_pk.unwrap());
+    }
+
+
 }

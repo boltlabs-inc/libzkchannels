@@ -46,6 +46,7 @@ extern crate wagyu_model;
 #[macro_use]
 extern crate rusty_fork;
 extern crate rand_xorshift;
+extern crate serde_bytes;
 
 pub mod cl;
 pub mod ccs08;

@@ -79,11 +79,11 @@ struct Cli {
     party: Party,
     #[structopt(short = "a", long = "amount", required_if("command", "pay"))]
     amount: Option<i64>,
-    #[structopt(short = "i", long = "own-ip")]
+    #[structopt(short = "i", long = "own-ip", default_value = "127.0.0.1")]
     own_ip: String,
     #[structopt(short = "p", long = "own-port")]
     own_port: String,
-    #[structopt(short = "j", long = "other-ip")]
+    #[structopt(short = "j", long = "other-ip", default_value = "127.0.0.1")]
     other_ip: String,
     #[structopt(short = "q", long = "other-port")]
     other_port: String,
