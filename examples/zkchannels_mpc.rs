@@ -1,6 +1,5 @@
 extern crate rand;
 extern crate zkchannels;
-extern crate time;
 extern crate secp256k1;
 extern crate structopt;
 extern crate serde;
@@ -9,7 +8,6 @@ extern crate sha2;
 
 #[cfg(feature = "mpc-bitcoin")]
 use zkchannels::mpc;
-use std::time::Instant;
 use zkchannels::handle_bolt_result;
 use structopt::StructOpt;
 use std::str::FromStr;
@@ -17,7 +15,8 @@ use serde::Deserialize;
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::mpsc::{Sender, Receiver};
 use std::sync::mpsc;
-use std::thread::spawn;
+use std::thread::{spawn, sleep};
+use std::time;
 use bufstream::BufStream;
 use sha2::{Sha256, Digest};
 use rand::{RngCore, Rng};
@@ -107,17 +106,22 @@ impl Conn {
     }
 
     pub fn send(&mut self, msg: &[String]) {
-        match TcpStream::connect(self.out_addr) {
-            Ok(mut stream) => {
-                let mut buf_stream = BufStream::new(stream);
-                for msg0 in msg {
-                    buf_stream.write((msg0.to_owned() + "\n").as_ref()).unwrap();
+        for i in 1..6 {
+            match TcpStream::connect(self.out_addr) {
+                Ok(mut stream) => {
+                    let mut buf_stream = BufStream::new(stream);
+                    for msg0 in msg {
+                        buf_stream.write((msg0.to_owned() + "\n").as_ref()).unwrap();
+                    }
+                    buf_stream.write(b"end\n").unwrap();
+                    buf_stream.flush().unwrap();
+                    return;
                 }
-                buf_stream.write(b"end\n").unwrap();
-                buf_stream.flush().unwrap();
-            }
-            Err(e) => {
-                println!("Failed to connect: {}", e);
+                Err(e) => {
+                    println!("Failed to connect, try: {}, error: {}", i, e);
+                    let duration = time::Duration::from_secs(5);
+                    sleep(duration)
+                }
             }
         }
     }
@@ -137,15 +141,17 @@ impl Conn {
                     let mut buf_stream = BufStream::new(stream);
                     loop {
                         let mut reads = String::new();
-                        buf_stream.read_line( &mut reads).unwrap();
-                        if reads.contains("end") {
+                        buf_stream.read_line(&mut reads).unwrap();
+                        if reads == "end\n" {
+                            println!("{:?}", out);
                             return out;
                         }
                         if reads != "" {
+                            reads.pop();
                             out.push(reads);
                         }
                     }
-                },
+                }
                 Err(err) => println!("Not good: {:?}", err),
             }
         }
@@ -156,7 +162,6 @@ impl Conn {
 
 fn main() {
     println!("******************************************");
-    println!(" MPC example goes here!");
 
     let args = Cli::from_args();
     let mut conn = &mut Conn::new(args.own_ip, args.own_port, args.other_ip, args.other_port);
@@ -167,8 +172,8 @@ fn main() {
             Party::CUST => cust::init(&mut conn),
         },
         Command::PAY => match args.party {
-            Party::MERCH => merch::pay(&mut conn),
-            Party::CUST => cust::pay(&mut conn),
+            Party::MERCH => merch::pay(args.amount.unwrap(), &mut conn),
+            Party::CUST => cust::pay(args.amount.unwrap(), &mut conn),
         },
         Command::CLOSE => match args.party {
             Party::MERCH => println!("close can only be called on CUST"),
@@ -182,8 +187,9 @@ fn main() {
 
 mod cust {
     use super::*;
-    use zkchannels::channels_mpc::{ChannelMPCToken, ChannelMPCState, CustomerMPCState};
+    use zkchannels::channels_mpc::{ChannelMPCToken, ChannelMPCState, CustomerMPCState, MaskedTxMPCInputs};
     use std::fs::File;
+    use zkchannels::mpc::RevokedState;
 
     pub fn init(conn: &mut Conn) {
         let rng = &mut rand::thread_rng();
@@ -200,30 +206,66 @@ mod cust {
 
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
-        let mut file = File::create("cust_channel_state.txt").unwrap();
-        file.write_all(serde_json::to_string(&channel_state).unwrap().as_ref());
-
-        let mut file1 = File::create("cust_state.txt").unwrap();
-        file1.write_all(serde_json::to_string(&cust_state).unwrap().as_ref());
-
-        let mut file2 = File::create("cust_channel_token.txt").unwrap();
-        file2.write_all(serde_json::to_string(&channel_token).unwrap().as_ref());
+        save_state_cust(channel_state, channel_token, cust_state);
     }
 
-    pub fn pay(conn: &mut Conn) {
+    pub fn pay(amount: i64, conn: &mut Conn) {
+        let rng = &mut rand::thread_rng();
+
         let mut file = File::open("cust_channel_state.txt").unwrap();
         let mut ser_channel_state = String::new();
         file.read_to_string(&mut ser_channel_state).unwrap();
-        let channel_state: ChannelMPCState = serde_json::from_str(&ser_channel_state).unwrap();
+        let mut channel_state: ChannelMPCState = serde_json::from_str(&ser_channel_state).unwrap();
         let mut file1 = File::open("cust_state.txt").unwrap();
         let mut ser_cust_state = String::new();
         file1.read_to_string(&mut ser_cust_state).unwrap();
-        let cust_state: CustomerMPCState = serde_json::from_str(&ser_cust_state).unwrap();
+        let mut cust_state: CustomerMPCState = serde_json::from_str(&ser_cust_state).unwrap();
         let mut file2 = File::open("cust_channel_token.txt").unwrap();
         let mut ser_channel_token = String::new();
         file2.read_to_string(&mut ser_channel_token).unwrap();
-        let channel_token: ChannelMPCToken = serde_json::from_str(&ser_channel_token).unwrap();
+        let mut channel_token: ChannelMPCToken = serde_json::from_str(&ser_channel_token).unwrap();
 
+        let t = cust_state.get_randomness();
+        let old_state = cust_state.get_current_state();
+
+        let (new_state, r_com, rev_lock, rev_secret) = mpc::pay_prepare_customer(rng, &mut channel_state, amount, &mut cust_state);
+
+        let msg = [hex::encode(old_state.nonce), hex::encode(&r_com)];
+        let msg1 = conn.send_and_wait(&msg);
+        let pay_token_mask_com_vec = hex::decode(msg1.get(0).unwrap()).unwrap();
+        let mut pay_token_mask_com = [0u8; 32];
+        pay_token_mask_com.copy_from_slice(pay_token_mask_com_vec.as_slice());
+
+        let result = mpc::pay_customer(&mut channel_state, &mut channel_token, old_state, new_state, pay_token_mask_com, r_com, amount, &mut cust_state);
+        let mut is_ok = result.is_ok() && result.unwrap();
+
+        let msg2 = conn.wait_for();
+        let mask_bytes: MaskedTxMPCInputs = serde_json::from_str(msg2.get(0).unwrap()).unwrap();
+
+        is_ok = is_ok && mpc::pay_unmask_tx_customer(&mut channel_state, &mut channel_token, mask_bytes, &mut cust_state);
+
+        let rev_state = RevokedState {
+            nonce: old_state.nonce,
+            rev_lock_com: r_com,
+            rev_lock,
+            rev_secret,
+            t,
+        };
+        let msg3 = [serde_json::to_string(&rev_state).unwrap()];
+        let msg4 = conn.send_and_wait(&msg3);
+        let pt_mask_bytes_vec = hex::decode(msg4.get(0).unwrap()).unwrap();
+        let mut pt_mask_bytes = [0u8; 32];
+        pt_mask_bytes.copy_from_slice(pt_mask_bytes_vec.as_slice());
+
+        is_ok = is_ok && mpc::pay_unmask_pay_token_customer(pt_mask_bytes, &mut cust_state);
+
+        conn.send(&[is_ok.to_string()]);
+        match is_ok {
+            true => println!("Transaction succeeded!"),
+            false => println!("Transaction failed!")
+        }
+
+        save_state_cust(channel_state, channel_token, cust_state);
     }
 
     pub fn close(conn: &mut Conn) {
@@ -231,7 +273,15 @@ mod cust {
         let mut ser_cust_state = String::new();
         file1.read_to_string(&mut ser_cust_state).unwrap();
         let cust_state: CustomerMPCState = serde_json::from_str(&ser_cust_state).unwrap();
+    }
 
+    fn save_state_cust(channel_state: ChannelMPCState, channel_token: ChannelMPCToken, cust_state: CustomerMPCState) {
+        let mut file = File::create("cust_channel_state.txt").unwrap();
+        file.write_all(serde_json::to_string(&channel_state).unwrap().as_ref());
+        let mut file1 = File::create("cust_state.txt").unwrap();
+        file1.write_all(serde_json::to_string(&cust_state).unwrap().as_ref());
+        let mut file2 = File::create("cust_channel_token.txt").unwrap();
+        file2.write_all(serde_json::to_string(&channel_token).unwrap().as_ref());
     }
 }
 
@@ -259,25 +309,59 @@ mod merch {
         let msg3 = [serde_json::to_string(&pay_token).unwrap()];
         conn.send(&msg3);
 
-        let mut file = File::create("merch_channel_state.txt").unwrap();
-        file.write_all(serde_json::to_string(&channel_state).unwrap().as_ref());
-
-
-        let mut file1 = File::create("merch_state.txt").unwrap();
-        file1.write_all(serde_json::to_string(&merch_state).unwrap().as_ref());
-
+        save_state_merch(channel_state, merch_state);
     }
 
-    pub fn pay(conn: &mut Conn) {
+    pub fn pay(amount: i64, conn: &mut Conn) {
+        let rng = &mut rand::thread_rng();
+
         let mut file = File::open("merch_channel_state.txt").unwrap();
         let mut ser_channel_state = String::new();
         file.read_to_string(&mut ser_channel_state).unwrap();
-        let cust_state: ChannelMPCState = serde_json::from_str(&ser_channel_state).unwrap();
+        let mut channel_state: ChannelMPCState = serde_json::from_str(&ser_channel_state).unwrap();
         let mut file1 = File::open("merch_state.txt").unwrap();
         let mut ser_merch_state = String::new();
         file1.read_to_string(&mut ser_merch_state).unwrap();
-        let cust_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
+        let mut merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
 
+        let msg0 = conn.wait_for();
+        let nonce_vec = hex::decode(msg0.get(0).unwrap()).unwrap();
+        let mut nonce = [0u8; 16];
+        nonce.copy_from_slice(nonce_vec.as_slice());
+        let rev_lock_com_vec = hex::decode(msg0.get(1).unwrap()).unwrap();
+        let mut rev_lock_com = [0u8; 32];
+        rev_lock_com.copy_from_slice(rev_lock_com_vec.as_slice());
+
+        let pay_token_mask_com = mpc::pay_prepare_merchant(rng, nonce, &mut merch_state);
+
+        let msg1 = [hex::encode(&pay_token_mask_com)];
+        conn.send(&msg1);
+
+        let result = mpc::pay_merchant(rng, &mut channel_state, nonce, pay_token_mask_com, rev_lock_com, amount, &mut merch_state);
+        let masked_inputs = result.unwrap();
+        let msg3 = [serde_json::to_string(&masked_inputs).unwrap()];
+        let msg4 = conn.send_and_wait(&msg3);
+        let rev_state = serde_json::from_str(msg4.get(0).unwrap()).unwrap();
+
+        let pt_mask_bytes = mpc::pay_validate_rev_lock_merchant(rev_state, &mut merch_state);
+
+        let msg5 = [hex::encode(&pt_mask_bytes.unwrap())];
+        let msg6 = conn.send_and_wait(&msg5);
+
+        if msg6.get(0).unwrap() == "true" {
+            println!("Transaction succeeded!")
+        } else {
+            println!("Transaction failed!")
+        }
+
+        save_state_merch(channel_state, merch_state);
+    }
+
+    fn save_state_merch(channel_state: ChannelMPCState, merch_state: MerchantMPCState) {
+        let mut file = File::create("merch_channel_state.txt").unwrap();
+        file.write_all(serde_json::to_string(&channel_state).unwrap().as_ref());
+        let mut file1 = File::create("merch_state.txt").unwrap();
+        file1.write_all(serde_json::to_string(&merch_state).unwrap().as_ref());
     }
 }
 
