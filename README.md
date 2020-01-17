@@ -1,8 +1,8 @@
 # libzkchannels
 
-A pure-Rust library implementation of libzkchannels (formerly BOLT: Blind Off-chain Lightweight Transactions).
+A Rust library implementation of libzkchannels (formerly BOLT: Blind Off-chain Lightweight Transactions).
 
-BOLT is a system for conducting **privacy-preserving off-chain payments** between pairs of individual parties. BOLT is designed to provide a Layer 2 payment protocol for privacy-preserving cryptocurrencies such as Zcash, by allowing individuals to establish and use payment channels for instantaneous payments that do not require an on-chain transaction.
+zkChannels is a system for conducting **privacy-preserving off-chain payments** between pairs of individual parties. The protocol is designed to enable privacy-preserving cryptocurrencies on top of Bitcoin (via MPC) and Zcash (via ZK proofs), by allowing individuals to establish and use payment channels for instantaneous payments that do not require an on-chain transaction.
 
 # WARNING
 
