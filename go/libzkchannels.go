@@ -29,13 +29,10 @@ type setupResp struct {
 }
 
 type ChannelState struct {
-	R                  int64   `json:"R"`
 	TxFee              int64   `json:"tx_fee"`
 	DustLimit          int64   `json:"dust_limit"`
 	KeyCom             []int   `json:"key_com"`
 	Name               string  `json:"name"`
-	PayInit            bool    `json:"pay_init"`
-	ChannelEstablished bool    `json:"channel_established"`
 	ThirdParty         bool    `json:"third_party"`
 	MerchPayOutPk      *string `json:"merch_payout_pk"`
 	MerchDisputePk     *string `json:"merch_dispute_pk"`

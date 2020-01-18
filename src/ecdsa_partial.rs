@@ -39,7 +39,7 @@ impl EcdsaPartialSig {
 
     pub fn getMpcRepr(&self) -> EcdsaPartialSig_l {
         let partial_compact = self.partial.serialize_compact();
-        let mut r_arr = translate_rx(&partial_compact[32..64]);
+        let r_arr = translate_rx(&partial_compact[32..64]);
         let inv = translate_rx(&partial_compact[64..]);
         EcdsaPartialSig_l {
             r: r_arr,
@@ -61,8 +61,8 @@ fn translate_rx(rx: &[u8]) -> [i8; 256] {
     //println!("translating in ecdsa_partial");
     let int = BigInt::from_bytes_be(Sign::Plus, rx);
     let out = CString::new(int.to_string()).unwrap();
-    let mut out_ptr = out.as_ptr();
-    let mut out_slice = unsafe { slice::from_raw_parts(out_ptr, int.to_string().len()) };
+    let out_ptr = out.as_ptr();
+    let out_slice = unsafe { slice::from_raw_parts(out_ptr, int.to_string().len()) };
     let mut out_vec = out_slice.to_vec();
     let pad = 256 - out_vec.len();
     let mut padding_vec = Vec::new();

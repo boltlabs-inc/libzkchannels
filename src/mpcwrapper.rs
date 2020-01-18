@@ -19,6 +19,9 @@ use ecdsa_partial::EcdsaPartialSig;
 use std::ptr;
 use std::str;
 
+#[cfg(feature = "mpc-bitcoin")]
+use channels_mpc::FixedSizeArray;
+
 pub type IOCallback = fn(c_uint, c_int);
 
 extern "C" fn io_callback(conn_type: c_uint, party: c_int) -> *mut c_void {
@@ -51,12 +54,12 @@ pub fn mpc_build_masked_tokens_cust(conn_type: u32, amount: i64, pay_mask_com: &
                                     cust_escrow_pub_key: secp256k1::PublicKey, cust_payout_pub_key: secp256k1::PublicKey,
 ) -> ([u8; 32], [u8; 32], [u8; 32]) {
     // translate wpk
-    let mut rl_c = translate_revlock_com(&rev_lock_com);
+    let rl_c = translate_revlock_com(&rev_lock_com);
 
     // translate new_wallet
-    let mut new_state_c = translate_state(&new_state);
+    let new_state_c = translate_state(&new_state);
     // translate old_wallet
-    let mut old_state_c = translate_state(&old_state);
+    let old_state_c = translate_state(&old_state);
     // translate payment_token
     let pt_old_c = translate_paytoken(&pt_old);
     //paymask_com
@@ -80,12 +83,12 @@ pub fn mpc_build_masked_tokens_cust(conn_type: u32, amount: i64, pay_mask_com: &
 
     let nonce = translate_nonce(&old_state.nonce);
 
-// create pointers the output variables
-    let mut pt_return_ar = [0u32; 8];
+    // create pointers the output variables
+    let pt_return_ar = [0u32; 8];
     let mut pt_return = PayToken_l { paytoken: pt_return_ar };
-    let mut sig1_ar = [0u32; 8];
+    let sig1_ar = [0u32; 8];
     let mut ct_escrow = EcdsaSig_l { sig: sig1_ar };
-    let mut sig2_ar = [0u32; 8];
+    let sig2_ar = [0u32; 8];
     let mut ct_merch = EcdsaSig_l { sig: sig2_ar };
 
     unsafe {
@@ -144,18 +147,18 @@ fn translate_paytoken(pt: &[u8]) -> PayToken_l {
 }
 
 fn translate_state(state: &State) -> State_l {
-    let txid_merch = translate_256_string(&state.merch_txid[..]);
-    let txid_escrow = translate_256_string(&state.escrow_txid[..]);
-    let prevout_escrow = translate_256_string(&state.escrow_prevout[..]);
-    let prevout_merch = translate_256_string(&state.merch_prevout[..]);
+    let txid_merch = translate_256_string(&state.merch_txid.0[..]);
+    let txid_escrow = translate_256_string(&state.escrow_txid.0[..]);
+    let prevout_escrow = translate_256_string(&state.escrow_prevout.0[..]);
+    let prevout_merch = translate_256_string(&state.merch_prevout.0[..]);
 
     let nonce = translate_nonce(&state.nonce);
-    let rev_lock = translate_revlock(&state.rev_lock[..]);
+    let rev_lock = translate_revlock(&state.rev_lock.0[..]);
 
     let bc = translate_balance(state.bc);
     let bm = translate_balance(state.bm);
 
-    let mut new_state = State_l {
+    let new_state = State_l {
         nonce,
         rl: rev_lock,
         balance_cust: bc,
@@ -402,27 +405,23 @@ mod tests {
 
         let new_state = State {
             nonce: nonce1,
-            rev_lock: rl_ar1,
-            pk_c,
-            pk_m,
+            rev_lock: FixedSizeArray(rl_ar1),
             bc: 64,
             bm: 64,
-            escrow_txid: tx_id_esc,
-            merch_txid: tx_id_merch,
-            escrow_prevout: hashouts_escrow,
-            merch_prevout: hashouts_merch,
+            escrow_txid: FixedSizeArray(tx_id_esc),
+            merch_txid: FixedSizeArray(tx_id_merch),
+            escrow_prevout: FixedSizeArray(hashouts_escrow),
+            merch_prevout: FixedSizeArray(hashouts_merch),
         };
         let old_state = State {
             nonce: nonce2,
-            rev_lock: rl_ar2,
-            pk_c,
-            pk_m,
+            rev_lock: FixedSizeArray(rl_ar2),
             bc: 80,
             bm: 48,
-            escrow_txid: tx_id_esc,
-            merch_txid: tx_id_merch,
-            escrow_prevout: hashouts_escrow,
-            merch_prevout: hashouts_merch,
+            escrow_txid: FixedSizeArray(tx_id_esc),
+            merch_txid: FixedSizeArray(tx_id_merch),
+            escrow_prevout: FixedSizeArray(hashouts_escrow),
+            merch_prevout: FixedSizeArray(hashouts_merch),
         };
 
         let mut hmac_key = [0u8; 64];
@@ -494,7 +493,7 @@ mod tests {
             merch_disp_pk: merch_dispute_key.serialize().to_vec(),
             rev_lock: [0u8; 32]
         };
-        pubkeys.rev_lock.copy_from_slice(&new_state.rev_lock);
+        pubkeys.rev_lock.copy_from_slice(&new_state.rev_lock.0);
         let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
         let (tx_preimage, _, _) = create_cust_close_transaction::<Testnet>(&input1, &pubkeys, &to_self_delay, new_state.bc, new_state.bm, true);
         println!("TX BUILDER: generated escrow tx preimage: {}", hex::encode(&tx_preimage));

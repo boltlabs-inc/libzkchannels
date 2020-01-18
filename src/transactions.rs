@@ -566,7 +566,6 @@ mod tests {
             lock_time: 0
         };
 
-        let fee = 0; // 0.001
         let musig_output = MultiSigOutput {
             pubkey1: hex::decode("027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb").unwrap(),
             pubkey2: hex::decode("037bed6ab680a171ef2ab564af25eff15c0659313df0bbfb96414da7c7d1e65882").unwrap(),
@@ -628,7 +627,7 @@ mod tests {
         let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
         let tx_params= transactions::btc::create_merch_close_transaction_params::<Testnet>(&config, &input, &merch_pk, &merch_close_pk, &to_self_delay);
 
-        let (merch_tx_preimage, unsigned_tx) = transactions::btc::create_merch_close_transaction_preimage::<Testnet>(&tx_params);
+        let (merch_tx_preimage, _) = transactions::btc::create_merch_close_transaction_preimage::<Testnet>(&tx_params);
         println!("merch-close tx raw preimage: {}", hex::encode(&merch_tx_preimage));
         let expected_merch_tx_preimage = hex::decode("02000000fdd1def69203bbf96a6ebc56166716401302fcd06eadd147682e8898ba19bee43bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044d9827f206a476a0d61db36348599bc39a5ab39f384da7c50885b726f0ec5b05e0000000047522103af0530f244a154b278b34de709b84bb85bb39ff3f1302fc51ae275e5a45fb35321027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb52ae00ca9a3b00000000ffffffffa87408648d6dfa0d6bd01786008047f225669b9fc634a38452e9ea1448a524b00000000001000000").unwrap();
         assert_eq!(merch_tx_preimage, expected_merch_tx_preimage);
@@ -720,11 +719,6 @@ mod tests {
             sequence: Some([0xff, 0xff, 0xff, 0xff]) // 4294967295
         };
 
-        let config = BitcoinTxConfig {
-            version: 2,
-            lock_time: 0
-        };
-
         let mut pubkeys = ClosePublicKeys {
             cust_pk: hex::decode("027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb").unwrap(),
             cust_close_pk: hex::decode("027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb").unwrap(),
@@ -739,7 +733,7 @@ mod tests {
         let cust_bal = 8 * SATOSHI;
         let merch_bal = 2 * SATOSHI;
         let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
-        let (tx_preimage, tx_params, _) =
+        let (tx_preimage, _, _) =
             transactions::btc::create_cust_close_transaction::<Testnet>(&input, &pubkeys, &to_self_delay, cust_bal, merch_bal, spend_from_escrow);
         println!("cust-close from merch tx raw preimage: {}", hex::encode(&tx_preimage));
         let expected_tx_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff40000000072635221024596d7b33733c28101dbc6c85901dffaed0cdac63ab0b2ea141217d1990ad4b121027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb52ae6702cf05b2752102ab573100532827bd0e44b4353e4eaa9c79afbc93f69454a4a44d9fea8c45b5afac6800ca9a3b00000000ffffffff73bca1a59fcb04fe71d242be5d73021d02bbc6cdec66e9cb963060ff5028928e0000000001000000").unwrap();
