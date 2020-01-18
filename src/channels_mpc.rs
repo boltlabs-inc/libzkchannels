@@ -1,11 +1,11 @@
 use super::*;
 use rand::Rng;
-use wallet::{State, NONCE_LEN};
 use util::{hash_to_slice, hmac_sign, compute_hash160};
 use serde::ser::{Serialize, Serializer, SerializeTuple, SerializeStruct};
 use serde::de::{self, Deserialize, Deserializer, Visitor, SeqAccess, MapAccess};
 
 #[cfg(feature = "mpc-bitcoin")]
+use wallet::{State, NONCE_LEN};
 use mpcwrapper::{mpc_build_masked_tokens_cust, mpc_build_masked_tokens_merch};
 use transactions::ClosePublicKeys;
 use transactions::btc::{create_escrow_transaction, create_merch_close_transaction_params, create_merch_close_transaction_preimage, sign_escrow_transaction};
@@ -22,7 +22,6 @@ pub struct NetworkConfig {
     pub path: String
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct FixedSizeArray(pub [u8; 32]);
 
@@ -35,7 +34,6 @@ impl ::serde::Serialize for FixedSizeArray {
     }
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 impl<'de> Deserialize<'de> for FixedSizeArray {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -190,6 +188,7 @@ pub struct MaskedTxMPCInputs {
     pub r_merch_sig: FixedSizeArray,
 }
 
+#[cfg(feature = "mpc-bitcoin")]
 impl MaskedTxMPCInputs {
     pub fn new(escrow_mask: [u8; 32], merch_mask: [u8; 32], r_escrow_sig: [u8; 32], r_merch_sig: [u8; 32]) -> Self {
         MaskedTxMPCInputs {
@@ -595,6 +594,7 @@ pub struct RevokedState {
     t: FixedSizeArray
 }
 
+#[cfg(feature = "mpc-bitcoin")]
 impl RevokedState {
     pub fn new(nonce: [u8; NONCE_LEN], rev_lock_com: [u8; 32], rev_lock: [u8; 32], rev_secret: [u8; 32], t: [u8; 32]) -> Self {
         RevokedState {

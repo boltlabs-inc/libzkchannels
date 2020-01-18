@@ -159,6 +159,12 @@ impl Conn {
     }
 }
 
+#[cfg(not(feature = "mpc-bitcoin"))]
+fn main() {
+    println!("Not activated!");
+}
+
+#[cfg(feature = "mpc-bitcoin")]
 fn main() {
     println!("******************************************");
 
@@ -183,7 +189,7 @@ fn main() {
     println!("******************************************");
 }
 
-
+#[cfg(feature = "mpc-bitcoin")]
 mod cust {
     use super::*;
     use zkchannels::channels_mpc::{ChannelMPCToken, ChannelMPCState, CustomerMPCState, MaskedTxMPCInputs};
@@ -285,6 +291,7 @@ mod cust {
     }
 }
 
+#[cfg(feature = "mpc-bitcoin")]
 mod merch {
     use super::*;
     use zkchannels::channels_mpc::{ChannelMPCState, ChannelMPCToken, MerchantMPCState};
@@ -365,6 +372,7 @@ mod merch {
     }
 }
 
+#[cfg(feature = "mpc-bitcoin")]
 fn generate_funding_tx<R: Rng>(csprng: &mut R) -> mpc::FundingTxInfo {
     let mut escrow_txid = [0u8; 32];
     let mut merch_txid = [0u8; 32];

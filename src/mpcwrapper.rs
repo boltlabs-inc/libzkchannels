@@ -18,8 +18,6 @@ use wallet::State;
 use ecdsa_partial::EcdsaPartialSig;
 use std::ptr;
 use std::str;
-
-#[cfg(feature = "mpc-bitcoin")]
 use channels_mpc::FixedSizeArray;
 
 pub type IOCallback = fn(c_uint, c_int);
