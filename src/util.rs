@@ -168,8 +168,8 @@ impl RevokedMessage {
 }
 
 
-pub fn hmac_sign(key: [u8; 64], message: &Vec<u8>) -> [u8; 32] {
-    let mut mac = HmacSha256::new_varkey(&key.to_vec()).expect("HMAC can take key of any size");
+pub fn hmac_sign(key: Vec<u8>, message: &Vec<u8>) -> [u8; 32] {
+    let mut mac = HmacSha256::new_varkey(&key).expect("HMAC can take key of any size");
     mac.input(message);
     let sha2_mac= mac.result().code();
     let mut hash: [u8; 32] = [0; 32];
@@ -240,7 +240,7 @@ mod tests {
         let msg = vec![100, 99, 106, 98, 112, 119, 102, 109, 121, 119, 111, 102, 115, 108, 106, 121, 97, 117, 99, 122, 109, 116, 103, 108, 111, 119, 121, 98, 116, 100, 108, 99, 120, 101, 109, 97, 114, 105, 122, 100, 104, 109, 107, 122, 106, 112, 122, 115, 106, 118, 116, 122, 121, 105, 105, 118, 104, 113, 116, 104, 103, 118, 112, 110, 101, 122, 106, 103, 102, 120, 100, 102, 99, 118, 112, 117, 119, 121, 116, 102, 109, 108, 117, 114, 119, 115, 100, 104, 105, 100, 104, 111, 115, 100, 97, 108, 116, 105, 104, 114, 98, 119, 115, 105, 110, 122, 118, 103, 115, 118, 120, 121, 104, 100, 107, 122];
 
         let expected_mac: [u8; 32] = [175, 78, 45, 172, 162, 159, 124, 110, 104, 214, 160, 213, 54, 238, 197, 169, 101, 39, 101, 10, 89, 80, 110, 234, 129, 80, 98, 183, 130, 204, 153, 187];
-        let actual_mac = hmac_sign(key, &msg);
+        let actual_mac = hmac_sign(key.to_vec(), &msg);
 
         assert_eq!(expected_mac, actual_mac);
     }

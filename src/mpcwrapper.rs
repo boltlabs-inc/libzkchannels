@@ -18,7 +18,7 @@ use wallet::State;
 use ecdsa_partial::EcdsaPartialSig;
 use std::ptr;
 use std::str;
-use channels_mpc::FixedSizeArray;
+use fixed_size_array::{FixedSizeArray, FixedSizeArray64};
 
 pub type IOCallback = fn(c_uint, c_int);
 
@@ -426,7 +426,7 @@ mod tests {
         hmac_key.copy_from_slice(hex::decode("439452e56db2398e05396328c5e037086c5167565736ce7041356f12d161821715656a1a16eeff47615e0494d7b3757d730517f1beebc45575beb1644ba48a1a").unwrap().as_slice());
         // confirm that initial pay token is computed correctly
         let ser_old_state = old_state.serialize_compact();
-        let rec_old_paytoken = hmac_sign(hmac_key, &ser_old_state);
+        let rec_old_paytoken = hmac_sign(hmac_key.to_vec(), &ser_old_state);
 
         let mut old_paytoken = [0u8; 32];
         old_paytoken.copy_from_slice(hex::decode("5d40f4be8e4babcd5b588212c01d79d4ad1fbb08050c4efeb427b52d02938946").unwrap().as_slice());

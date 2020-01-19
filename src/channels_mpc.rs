@@ -1,6 +1,7 @@
 use super::*;
 use rand::Rng;
 use util::{hash_to_slice, hmac_sign, compute_hash160};
+use fixed_size_array::{FixedSizeArray, FixedSizeArray64};
 use serde::ser::{Serialize, Serializer, SerializeTuple, SerializeStruct};
 use serde::de::{self, Deserialize, Deserializer, Visitor, SeqAccess, MapAccess};
 
@@ -20,52 +21,6 @@ pub struct NetworkConfig {
     pub dest_ip: String,
     pub dest_port: u32,
     pub path: String
-}
-
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub struct FixedSizeArray(pub [u8; 32]);
-
-impl ::serde::Serialize for FixedSizeArray {
-    fn serialize<S: ::serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error>
-    {
-        let mut tup = s.serialize_tuple(1)?;
-        tup.serialize_element(&hex::encode(&self.0))?;
-        tup.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for FixedSizeArray {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct FixedSizeArrayVisitor;
-        impl<'de> Visitor<'de> for FixedSizeArrayVisitor {
-            type Value = FixedSizeArray;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("struct FixedSizeArray")
-            }
-
-            #[inline]
-            fn visit_seq<V>(self, mut seq: V) -> Result<FixedSizeArray, V::Error>
-                where V: SeqAccess<'de>
-            {
-                let hex_str = seq.next_element::<String>()?;
-                let bytes = match hex_str {
-                    Some(n) => hex::decode(n.as_str()),
-                    None => return Err(de::Error::custom("No string was found"))
-                };
-                let mut fixed_bytes = [0u8; 32];
-                match bytes.is_ok() {
-                    true => fixed_bytes.copy_from_slice(&bytes.unwrap()),
-                    false => return Err(de::Error::custom("invalid hex encoding"))
-                }
-                Ok(FixedSizeArray(fixed_bytes))
-            }
-        }
-        deserializer.deserialize_seq(FixedSizeArrayVisitor { })
-    }
 }
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -635,7 +590,7 @@ pub struct MerchantMPCState {
     id: String,
     pub pk_m: secp256k1::PublicKey, // pk_m
     sk_m: secp256k1::SecretKey, // sk_m - for escrow
-    hmac_key: Vec<u8>,
+    hmac_key: FixedSizeArray64,
     payout_sk: secp256k1::SecretKey, // for payout pub key
     pub payout_pk: secp256k1::PublicKey,
     dispute_sk: secp256k1::SecretKey, // for dispute pub key
@@ -660,9 +615,8 @@ impl MerchantMPCState {
 
         let mut hmac_key_buf = [0u8; 64]; // 512 bits
         csprng.fill_bytes(&mut hmac_key_buf);
-        let hmac_key = hmac_key_buf.to_vec();
 
-        let key_com = hash_to_slice(&hmac_key);
+        let key_com = hash_to_slice(&hmac_key_buf.to_vec());
         channel.set_key_com(key_com);
 
         let mut _payout_sk = [0u8; 32];
@@ -682,7 +636,7 @@ impl MerchantMPCState {
             id: id.clone(),
             pk_m: pk_m,
             sk_m: sk_m,
-            hmac_key: hmac_key,
+            hmac_key: FixedSizeArray64::new(hmac_key_buf),
             payout_sk: payout_sk,
             payout_pk: payout_pub_key,
             dispute_sk: dispute_sk,
@@ -700,8 +654,7 @@ impl MerchantMPCState {
         let channel_id = channel_token.compute_channel_id().unwrap();
         let channel_id_str = hex::encode(channel_id.to_vec());
 
-        let mut key = [0; 64];
-        key.copy_from_slice(&self.hmac_key);
+        let mut key = self.hmac_key.get_bytes();
         let s_vec= s_0.serialize_compact();
         // println!("initial state: {}", hex::encode(&s_vec));
         let init_pay_token = hmac_sign(key, &s_vec);
@@ -781,8 +734,8 @@ impl MerchantMPCState {
         let key_com = channel_state.get_key_com();
 
         // load the hmac key
-        let mut hmac_key = [0u8; 64];
-        hmac_key.copy_from_slice(self.hmac_key.as_slice());
+        let mut hmac_key = [0u8; 64]; // hmac_key.get_bytes();
+        hmac_key.copy_from_slice(&self.hmac_key.get_bytes());
 
         // get the public keys
         let merch_escrow_pub_key = self.pk_m.clone(); // escrow key
@@ -1091,6 +1044,11 @@ rusty_fork_test!
         let b0_merch = 10;
 
         let merch_state = MerchantMPCState::new(&mut rng, &mut channel_state, String::from("Merchant"));
+
+        let ser_merch_state = serde_json::to_string(&merch_state).unwrap();
+        println!("Ser Merchant state: {}", ser_merch_state);
+        let orig_merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
+        assert_eq!(merch_state, orig_merch_state);
 
         let ser_channel_state = serde_json::to_string(&channel_state).unwrap();
         println!("Ser channel state: {}", ser_channel_state);

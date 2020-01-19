@@ -63,6 +63,7 @@ pub mod mpcwrapper;
 pub mod ffishim_bn256;
 pub mod bindings;
 pub mod transactions;
+pub mod fixed_size_array;
 
 pub mod test_e2e;
 
@@ -680,6 +681,7 @@ pub mod mpc {
     use secp256k1;
     use HashMap;
 
+    pub use fixed_size_array::{FixedSizeArray, FixedSizeArray64};
     pub use channels_mpc::{ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState, RevokedState};
     use secp256k1::PublicKey;
     use wallet::{State, NONCE_LEN};
@@ -687,12 +689,12 @@ pub mod mpc {
     use serde::{Serialize, Deserialize};
     use bindings::ConnType_NETIO;
 
-    #[derive(Clone, Serialize, Deserialize)]
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     pub struct FundingTxInfo {
-        pub escrow_txid: [u8; 32],
-        pub escrow_prevout: [u8; 32],
-        pub merch_txid: [u8; 32],
-        pub merch_prevout: [u8; 32]
+        pub escrow_txid: FixedSizeArray,
+        pub escrow_prevout: FixedSizeArray,
+        pub merch_txid: FixedSizeArray,
+        pub merch_prevout: FixedSizeArray
     }
 
     ///
@@ -721,8 +723,8 @@ pub mod mpc {
         let cust_name = String::from(name);
         let mut cust_state = CustomerMPCState::new(csprng, b0_cust, b0_merch, cust_name);
 
-        let mut channel_token = cust_state.generate_init_channel_token(pk_m, tx.escrow_txid, tx.merch_txid);
-        cust_state.generate_init_state(csprng, &mut channel_token, tx.escrow_prevout, tx.merch_prevout);
+        let mut channel_token = cust_state.generate_init_channel_token(pk_m, tx.escrow_txid.0, tx.merch_txid.0);
+        cust_state.generate_init_state(csprng, &mut channel_token, tx.escrow_prevout.0, tx.merch_prevout.0);
 
         (channel_token, cust_state)
     }
@@ -883,6 +885,7 @@ mod tests {
 
     #[cfg(feature = "mpc-bitcoin")]
     use channels_mpc::MaskedTxMPCInputs;
+    use fixed_size_array::FixedSizeArray;
 
     fn setup_new_channel_helper(channel_state: &mut zkproofs::ChannelState<Bls12>,
                                 init_cust_bal: i64, init_merch_bal: i64)
@@ -1391,7 +1394,10 @@ mod tests {
         let result2 = Sha256::digest(&Sha256::digest(&prevout_preimage2));
         merch_prevout.copy_from_slice(&result2);
 
-        return mpc::FundingTxInfo { escrow_txid, merch_txid, escrow_prevout, merch_prevout };
+        return mpc::FundingTxInfo { escrow_txid: FixedSizeArray(escrow_txid),
+                                    merch_txid: FixedSizeArray(merch_txid),
+                                    escrow_prevout: FixedSizeArray(escrow_prevout),
+                                    merch_prevout: FixedSizeArray(merch_prevout) };
     }
 
 

@@ -5,7 +5,7 @@ use util::{hash_to_fr, hash_to_slice};
 use std::fmt;
 use serde::ser::{Serialize, Serializer, SerializeStruct};
 use serde::de::{self, Deserialize, Deserializer, Visitor, MapAccess};
-use channels_mpc::FixedSizeArray;
+use fixed_size_array::FixedSizeArray;
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize"))]

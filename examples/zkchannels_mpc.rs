@@ -20,6 +20,7 @@ use bufstream::BufStream;
 use sha2::{Sha256, Digest};
 use rand::{RngCore, Rng};
 use std::io::{BufRead, Write, Read};
+use zkchannels::mpc::FixedSizeArray;
 
 macro_rules! measure_one_arg {
     ($x: expr) => {
@@ -395,5 +396,8 @@ fn generate_funding_tx<R: Rng>(csprng: &mut R) -> mpc::FundingTxInfo {
     let result2 = Sha256::digest(&Sha256::digest(&prevout_preimage2));
     merch_prevout.copy_from_slice(&result2);
 
-    return mpc::FundingTxInfo { escrow_txid, merch_txid, escrow_prevout, merch_prevout };
+        return mpc::FundingTxInfo { escrow_txid: FixedSizeArray(escrow_txid),
+                                    merch_txid: FixedSizeArray(merch_txid),
+                                    escrow_prevout: FixedSizeArray(escrow_prevout),
+                                    merch_prevout: FixedSizeArray(merch_prevout) };
 }
