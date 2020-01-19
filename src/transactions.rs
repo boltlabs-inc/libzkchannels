@@ -5,7 +5,7 @@ use bitcoin::{BitcoinFormat, BitcoinTransaction, BitcoinTransactionInput, Bitcoi
 use bitcoin::address::BitcoinAddress;
 use bitcoin::SignatureHash::SIGHASH_ALL;
 use wagyu_model::crypto::hash160;
-use wagyu_model::{Transaction, PublicKey};
+use wagyu_model::Transaction;
 use wagyu_model::PrivateKey;
 use std::str::FromStr;
 use util::hash_to_slice;

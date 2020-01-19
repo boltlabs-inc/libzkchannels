@@ -1,9 +1,7 @@
 use super::*;
 use rand::Rng;
 use util::{hash_to_slice, hmac_sign, compute_hash160};
-use fixed_size_array::{FixedSizeArray, FixedSizeArray64};
-use serde::ser::{Serialize, Serializer, SerializeTuple, SerializeStruct};
-use serde::de::{self, Deserialize, Deserializer, Visitor, SeqAccess, MapAccess};
+use fixed_size_array::{FixedSizeArray16, FixedSizeArray32, FixedSizeArray64};
 
 #[cfg(feature = "mpc-bitcoin")]
 use wallet::{State, NONCE_LEN};
@@ -28,8 +26,8 @@ pub struct NetworkConfig {
 pub struct ChannelMPCToken {
     pub pk_c: Option<secp256k1::PublicKey>, // pk_c
     pub pk_m: secp256k1::PublicKey, // pk_m
-    pub escrow_txid: FixedSizeArray, // [u8; 32]
-    pub merch_txid: FixedSizeArray // [u8; 32]
+    pub escrow_txid: FixedSizeArray32, // [u8; 32]
+    pub merch_txid: FixedSizeArray32 // [u8; 32]
 }
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -59,7 +57,7 @@ impl ChannelMPCToken {
 pub struct ChannelMPCState {
     tx_fee: i64,
     dust_limit: i64,
-    key_com: FixedSizeArray, // [u8; 32],
+    key_com: FixedSizeArray32, // [u8; 32],
     pub name: String,
     pub third_party: bool,
     pub merch_payout_pk: Option<secp256k1::PublicKey>,
@@ -72,7 +70,7 @@ impl ChannelMPCState {
         ChannelMPCState {
             tx_fee: 0,
             dust_limit: 0,
-            key_com: FixedSizeArray([0u8; 32]),
+            key_com: FixedSizeArray32([0u8; 32]),
             name: name.to_string(),
             third_party: third_party_support,
             merch_payout_pk: None,
@@ -102,7 +100,7 @@ impl ChannelMPCState {
     }
 
     pub fn set_key_com(&mut self, key_com: [u8; 32]) {
-        self.key_com = FixedSizeArray(key_com);
+        self.key_com = FixedSizeArray32(key_com);
     }
 
     pub fn set_merchant_public_keys(&mut self, merch_payout_pk: secp256k1::PublicKey, merch_dispute_pk: secp256k1::PublicKey) {
@@ -114,11 +112,11 @@ impl ChannelMPCState {
 #[cfg(feature = "mpc-bitcoin")]
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MaskedMPCInputs {
-    pt_mask: FixedSizeArray,
-    escrow_mask: FixedSizeArray,
-    merch_mask: FixedSizeArray,
-    r_escrow_sig: FixedSizeArray,
-    r_merch_sig: FixedSizeArray,
+    pt_mask: FixedSizeArray32,
+    escrow_mask: FixedSizeArray32,
+    merch_mask: FixedSizeArray32,
+    r_escrow_sig: FixedSizeArray32,
+    r_merch_sig: FixedSizeArray32,
 }
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -137,20 +135,20 @@ impl MaskedMPCInputs {
 #[cfg(feature = "mpc-bitcoin")]
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MaskedTxMPCInputs {
-    pub escrow_mask: FixedSizeArray, // [u8; 32]
-    pub merch_mask: FixedSizeArray,
-    pub r_escrow_sig: FixedSizeArray,
-    pub r_merch_sig: FixedSizeArray,
+    pub escrow_mask: FixedSizeArray32, // [u8; 32]
+    pub merch_mask: FixedSizeArray32,
+    pub r_escrow_sig: FixedSizeArray32,
+    pub r_merch_sig: FixedSizeArray32,
 }
 
 #[cfg(feature = "mpc-bitcoin")]
 impl MaskedTxMPCInputs {
     pub fn new(escrow_mask: [u8; 32], merch_mask: [u8; 32], r_escrow_sig: [u8; 32], r_merch_sig: [u8; 32]) -> Self {
         MaskedTxMPCInputs {
-            escrow_mask: FixedSizeArray(escrow_mask),
-            merch_mask: FixedSizeArray(merch_mask),
-            r_escrow_sig: FixedSizeArray(r_escrow_sig),
-            r_merch_sig: FixedSizeArray(r_merch_sig)
+            escrow_mask: FixedSizeArray32(escrow_mask),
+            merch_mask: FixedSizeArray32(merch_mask),
+            r_escrow_sig: FixedSizeArray32(r_escrow_sig),
+            r_merch_sig: FixedSizeArray32(r_merch_sig)
         }
     }
 
@@ -174,9 +172,9 @@ impl MaskedTxMPCInputs {
 #[cfg(feature = "mpc-bitcoin")]
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MaskedMPCOutputs {
-    pt_masked: FixedSizeArray, // [u8; 32]
-    escrow_masked: FixedSizeArray,
-    merch_masked: FixedSizeArray
+    pt_masked: FixedSizeArray32, // [u8; 32]
+    escrow_masked: FixedSizeArray32,
+    merch_masked: FixedSizeArray32
 }
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -187,14 +185,14 @@ pub struct CustomerMPCState {
     sk_c: secp256k1::SecretKey,
     pub cust_balance: i64,
     pub merch_balance: i64,
-    rev_lock: FixedSizeArray, // [u8; 32]
-    rev_secret: FixedSizeArray, // [u8; 32]
-    t: FixedSizeArray, // [u8; 32], // randomness used to form the commitment
+    rev_lock: FixedSizeArray32, // [u8; 32]
+    rev_secret: FixedSizeArray32, // [u8; 32]
+    t: FixedSizeArray32, // [u8; 32], // randomness used to form the commitment
     state: Option<State>, // vector of field elements that represent current state
     index: i32,
     masked_outputs: HashMap<i32, MaskedMPCOutputs>,
-    pay_tokens: HashMap<i32, FixedSizeArray>,
-    pay_token_mask_com: FixedSizeArray, // [u8; 32]
+    pay_tokens: HashMap<i32, FixedSizeArray32>,
+    pay_token_mask_com: FixedSizeArray32, // [u8; 32]
     payout_sk: secp256k1::SecretKey,
     pub conn_type: u32,
     cust_close_escrow_tx: String,
@@ -236,14 +234,14 @@ impl CustomerMPCState {
             sk_c: sk_c,
             cust_balance: cust_bal,
             merch_balance: merch_bal,
-            rev_lock: FixedSizeArray(rev_lock),
-            rev_secret: FixedSizeArray(rev_secret),
-            t: FixedSizeArray(t),
+            rev_lock: FixedSizeArray32(rev_lock),
+            rev_secret: FixedSizeArray32(rev_secret),
+            t: FixedSizeArray32(t),
             state: None,
             index: 0,
             masked_outputs: mpc_outputs,
             pay_tokens: pt_db,
-            pay_token_mask_com: FixedSizeArray(pay_mask_com),
+            pay_token_mask_com: FixedSizeArray32(pay_mask_com),
             payout_sk: payout_sk,
             conn_type: 0,
             cust_close_escrow_tx: String::new(),
@@ -268,9 +266,9 @@ impl CustomerMPCState {
 
         channel_token.set_customer_pk(self.pk_c.clone());
 
-        let state = State { nonce: nonce, rev_lock: self.rev_lock, bc: self.cust_balance, bm: self.merch_balance,
+        let state = State { nonce: FixedSizeArray16(nonce), rev_lock: self.rev_lock, bc: self.cust_balance, bm: self.merch_balance,
                             escrow_txid: channel_token.escrow_txid, merch_txid: channel_token.merch_txid,
-                            escrow_prevout: FixedSizeArray(escrow_tx_prevout), merch_prevout: FixedSizeArray(merch_tx_prevout) };
+                            escrow_prevout: FixedSizeArray32(escrow_tx_prevout), merch_prevout: FixedSizeArray32(merch_tx_prevout) };
 
         assert!(channel_token.is_init());
         self.state = Some(state);
@@ -302,7 +300,7 @@ impl CustomerMPCState {
     }
 
     pub fn store_initial_pay_token(&mut self, pay_token: [u8; 32]) {
-        self.pay_tokens.insert(0, FixedSizeArray(pay_token));
+        self.pay_tokens.insert(0, FixedSizeArray32(pay_token));
     }
 
     pub fn generate_new_state<R: Rng>(&mut self, csprng: &mut R, channel: &ChannelMPCState, amount: i64) {
@@ -326,8 +324,8 @@ impl CustomerMPCState {
         new_state.bc -= amount;
         new_state.bm += amount;
 
-        new_state.nonce.copy_from_slice(&new_nonce);
-        new_state.rev_lock.0.copy_from_slice(&new_rev_lock);
+        new_state.get_nonce().copy_from_slice(&new_nonce);
+        new_state.get_rev_lock().copy_from_slice(&new_rev_lock);
 
         self.rev_secret.0.copy_from_slice(&new_rev_secret);
         self.rev_lock.0.copy_from_slice(&new_rev_lock);
@@ -342,8 +340,8 @@ impl CustomerMPCState {
         return ChannelMPCToken {
             pk_c: Some(self.pk_c.clone()),
             pk_m: pk_m.clone(),
-            escrow_txid: FixedSizeArray(escrow_txid),
-            merch_txid: FixedSizeArray(merch_txid)
+            escrow_txid: FixedSizeArray32(escrow_txid),
+            merch_txid: FixedSizeArray32(merch_txid)
         };
     }
 
@@ -382,9 +380,9 @@ impl CustomerMPCState {
                                      new_state, old_state,&old_paytoken.0, cust_escrow_pub_key, cust_payout_pub_key);
 
         let masked_output = MaskedMPCOutputs {
-            pt_masked: FixedSizeArray(pt_masked_ar),
-            escrow_masked: FixedSizeArray(ct_escrow_masked_ar),
-            merch_masked: FixedSizeArray(ct_merch_masked_ar)
+            pt_masked: FixedSizeArray32(pt_masked_ar),
+            escrow_masked: FixedSizeArray32(ct_escrow_masked_ar),
+            merch_masked: FixedSizeArray32(ct_merch_masked_ar)
         };
 
         // save the masked outputs (will unmask later)
@@ -415,7 +413,7 @@ impl CustomerMPCState {
             merch_disp_pk: merch_dispute_key.to_vec(),
             rev_lock: [0u8; 32]
         };
-        pubkeys.rev_lock.copy_from_slice(&self.state.unwrap().rev_lock.0);
+        pubkeys.rev_lock.copy_from_slice(&self.state.unwrap().get_rev_lock());
         // println!("Escrow TXID: {}", hex::encode(channel_token.escrow_txid));
         let escrow_input = create_input(&channel_token.escrow_txid.0, escrow_index, init_balance);
         let merch_input = create_input(&channel_token.merch_txid.0, merch_index, init_balance);
@@ -452,12 +450,12 @@ impl CustomerMPCState {
         let mut escrow_sig_vec = mask_bytes.r_escrow_sig.0.to_vec();
         escrow_sig_vec.append(&mut escrow_mask_bytes.to_vec());
         let escrow_sig = secp256k1::Signature::from_compact(&escrow_sig_vec.as_slice()).unwrap();
-        println!("Close from Escrow Signature: {}", &escrow_sig);
+        // println!("Close from Escrow Signature: {}", &escrow_sig);
 
         let mut merch_sig_vec = mask_bytes.r_merch_sig.0.to_vec();
         merch_sig_vec.append(&mut merch_mask_bytes.to_vec());
         let merch_sig = secp256k1::Signature::from_compact(&merch_sig_vec.as_slice()).unwrap();
-        println!("Close from Merch Signature: {}", &merch_sig);
+        // println!("Close from Merch Signature: {}", &merch_sig);
 
         let escrow_tx_hash = Sha256::digest(&Sha256::digest(&escrow_tx_preimage));
         let merch_tx_hash = Sha256::digest(&Sha256::digest(&merch_tx_preimage));
@@ -471,7 +469,6 @@ impl CustomerMPCState {
 
         // customer sign the transactions to complete multi-sig and store CT bytes locally
         let private_key = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(self.sk_c.clone(), false);
-        println!("Signing with private key: {}", &private_key.to_string());
         let escrow_signature = escrow_sig.serialize_der().to_vec();
         let enc_escrow_signature = [get_var_length_int(escrow_signature.len() as u64).unwrap(), escrow_signature].concat();
 
@@ -510,7 +507,7 @@ impl CustomerMPCState {
         let mpc_out = self.masked_outputs.get(&self.index).unwrap();
         xor_in_place(&mut pt_mask_bytes, &mpc_out.pt_masked.0[..]);
 
-        self.pay_tokens.insert(self.index, FixedSizeArray(pt_mask_bytes));
+        self.pay_tokens.insert(self.index, FixedSizeArray32(pt_mask_bytes));
         // self.index += 1;
         return true;
     }
@@ -542,23 +539,27 @@ fn xor_in_place(a: &mut [u8], b: &[u8]) {
 #[cfg(feature = "mpc-bitcoin")]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RevokedState {
-    pub nonce: [u8; NONCE_LEN],
-    rev_lock_com: FixedSizeArray,
-    rev_lock: FixedSizeArray,
-    rev_secret: FixedSizeArray,
-    t: FixedSizeArray
+    pub nonce: FixedSizeArray16,
+    rev_lock_com: FixedSizeArray32,
+    rev_lock: FixedSizeArray32,
+    rev_secret: FixedSizeArray32,
+    t: FixedSizeArray32
 }
 
 #[cfg(feature = "mpc-bitcoin")]
 impl RevokedState {
     pub fn new(nonce: [u8; NONCE_LEN], rev_lock_com: [u8; 32], rev_lock: [u8; 32], rev_secret: [u8; 32], t: [u8; 32]) -> Self {
         RevokedState {
-            nonce: nonce,
-            rev_lock_com: FixedSizeArray(rev_lock_com),
-            rev_lock: FixedSizeArray(rev_lock),
-            rev_secret: FixedSizeArray(rev_secret),
-            t: FixedSizeArray(t)
+            nonce: FixedSizeArray16(nonce),
+            rev_lock_com: FixedSizeArray32(rev_lock_com),
+            rev_lock: FixedSizeArray32(rev_lock),
+            rev_secret: FixedSizeArray32(rev_secret),
+            t: FixedSizeArray32(t)
         }
+    }
+
+    pub fn get_nonce(&self) -> [u8; NONCE_LEN] {
+        self.nonce.0
     }
 
     pub fn get_rev_lock_com(&self) -> [u8; 32] {
@@ -580,8 +581,8 @@ impl RevokedState {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LockMap {
-    pub lock: FixedSizeArray, // [u8; 32],
-    pub secret: FixedSizeArray,
+    pub lock: FixedSizeArray32, // [u8; 32],
+    pub secret: FixedSizeArray32,
 }
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -595,7 +596,7 @@ pub struct MerchantMPCState {
     pub payout_pk: secp256k1::PublicKey,
     dispute_sk: secp256k1::SecretKey, // for dispute pub key
     pub dispute_pk: secp256k1::PublicKey,
-    pub nonce_mask_map: HashMap<String, FixedSizeArray>,
+    pub nonce_mask_map: HashMap<String, FixedSizeArray32>,
     pub activate_map: HashMap<String, State>,
     pub lock_map_state: HashMap<String, Option<LockMap>>,
     pub mask_mpc_bytes: HashMap<String, MaskedMPCInputs>,
@@ -654,9 +655,8 @@ impl MerchantMPCState {
         let channel_id = channel_token.compute_channel_id().unwrap();
         let channel_id_str = hex::encode(channel_id.to_vec());
 
-        let mut key = self.hmac_key.get_bytes();
+        let key = self.hmac_key.get_bytes();
         let s_vec= s_0.serialize_compact();
-        // println!("initial state: {}", hex::encode(&s_vec));
         let init_pay_token = hmac_sign(key, &s_vec);
 
         return init_pay_token;
@@ -686,7 +686,7 @@ impl MerchantMPCState {
         let paytoken_mask_com = hash_to_slice( &pay_mask.to_vec());
 
         // store pay_mask for use in mpc protocol later
-        self.nonce_mask_map.insert(nonce_hex, FixedSizeArray(pay_mask));
+        self.nonce_mask_map.insert(nonce_hex, FixedSizeArray32(pay_mask));
 
         Ok(paytoken_mask_com)
     }
@@ -698,8 +698,6 @@ impl MerchantMPCState {
     // for merchant side
     pub fn execute_mpc_context<R: Rng>(&mut self, csprng: &mut R, channel_state: &ChannelMPCState, nonce: [u8; NONCE_LEN],
                                rev_lock_com: [u8; 32], paytoken_mask_com: [u8; 32], amount: i64) -> Result<bool, String> {
-        let secp = secp256k1::Secp256k1::new();
-
         // if epsilon > 0, check if acceptable (above dust limit).
         if amount > 0 && amount < channel_state.get_dust_limit() {
             // if check fails, abort and output an error
@@ -749,11 +747,11 @@ impl MerchantMPCState {
 
         // store the rev_lock_com => (pt_mask_bytes, escrow_mask_bytes, merch_mask_bytes)
         let mask_bytes = MaskedMPCInputs {
-            pt_mask: FixedSizeArray(pay_mask_bytes),
-            escrow_mask: FixedSizeArray(escrow_mask_bytes),
-            merch_mask: FixedSizeArray(merch_mask_bytes),
-            r_escrow_sig: FixedSizeArray(r_esc),
-            r_merch_sig: FixedSizeArray(r_merch),
+            pt_mask: FixedSizeArray32(pay_mask_bytes),
+            escrow_mask: FixedSizeArray32(escrow_mask_bytes),
+            merch_mask: FixedSizeArray32(merch_mask_bytes),
+            r_escrow_sig: FixedSizeArray32(r_esc),
+            r_merch_sig: FixedSizeArray32(r_merch),
         };
         let rev_lock_com_hex = hex::encode(rev_lock_com);
         self.mask_mpc_bytes.insert( rev_lock_com_hex, mask_bytes);
@@ -783,8 +781,8 @@ impl MerchantMPCState {
         if is_ok {
             // add (n_i, RS_i, RL_i) to state
             let revoked_lock_pair = LockMap {
-                lock: FixedSizeArray(rev_lock),
-                secret: FixedSizeArray(rev_sec)
+                lock: FixedSizeArray32(rev_lock),
+                secret: FixedSizeArray32(rev_sec)
             };
             self.lock_map_state.insert(nonce_hex, Some(revoked_lock_pair));
         } else {
@@ -893,7 +891,7 @@ rusty_fork_test!
         let s_1 = cust_state.get_current_state();
         println!("Updated state: {}", s_1);
 
-        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, s_0.nonce).unwrap();
+        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, s_0.get_nonce()).unwrap();
         cust_state.update_pay_com(pay_token_mask_com);
 
         cust_state.set_mpc_connect_type(2);
@@ -909,7 +907,7 @@ rusty_fork_test!
 
         // prepare the merchant inputs
         let rev_lock_com = r_com.clone();
-        let nonce = s_0.nonce.clone();
+        let nonce = s_0.get_nonce().clone();
 
         let mask_bytes = merch_state.verify_revoked_state(nonce, rev_lock_com, rev_lock, rev_secret, t);
         //assert!(!mask_bytes.is_none());
@@ -925,9 +923,9 @@ rusty_fork_test!
         let mut r_escrow_sig = [0u8; 32];
         r_escrow_sig.copy_from_slice(hex::decode("6f1badfa1b06afb2129e36d331919d445c48698d6a838619aa3239075c21dd5c").unwrap().as_slice());
 
-        let mask_bytes = Some(MaskedMPCInputs { pt_mask: FixedSizeArray(pt_mask), escrow_mask: FixedSizeArray(escrow_mask),
-                                                merch_mask: FixedSizeArray(merch_mask), r_escrow_sig: FixedSizeArray(r_escrow_sig),
-                                                r_merch_sig: FixedSizeArray(r_merch_sig) });
+        let mask_bytes = Some(MaskedMPCInputs { pt_mask: FixedSizeArray32(pt_mask), escrow_mask: FixedSizeArray32(escrow_mask),
+                                                merch_mask: FixedSizeArray32(merch_mask), r_escrow_sig: FixedSizeArray32(r_escrow_sig),
+                                                r_merch_sig: FixedSizeArray32(r_merch_sig) });
 
         if mask_bytes.is_some() {
             let mb = mask_bytes.unwrap();
@@ -1012,14 +1010,14 @@ rusty_fork_test!
         let s_1 = cust_state.get_current_state();
         println!("Updated state: {}", s_1);
 
-        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, s_0.nonce).unwrap();
+        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, s_0.get_nonce()).unwrap();
         cust_state.update_pay_com(pay_token_mask_com);
 
         merch_state.set_mpc_connect_type(2);
 
         // prepare the merchant inputs
         let rev_lock_com = r_com.clone();
-        let nonce = s_0.nonce.clone();
+        let nonce = s_0.get_nonce().clone();
 
         println!("hello, merchant!");
         let res = merch_state.execute_mpc_context(&mut rng, &channel, nonce, rev_lock_com, pay_token_mask_com, amount).unwrap();

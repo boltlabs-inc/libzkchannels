@@ -3,9 +3,7 @@ use pairing::Engine;
 use ff::PrimeField;
 use util::{hash_to_fr, hash_to_slice};
 use std::fmt;
-use serde::ser::{Serialize, Serializer, SerializeStruct};
-use serde::de::{self, Deserialize, Deserializer, Visitor, MapAccess};
-use fixed_size_array::FixedSizeArray;
+use fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize"))]
@@ -53,20 +51,20 @@ pub const NONCE_LEN: usize = 16;
 
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct State {
-    pub nonce: [u8; NONCE_LEN], // 128-bits
-    pub rev_lock: FixedSizeArray, // [u8; 32], // 32 bytes for hash
+    pub nonce: FixedSizeArray16, // 128-bits
+    pub rev_lock: FixedSizeArray32,
     pub bc: i64,
     pub bm: i64,
-    pub escrow_txid: FixedSizeArray, // [u8; 32],
-    pub escrow_prevout: FixedSizeArray, // [u8; 32],
-    pub merch_txid: FixedSizeArray, // [u8; 32],
-    pub merch_prevout: FixedSizeArray, // [u8; 32]
+    pub escrow_txid: FixedSizeArray32,
+    pub escrow_prevout: FixedSizeArray32,
+    pub merch_txid: FixedSizeArray32,
+    pub merch_prevout: FixedSizeArray32,
 }
 
 impl State {
     pub fn serialize_compact(&self) -> Vec<u8> {
         let mut output_buf = Vec::new();
-        output_buf.extend_from_slice(&self.nonce);
+        output_buf.extend_from_slice(&self.nonce.0);
         output_buf.extend_from_slice(&self.rev_lock.0);
         output_buf.extend_from_slice(&self.bc.to_be_bytes());
         output_buf.extend_from_slice(&self.bm.to_be_bytes());
@@ -77,11 +75,19 @@ impl State {
 
         return output_buf;
     }
+
+    pub fn get_nonce(&self) -> [u8; NONCE_LEN] {
+        self.nonce.0
+    }
+
+    pub fn get_rev_lock(&self) -> [u8; 32] {
+        self.rev_lock.0
+    }
 }
 
 impl fmt::Display for State {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let nonce_hex = hex::encode(self.nonce.to_vec());
+        let nonce_hex = hex::encode(self.nonce.0.to_vec());
         let rev_lock_hex = hex::encode(self.rev_lock.0.to_vec());
         let escrow_txid_hex = hex::encode(self.escrow_txid.0.to_vec());
         let escrow_prevout_hex = hex::encode(self.escrow_prevout.0.to_vec());

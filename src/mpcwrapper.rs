@@ -18,7 +18,7 @@ use wallet::State;
 use ecdsa_partial::EcdsaPartialSig;
 use std::ptr;
 use std::str;
-use fixed_size_array::{FixedSizeArray, FixedSizeArray64};
+use fixed_size_array::{FixedSizeArray16, FixedSizeArray32, FixedSizeArray64};
 
 pub type IOCallback = fn(c_uint, c_int);
 
@@ -79,7 +79,7 @@ pub fn mpc_build_masked_tokens_cust(conn_type: u32, amount: i64, pay_mask_com: &
     let cust_escrow_pub_key_c = translate_bitcoin_key(&cust_escrow_pub_key);
     let cust_payout_pub_key_c = translate_bitcoin_key(&cust_payout_pub_key);
 
-    let nonce = translate_nonce(&old_state.nonce);
+    let nonce = translate_nonce(&old_state.get_nonce());
 
     // create pointers the output variables
     let pt_return_ar = [0u32; 8];
@@ -150,8 +150,8 @@ fn translate_state(state: &State) -> State_l {
     let prevout_escrow = translate_256_string(&state.escrow_prevout.0[..]);
     let prevout_merch = translate_256_string(&state.merch_prevout.0[..]);
 
-    let nonce = translate_nonce(&state.nonce);
-    let rev_lock = translate_revlock(&state.rev_lock.0[..]);
+    let nonce = translate_nonce(&state.get_nonce());
+    let rev_lock = translate_revlock(&state.get_rev_lock()[..]);
 
     let bc = translate_balance(state.bc);
     let bm = translate_balance(state.bm);
@@ -402,24 +402,24 @@ mod tests {
         hashouts_escrow.copy_from_slice(hex::decode("7d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d738").unwrap().as_slice());
 
         let new_state = State {
-            nonce: nonce1,
-            rev_lock: FixedSizeArray(rl_ar1),
+            nonce: FixedSizeArray16(nonce1),
+            rev_lock: FixedSizeArray32(rl_ar1),
             bc: 64,
             bm: 64,
-            escrow_txid: FixedSizeArray(tx_id_esc),
-            merch_txid: FixedSizeArray(tx_id_merch),
-            escrow_prevout: FixedSizeArray(hashouts_escrow),
-            merch_prevout: FixedSizeArray(hashouts_merch),
+            escrow_txid: FixedSizeArray32(tx_id_esc),
+            merch_txid: FixedSizeArray32(tx_id_merch),
+            escrow_prevout: FixedSizeArray32(hashouts_escrow),
+            merch_prevout: FixedSizeArray32(hashouts_merch),
         };
         let old_state = State {
-            nonce: nonce2,
-            rev_lock: FixedSizeArray(rl_ar2),
+            nonce: FixedSizeArray16(nonce2),
+            rev_lock: FixedSizeArray32(rl_ar2),
             bc: 80,
             bm: 48,
-            escrow_txid: FixedSizeArray(tx_id_esc),
-            merch_txid: FixedSizeArray(tx_id_merch),
-            escrow_prevout: FixedSizeArray(hashouts_escrow),
-            merch_prevout: FixedSizeArray(hashouts_merch),
+            escrow_txid: FixedSizeArray32(tx_id_esc),
+            merch_txid: FixedSizeArray32(tx_id_merch),
+            escrow_prevout: FixedSizeArray32(hashouts_escrow),
+            merch_prevout: FixedSizeArray32(hashouts_merch),
         };
 
         let mut hmac_key = [0u8; 64];
@@ -491,7 +491,7 @@ mod tests {
             merch_disp_pk: merch_dispute_key.serialize().to_vec(),
             rev_lock: [0u8; 32]
         };
-        pubkeys.rev_lock.copy_from_slice(&new_state.rev_lock.0);
+        pubkeys.rev_lock.copy_from_slice(&new_state.get_rev_lock());
         let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
         let (tx_preimage, _, _) = create_cust_close_transaction::<Testnet>(&input1, &pubkeys, &to_self_delay, new_state.bc, new_state.bm, true);
         println!("TX BUILDER: generated escrow tx preimage: {}", hex::encode(&tx_preimage));

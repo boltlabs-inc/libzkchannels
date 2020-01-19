@@ -20,7 +20,7 @@ use bufstream::BufStream;
 use sha2::{Sha256, Digest};
 use rand::{RngCore, Rng};
 use std::io::{BufRead, Write, Read};
-use zkchannels::mpc::FixedSizeArray;
+use zkchannels::mpc::FixedSizeArray32;
 
 macro_rules! measure_one_arg {
     ($x: expr) => {
@@ -243,7 +243,7 @@ mod cust {
 
         let (new_state, r_com, rev_lock, rev_secret) = mpc::pay_prepare_customer(rng, &mut channel_state, amount, &mut cust_state);
 
-        let msg = [hex::encode(old_state.nonce), hex::encode(&r_com)];
+        let msg = [hex::encode(&old_state.get_nonce()), hex::encode(&r_com)];
         let msg1 = conn.send_and_wait(&msg, Some(String::from("nonce and rev_lock com")), true);
         let pay_token_mask_com_vec = hex::decode(msg1.get(0).unwrap()).unwrap();
         let mut pay_token_mask_com = [0u8; 32];
@@ -257,7 +257,7 @@ mod cust {
 
         is_ok = is_ok && mpc::pay_unmask_tx_customer(&mut channel_state, &mut channel_token, mask_bytes, &mut cust_state);
 
-        let rev_state = RevokedState::new(old_state.nonce,r_com, rev_lock, rev_secret, t);
+        let rev_state = RevokedState::new(old_state.get_nonce(),r_com, rev_lock, rev_secret, t);
         let msg3 = [serde_json::to_string(&rev_state).unwrap()];
         let msg4 = conn.send_and_wait(&msg3, None, false);
         let pt_mask_bytes_vec = hex::decode(msg4.get(0).unwrap()).unwrap();
@@ -396,8 +396,8 @@ fn generate_funding_tx<R: Rng>(csprng: &mut R) -> mpc::FundingTxInfo {
     let result2 = Sha256::digest(&Sha256::digest(&prevout_preimage2));
     merch_prevout.copy_from_slice(&result2);
 
-        return mpc::FundingTxInfo { escrow_txid: FixedSizeArray(escrow_txid),
-                                    merch_txid: FixedSizeArray(merch_txid),
-                                    escrow_prevout: FixedSizeArray(escrow_prevout),
-                                    merch_prevout: FixedSizeArray(merch_prevout) };
+        return mpc::FundingTxInfo { escrow_txid: FixedSizeArray32(escrow_txid),
+                                    merch_txid: FixedSizeArray32(merch_txid),
+                                    escrow_prevout: FixedSizeArray32(escrow_prevout),
+                                    merch_prevout: FixedSizeArray32(merch_prevout) };
 }

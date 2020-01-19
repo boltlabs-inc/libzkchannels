@@ -1,11 +1,11 @@
 use super::*;
-use serde::ser::{Serialize, Serializer, SerializeTuple, SerializeStruct};
+use serde::ser::{Serialize, SerializeTuple};
 use serde::de::{self, Deserialize, Deserializer, Visitor, SeqAccess, MapAccess};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub struct FixedSizeArray(pub [u8; 32]);
+pub struct FixedSizeArray16(pub [u8; 16]);
 
-impl ::serde::Serialize for FixedSizeArray {
+impl ::serde::Serialize for FixedSizeArray16 {
     fn serialize<S: ::serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error>
     {
         let mut tup = s.serialize_tuple(1)?;
@@ -14,21 +14,67 @@ impl ::serde::Serialize for FixedSizeArray {
     }
 }
 
-impl<'de> Deserialize<'de> for FixedSizeArray {
+impl<'de> Deserialize<'de> for FixedSizeArray16 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        struct FixedSizeArrayVisitor;
-        impl<'de> Visitor<'de> for FixedSizeArrayVisitor {
-            type Value = FixedSizeArray;
+        struct FixedSizeArray16Visitor;
+        impl<'de> Visitor<'de> for FixedSizeArray16Visitor {
+            type Value = FixedSizeArray16;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("struct FixedSizeArray")
+                formatter.write_str("struct FixedSizeArray16")
             }
 
             #[inline]
-            fn visit_seq<V>(self, mut seq: V) -> Result<FixedSizeArray, V::Error>
+            fn visit_seq<V>(self, mut seq: V) -> Result<FixedSizeArray16, V::Error>
+                where V: SeqAccess<'de>
+            {
+                let hex_str = seq.next_element::<String>()?;
+                let bytes = match hex_str {
+                    Some(n) => hex::decode(n.as_str()),
+                    None => return Err(de::Error::custom("No string was found"))
+                };
+                let mut fixed_bytes = [0u8; 16];
+                match bytes.is_ok() {
+                    true => fixed_bytes.copy_from_slice(&bytes.unwrap()),
+                    false => return Err(de::Error::custom("invalid hex encoding"))
+                }
+                Ok(FixedSizeArray16(fixed_bytes))
+            }
+        }
+        deserializer.deserialize_seq(FixedSizeArray16Visitor { })
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct FixedSizeArray32(pub [u8; 32]);
+
+impl ::serde::Serialize for FixedSizeArray32 {
+    fn serialize<S: ::serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error>
+    {
+        let mut tup = s.serialize_tuple(1)?;
+        tup.serialize_element(&hex::encode(&self.0))?;
+        tup.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for FixedSizeArray32 {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct FixedSizeArray32Visitor;
+        impl<'de> Visitor<'de> for FixedSizeArray32Visitor {
+            type Value = FixedSizeArray32;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("struct FixedSizeArray32")
+            }
+
+            #[inline]
+            fn visit_seq<V>(self, mut seq: V) -> Result<FixedSizeArray32, V::Error>
                 where V: SeqAccess<'de>
             {
                 let hex_str = seq.next_element::<String>()?;
@@ -41,10 +87,10 @@ impl<'de> Deserialize<'de> for FixedSizeArray {
                     true => fixed_bytes.copy_from_slice(&bytes.unwrap()),
                     false => return Err(de::Error::custom("invalid hex encoding"))
                 }
-                Ok(FixedSizeArray(fixed_bytes))
+                Ok(FixedSizeArray32(fixed_bytes))
             }
         }
-        deserializer.deserialize_seq(FixedSizeArrayVisitor { })
+        deserializer.deserialize_seq(FixedSizeArray32Visitor { })
     }
 }
 
