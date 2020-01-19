@@ -63,6 +63,8 @@ pub mod ffishim_bn256;
 pub mod bindings;
 pub mod transactions;
 
+pub mod test_e2e;
+
 use std::fmt;
 use std::str;
 use std::collections::HashMap;

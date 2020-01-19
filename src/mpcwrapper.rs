@@ -566,36 +566,6 @@ mod tests {
     }
 
     #[test]
-    fn test_mpc_ecdsa() {
-        let csprng = &mut rand::thread_rng();
-        let mut seckey = [0u8; 32];
-        csprng.fill_bytes(&mut seckey);
-        let sk = secp256k1::SecretKey::from_slice(&seckey).unwrap();
-
-       //let (eps,sps) = createEcdsaParamsPair(csprng,&sk);
-
-        /*
-
-        // compute signature locally
-        let mut msg = [0u8; 32];
-        csprng.fill_bytes(&mut msg);
-        let mut hasher = Sha256::new();
-        hasher.input(msg);
-        let hash = hasher.result();
-        //println!("{:x} --> {:x}", BigInt::from_bytes_be(Sign::Plus,&msg), hash);
-
-        let secp = secp256k1::Secp256k1::new();
-        let signature = secp.compute_sign(&Message::from_slice(&hash).unwrap(), &sps);
-        println!("{}", hex::encode(signature.serialize_compact()));
-        */
-
-        // compute signature under mpc
-
-        // compare
-
-    }
-
-    #[test]
     fn signature() {
         let secp = Secp256k1::new();
         let sig = hex::decode("96fec178aea8d00c83f36b3424dd56762a5440547938ecc82b5c204435418fd968bafe1af248ec2c9ff9aba262cfcf801b486c685467ebc567b9b4e5e5674135").unwrap();
