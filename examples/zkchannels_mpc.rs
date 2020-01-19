@@ -20,7 +20,7 @@ use bufstream::BufStream;
 use sha2::{Sha256, Digest};
 use rand::{RngCore, Rng};
 use std::io::{BufRead, Write, Read};
-use zkchannels::mpc::FixedSizeArray32;
+use zkchannels::fixed_size_array::FixedSizeArray32;
 
 macro_rules! measure_one_arg {
     ($x: expr) => {

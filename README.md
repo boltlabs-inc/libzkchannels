@@ -37,7 +37,7 @@ We will switch to the stable release channel once libzkchannels (and dependencie
 
 # Build & Install
 
-First, install the dependencies by
+To be able to build zkChannels for Bitcoin, you'll have to install the EMP-toolkit dependency for testing MPC as follows:
 
 	. ./env
 	make deps

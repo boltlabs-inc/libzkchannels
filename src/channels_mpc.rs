@@ -1,9 +1,9 @@
 use super::*;
-use rand::Rng;
 use util::{hash_to_slice, hmac_sign, compute_hash160};
 use fixed_size_array::{FixedSizeArray16, FixedSizeArray32, FixedSizeArray64};
 
 #[cfg(feature = "mpc-bitcoin")]
+use rand::Rng;
 use wallet::{State, NONCE_LEN};
 use mpcwrapper::{mpc_build_masked_tokens_cust, mpc_build_masked_tokens_merch};
 use transactions::ClosePublicKeys;
