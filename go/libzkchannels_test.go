@@ -19,19 +19,15 @@ func Test_fullProtocol(t *testing.T) {
 	channelState, merchState, err := InitMerchant(channelState, "merch")
 	assert.Nil(t, err)
 
-	tx := "{\"escrow_txid\":\"f6f77d4ff12bbcefd3213aaf2aa61d29b8267f89c57792875dead8f9ba2f303d\",\"escrow_prevout\":\"1a4946d25e4699c69d38899858f1173c5b7ab4e89440cf925205f4f244ce0725\",\"merch_txid\":\"42840a4d79fe3259007d8667b5c377db0d6446c20a8b490cfe9973582e937c3d\",\"merch_prevout\":\"e9af3d3478ee5bab17f97cb9da3e5c60104dec7f777f8a529a0d7ae960866449\"}"
-	channelToken, custState, err := InitCustomer(fmt.Sprintf("\"%v\"", *merchState.PkM), tx, 100, 100, "cust")
+	tx := "{\"init_cust_bal\":100,\"init_merch_bal\":100,\"escrow_txid\":\"f6f77d4ff12bbcefd3213aaf2aa61d29b8267f89c57792875dead8f9ba2f303d\",\"escrow_prevout\":\"1a4946d25e4699c69d38899858f1173c5b7ab4e89440cf925205f4f244ce0725\",\"merch_txid\":\"42840a4d79fe3259007d8667b5c377db0d6446c20a8b490cfe9973582e937c3d\",\"merch_prevout\":\"e9af3d3478ee5bab17f97cb9da3e5c60104dec7f777f8a529a0d7ae960866449\"}"
+	channelToken, custState, err := InitCustomer(fmt.Sprintf("\"%v\"", *merchState.PkM), tx, "cust")
 	assert.Nil(t, err)
 
 	state, custState, err := ActivateCustomer(custState)
 	assert.Nil(t, err)
 
-	fmt.Println("initial state := ", state)
-
 	payToken0, merchState, err := ActivateMerchant(channelToken, state, merchState)
 	assert.Nil(t, err)
-
-	fmt.Println("pay token 0 := ", payToken0)
 
 	custState, err = ActivateCustomerFinalize(payToken0, custState)
 	assert.Nil(t, err)

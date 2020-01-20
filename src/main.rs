@@ -242,10 +242,13 @@ mod cust {
         let channel_state: ChannelMPCState = serde_json::from_str(&msg0.get(0).unwrap()).unwrap();
         let pk_m: secp256k1::PublicKey = serde_json::from_str(&msg0.get(1).unwrap()).unwrap();
 
-        // TODO: generating real funding tx
-        let tx = generate_funding_tx(rng);
+        // TODO: generating real funding tx and replace with external values
+        // TODO: validate the FundingTxInfo struct with respect to Bitcoin client
+        let b0_cust = 100;
+        let b0_merch = 100;
+        let tx = generate_funding_tx(rng, b0_cust, b0_merch);
 
-        let (channel_token, mut cust_state) = mpc::init_customer(rng, &pk_m, tx, 100, 100, "Cust");
+        let (channel_token, mut cust_state) = mpc::init_customer(rng, &pk_m, tx, "Cust");
 
         let s0 = mpc::activate_customer(rng, &mut cust_state);
 
@@ -378,12 +381,13 @@ mod cust {
         let (escrow_tx_preimage, full_escrow_tx) = create_escrow_transaction::<Testnet>(&config, &input, &musig_output, &change_output.unwrap());
         let (signed_tx, txid, hash_prevout) = sign_escrow_transaction::<Testnet>(full_escrow_tx, input.private_key);
 
-        // println!("txid: {}", hex::encode(txid));
-        // println!("hash_prevout: {}", hex::encode(hash_prevout));
         println!("writing `txid` and `hash_prevout` to {:?}", escrow.file);
         println!("signed tx: {}", signed_tx);
 
+        // assuming single-funded channels for now
         let funding_tx = mpc::FundingTxInfo {
+            init_cust_bal: escrow.output_sats,
+            init_merch_bal: 0,
             escrow_txid: FixedSizeArray32(txid),
             escrow_prevout: FixedSizeArray32(hash_prevout),
             merch_txid: FixedSizeArray32([0u8; 32]),
@@ -487,7 +491,7 @@ mod merch {
 }
 
 #[cfg(feature = "mpc-bitcoin")]
-fn generate_funding_tx<R: Rng>(csprng: &mut R) -> mpc::FundingTxInfo {
+fn generate_funding_tx<R: Rng>(csprng: &mut R, b0_cust: i64, b0_merch: i64) -> mpc::FundingTxInfo {
     let mut escrow_txid = [0u8; 32];
     let mut merch_txid = [0u8; 32];
 
@@ -509,7 +513,8 @@ fn generate_funding_tx<R: Rng>(csprng: &mut R) -> mpc::FundingTxInfo {
     let result2 = Sha256::digest(&Sha256::digest(&prevout_preimage2));
     merch_prevout.copy_from_slice(&result2);
 
-        return mpc::FundingTxInfo { escrow_txid: FixedSizeArray32(escrow_txid),
+        return mpc::FundingTxInfo { init_cust_bal: b0_cust, init_merch_bal: b0_merch,
+                                    escrow_txid: FixedSizeArray32(escrow_txid),
                                     merch_txid: FixedSizeArray32(merch_txid),
                                     escrow_prevout: FixedSizeArray32(escrow_prevout),
                                     merch_prevout: FixedSizeArray32(merch_prevout) };

@@ -687,6 +687,8 @@ pub mod mpc {
 
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     pub struct FundingTxInfo {
+        pub init_cust_bal: i64,
+        pub init_merch_bal: i64,
         pub escrow_txid: FixedSizeArray32,
         pub escrow_prevout: FixedSizeArray32,
         pub merch_txid: FixedSizeArray32,
@@ -711,13 +713,12 @@ pub mod mpc {
     /// Generate initial customer channel state and channel token.
     /// output: a channel token and customer state
     ///
-    pub fn init_customer<'a, R: Rng>(csprng: &mut R, pk_m: &PublicKey, tx: FundingTxInfo,
-                                     b0_cust: i64, b0_merch: i64, name: &'a str) -> (ChannelMPCToken, CustomerMPCState) {
-        assert!(b0_cust >= 0);
-        assert!(b0_merch >= 0);
+    pub fn init_customer<'a, R: Rng>(csprng: &mut R, pk_m: &PublicKey, tx: FundingTxInfo, name: &'a str) -> (ChannelMPCToken, CustomerMPCState) {
+        assert!(tx.init_cust_bal > 0);
+        assert!(tx.init_merch_bal >= 0);
 
         let cust_name = String::from(name);
-        let mut cust_state = CustomerMPCState::new(csprng, b0_cust, b0_merch, cust_name);
+        let mut cust_state = CustomerMPCState::new(csprng, tx.init_cust_bal, tx.init_merch_bal, cust_name);
 
         let mut channel_token = cust_state.generate_init_channel_token(pk_m, tx.escrow_txid.0, tx.merch_txid.0);
         cust_state.generate_init_state(csprng, &mut channel_token, tx.escrow_prevout.0, tx.merch_prevout.0);
@@ -1354,9 +1355,9 @@ mod tests {
         let mut channel = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
         let mut merch_state = mpc::init_merchant(rng, &mut channel, "Bob");
 
-        let funding_tx_info = generate_funding_tx(&mut rng);
+        let funding_tx_info = generate_funding_tx(&mut rng, 100, 100);
 
-        let (channel_token, mut cust_state) = mpc::init_customer(rng, &merch_state.pk_m,funding_tx_info, 100, 100, "Alice");
+        let (channel_token, mut cust_state) = mpc::init_customer(rng, &merch_state.pk_m,funding_tx_info, "Alice");
 
         let s0 = mpc::activate_customer(rng, &mut cust_state);
 
@@ -1368,7 +1369,7 @@ mod tests {
     }
 
     #[cfg(feature = "mpc-bitcoin")]
-    fn generate_funding_tx<R: Rng>(csprng: &mut R) -> mpc::FundingTxInfo {
+    fn generate_funding_tx<R: Rng>(csprng: &mut R, b0_cust: i64, b0_merch: i64) -> mpc::FundingTxInfo {
         let mut escrow_txid = [0u8; 32];
         let mut merch_txid = [0u8; 32];
 
@@ -1390,7 +1391,8 @@ mod tests {
         let result2 = Sha256::digest(&Sha256::digest(&prevout_preimage2));
         merch_prevout.copy_from_slice(&result2);
 
-        return mpc::FundingTxInfo { escrow_txid: FixedSizeArray32(escrow_txid),
+        return mpc::FundingTxInfo { init_cust_bal: b0_cust, init_merch_bal: b0_merch,
+                                    escrow_txid: FixedSizeArray32(escrow_txid),
                                     merch_txid: FixedSizeArray32(merch_txid),
                                     escrow_prevout: FixedSizeArray32(escrow_prevout),
                                     merch_prevout: FixedSizeArray32(merch_prevout) };
@@ -1406,9 +1408,9 @@ mod tests {
         let mut channel = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
         let mut merch_state = mpc::init_merchant(&mut rng, &mut channel, "Bob");
 
-        let funding_tx_info = generate_funding_tx(&mut rng);
+        let funding_tx_info = generate_funding_tx(&mut rng, 100, 100);
 
-        let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, funding_tx_info,100, 100, "Alice");
+        let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, funding_tx_info, "Alice");
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
 
@@ -1441,13 +1443,13 @@ rusty_fork_test! {
         let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
         let mut merch_state = mpc::init_merchant(&mut rng, &mut channel_state, "Bob");
 
-        let funding_tx_info = generate_funding_tx(&mut rng);
+        let funding_tx_info = generate_funding_tx(&mut rng, 100, 100);
         let ser_tx_info = serde_json::to_string(&funding_tx_info).unwrap();
         println!("Ser Funding Tx Info: {}", ser_tx_info);
         let orig_funding_tx_info: mpc::FundingTxInfo = serde_json::from_str(&ser_tx_info).unwrap();
         assert_eq!(funding_tx_info, orig_funding_tx_info);
 
-        let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, funding_tx_info, 100, 100, "Alice");
+        let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, funding_tx_info, "Alice");
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
 

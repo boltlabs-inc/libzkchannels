@@ -139,8 +139,8 @@ func InitMerchant(channelState ChannelState, name string) (ChannelState, MerchSt
 	return channelState, merchState, err
 }
 
-func InitCustomer(pkM string, tx string, balanceCustomer int64, balanceMerchant int64, name string) (ChannelToken, CustState, error) {
-	resp := C.GoString(C.mpc_init_customer(C.CString(pkM), C.CString(tx), C.longlong(balanceCustomer), C.longlong(balanceMerchant), C.CString(name)))
+func InitCustomer(pkM string, tx string, name string) (ChannelToken, CustState, error) {
+	resp := C.GoString(C.mpc_init_customer(C.CString(pkM), C.CString(tx), C.CString(name)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return ChannelToken{}, CustState{}, err
