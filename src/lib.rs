@@ -1,10 +1,11 @@
-//! This crate is an experimental implementation of Blind Off-chain
-//! lightweight transactions (BOLT).
+//! This crate is an experimental implementation of zkChannels
+//! - formerly Blind Off-chain lightweight transactions (BOLT).
 //!
-//! It builds on academic work done by Ian Miers and Matthew Green -
+//! zkChannels comprehensively extends academic work by Ian Miers and Matthew Green -
 //! https://eprint.iacr.org/2016/701.
 //!
-//! Libzkchannels relies on BLS12-381 curves at 128-bit security, as implemented in a fork of
+//! Libzkchannels relies on the EMP-toolkit ['emp-sh2pc`](https://github.com/boltlabs-inc/emp-sh2pc),
+//! BN-256 and BLS12-381 curves at 128-bit security, as implemented in a fork of
 //! [`pairing module`](https://github.com/boltlabs-inc/pairing).
 //!
 #![allow(non_snake_case)]
@@ -46,6 +47,7 @@ extern crate wagyu_model;
 #[macro_use]
 extern crate rusty_fork;
 extern crate rand_xorshift;
+extern crate serde_bytes;
 
 pub mod cl;
 pub mod ccs08;
@@ -62,6 +64,7 @@ pub mod mpcwrapper;
 pub mod ffishim_bn256;
 pub mod bindings;
 pub mod transactions;
+pub mod fixed_size_array;
 
 pub mod test_e2e;
 
@@ -674,33 +677,20 @@ pub mod wtp_utils {
 #[cfg(feature = "mpc-bitcoin")]
 pub mod mpc {
     use rand::Rng;
-    use util;
-    use wallet;
-    use secp256k1;
-    use HashMap;
-
-    pub use channels_mpc::{ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState};
+    pub use fixed_size_array::{FixedSizeArray32, FixedSizeArray64};
+    pub use channels_mpc::{ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState, RevokedState};
     use secp256k1::PublicKey;
     use wallet::{State, NONCE_LEN};
     use channels_mpc::MaskedTxMPCInputs;
     use serde::{Serialize, Deserialize};
     use bindings::ConnType_NETIO;
 
-    #[derive(Clone, Serialize, Deserialize)]
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     pub struct FundingTxInfo {
-        pub escrow_txid: [u8; 32],
-        pub escrow_prevout: [u8; 32],
-        pub merch_txid: [u8; 32],
-        pub merch_prevout: [u8; 32]
-    }
-
-    #[derive(Clone, Serialize, Deserialize)]
-    pub struct RevokedState {
-        pub nonce: [u8; NONCE_LEN],
-        pub rev_lock_com: [u8; 32],
-        pub rev_lock: [u8; 32],
-        pub rev_secret: [u8; 32],
-        pub t: [u8; 32]
+        pub escrow_txid: FixedSizeArray32,
+        pub escrow_prevout: FixedSizeArray32,
+        pub merch_txid: FixedSizeArray32,
+        pub merch_prevout: FixedSizeArray32
     }
 
     ///
@@ -729,8 +719,8 @@ pub mod mpc {
         let cust_name = String::from(name);
         let mut cust_state = CustomerMPCState::new(csprng, b0_cust, b0_merch, cust_name);
 
-        let mut channel_token = cust_state.generate_init_channel_token(pk_m, tx.escrow_txid, tx.merch_txid);
-        cust_state.generate_init_state(csprng, &mut channel_token, tx.escrow_prevout, tx.merch_prevout);
+        let mut channel_token = cust_state.generate_init_channel_token(pk_m, tx.escrow_txid.0, tx.merch_txid.0);
+        cust_state.generate_init_state(csprng, &mut channel_token, tx.escrow_prevout.0, tx.merch_prevout.0);
 
         (channel_token, cust_state)
     }
@@ -741,8 +731,8 @@ pub mod mpc {
     /// output: initial state
     ///
     pub fn activate_customer<R: Rng>(csprng: &mut R, cust_state: &mut CustomerMPCState) -> State {
-        let r_com = cust_state.generate_rev_lock_commitment(csprng);
-        let t_0 = cust_state.get_randomness();
+        let _r_com = cust_state.generate_rev_lock_commitment(csprng);
+        let _t0 = cust_state.get_randomness();
 
         cust_state.get_current_state()
     }
@@ -849,9 +839,9 @@ pub mod mpc {
     /// output: the pay token mask
     ///
     pub fn pay_validate_rev_lock_merchant(rev_state: RevokedState, merch_state: &mut MerchantMPCState) -> Result<[u8; 32], String> {
-        // nonce: [u8; NONCE_LEN], rev_lock_com: [u8; 32], rev_lock: [u8; 32], rev_sec: [u8; 32], t: [u8;32]
-        let pt_mask_option = merch_state.verify_revoked_state(rev_state.nonce, rev_state.rev_lock_com,
-                                                              rev_state.rev_lock, rev_state.rev_secret, rev_state.t);
+        let pt_mask_option = merch_state.verify_revoked_state(rev_state.get_nonce(), rev_state.get_rev_lock_com(),
+                                                              rev_state.get_rev_lock(), rev_state.get_rev_secret(),
+                                                              rev_state.get_randomness());
         match pt_mask_option.is_some() {
             true => return Ok(pt_mask_option.unwrap()),
             _ => return Err(String::from("Pay token mask not found"))
@@ -890,6 +880,7 @@ mod tests {
 
     #[cfg(feature = "mpc-bitcoin")]
     use channels_mpc::MaskedTxMPCInputs;
+    use fixed_size_array::FixedSizeArray32;
 
     fn setup_new_channel_helper(channel_state: &mut zkproofs::ChannelState<Bls12>,
                                 init_cust_bal: i64, init_merch_bal: i64)
@@ -1313,7 +1304,7 @@ mod tests {
 
         let option_sig = wtp_utils::reconstruct_signature_bls12(&ser_signature);
 
-        let sig = match option_sig {
+        let _sig = match option_sig {
             Ok(n) => n.unwrap(),
             Err(e) => panic!("Error reconstructing compact rep of signature: {}", e)
         };
@@ -1337,6 +1328,7 @@ mod tests {
         let mut seckey = [0u8; 32];
         seckey.copy_from_slice(sk.as_slice());
         let sig = wtp_utils::wtp_generate_secp_signature(&seckey, &hash);
+        assert!(sig.len() > 0);
     }
 
     #[test]
@@ -1363,6 +1355,7 @@ mod tests {
         let mut merch_state = mpc::init_merchant(rng, &mut channel, "Bob");
 
         let funding_tx_info = generate_funding_tx(&mut rng);
+
         let (channel_token, mut cust_state) = mpc::init_customer(rng, &merch_state.pk_m,funding_tx_info, 100, 100, "Alice");
 
         let s0 = mpc::activate_customer(rng, &mut cust_state);
@@ -1397,7 +1390,10 @@ mod tests {
         let result2 = Sha256::digest(&Sha256::digest(&prevout_preimage2));
         merch_prevout.copy_from_slice(&result2);
 
-        return mpc::FundingTxInfo { escrow_txid, merch_txid, escrow_prevout, merch_prevout };
+        return mpc::FundingTxInfo { escrow_txid: FixedSizeArray32(escrow_txid),
+                                    merch_txid: FixedSizeArray32(merch_txid),
+                                    escrow_prevout: FixedSizeArray32(escrow_prevout),
+                                    merch_prevout: FixedSizeArray32(merch_prevout) };
     }
 
 
@@ -1411,7 +1407,7 @@ mod tests {
         let mut merch_state = mpc::init_merchant(&mut rng, &mut channel, "Bob");
 
         let funding_tx_info = generate_funding_tx(&mut rng);
-        println!("{}", serde_json::to_string(&funding_tx_info).unwrap());
+
         let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, funding_tx_info,100, 100, "Alice");
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
@@ -1420,22 +1416,16 @@ mod tests {
 
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
-        let (state, rev_lock_com, rev_lock, rev_secret) = mpc::pay_prepare_customer(&mut rng, &mut channel, 10, &mut cust_state);
-        let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, s0.nonce, &mut merch_state);
+        let (_, rev_lock_com, rev_lock, rev_secret) = mpc::pay_prepare_customer(&mut rng, &mut channel, 10, &mut cust_state);
+        let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, s0.get_nonce(), &mut merch_state);
 
-        let res_merch = mpc::pay_merchant(&mut rng, &mut channel, s0.nonce.clone(), pay_mask_com, rev_lock_com, 10, &mut merch_state);
+        let res_merch = mpc::pay_merchant(&mut rng, &mut channel, s0.get_nonce(), pay_mask_com, rev_lock_com, 10, &mut merch_state);
         assert!(res_merch.is_ok());
-        let inputs = res_merch.unwrap();
+        let _inputs = res_merch.unwrap();
 
         let t = cust_state.get_randomness();
 
-        let revoked_state = mpc::RevokedState {
-            nonce: s0.nonce.clone(),
-            rev_lock_com,
-            rev_lock,
-            rev_secret,
-            t
-        };
+        let revoked_state = mpc::RevokedState::new(s0.get_nonce(), rev_lock_com, rev_lock, rev_secret, t);
         let pay_token_mask = mpc::pay_validate_rev_lock_merchant(revoked_state, &mut merch_state);
         assert!(pay_token_mask.is_ok());
         assert_eq!(hex::encode(pay_token_mask.unwrap()), "6cd32e3254e7adaf3e742870ecab92aee1b863eabe75342a427d8e1954787822");
@@ -1452,6 +1442,11 @@ rusty_fork_test! {
         let mut merch_state = mpc::init_merchant(&mut rng, &mut channel_state, "Bob");
 
         let funding_tx_info = generate_funding_tx(&mut rng);
+        let ser_tx_info = serde_json::to_string(&funding_tx_info).unwrap();
+        println!("Ser Funding Tx Info: {}", ser_tx_info);
+        let orig_funding_tx_info: mpc::FundingTxInfo = serde_json::from_str(&ser_tx_info).unwrap();
+        assert_eq!(funding_tx_info, orig_funding_tx_info);
+
         let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, funding_tx_info, 100, 100, "Alice");
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
@@ -1460,8 +1455,8 @@ rusty_fork_test! {
 
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
-        let (state, rev_lock_com, rev_lock, rev_sec) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, 10, &mut cust_state);
-        let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, state.nonce, &mut merch_state);
+        let (state, rev_lock_com, _, _) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, 10, &mut cust_state);
+        let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, state.get_nonce(), &mut merch_state);
 
         let res_cust = mpc::pay_customer(&mut channel_state, &channel_token, s0, state, pay_mask_com, rev_lock_com, 10, &mut cust_state);
         assert!(res_cust.is_ok() && res_cust.unwrap());
@@ -1475,12 +1470,13 @@ rusty_fork_test! {
         r_merch_sig.copy_from_slice(hex::decode("6f1badfa1b06afb2129e36d331919d445c48698d6a838619aa3239075c21dd5c").unwrap().as_slice());
         let mut r_escrow_sig = [0u8; 32];
         r_escrow_sig.copy_from_slice(hex::decode("1c242c510c2e11e8b00e0198cb6a58c42b83465004190ddf39ed6cfc5be26257").unwrap().as_slice());
-        let masks = MaskedTxMPCInputs {
+
+        let masks = MaskedTxMPCInputs::new(
             escrow_mask,
             merch_mask,
             r_escrow_sig,
-            r_merch_sig,
-        };
+            r_merch_sig
+        );
 
         let is_ok = mpc::pay_unmask_tx_customer(&channel_state, &channel_token, masks, &mut cust_state);
         assert!(is_ok);

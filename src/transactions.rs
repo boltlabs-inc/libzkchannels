@@ -5,7 +5,7 @@ use bitcoin::{BitcoinFormat, BitcoinTransaction, BitcoinTransactionInput, Bitcoi
 use bitcoin::address::BitcoinAddress;
 use bitcoin::SignatureHash::SIGHASH_ALL;
 use wagyu_model::crypto::hash160;
-use wagyu_model::{Transaction, PublicKey};
+use wagyu_model::Transaction;
 use wagyu_model::PrivateKey;
 use std::str::FromStr;
 use util::hash_to_slice;
@@ -14,7 +14,7 @@ use sha2::{Digest, Sha256};
 pub const SATOSHI: i64 = 100000000;
 
 pub struct Input {
-    pub private_key: &'static str,
+    pub private_key: String,
     pub address_format: &'static str,
     pub transaction_id: String,
     pub index: u32,
@@ -197,7 +197,7 @@ pub mod btc {
         txid_buf.reverse();
         let txid_str = hex::encode(txid_buf);
         Input {
-            private_key: "",
+            private_key: String::from(""),
             address_format: "native_p2wsh",
             // outpoint + txid
             transaction_id: txid_str,
@@ -215,7 +215,7 @@ pub mod btc {
     // output2 => change output to p2wpkh
     pub fn create_escrow_transaction<N: BitcoinNetwork>(config: &BitcoinTxConfig, input: &Input, output1: &MultiSigOutput, output2: &Output) -> (Vec<u8>, BitcoinTransaction<N>) {
         // retrieve signing key for funding input
-        let private_key = BitcoinPrivateKey::<N>::from_str(input.private_key).unwrap();
+        let private_key = BitcoinPrivateKey::<N>::from_str(input.private_key.as_str()).unwrap();
         // types of UTXO inputs to support
         let address_format = match input.address_format {
             "p2pkh" => BitcoinFormat::P2PKH,
@@ -289,7 +289,7 @@ pub mod btc {
     // signs a given transaction using a specified private key
     // assumes that transaction has already been loaded
     pub fn sign_escrow_transaction<N: BitcoinNetwork>(unsigned_tx: BitcoinTransaction<N>, private_key: String) -> (String, [u8; 32], [u8; 32]) {
-        let private_key = BitcoinPrivateKey::<N>::from_str(private_key.as_str()).unwrap();
+        let private_key = BitcoinPrivateKey::<N>::from_str(&private_key.as_str()).unwrap();
 
         let signed_tx = unsigned_tx.sign(&private_key).unwrap();
         let signed_tx_hex = hex::encode(signed_tx.to_transaction_bytes().unwrap());
@@ -376,7 +376,7 @@ pub mod btc {
 
     // creates a merch-close-tx that spends from a P2WSH to another
     pub fn create_merch_close_transaction_params<N: BitcoinNetwork>(config: &BitcoinTxConfig, input: &Input, merch_pubkey: &Vec<u8>, merch_close_pubkey: &Vec<u8>, self_delay: &[u8; 2]) -> BitcoinTransactionParameters<N> {
-        let private_key = BitcoinPrivateKey::<N>::from_str(input.private_key).unwrap();
+        let private_key = BitcoinPrivateKey::<N>::from_str(input.private_key.as_str()).unwrap();
         let cust_pubkey = private_key.to_public_key().to_secp256k1_public_key().serialize();
 
         let address_format = match input.address_format {
@@ -551,7 +551,7 @@ mod tests {
     #[test]
     fn test_bitcoin_testnet_escrow_tx() {
         let input = Input {
-            private_key: "cPmiXrwUfViwwkvZ5NXySiHEudJdJ5aeXU4nx4vZuKWTUibpJdrn", // testnet
+            private_key: String::from("cPmiXrwUfViwwkvZ5NXySiHEudJdJ5aeXU4nx4vZuKWTUibpJdrn"), // testnet
             address_format: "p2sh_p2wpkh",
             transaction_id: String::from("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1"),
             index: 0,
@@ -566,7 +566,6 @@ mod tests {
             lock_time: 0
         };
 
-        let fee = 0; // 0.001
         let musig_output = MultiSigOutput {
             pubkey1: hex::decode("027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb").unwrap(),
             pubkey2: hex::decode("037bed6ab680a171ef2ab564af25eff15c0659313df0bbfb96414da7c7d1e65882").unwrap(),
@@ -609,7 +608,7 @@ mod tests {
 
         // customer private key
         let input = Input {
-            private_key: "cPmiXrwUfViwwkvZ5NXySiHEudJdJ5aeXU4nx4vZuKWTUibpJdrn", // testnet
+            private_key: String::from("cPmiXrwUfViwwkvZ5NXySiHEudJdJ5aeXU4nx4vZuKWTUibpJdrn"), // testnet
             address_format: "native_p2wsh",
             // outpoint + txid
             transaction_id: String::from("5eb0c50e6f725b88507cda84f339aba539bc99853436db610d6a476a207f82d9"),
@@ -628,7 +627,7 @@ mod tests {
         let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
         let tx_params= transactions::btc::create_merch_close_transaction_params::<Testnet>(&config, &input, &merch_pk, &merch_close_pk, &to_self_delay);
 
-        let (merch_tx_preimage, unsigned_tx) = transactions::btc::create_merch_close_transaction_preimage::<Testnet>(&tx_params);
+        let (merch_tx_preimage, _) = transactions::btc::create_merch_close_transaction_preimage::<Testnet>(&tx_params);
         println!("merch-close tx raw preimage: {}", hex::encode(&merch_tx_preimage));
         let expected_merch_tx_preimage = hex::decode("02000000fdd1def69203bbf96a6ebc56166716401302fcd06eadd147682e8898ba19bee43bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044d9827f206a476a0d61db36348599bc39a5ab39f384da7c50885b726f0ec5b05e0000000047522103af0530f244a154b278b34de709b84bb85bb39ff3f1302fc51ae275e5a45fb35321027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb52ae00ca9a3b00000000ffffffffa87408648d6dfa0d6bd01786008047f225669b9fc634a38452e9ea1448a524b00000000001000000").unwrap();
         assert_eq!(merch_tx_preimage, expected_merch_tx_preimage);
@@ -652,7 +651,7 @@ mod tests {
     fn test_bitcoin_testnet_cust_close_from_escrow_tx() {
         let spend_from_escrow = true;
         let input = Input {
-            private_key: "cPmiXrwUfViwwkvZ5NXySiHEudJdJ5aeXU4nx4vZuKWTUibpJdrn", // testnet
+            private_key: String::from("cPmiXrwUfViwwkvZ5NXySiHEudJdJ5aeXU4nx4vZuKWTUibpJdrn"), // testnet
             address_format: "native_p2wsh",
             // outpoint + txid
             transaction_id: String::from("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1"),
@@ -693,7 +692,7 @@ mod tests {
         let merch_signature = transactions::btc::generate_signature_for_multi_sig_transaction::<Testnet>(&tx_preimage, String::from(merch_private_key)).unwrap();
 
         // customer signs the transaction and embed the merch-signature
-        let c_private_key = BitcoinPrivateKey::<Testnet>::from_str(input.private_key).unwrap();
+        let c_private_key = BitcoinPrivateKey::<Testnet>::from_str(input.private_key.as_str()).unwrap();
         let (signed_cust_close_tx, txid, hash_prevout) = transactions::btc::completely_sign_multi_sig_transaction::<Testnet>(&tx_params, &merch_signature, &c_private_key);
         let cust_close_tx = hex::encode(signed_cust_close_tx.to_transaction_bytes().unwrap());
 
@@ -709,7 +708,7 @@ mod tests {
     fn test_bitcoin_testnet_cust_close_from_merch_tx() {
         let spend_from_escrow = false;
         let input = Input {
-            private_key: "cPmiXrwUfViwwkvZ5NXySiHEudJdJ5aeXU4nx4vZuKWTUibpJdrn", // testnet
+            private_key: String::from("cPmiXrwUfViwwkvZ5NXySiHEudJdJ5aeXU4nx4vZuKWTUibpJdrn"), // testnet
             address_format: "native_p2wsh",
             // outpoint + txid
             transaction_id: String::from("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1"),
@@ -718,11 +717,6 @@ mod tests {
             script_pub_key: None,
             utxo_amount: Some(10 * SATOSHI),
             sequence: Some([0xff, 0xff, 0xff, 0xff]) // 4294967295
-        };
-
-        let config = BitcoinTxConfig {
-            version: 2,
-            lock_time: 0
         };
 
         let mut pubkeys = ClosePublicKeys {
@@ -739,7 +733,7 @@ mod tests {
         let cust_bal = 8 * SATOSHI;
         let merch_bal = 2 * SATOSHI;
         let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
-        let (tx_preimage, tx_params, _) =
+        let (tx_preimage, _, _) =
             transactions::btc::create_cust_close_transaction::<Testnet>(&input, &pubkeys, &to_self_delay, cust_bal, merch_bal, spend_from_escrow);
         println!("cust-close from merch tx raw preimage: {}", hex::encode(&tx_preimage));
         let expected_tx_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff40000000072635221024596d7b33733c28101dbc6c85901dffaed0cdac63ab0b2ea141217d1990ad4b121027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb52ae6702cf05b2752102ab573100532827bd0e44b4353e4eaa9c79afbc93f69454a4a44d9fea8c45b5afac6800ca9a3b00000000ffffffff73bca1a59fcb04fe71d242be5d73021d02bbc6cdec66e9cb963060ff5028928e0000000001000000").unwrap();

@@ -23,7 +23,7 @@ bench:
 
 test:
 	# runs the unit test suite
-	cargo +nightly test --release #-- --nocapture
+	cargo +nightly test --release 
 
 mpctest:
 	./test_mpcwrapper.sh
@@ -40,32 +40,9 @@ doc:
 deps:
 	make -C deps
 
-#pythontests:
-#	cargo +nightly clean
-#	cargo +nightly update
-#	cargo +nightly build --release
-#	python py/libbolt.py
-#	python py/libbolt_tests.py
-
-#cpptests:
-#	@cargo +nightly build --release
-#	@g++ cpp/libbolt.cpp -L ./target/release/ -lbolt -I ./include -o cpp_test
-#	@LD_LIBRARY_PATH=./target/release/ ./cpp_test
-#	@rm cpp_test
-
 mpcgotest:
 	cargo +nightly build --release --features=mpc-bitcoin
 	go test -v go/libzkchannels.go go/libzkchannels_test.go
-	#go test go/libzkchannels.go go/libzkchannels_test.go -run Test_fullProtocol -v
-
-#alltests:
-#	cargo +nightly clean
-#	cargo +nightly update
-#	cargo +nightly build --release
-#	cargo +nightly test --release #-- --nocapture
-#	python py/libbolt.py
-#	python py/libbolt_tests.py
-#	go test go/libbolt.go go/libbolt_test.go
 
 clean:
 	cargo +nightly clean

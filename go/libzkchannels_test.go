@@ -1,7 +1,6 @@
 package libzkchannels
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -20,15 +19,19 @@ func Test_fullProtocol(t *testing.T) {
 	channelState, merchState, err := InitMerchant(channelState, "merch")
 	assert.Nil(t, err)
 
-	tx := "{\"escrow_txid\":[246,247,125,79,241,43,188,239,211,33,58,175,42,166,29,41,184,38,127,137,197,119,146,135,93,234,216,249,186,47,48,61],\"escrow_prevout\":[26,73,70,210,94,70,153,198,157,56,137,152,88,241,23,60,91,122,180,232,148,64,207,146,82,5,244,242,68,206,7,37],\"merch_txid\":[66,132,10,77,121,254,50,89,0,125,134,103,181,195,119,219,13,100,70,194,10,139,73,12,254,153,115,88,46,147,124,61],\"merch_prevout\":[233,175,61,52,120,238,91,171,23,249,124,185,218,62,92,96,16,77,236,127,119,127,138,82,154,13,122,233,96,134,100,73]}"
+	tx := "{\"escrow_txid\":\"f6f77d4ff12bbcefd3213aaf2aa61d29b8267f89c57792875dead8f9ba2f303d\",\"escrow_prevout\":\"1a4946d25e4699c69d38899858f1173c5b7ab4e89440cf925205f4f244ce0725\",\"merch_txid\":\"42840a4d79fe3259007d8667b5c377db0d6446c20a8b490cfe9973582e937c3d\",\"merch_prevout\":\"e9af3d3478ee5bab17f97cb9da3e5c60104dec7f777f8a529a0d7ae960866449\"}"
 	channelToken, custState, err := InitCustomer(fmt.Sprintf("\"%v\"", *merchState.PkM), tx, 100, 100, "cust")
 	assert.Nil(t, err)
 
 	state, custState, err := ActivateCustomer(custState)
 	assert.Nil(t, err)
 
+	fmt.Println("initial state := ", state)
+
 	payToken0, merchState, err := ActivateMerchant(channelToken, state, merchState)
 	assert.Nil(t, err)
+
+	fmt.Println("pay token 0 := ", payToken0)
 
 	custState, err = ActivateCustomerFinalize(payToken0, custState)
 	assert.Nil(t, err)
@@ -36,11 +39,15 @@ func Test_fullProtocol(t *testing.T) {
 	revLockCom, revLock, revSecret, newState, channelState, custState, err := PreparePaymentCustomer(channelState, 10, custState)
 	assert.Nil(t, err)
 
-	payTokenMaskCom, merchState, err := PreparePaymentMerchant(fmt.Sprintf("%v", state.Nonce), merchState)
+	assert.NotNil(t, newState)
+	assert.NotNil(t, channelState)
+	assert.NotNil(t, custState)
+
+	payTokenMaskCom, merchState, err := PreparePaymentMerchant(state.Nonce, merchState)
 	assert.Nil(t, err)
 
 	go runPayCust(channelState, channelToken, state, newState, payTokenMaskCom, revLockCom, custState)
-	maskedTxInputs, merchState, err := PayMerchant(channelState, fmt.Sprintf("%v", state.Nonce), payTokenMaskCom, revLockCom, 10, merchState)
+	maskedTxInputs, merchState, err := PayMerchant(channelState, state.Nonce, payTokenMaskCom, revLockCom, 10, merchState)
 	assert.Nil(t, err)
 	time.Sleep(time.Second * 5)
 
@@ -51,14 +58,11 @@ func Test_fullProtocol(t *testing.T) {
 	assert.Nil(t, err)
 	assert.True(t, isOk)
 
-	revLockComBytes, _ := hex.DecodeString(revLockCom)
-	revLockBytes, _ := hex.DecodeString(revLock)
-	revSecretBytes, _ := hex.DecodeString(revSecret)
 	revokedState := RevokedState{
 		Nonce:      state.Nonce,
-		RevLockCom: BAtoIA(revLockComBytes),
-		RevLock:    BAtoIA(revLockBytes),
-		RevSecret:  BAtoIA(revSecretBytes),
+		RevLockCom: revLockCom,
+		RevLock:    revLock,
+		RevSecret:  revSecret,
 		T:          custState.T,
 	}
 
@@ -72,14 +76,6 @@ func Test_fullProtocol(t *testing.T) {
 	fmt.Println("Get most recent close transactions...")
 	fmt.Println("CloseEscrowTx: ", string(custState.CloseEscrowTx))
 	fmt.Println("CloseEscrowTx: ", string(custState.CloseMerchTx))
-}
-
-func BAtoIA(bytes []byte) []int {
-	out := make([]int, len(bytes))
-	for i, b := range bytes {
-		out[i] = int(b)
-	}
-	return out
 }
 
 func runPayCust(channelState ChannelState, channelToken ChannelToken, state State, newState State, payTokenMaskCom string, revLockCom string, custState CustState) {

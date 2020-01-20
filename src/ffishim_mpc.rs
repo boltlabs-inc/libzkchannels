@@ -138,11 +138,11 @@ pub mod ffishim_mpc {
     pub extern fn mpc_activate_merchant(ser_channel_token: *mut c_char, ser_state: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
         // Deserialize the ChannelToken
         let channel_token_result: ResultSerdeType<ChannelMPCToken> = deserialize_result_object(ser_channel_token);
-        let mut channel_token = handle_errors!(channel_token_result);
+        let channel_token = handle_errors!(channel_token_result);
 
         // Deserialize the state
         let state_result: ResultSerdeType<State> = deserialize_result_object(ser_state);
-        let mut state = handle_errors!(state_result);
+        let state = handle_errors!(state_result);
 
         // Deserialize the merch_state
         let merch_state_result: ResultSerdeType<MerchantMPCState> = deserialize_result_object(ser_merch_state);
@@ -200,7 +200,7 @@ pub mod ffishim_mpc {
         let rng = &mut rand::thread_rng();
 
         // Deserialize nonce
-        let nonce_result: ResultSerdeType<Vec<u8>> = deserialize_result_object(ser_nonce);
+        let nonce_result = deserialize_hex_string(ser_nonce);
         let nonce = handle_errors!(nonce_result);
         let mut nonce_ar = [0u8; 16];
         nonce_ar.copy_from_slice(nonce.as_slice());
@@ -228,11 +228,11 @@ pub mod ffishim_mpc {
 
         // Deserialize the start_state
         let start_state_result: ResultSerdeType<State> = deserialize_result_object(ser_start_state);
-        let mut start_state = handle_errors!(start_state_result);
+        let start_state = handle_errors!(start_state_result);
 
         // Deserialize the end_state
         let end_state_result: ResultSerdeType<State> = deserialize_result_object(ser_end_state);
-        let mut end_state = handle_errors!(end_state_result);
+        let end_state = handle_errors!(end_state_result);
 
         // Deserialize pay_token_mask_com
         let pay_token_mask_com_result = deserialize_hex_string(ser_pay_token_mask_com);
@@ -267,7 +267,7 @@ pub mod ffishim_mpc {
         let mut channel_state = handle_errors!(channel_state_result);
 
         // Deserialize nonce
-        let nonce_result: ResultSerdeType<Vec<u8>> = deserialize_result_object(ser_nonce);
+        let nonce_result = deserialize_hex_string(ser_nonce);
         let nonce = handle_errors!(nonce_result);
         let mut nonce_ar = [0u8; 16];
         nonce_ar.copy_from_slice(nonce.as_slice());
@@ -325,7 +325,7 @@ pub mod ffishim_mpc {
     pub extern fn mpc_pay_validate_rev_lock_merchant(ser_revoked_state: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
         // Deserialize masked_tx_inputs
         let revoked_state_result: ResultSerdeType<RevokedState> = deserialize_result_object(ser_revoked_state);
-        let mut revoked_state = handle_errors!(revoked_state_result);
+        let revoked_state = handle_errors!(revoked_state_result);
 
         // Deserialize the merch_state
         let merch_state_result: ResultSerdeType<MerchantMPCState> = deserialize_result_object(ser_merch_state);
@@ -333,7 +333,7 @@ pub mod ffishim_mpc {
 
         // We change the channel state
         let pay_token_mask_result = mpc::pay_validate_rev_lock_merchant(revoked_state, &mut merch_state);
-        let mut pay_token_mask = handle_errors!(pay_token_mask_result);
+        let pay_token_mask = handle_errors!(pay_token_mask_result);
         let ser = ["{\'pay_token_mask\':\'", &hex::encode(pay_token_mask), "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
