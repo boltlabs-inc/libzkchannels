@@ -17,9 +17,11 @@ extern "C" {
 
 pub fn call_ecdsa() -> () {
     println!("calling ecdsa!");
+    /*
     unsafe {
         build_test();
     };
+    */
 }
 
 #[cfg(test)]
