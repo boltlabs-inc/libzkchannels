@@ -200,7 +200,7 @@ pub mod ffishim_mpc {
         let rng = &mut rand::thread_rng();
 
         // Deserialize nonce
-        let nonce_result: ResultSerdeType<Vec<u8>> = deserialize_result_object(ser_nonce);
+        let nonce_result = deserialize_hex_string(ser_nonce);
         let nonce = handle_errors!(nonce_result);
         let mut nonce_ar = [0u8; 16];
         nonce_ar.copy_from_slice(nonce.as_slice());
@@ -267,7 +267,7 @@ pub mod ffishim_mpc {
         let mut channel_state = handle_errors!(channel_state_result);
 
         // Deserialize nonce
-        let nonce_result: ResultSerdeType<Vec<u8>> = deserialize_result_object(ser_nonce);
+        let nonce_result = deserialize_hex_string(ser_nonce);
         let nonce = handle_errors!(nonce_result);
         let mut nonce_ar = [0u8; 16];
         nonce_ar.copy_from_slice(nonce.as_slice());

@@ -185,14 +185,14 @@ pub struct CustomerMPCState {
     sk_c: secp256k1::SecretKey,
     pub cust_balance: i64,
     pub merch_balance: i64,
-    rev_lock: FixedSizeArray32, // [u8; 32]
-    rev_secret: FixedSizeArray32, // [u8; 32]
+    rev_lock: FixedSizeArray32,
+    rev_secret: FixedSizeArray32,
     t: FixedSizeArray32, // [u8; 32], // randomness used to form the commitment
     state: Option<State>, // vector of field elements that represent current state
     index: i32,
     masked_outputs: HashMap<i32, MaskedMPCOutputs>,
     pay_tokens: HashMap<i32, FixedSizeArray32>,
-    pay_token_mask_com: FixedSizeArray32, // [u8; 32]
+    pay_token_mask_com: FixedSizeArray32,
     payout_sk: secp256k1::SecretKey,
     pub conn_type: u32,
     cust_close_escrow_tx: String,
@@ -581,7 +581,7 @@ impl RevokedState {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LockMap {
-    pub lock: FixedSizeArray32, // [u8; 32],
+    pub lock: FixedSizeArray32,
     pub secret: FixedSizeArray32,
 }
 
@@ -672,7 +672,6 @@ impl MerchantMPCState {
 
     pub fn generate_pay_mask_commitment<R: Rng>(&mut self, csprng: &mut R, nonce: [u8; NONCE_LEN]) -> Result<[u8; 32], String> {
         // check if n_i not in S
-        // let nonce_hex = hex::encode(nonce.to_vec());
         let nonce_hex = hex::encode(nonce);
         if self.lock_map_state.get(&nonce_hex).is_some() {
             return Err(String::from("nonce has been used already."));
@@ -732,7 +731,7 @@ impl MerchantMPCState {
         let key_com = channel_state.get_key_com();
 
         // load the hmac key
-        let mut hmac_key = [0u8; 64]; // hmac_key.get_bytes();
+        let mut hmac_key = [0u8; 64];
         hmac_key.copy_from_slice(&self.hmac_key.get_bytes());
 
         // get the public keys
@@ -823,13 +822,13 @@ mod tests {
         let mut merch_prevout = [0u8; 32];
 
         let mut prevout_preimage1: Vec<u8> = Vec::new();
-        prevout_preimage1.extend(escrow_txid.iter()); // txid1
+        prevout_preimage1.extend(escrow_txid.iter());
         prevout_preimage1.extend(vec![0x00, 0x00, 0x00, 0x00]); // index
         let result1 = Sha256::digest(&Sha256::digest(&prevout_preimage1));
         escrow_prevout.copy_from_slice(&result1);
 
         let mut prevout_preimage2: Vec<u8> = Vec::new();
-        prevout_preimage2.extend(merch_txid.iter()); // txid2
+        prevout_preimage2.extend(merch_txid.iter());
         prevout_preimage2.extend(vec![0x00, 0x00, 0x00, 0x00]); // index
         let result2 = Sha256::digest(&Sha256::digest(&prevout_preimage2));
         merch_prevout.copy_from_slice(&result2);

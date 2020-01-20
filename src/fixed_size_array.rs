@@ -1,6 +1,6 @@
 use super::*;
 use serde::ser::{Serialize, SerializeTuple};
-use serde::de::{self, Deserialize, Deserializer, Visitor, SeqAccess, MapAccess};
+use serde::de::{self, Deserialize, Deserializer, Visitor};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct FixedSizeArray16(pub [u8; 16]);
@@ -8,9 +8,7 @@ pub struct FixedSizeArray16(pub [u8; 16]);
 impl ::serde::Serialize for FixedSizeArray16 {
     fn serialize<S: ::serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error>
     {
-        let mut tup = s.serialize_tuple(1)?;
-        tup.serialize_element(&hex::encode(&self.0))?;
-        tup.end()
+        s.collect_str(&hex::encode(&self.0))
     }
 }
 
@@ -28,23 +26,22 @@ impl<'de> Deserialize<'de> for FixedSizeArray16 {
             }
 
             #[inline]
-            fn visit_seq<V>(self, mut seq: V) -> Result<FixedSizeArray16, V::Error>
-                where V: SeqAccess<'de>
+            fn visit_str<V>(self, v: &str) -> Result<FixedSizeArray16, V>
+                where V: ::serde::de::Error
             {
-                let hex_str = seq.next_element::<String>()?;
-                let bytes = match hex_str {
-                    Some(n) => hex::decode(n.as_str()),
-                    None => return Err(de::Error::custom("No string was found"))
+                let bytes = match hex::decode(&v) {
+                    Ok(n) => n,
+                    Err(e) => return Err(de::Error::custom(e.to_string()))
                 };
                 let mut fixed_bytes = [0u8; 16];
-                match bytes.is_ok() {
-                    true => fixed_bytes.copy_from_slice(&bytes.unwrap()),
-                    false => return Err(de::Error::custom("invalid hex encoding"))
+                match bytes.len() == 16 {
+                    true => fixed_bytes.copy_from_slice(&bytes),
+                    false => return Err(de::Error::custom("invalid length"))
                 }
                 Ok(FixedSizeArray16(fixed_bytes))
             }
         }
-        deserializer.deserialize_seq(FixedSizeArray16Visitor { })
+        deserializer.deserialize_str(FixedSizeArray16Visitor { })
     }
 }
 
@@ -54,9 +51,7 @@ pub struct FixedSizeArray32(pub [u8; 32]);
 impl ::serde::Serialize for FixedSizeArray32 {
     fn serialize<S: ::serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error>
     {
-        let mut tup = s.serialize_tuple(1)?;
-        tup.serialize_element(&hex::encode(&self.0))?;
-        tup.end()
+        s.collect_str(&hex::encode(&self.0))
     }
 }
 
@@ -74,23 +69,22 @@ impl<'de> Deserialize<'de> for FixedSizeArray32 {
             }
 
             #[inline]
-            fn visit_seq<V>(self, mut seq: V) -> Result<FixedSizeArray32, V::Error>
-                where V: SeqAccess<'de>
+            fn visit_str<V>(self, v: &str) -> Result<FixedSizeArray32, V>
+                where V: ::serde::de::Error
             {
-                let hex_str = seq.next_element::<String>()?;
-                let bytes = match hex_str {
-                    Some(n) => hex::decode(n.as_str()),
-                    None => return Err(de::Error::custom("No string was found"))
+                let bytes = match hex::decode(&v) {
+                    Ok(n) => n,
+                    Err(e) => return Err(de::Error::custom(e.to_string()))
                 };
                 let mut fixed_bytes = [0u8; 32];
-                match bytes.is_ok() {
-                    true => fixed_bytes.copy_from_slice(&bytes.unwrap()),
-                    false => return Err(de::Error::custom("invalid hex encoding"))
+                match bytes.len() == 32 {
+                    true => fixed_bytes.copy_from_slice(&bytes),
+                    false => return Err(de::Error::custom("invalid length"))
                 }
                 Ok(FixedSizeArray32(fixed_bytes))
             }
         }
-        deserializer.deserialize_seq(FixedSizeArray32Visitor { })
+        deserializer.deserialize_str(FixedSizeArray32Visitor { })
     }
 }
 
@@ -117,9 +111,7 @@ impl FixedSizeArray64 {
 impl ::serde::Serialize for FixedSizeArray64 {
     fn serialize<S: ::serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error>
     {
-        let mut tup = s.serialize_tuple(1)?;
-        tup.serialize_element(&hex::encode(&self.get_bytes()))?;
-        tup.end()
+        s.collect_str(&hex::encode(&self.get_bytes()))
     }
 }
 
@@ -133,35 +125,30 @@ impl<'de> Deserialize<'de> for FixedSizeArray64 {
             type Value = FixedSizeArray64;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("struct FixedSizeArray")
+                formatter.write_str("struct FixedSizeArray64")
             }
 
             #[inline]
-            fn visit_seq<V>(self, mut seq: V) -> Result<FixedSizeArray64, V::Error>
-                where V: SeqAccess<'de>
+            fn visit_str<V>(self, v: &str) -> Result<FixedSizeArray64, V>
+                where V: ::serde::de::Error
             {
-                let hex_str = seq.next_element::<String>()?;
-                let bytes = match hex_str {
-                    Some(n) => hex::decode(n.as_str()),
-                    None => return Err(de::Error::custom("No string was found"))
+                let bytes = match hex::decode(&v) {
+                    Ok(n) => n,
+                    Err(e) => return Err(de::Error::custom(e.to_string()))
                 };
                 let mut fixed_bytes1 = [0u8; 32];
                 let mut fixed_bytes2 = [0u8; 32];
-
-                match bytes.is_ok() {
+                match bytes.len() == 64 {
                     true => {
-                        let b = bytes.unwrap();
-                        if b.len() != 64 {
-                            return Err(de::Error::custom("invalid length: expected 64 bytes"));
-                        }
-                        fixed_bytes1.copy_from_slice(&b[0..32]);
-                        fixed_bytes2.copy_from_slice(&b[32..64])
+                        fixed_bytes1.copy_from_slice(&bytes[0..32]);
+                        fixed_bytes2.copy_from_slice(&bytes[32..64])
                     },
-                    false => return Err(de::Error::custom("invalid hex encoding"))
+                    false => return Err(de::Error::custom("invalid length: expected 64 bytes"))
                 }
                 Ok(FixedSizeArray64(fixed_bytes1, fixed_bytes2))
             }
+
         }
-        deserializer.deserialize_seq(FixedSizeArray64Visitor { })
+        deserializer.deserialize_str(FixedSizeArray64Visitor { })
     }
 }

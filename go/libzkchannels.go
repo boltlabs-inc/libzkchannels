@@ -29,20 +29,20 @@ type setupResp struct {
 }
 
 type ChannelState struct {
-	TxFee              int64   `json:"tx_fee"`
-	DustLimit          int64   `json:"dust_limit"`
-	KeyCom             []int   `json:"key_com"`
-	Name               string  `json:"name"`
-	ThirdParty         bool    `json:"third_party"`
-	MerchPayOutPk      *string `json:"merch_payout_pk"`
-	MerchDisputePk     *string `json:"merch_dispute_pk"`
+	TxFee          int64   `json:"tx_fee"`
+	DustLimit      int64   `json:"dust_limit"`
+	KeyCom         string  `json:"key_com"`
+	Name           string  `json:"name"`
+	ThirdParty     bool    `json:"third_party"`
+	MerchPayOutPk  *string `json:"merch_payout_pk"`
+	MerchDisputePk *string `json:"merch_dispute_pk"`
 }
 
 type MerchState struct {
 	Id           *string                 `json:"id"`
 	PkM          *string                 `json:"pk_m"`
 	SkM          *string                 `json:"sk_m"`
-	HmacKey      []int                   `json:"hmac_key"`
+	HmacKey      string                  `json:"hmac_key"`
 	PayoutSk     *string                 `json:"payout_sk"`
 	PayoutPk     *string                 `json:"payout_pk"`
 	DisputeSk    *string                 `json:"dispute_sk"`
@@ -60,15 +60,14 @@ type CustState struct {
 	SkC             string                  `json:"sk_c"`
 	CustBalance     int64                   `json:"cust_balance"`
 	MerchBalance    int64                   `json:"merch_balance"`
-	RevLock         []int                   `json:"rev_lock"`
-	RevSecret       []int                   `json:"rev_secret"`
-	OldKp           *interface{}            `json:"old_kp"`
-	T               []int                   `json:"t"`
+	RevLock         string                  `json:"rev_lock"`
+	RevSecret       string                  `json:"rev_secret"`
+	T               string                  `json:"t"`
 	State           *State                  `json:"state"`
 	Index           int                     `json:"index"`
 	MaskedOutputs   *map[string]interface{} `json:"masked_outputs"`
 	PayTokens       *map[string]interface{} `json:"pay_tokens"`
-	PayTokenMaskCom []int                   `json:"pay_token_mask_com"`
+	PayTokenMaskCom string                  `json:"pay_token_mask_com"`
 	PayoutSk        string                  `json:"payout_sk"`
 	ConnType        int                     `json:"conn_type"`
 	CloseEscrowTx   string                  `json:"cust_close_escrow_tx"`
@@ -76,38 +75,38 @@ type CustState struct {
 }
 
 type State struct {
-	Nonce         []int  `json:"nonce"`
-	RevLock       []int  `json:"rev_lock"`
+	Nonce         string `json:"nonce"`
+	RevLock       string `json:"rev_lock"`
 	PkC           string `json:"pk_c"`
 	PkM           string `json:"pk_m"`
 	BC            int64  `json:"bc"`
 	BM            int64  `json:"bm"`
-	EscrowTxId    []int  `json:"escrow_txid"`
-	EscrowPrevOut []int  `json:"escrow_prevout"`
-	MerchTxId     []int  `json:"merch_txid"`
-	MerchPrevOut  []int  `json:"merch_prevout"`
+	EscrowTxId    string `json:"escrow_txid"`
+	EscrowPrevOut string `json:"escrow_prevout"`
+	MerchTxId     string `json:"merch_txid"`
+	MerchPrevOut  string `json:"merch_prevout"`
 }
 
 type ChannelToken struct {
 	PkC        string `json:"pk_c"`
 	PkM        string `json:"pk_m"`
-	EscrowTxId []int  `json:"escrow_txid"`
-	MerchTxId  []int  `json:"merch_txid"`
+	EscrowTxId string `json:"escrow_txid"`
+	MerchTxId  string `json:"merch_txid"`
 }
 
 type MaskedTxInputs struct {
-	EscrowMask []int `json:"escrow_mask"`
-	MerchMask  []int `json:"merch_mask"`
-	REscrowSig []int `json:"r_escrow_sig"`
-	RMerchSig  []int `json:"r_merch_sig"`
+	EscrowMask string `json:"escrow_mask"`
+	MerchMask  string `json:"merch_mask"`
+	REscrowSig string `json:"r_escrow_sig"`
+	RMerchSig  string `json:"r_merch_sig"`
 }
 
 type RevokedState struct {
-	Nonce      []int `json:"nonce"`
-	RevLock    []int `json:"rev_lock"`
-	RevLockCom []int `json:"rev_lock_com"`
-	RevSecret  []int `json:"rev_secret"`
-	T          []int `json:"t"`
+	Nonce      string `json:"nonce"`
+	RevLock    string `json:"rev_lock"`
+	RevLockCom string `json:"rev_lock_com"`
+	RevSecret  string `json:"rev_secret"`
+	T          string `json:"t"`
 }
 
 func ChannelSetup(name string, channelSupport bool) (ChannelState, error) {
@@ -251,8 +250,8 @@ func PreparePaymentMerchant(nonce string, merchState MerchState) (string, MerchS
 	if err != nil {
 		return "", MerchState{}, err
 	}
-	serNonce := strings.ReplaceAll(nonce, " ", ",")
-	resp := C.GoString(C.mpc_prepare_payment_merchant(C.CString(serNonce), C.CString(string(serMerchState))))
+	//serNonce := strings.ReplaceAll(nonce, " ", ",")
+	resp := C.GoString(C.mpc_prepare_payment_merchant(C.CString(nonce), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", MerchState{}, err
@@ -300,13 +299,13 @@ func PayMerchant(channelState ChannelState, nonce string, payTokenMaskCom string
 	if err != nil {
 		return MaskedTxInputs{}, MerchState{}, err
 	}
-	serNonce := strings.ReplaceAll(nonce, " ", ",")
+
 	serMerchState, err := json.Marshal(merchState)
 	if err != nil {
 		return MaskedTxInputs{}, MerchState{}, err
 	}
 
-	resp := C.GoString(C.mpc_pay_merchant(C.CString(string(serChannelState)), C.CString(serNonce), C.CString(payTokenMaskCom), C.CString(revLockCom), C.longlong(amount), C.CString(string(serMerchState))))
+	resp := C.GoString(C.mpc_pay_merchant(C.CString(string(serChannelState)), C.CString(nonce), C.CString(payTokenMaskCom), C.CString(revLockCom), C.longlong(amount), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return MaskedTxInputs{}, MerchState{}, err

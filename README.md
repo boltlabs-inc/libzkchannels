@@ -37,18 +37,17 @@ We will switch to the stable release channel once libzkchannels (and dependencie
 
 # Build & Install
 
-To be able to build zkChannels for Bitcoin, you'll have to install the EMP-toolkit dependency for testing MPC as follows:
+To be able to build zkChannels for Bitcoin, you'll have to install the EMP-toolkit dependency as follows:
 
 	. ./env
 	make deps
 	./test_emp.sh
 
-To build the library and execute basic examples, run `make` 
-
+To build with ZK proofs and execute basic examples, run `make` and to build with MPC, run `make mpc`
 
 # Tests
 
-To run libzkchannels unit tests, run `make test`
+To run libzkchannels unit tests, run `make test` and with MPC, run `make mpctest`
 
 # Benchmarks
 

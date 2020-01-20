@@ -1355,6 +1355,7 @@ mod tests {
         let mut merch_state = mpc::init_merchant(rng, &mut channel, "Bob");
 
         let funding_tx_info = generate_funding_tx(&mut rng);
+
         let (channel_token, mut cust_state) = mpc::init_customer(rng, &merch_state.pk_m,funding_tx_info, 100, 100, "Alice");
 
         let s0 = mpc::activate_customer(rng, &mut cust_state);
@@ -1406,7 +1407,7 @@ mod tests {
         let mut merch_state = mpc::init_merchant(&mut rng, &mut channel, "Bob");
 
         let funding_tx_info = generate_funding_tx(&mut rng);
-        println!("{}", serde_json::to_string(&funding_tx_info).unwrap());
+
         let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, funding_tx_info,100, 100, "Alice");
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
@@ -1441,6 +1442,11 @@ rusty_fork_test! {
         let mut merch_state = mpc::init_merchant(&mut rng, &mut channel_state, "Bob");
 
         let funding_tx_info = generate_funding_tx(&mut rng);
+        let ser_tx_info = serde_json::to_string(&funding_tx_info).unwrap();
+        println!("Ser Funding Tx Info: {}", ser_tx_info);
+        let orig_funding_tx_info: mpc::FundingTxInfo = serde_json::from_str(&ser_tx_info).unwrap();
+        assert_eq!(funding_tx_info, orig_funding_tx_info);
+
         let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, funding_tx_info, 100, 100, "Alice");
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
