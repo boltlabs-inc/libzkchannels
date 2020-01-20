@@ -1,51 +1,36 @@
-use libc::{c_int, c_uint, c_void};
 use secp256k1::{Signature, Message, PublicKey, Secp256k1};
-use std::ffi::{CString, CStr};
-use rand::{RngCore, Rng};
-use num::BigInt;
-use num::bigint::Sign;
-use util::hmac_sign;
-use std::slice;
-use wallet::State;
+use rand::{RngCore};
 use ecdsa_partial::EcdsaPartialSig;
-use std::ptr;
-use std::str;
+use bindings::{EcdsaPartialSig_l};
 
 extern "C" {
-    pub fn build_test();
+    pub fn test_ecdsa_e2e(partial: EcdsaPartialSig_l, digest: &[u32; 8]) -> ();
 }
 
-pub fn call_ecdsa() -> () {
+pub fn call_ecdsa(psl: EcdsaPartialSig_l) -> () {
     println!("calling ecdsa!");
+    let return_digest = [0u32; 8];
+
     unsafe {
-        build_test();
+        test_ecdsa_e2e(psl, &return_digest);
     };
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use typenum::U32;
-    use std::{str, thread};
-    use num::BigInt;
-    use std::time::Duration;
     use sha2::{Sha256, Digest};
-    use secp256k1::PartialSignature;
-    use std::str::FromStr;
-    use rand::rngs::mock::StepRng;
 
     #[test]
     fn test_mpc_ecdsa() {
         println!("testing ... testing ...");
-        call_ecdsa();
-        /*
+
         let csprng = &mut rand::thread_rng();
         let mut seckey = [0u8; 32];
         csprng.fill_bytes(&mut seckey);
         let sk = secp256k1::SecretKey::from_slice(&seckey).unwrap();
 
-        //let (eps,sps) = createEcdsaParamsPair(csprng,&sk);
-
+        let partial = EcdsaPartialSig::New(csprng,&sk);
 
         // compute signature locally
         let mut msg = [0u8; 32];
@@ -53,14 +38,13 @@ mod tests {
         let mut hasher = Sha256::new();
         hasher.input(msg);
         let hash = hasher.result();
-        //println!("{:x} --> {:x}", BigInt::from_bytes_be(Sign::Plus,&msg), hash);
 
         let secp = secp256k1::Secp256k1::new();
-        let signature = secp.compute_sign(&Message::from_slice(&hash).unwrap(), &sps);
-        println!("{}", hex::encode(signature.serialize_compact()));
-        */
+        let signature = secp.compute_sign(&Message::from_slice(&hash).unwrap(), &(partial.getSecpRepr()));
+        // println!("{}", hex::encode(signature.serialize_compact()));
 
         // compute signature under mpc
+        call_ecdsa(partial.getMpcRepr());
 
         // compare
     }
