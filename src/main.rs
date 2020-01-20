@@ -22,28 +22,6 @@ use rand::{RngCore, Rng};
 use std::io::{BufRead, Write, Read};
 use zkchannels::fixed_size_array::FixedSizeArray32;
 
-macro_rules! measure_one_arg {
-    ($x: expr) => {
-        {
-            let s = Instant::now();
-            let res = $x;
-            let e = s.elapsed();
-            (res, e.as_millis())
-        };
-    }
-}
-
-macro_rules! measure_two_arg {
-    ($x: expr) => {
-        {
-            let s = Instant::now();
-            let (res1, res2) = $x;
-            let e = s.elapsed();
-            (res1, res2, e.as_millis())
-        };
-    }
-}
-
 #[derive(Debug, Deserialize)]
 enum Party {
     MERCH,
@@ -158,11 +136,6 @@ impl Conn {
 
         out
     }
-}
-
-#[cfg(not(feature = "mpc-bitcoin"))]
-fn main() {
-    println!("Not activated!");
 }
 
 #[cfg(feature = "mpc-bitcoin")]
