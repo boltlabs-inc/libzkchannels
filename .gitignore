@@ -7,5 +7,6 @@ deps/time/*.tar.gz
 deps/emp-*/*.tar.gz
 deps/emp-*/build-*
 deps/*/*.git
+deps/*/tmp-*
 
 .*.swp
