@@ -1,7 +1,7 @@
 // include standard libraries
 use num::BigInt;
 use num::bigint::Sign;
-use rand::{RngCore, Rng};
+use rand::{Rng};
 use std::slice;
 use std::ffi::{CString, CStr};
 use super::*;
