@@ -51,7 +51,7 @@ function distro() {
   elif [[ $1 = "darwin" ]]; then
     eval $__out=`sw_vers -productVersion | awk -F '.' '{print $1 "." $2}'`
   elif [[ $1 = "debian" ]]; then
-    eval $__out="`lsb_release -cs`"
+    eval $__out="`cat /etc/os-release | grep 'VERSION=' | cut -c 9-`"
   else
     eval $__out="unknown_version"
   fi
@@ -80,7 +80,6 @@ function install_pkgs_ubuntu() {
 }
 
 function install_pkgs_debian() {
-    apt-get install -y software-properties-common
     apt-get update
     apt-get install -y cmake git build-essential libssl-dev libgmp-dev python
     apt-get install -y libboost1.67-dev libboost-system1.67-dev
