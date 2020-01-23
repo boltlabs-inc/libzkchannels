@@ -22,7 +22,7 @@ COPY ./test_channels_mpc.sh ./test_channels_mpc.sh
 
 RUN . ./env && make deps
 RUN . ./env && cargo build --release --features mpc-bitcoin
-RUN . ./env && make mcptest
+RUN . ./env && make mpctest
 
 # binary "/libzkchannels/target/release/zkchannels_mpc -h"
 CMD ["/bin/bash"]
