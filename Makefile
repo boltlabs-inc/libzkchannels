@@ -28,7 +28,7 @@ test:
 mpctest:
 	./test_mpcwrapper.sh
 	./test_channels_mpc.sh
-	cargo +nightly test --release --features mpc-bitcoin -- --ignored --nocapture
+	cargo test --release --features mpc-bitcoin -- --ignored --nocapture
 
 update:
 	cargo +nightly update
@@ -41,7 +41,7 @@ deps:
 	make -C deps
 
 mpcgotest:
-	cargo +nightly build --release --features=mpc-bitcoin
+	cargo build --release --features=mpc-bitcoin
 	go test -v go/libzkchannels.go go/libzkchannels_test.go
 
 clean:
