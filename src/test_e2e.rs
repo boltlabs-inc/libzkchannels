@@ -1,5 +1,4 @@
 use secp256k1::{Signature, Message, PublicKey, Secp256k1};
-use rand::{RngCore};
 use ecdsa_partial::EcdsaPartialSig;
 use bindings::{EcdsaPartialSig_l};
 
@@ -34,6 +33,7 @@ fn call_ecdsa(psl: EcdsaPartialSig_l, hashedmsg: [u8; 32], party: u32) -> () {
 mod tests {
     use super::*;
     use sha2::{Sha256, Digest};
+    use rand::{RngCore};
 
     // rusty fork tests call the two parties separately.
     rusty_fork_test! {

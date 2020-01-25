@@ -19,13 +19,6 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
-    macro_rules! bolt_try {
-        ($e:expr) => (match $e {
-            Ok(val) => val.unwrap(),
-            Err(err) => return error_message(err),
-        });
-    }
-
     macro_rules! handle_errors {
         ($e:expr) => (match $e {
             Ok(val) => val,

@@ -1,24 +1,14 @@
 use libc::{c_int, c_uint, c_void};
 use secp256k1::{Signature, Message, PublicKey, Secp256k1};
-use std::ffi::{CString, CStr};
-use rand::{RngCore, Rng};
-use num::BigInt;
-use num::bigint::Sign;
+use std::ffi::CString;
+use rand::Rng;
 use bindings::{get_netio_ptr, get_unixnetio_ptr, build_masked_tokens_cust, build_masked_tokens_merch,
-               EcdsaPartialSig_l, State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l,
+               State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l,
                PayToken_l, Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l,
                BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l,
                ConnType_NETIO, ConnType_UNIXNETIO, ConnType_TORNETIO};
-use transactions::{ClosePublicKeys, BitcoinTxConfig, Input, SATOSHI};
-use transactions::btc::{create_input, create_cust_close_transaction};
-use bitcoin::Testnet;
-use util::hmac_sign;
-use std::slice;
 use wallet::State;
 use ecdsa_partial::EcdsaPartialSig;
-use std::ptr;
-use std::str;
-use fixed_size_array::{FixedSizeArray16, FixedSizeArray32, FixedSizeArray64};
 
 pub type IOCallback = fn(c_uint, c_int);
 
@@ -283,13 +273,22 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, conn_type: u32, amount
 mod tests {
     use super::*;
     use typenum::U32;
-    use std::{str, thread};
+    use std::{str, ptr, thread};
     use num::BigInt;
+    use num::bigint::Sign;
     use std::time::Duration;
     use sha2::{Sha256, Digest};
     use secp256k1::PartialSignature;
     use std::str::FromStr;
+    use rand::RngCore;
     use rand::rngs::mock::StepRng;
+    use fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
+    use bitcoin::Testnet;
+    use util::hmac_sign;
+    use std::slice;
+    use std::ffi::CStr;
+    use transactions::{ClosePublicKeys, BitcoinTxConfig, Input, SATOSHI};
+    use transactions::btc::{create_input, create_cust_close_transaction};
 
     rusty_fork_test! {
     #[test]

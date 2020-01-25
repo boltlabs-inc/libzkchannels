@@ -53,8 +53,6 @@ pub struct ClosePublicKeys {
 pub mod btc {
 
     use super::*;
-    use std::hash::Hash;
-    use bitcoin::SignatureHash;
 
     pub fn serialize_p2wsh_escrow_redeem_script(merch_pubkey: &Vec<u8>, cust_pubkey: &Vec<u8>) -> Vec<u8> {
         let mut script: Vec<u8> = Vec::new();

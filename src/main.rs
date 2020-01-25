@@ -13,20 +13,25 @@ use structopt::StructOpt;
 use std::str::FromStr;
 use serde::Deserialize;
 use std::net::{SocketAddr, TcpListener, TcpStream};
-use std::sync::mpsc::{Sender, Receiver};
-use std::sync::mpsc;
-use std::thread::{spawn, sleep};
+use std::thread::sleep;
 use std::time;
 use bufstream::BufStream;
 use sha2::{Sha256, Digest};
-use rand::{RngCore, Rng};
+use rand::Rng;
 use std::io::{BufRead, Write, Read};
 use zkchannels::fixed_size_array::FixedSizeArray32;
-use std::path::{PathBuf, Path};
-use bitcoin::network::BitcoinNetwork;
+use std::path::PathBuf;
 use bitcoin::Testnet;
-use zkchannels::transactions::{Input, BitcoinTxConfig, MultiSigOutput, Output, SATOSHI};
+use zkchannels::transactions::{Input, BitcoinTxConfig, MultiSigOutput, Output};
 use zkchannels::transactions::btc::{create_escrow_transaction, sign_escrow_transaction};
+use std::fs::File;
+
+macro_rules! handle_serde_error {
+    ($e:expr) => (match $e {
+        Ok(val) => val,
+        Err(err) => return Err(err.to_string()),
+    });
+}
 
 #[derive(Debug, Deserialize)]
 enum Party {
@@ -93,8 +98,10 @@ pub struct Connect {
 pub struct Close {
     #[structopt(short = "f", long = "file")]
     file: PathBuf,
-    #[structopt(short = "e", long = "escrow")]
-    from_escrow: bool
+    #[structopt(short = "e", long = "from-escrow")]
+    from_escrow: bool,
+    #[structopt(short = "c", long = "channel-token")]
+    channel_token: PathBuf
 }
 
 #[derive(Debug, StructOpt, Deserialize)]
@@ -115,6 +122,57 @@ impl FromStr for Command {
         Ok(serde_json::from_str(&format!("\"{}\"", s))?)
     }
 }
+
+pub fn read_file(file_name: &'static str) -> Result<String, String> {
+    let mut file = match File::open(file_name) {
+        Ok(n) => n,
+        Err(e) => return Err(e.to_string())
+    };
+    let mut content = String::new();
+    let content_len = match file.read_to_string(&mut content) {
+      Ok(n) => n,
+        Err(e) => return Err(e.to_string())
+    };
+    assert!(content_len > 0);
+    Ok(content)
+}
+
+pub fn read_pathfile(path_buf: PathBuf) -> Result<String, String> {
+    let mut file = match File::open(path_buf) {
+        Ok(n) => n,
+        Err(e) => return Err(e.to_string())
+    };
+    let mut content = String::new();
+    let content_len = match file.read_to_string(&mut content) {
+      Ok(n) => n,
+        Err(e) => return Err(e.to_string())
+    };
+    assert!(content_len > 0);
+    Ok(content)
+}
+
+pub fn write_file(file_name: &'static str, content: String) -> Result<(), String> {
+    let mut file = match File::create(file_name) {
+        Ok(n) => n,
+        Err(e) => return Err(e.to_string())
+    };
+    match file.write_all(content.as_ref()) {
+        Ok(n) => Ok(n),
+        Err(e) => return Err(e.to_string())
+    }
+}
+
+pub fn write_pathfile(path_buf: PathBuf, content: String) -> Result<(), String> {
+    let mut file = match File::create(path_buf) {
+        Ok(n) => n,
+        Err(e) => return Err(e.to_string())
+    };
+    match file.write_all(content.as_ref()) {
+        Ok(n) => Ok(n),
+        Err(e) => return Err(e.to_string())
+    }
+}
+
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "zkchannels-mpc")]
@@ -201,25 +259,24 @@ fn main() {
     println!("******************************************");
 
     let args = Cli::from_args();
-    // println!("{:?}", args.command);
 
     match args.command {
         Command::INIT(init) => match args.party {
-            Party::MERCH => merch::init(&mut Conn::new(init.own_ip, init.own_port, init.other_ip, init.other_port)),
-            Party::CUST => cust::init(&mut Conn::new(init.own_ip, init.own_port, init.other_ip, init.other_port)),
+            Party::MERCH => merch::init(&mut Conn::new(init.own_ip, init.own_port, init.other_ip, init.other_port)).unwrap(),
+            Party::CUST => cust::init(&mut Conn::new(init.own_ip, init.own_port, init.other_ip, init.other_port)).unwrap(),
         },
         Command::PAY(payment) => match args.party {
             Party::MERCH => merch::pay(payment.amount.unwrap(),
-                                       &mut Conn::new(payment.own_ip, payment.own_port, payment.other_ip, payment.other_port)),
+                                       &mut Conn::new(payment.own_ip, payment.own_port, payment.other_ip, payment.other_port)).unwrap(),
             Party::CUST => cust::pay(payment.amount.unwrap(),
-                                     &mut Conn::new(payment.own_ip, payment.own_port, payment.other_ip, payment.other_port)),
+                                     &mut Conn::new(payment.own_ip, payment.own_port, payment.other_ip, payment.other_port)).unwrap(),
         },
         Command::CLOSE(close) => match args.party {
-            Party::MERCH => merch::close(close.file),
-            Party::CUST => cust::close(close.file, close.from_escrow),
+            Party::MERCH => merch::close(close.file, close.channel_token).unwrap(),
+            Party::CUST => cust::close(close.file, close.from_escrow).unwrap(),
         },
         Command::ESCROW(escrow) => match args.party {
-            Party::CUST => cust::construct_escrow_transaction(escrow),
+            Party::CUST => cust::construct_escrow_transaction(escrow).unwrap(),
             _ => println!("Customer is supposed to fund the channel")
         },
     }
@@ -233,9 +290,9 @@ mod cust {
     use zkchannels::channels_mpc::{ChannelMPCToken, ChannelMPCState, CustomerMPCState, MaskedTxMPCInputs};
     use std::fs::File;
     use zkchannels::mpc::RevokedState;
-    use zkchannels::transactions::btc::create_input;
+    // use zkchannels::transactions::btc::create_input;
 
-    pub fn init(conn: &mut Conn) {
+    pub fn init(conn: &mut Conn) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
 
         let msg0 = conn.wait_for(None, false);
@@ -244,15 +301,15 @@ mod cust {
 
         // TODO: generating real funding tx and replace with external values
         // TODO: validate the FundingTxInfo struct with respect to Bitcoin client
-        let b0_cust = 100;
-        let b0_merch = 100;
+        let b0_cust = 9000;
+        let b0_merch = 0;
         let tx = generate_funding_tx(rng, b0_cust, b0_merch);
 
         let (channel_token, mut cust_state) = mpc::init_customer(rng, &pk_m, tx, "Cust");
 
         let s0 = mpc::activate_customer(rng, &mut cust_state);
 
-        let msg1 = [serde_json::to_string(&channel_token).unwrap(), serde_json::to_string(&s0).unwrap()];
+        let msg1 = [handle_serde_error!(serde_json::to_string(&channel_token)), handle_serde_error!(serde_json::to_string(&s0))];
         let msg2 = conn.send_and_wait(&msg1, Some(String::from("Sending channel token and state (s0)")), true);
 
         let pay_token: [u8; 32] = serde_json::from_str(&msg2.get(0).unwrap()).unwrap();
@@ -260,24 +317,20 @@ mod cust {
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
         println!("Saving the customer state...");
-        save_state_cust(channel_state, channel_token, cust_state);
+        save_state_cust(channel_state, channel_token, cust_state)
     }
 
-    pub fn pay(amount: i64, conn: &mut Conn) {
+    pub fn pay(amount: i64, conn: &mut Conn) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
 
-        let mut file = File::open("cust_channel_state.json").unwrap();
-        let mut ser_channel_state = String::new();
-        file.read_to_string(&mut ser_channel_state).unwrap();
+        let ser_channel_state = read_file("cust_channel_state.json").unwrap();
         let mut channel_state: ChannelMPCState = serde_json::from_str(&ser_channel_state).unwrap();
-        let mut file1 = File::open("cust_state.json").unwrap();
-        let mut ser_cust_state = String::new();
-        file1.read_to_string(&mut ser_cust_state).unwrap();
+
+        let ser_cust_state = read_file("cust_state.json").unwrap();
         let mut cust_state: CustomerMPCState = serde_json::from_str(&ser_cust_state).unwrap();
-        let mut file2 = File::open("cust_channel_token.json").unwrap();
-        let mut ser_channel_token = String::new();
-        file2.read_to_string(&mut ser_channel_token).unwrap();
-        let mut channel_token: ChannelMPCToken = serde_json::from_str(&ser_channel_token).unwrap();
+
+        let ser_channel_token = read_file("cust_channel_token.json").unwrap();
+        let mut channel_token: ChannelMPCToken = handle_serde_error!(serde_json::from_str(&ser_channel_token));
 
         let t = cust_state.get_randomness();
         let old_state = cust_state.get_current_state();
@@ -313,13 +366,11 @@ mod cust {
             false => println!("Transaction failed!")
         }
 
-        save_state_cust(channel_state, channel_token, cust_state);
+        save_state_cust(channel_state, channel_token, cust_state)
     }
 
-    pub fn close(outfile: PathBuf, from_escrow: bool) {
-        let mut file1 = File::open("cust_state.json").unwrap();
-        let mut ser_cust_state = String::new();
-        file1.read_to_string(&mut ser_cust_state).unwrap();
+    pub fn close(out_file: PathBuf, from_escrow: bool) -> Result<(), String> {
+        let ser_cust_state = read_file("cust_state.json").unwrap();
         let cust_state: CustomerMPCState = serde_json::from_str(&ser_cust_state).unwrap();
 
         let closing_tx = match from_escrow {
@@ -328,20 +379,19 @@ mod cust {
         };
 
         // write out to a file
-        let mut out = File::create(outfile).unwrap();
-        out.write_all(closing_tx.as_ref());
+        write_pathfile(out_file, closing_tx)?;
+        Ok(())
     }
 
-    fn save_state_cust(channel_state: ChannelMPCState, channel_token: ChannelMPCToken, cust_state: CustomerMPCState) {
-        let mut file = File::create("cust_channel_state.json").unwrap();
-        file.write_all(serde_json::to_string(&channel_state).unwrap().as_ref());
-        let mut file1 = File::create("cust_state.json").unwrap();
-        file1.write_all(serde_json::to_string(&cust_state).unwrap().as_ref());
-        let mut file2 = File::create("cust_channel_token.json").unwrap();
-        file2.write_all(serde_json::to_string(&channel_token).unwrap().as_ref());
+    fn save_state_cust(channel_state: ChannelMPCState, channel_token: ChannelMPCToken, cust_state: CustomerMPCState) -> Result<(), String> {
+        write_file("cust_channel_state.json", handle_serde_error!(serde_json::to_string(&channel_state)))?;
+        write_file("cust_state.json", handle_serde_error!(serde_json::to_string(&cust_state)))?;
+        write_file("cust_channel_token.json", handle_serde_error!(serde_json::to_string(&channel_token)))?;
+
+        Ok(())
     }
 
-    pub fn construct_escrow_transaction(escrow: Escrow) {
+    pub fn construct_escrow_transaction(escrow: Escrow) -> Result<(), String> {
         let input = Input {
             private_key: escrow.cust_privkey, // testnet
             address_format: "p2sh_p2wpkh",
@@ -374,8 +424,7 @@ mod cust {
         };
 
         if change_output.is_none() {
-            println!("Require a change pubkey to generate a valid escrow transaction!");
-            return;
+            return Err(String::from("Require a change pubkey to generate a valid escrow transaction!"));
         }
 
         let (escrow_tx_preimage, full_escrow_tx) = create_escrow_transaction::<Testnet>(&config, &input, &musig_output, &change_output.unwrap());
@@ -394,8 +443,8 @@ mod cust {
             merch_prevout: FixedSizeArray32([0u8; 32])
         };
 
-        let mut file = File::create(escrow.file).unwrap();
-        file.write_all(serde_json::to_string(&funding_tx).unwrap().as_ref());
+        write_pathfile(escrow.file, handle_serde_error!(serde_json::to_string(&funding_tx)))?;
+        Ok(())
     }
 }
 
@@ -404,15 +453,14 @@ mod merch {
     use super::*;
     use zkchannels::channels_mpc::{ChannelMPCState, ChannelMPCToken, MerchantMPCState};
     use zkchannels::wallet::State;
-    use std::fs::File;
 
-    pub fn init(conn: &mut Conn) {
+    pub fn init(conn: &mut Conn) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
 
-        let mut channel_state = ChannelMPCState::new("Channel".parse().unwrap(), false);
+        let mut channel_state = ChannelMPCState::new(String::from("Channel"), false);
         let mut merch_state = mpc::init_merchant(rng, &mut channel_state, "Merch");
 
-        let msg1 = [serde_json::to_string(&channel_state).unwrap(), serde_json::to_string(&merch_state.pk_m).unwrap()];
+        let msg1 = [handle_serde_error!(serde_json::to_string(&channel_state)), handle_serde_error!(serde_json::to_string(&merch_state.pk_m))];
 
         let msg2 = conn.send_and_wait(&msg1, Some(String::from("Sending channel state and pk_m")), true);
 
@@ -421,22 +469,19 @@ mod merch {
 
         let pay_token = mpc::activate_merchant(channel_token, &s0, &mut merch_state);
 
-        let msg3 = [serde_json::to_string(&pay_token).unwrap()];
+        let msg3 = [handle_serde_error!(serde_json::to_string(&pay_token))];
         conn.send(&msg3);
 
-        save_state_merch(channel_state, merch_state);
+        save_state_merch(channel_state, merch_state)
     }
 
-    pub fn pay(amount: i64, conn: &mut Conn) {
+    pub fn pay(amount: i64, conn: &mut Conn) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
 
-        let mut file = File::open("merch_channel_state.json").unwrap();
-        let mut ser_channel_state = String::new();
-        file.read_to_string(&mut ser_channel_state).unwrap();
+        let ser_channel_state = read_file("merch_channel_state.json").unwrap();
         let mut channel_state: ChannelMPCState = serde_json::from_str(&ser_channel_state).unwrap();
-        let mut file1 = File::open("merch_state.json").unwrap();
-        let mut ser_merch_state = String::new();
-        file1.read_to_string(&mut ser_merch_state).unwrap();
+
+        let ser_merch_state = read_file("merch_state.json").unwrap();
         let mut merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
 
         let msg0 = conn.wait_for(None, false);
@@ -454,7 +499,7 @@ mod merch {
 
         let result = mpc::pay_merchant(rng, &mut channel_state, nonce, pay_token_mask_com, rev_lock_com, amount, &mut merch_state);
         let masked_inputs = result.unwrap();
-        let msg3 = [serde_json::to_string(&masked_inputs).unwrap()];
+        let msg3 = [handle_serde_error!(serde_json::to_string(&masked_inputs))];
         let msg4 = conn.send_and_wait(&msg3, Some(String::from("Received revoked state")), true);
         let rev_state = serde_json::from_str(msg4.get(0).unwrap()).unwrap();
 
@@ -469,23 +514,32 @@ mod merch {
             println!("Transaction failed!")
         }
 
-        save_state_merch(channel_state, merch_state);
+        save_state_merch(channel_state, merch_state)
     }
 
-    fn save_state_merch(channel_state: ChannelMPCState, merch_state: MerchantMPCState) {
-        let mut file = File::create("merch_channel_state.json").unwrap();
-        file.write_all(serde_json::to_string(&channel_state).unwrap().as_ref());
-        let mut file1 = File::create("merch_state.json").unwrap();
-        file1.write_all(serde_json::to_string(&merch_state).unwrap().as_ref());
+    fn save_state_merch(channel_state: ChannelMPCState, merch_state: MerchantMPCState) -> Result<(), String> {
+        write_file("merch_channel_state.json", handle_serde_error!(serde_json::to_string(&channel_state)))?;
+        write_file("merch_state.json", handle_serde_error!(serde_json::to_string(&merch_state)))?;
+        Ok(())
     }
 
-    pub fn close(outfile: PathBuf) {
+    pub fn close(out_file: PathBuf, channel_token_file: PathBuf) -> Result<(), String> {
         // output the merch-close-tx (only thing merchant can broadcast to close channel)
-        let mut file1 = File::open("merch_state.json").unwrap();
-        let mut ser_merch_state = String::new();
-        file1.read_to_string(&mut ser_merch_state).unwrap();
+        let ser_merch_state = read_file("merch_state.json").unwrap();
         let merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
 
+        let ser_channel_token = read_pathfile(channel_token_file).unwrap();
+        let channel_token: ChannelMPCToken = serde_json::from_str(&ser_channel_token).unwrap();
+
+        let channel_id = match channel_token.compute_channel_id() {
+            Ok(n) => hex::encode(&n),
+            Err(e) => return Err(e.to_string())
+        };
+
+        // TODO: get the merch-close-tx for the given channel-id
+        let merch_close_tx = String::from("retrieve the merch-close-tx here from merch-state for channel-id");
+        write_pathfile(out_file, merch_close_tx)?;
+        Ok(())
     }
 
 }
