@@ -93,6 +93,8 @@ pub struct Close {
 pub enum Command {
     #[structopt(name = "init")]
     INIT(Init),
+    #[structopt(name = "unlink")]
+    UNLINK(Pay),
     #[structopt(name = "pay")]
     PAY(Pay),
     #[structopt(name = "close")]
@@ -243,16 +245,34 @@ fn main() {
 
     match args.command {
         Command::INIT(init) => match init.party {
-            Party::MERCH => merch::init(&mut Conn::new(init.own_ip, init.own_port, init.other_ip, init.other_port)).unwrap(),
-            Party::CUST => cust::init(&mut Conn::new(init.own_ip, init.own_port, init.other_ip, init.other_port), init.funding_tx_file).unwrap(),
+            Party::MERCH => match merch::init(&mut Conn::new(init.own_ip, init.own_port, init.other_ip, init.other_port)) {
+                Err(e) => println!("Initialize phase failed with error: {}", e),
+                _ => ()
+            },
+            Party::CUST => match cust::init(&mut Conn::new(init.own_ip, init.own_port, init.other_ip, init.other_port), init.funding_tx_file) {
+                Err(e) => println!("Initialize phase failed with error: {}", e),
+                _ => ()
+            },
         },
-        // TODO: add Command::UNLINK (where amount=0)
+        Command::UNLINK(unlink) => match unlink.party {
+            Party::MERCH => merch::pay(0,
+                                       &mut Conn::new(unlink.own_ip, unlink.own_port, unlink.other_ip, unlink.other_port)).unwrap(),
+            Party::CUST => cust::pay(0,
+                                     &mut Conn::new(unlink.own_ip, unlink.own_port, unlink.other_ip, unlink.other_port),
+                                     unlink.verbose).unwrap(),
+        },
         Command::PAY(pay) => match pay.party {
-            Party::MERCH => merch::pay(pay.amount.unwrap(),
-                                       &mut Conn::new(pay.own_ip, pay.own_port, pay.other_ip, pay.other_port)).unwrap(),
-            Party::CUST => cust::pay(pay.amount.unwrap(),
+            Party::MERCH => match merch::pay(pay.amount.unwrap(),
+                                       &mut Conn::new(pay.own_ip, pay.own_port, pay.other_ip, pay.other_port)) {
+                Err(e) => println!("Pay phase failed with error: {}", e),
+                _ => ()
+            },
+            Party::CUST => match cust::pay(pay.amount.unwrap(),
                                      &mut Conn::new(pay.own_ip, pay.own_port, pay.other_ip, pay.other_port),
-                                     pay.verbose).unwrap(),
+                                     pay.verbose) {
+                Err(e) => println!("Pay protocol failed with error: {}", e),
+                _ => ()
+            },
         },
         Command::CLOSE(close) => match close.party {
             Party::MERCH => merch::close(close.file, close.channel_token).unwrap(),
@@ -316,6 +336,12 @@ mod cust {
 
         let t = cust_state.get_randomness();
         let old_state = cust_state.get_current_state();
+        // check if there is sufficient balance for payment
+        if amount > old_state.bc {
+            println!("Insufficient funds to make payment. Current balance is {}", old_state.bc);
+            return Err(String::from("Insufficient funds!"));
+        }
+
         // prepare phase
         let (new_state, r_com, rev_lock, rev_secret) = mpc::pay_prepare_customer(rng, &mut channel_state, amount, &mut cust_state);
         if verbose {
