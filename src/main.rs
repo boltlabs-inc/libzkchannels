@@ -72,7 +72,9 @@ pub struct Pay {
     #[structopt(short = "j", long = "other-ip", default_value = "127.0.0.1")]
     other_ip: String,
     #[structopt(short = "q", long = "other-port")]
-    other_port: String
+    other_port: String,
+    #[structopt(short)]
+    verbose: bool
 }
 
 #[derive(Debug, StructOpt, Deserialize)]
@@ -244,11 +246,13 @@ fn main() {
             Party::MERCH => merch::init(&mut Conn::new(init.own_ip, init.own_port, init.other_ip, init.other_port)).unwrap(),
             Party::CUST => cust::init(&mut Conn::new(init.own_ip, init.own_port, init.other_ip, init.other_port), init.funding_tx_file).unwrap(),
         },
+        // TODO: add Command::UNLINK (where amount=0)
         Command::PAY(pay) => match pay.party {
             Party::MERCH => merch::pay(pay.amount.unwrap(),
                                        &mut Conn::new(pay.own_ip, pay.own_port, pay.other_ip, pay.other_port)).unwrap(),
             Party::CUST => cust::pay(pay.amount.unwrap(),
-                                     &mut Conn::new(pay.own_ip, pay.own_port, pay.other_ip, pay.other_port)).unwrap(),
+                                     &mut Conn::new(pay.own_ip, pay.own_port, pay.other_ip, pay.other_port),
+                                     pay.verbose).unwrap(),
         },
         Command::CLOSE(close) => match close.party {
             Party::MERCH => merch::close(close.file, close.channel_token).unwrap(),
@@ -298,7 +302,7 @@ mod cust {
         save_state_cust(channel_state, channel_token, cust_state)
     }
 
-    pub fn pay(amount: i64, conn: &mut Conn) -> Result<(), String> {
+    pub fn pay(amount: i64, conn: &mut Conn, verbose: bool) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
 
         let ser_channel_state = read_file("cust_channel_state.json").unwrap();
@@ -312,8 +316,12 @@ mod cust {
 
         let t = cust_state.get_randomness();
         let old_state = cust_state.get_current_state();
-
+        // prepare phase
         let (new_state, r_com, rev_lock, rev_secret) = mpc::pay_prepare_customer(rng, &mut channel_state, amount, &mut cust_state);
+        if verbose {
+            println!("old state: {}", &old_state);
+            println!("new state: {}", &new_state);
+        }
 
         let msg = [hex::encode(&old_state.get_nonce()), hex::encode(&r_com)];
         let msg1 = conn.send_and_wait(&msg, Some(String::from("nonce and rev_lock com")), true);
@@ -321,12 +329,14 @@ mod cust {
         let mut pay_token_mask_com = [0u8; 32];
         pay_token_mask_com.copy_from_slice(pay_token_mask_com_vec.as_slice());
 
+        // execute the mpc phase
         let result = mpc::pay_customer(&mut channel_state, &mut channel_token, old_state, new_state, pay_token_mask_com, r_com, amount, &mut cust_state);
         let mut is_ok = result.is_ok() && result.unwrap();
 
         let msg2 = conn.wait_for(None, false);
         let mask_bytes: MaskedTxMPCInputs = serde_json::from_str(msg2.get(0).unwrap()).unwrap();
 
+        // unmask the closing tx
         is_ok = is_ok && mpc::pay_unmask_tx_customer(&mut channel_state, &mut channel_token, mask_bytes, &mut cust_state);
 
         let rev_state = RevokedState::new(old_state.get_nonce(),r_com, rev_lock, rev_secret, t);
@@ -336,6 +346,7 @@ mod cust {
         let mut pt_mask_bytes = [0u8; 32];
         pt_mask_bytes.copy_from_slice(pt_mask_bytes_vec.as_slice());
 
+        // unmask the pay token
         is_ok = is_ok && mpc::pay_unmask_pay_token_customer(pt_mask_bytes, &mut cust_state);
 
         conn.send(&[is_ok.to_string()]);
@@ -464,35 +475,3 @@ mod merch {
         Ok(())
     }
 }
-
-//#[cfg(feature = "mpc-bitcoin")]
-//fn generate_funding_tx<R: Rng>(csprng: &mut R, b0_cust: i64, b0_merch: i64) -> FundingTxInfo {
-//    let mut escrow_txid = [0u8; 32];
-//    let mut merch_txid = [0u8; 32];
-//
-//    csprng.fill_bytes(&mut escrow_txid);
-//    csprng.fill_bytes(&mut merch_txid);
-//
-//    let mut escrow_prevout = [0u8; 32];
-//    let mut merch_prevout = [0u8; 32];
-//
-//    let mut prevout_preimage1: Vec<u8> = Vec::new();
-//    prevout_preimage1.extend(escrow_txid.iter()); // txid1
-//    prevout_preimage1.extend(vec![0x00, 0x00, 0x00, 0x00]); // index
-//    let result1 = Sha256::digest(&Sha256::digest(&prevout_preimage1));
-//    escrow_prevout.copy_from_slice(&result1);
-//
-//    let mut prevout_preimage2: Vec<u8> = Vec::new();
-//    prevout_preimage2.extend(merch_txid.iter()); // txid2
-//    prevout_preimage2.extend(vec![0x00, 0x00, 0x00, 0x00]); // index
-//    let result2 = Sha256::digest(&Sha256::digest(&prevout_preimage2));
-//    merch_prevout.copy_from_slice(&result2);
-//
-//        return FundingTxInfo { init_cust_bal: b0_cust, init_merch_bal: b0_merch,
-//                                escrow_txid: FixedSizeArray32(escrow_txid),
-//                                escrow_index: 0,
-//                                merch_txid: FixedSizeArray32(merch_txid),
-//                                merch_index: 0,
-//                                escrow_prevout: FixedSizeArray32(escrow_prevout),
-//                                merch_prevout: FixedSizeArray32(merch_prevout) };
-//}

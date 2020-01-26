@@ -324,8 +324,8 @@ impl CustomerMPCState {
         new_state.bc -= amount;
         new_state.bm += amount;
 
-        new_state.get_nonce().copy_from_slice(&new_nonce);
-        new_state.get_rev_lock().copy_from_slice(&new_rev_lock);
+        new_state.nonce.0.copy_from_slice(&new_nonce);
+        new_state.rev_lock.0.copy_from_slice(&new_rev_lock);
 
         self.rev_secret.0.copy_from_slice(&new_rev_secret);
         self.rev_lock.0.copy_from_slice(&new_rev_lock);
