@@ -6,6 +6,7 @@ extern crate serde;
 extern crate bufstream;
 extern crate sha2;
 extern crate wagyu_bitcoin as bitcoin;
+extern crate wagyu_model;
 
 #[cfg(feature = "mpc-bitcoin")]
 use zkchannels::mpc;
@@ -16,14 +17,10 @@ use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::thread::sleep;
 use std::time;
 use bufstream::BufStream;
-use sha2::{Sha256, Digest};
 use rand::Rng;
 use std::io::{BufRead, Write, Read};
-use zkchannels::fixed_size_array::FixedSizeArray32;
 use std::path::PathBuf;
-use bitcoin::Testnet;
-use zkchannels::transactions::{Input, BitcoinTxConfig, MultiSigOutput, Output};
-use zkchannels::transactions::btc::{create_escrow_transaction, sign_escrow_transaction};
+use zkchannels::mpc::FundingTxInfo;
 use std::fs::File;
 
 macro_rules! handle_serde_error {
@@ -46,30 +43,12 @@ impl FromStr for Party {
     }
 }
 
-#[derive(Clone, Debug, StructOpt, Deserialize)]
-pub struct Escrow {
-    #[structopt(short = "t", long = "txid")]
-    txid: String,
-    #[structopt(short = "i", long = "index")]
-    index: u32,
-    #[structopt(short = "a", long = "input_sats")]
-    input_sats: i64,
-    #[structopt(short = "o", long = "output_sats")]
-    output_sats: i64,
-    #[structopt(long = "cust_sk")]
-    cust_privkey: String,
-    #[structopt(long = "cust_pk")]
-    cust_pubkey: String,
-    #[structopt(long = "merch_pk")]
-    merch_pubkey: String,
-    #[structopt(long = "change_pk")]
-    change_pubkey: Option<String>,
-    #[structopt(long = "file")]
-    file: PathBuf
-}
-
 #[derive(Debug, StructOpt, Deserialize)]
-pub struct Initial {
+pub struct Init {
+    #[structopt(long = "party")]
+    party: Party,
+    #[structopt(long = "funding-tx")]
+    funding_tx_file: Option<PathBuf>,
     #[structopt(short = "i", long = "own-ip", default_value = "127.0.0.1")]
     own_ip: String,
     #[structopt(short = "p", long = "own-port")]
@@ -81,7 +60,9 @@ pub struct Initial {
 }
 
 #[derive(Debug, StructOpt, Deserialize)]
-pub struct Connect {
+pub struct Pay {
+    #[structopt(long = "party")]
+    party: Party,
     #[structopt(short = "a", long = "amount")]
     amount: Option<i64>,
     #[structopt(short = "i", long = "own-ip", default_value = "127.0.0.1")]
@@ -96,6 +77,8 @@ pub struct Connect {
 
 #[derive(Debug, StructOpt, Deserialize)]
 pub struct Close {
+    #[structopt(long = "party")]
+    party: Party,
     #[structopt(short = "f", long = "file")]
     file: PathBuf,
     #[structopt(short = "e", long = "from-escrow")]
@@ -106,12 +89,10 @@ pub struct Close {
 
 #[derive(Debug, StructOpt, Deserialize)]
 pub enum Command {
-    #[structopt(name = "escrow")]
-    ESCROW(Escrow),
     #[structopt(name = "init")]
-    INIT(Initial),
+    INIT(Init),
     #[structopt(name = "pay")]
-    PAY(Connect),
+    PAY(Pay),
     #[structopt(name = "close")]
     CLOSE(Close),
 }
@@ -177,10 +158,8 @@ pub fn write_pathfile(path_buf: PathBuf, content: String) -> Result<(), String> 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "zkchannels-mpc")]
 struct Cli {
-    #[structopt(subcommand, help = "Options: escrow, init, pay, or close")]
+    #[structopt(subcommand, help = "Options: init, pay, or close")]
     command: Command,
-    #[structopt(short = "c", long = "party")]
-    party: Party
 }
 
 pub struct Conn {
@@ -261,23 +240,19 @@ fn main() {
     let args = Cli::from_args();
 
     match args.command {
-        Command::INIT(init) => match args.party {
+        Command::INIT(init) => match init.party {
             Party::MERCH => merch::init(&mut Conn::new(init.own_ip, init.own_port, init.other_ip, init.other_port)).unwrap(),
-            Party::CUST => cust::init(&mut Conn::new(init.own_ip, init.own_port, init.other_ip, init.other_port)).unwrap(),
+            Party::CUST => cust::init(&mut Conn::new(init.own_ip, init.own_port, init.other_ip, init.other_port), init.funding_tx_file).unwrap(),
         },
-        Command::PAY(payment) => match args.party {
-            Party::MERCH => merch::pay(payment.amount.unwrap(),
-                                       &mut Conn::new(payment.own_ip, payment.own_port, payment.other_ip, payment.other_port)).unwrap(),
-            Party::CUST => cust::pay(payment.amount.unwrap(),
-                                     &mut Conn::new(payment.own_ip, payment.own_port, payment.other_ip, payment.other_port)).unwrap(),
+        Command::PAY(pay) => match pay.party {
+            Party::MERCH => merch::pay(pay.amount.unwrap(),
+                                       &mut Conn::new(pay.own_ip, pay.own_port, pay.other_ip, pay.other_port)).unwrap(),
+            Party::CUST => cust::pay(pay.amount.unwrap(),
+                                     &mut Conn::new(pay.own_ip, pay.own_port, pay.other_ip, pay.other_port)).unwrap(),
         },
-        Command::CLOSE(close) => match args.party {
+        Command::CLOSE(close) => match close.party {
             Party::MERCH => merch::close(close.file, close.channel_token).unwrap(),
             Party::CUST => cust::close(close.file, close.from_escrow).unwrap(),
-        },
-        Command::ESCROW(escrow) => match args.party {
-            Party::CUST => cust::construct_escrow_transaction(escrow).unwrap(),
-            _ => println!("Customer is supposed to fund the channel")
         },
     }
 
@@ -288,24 +263,27 @@ fn main() {
 mod cust {
     use super::*;
     use zkchannels::channels_mpc::{ChannelMPCToken, ChannelMPCState, CustomerMPCState, MaskedTxMPCInputs};
-    use std::fs::File;
     use zkchannels::mpc::RevokedState;
-    // use zkchannels::transactions::btc::create_input;
 
-    pub fn init(conn: &mut Conn) -> Result<(), String> {
+    pub fn init(conn: &mut Conn, funding_tx_file: Option<PathBuf>) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
 
         let msg0 = conn.wait_for(None, false);
         let channel_state: ChannelMPCState = serde_json::from_str(&msg0.get(0).unwrap()).unwrap();
         let pk_m: secp256k1::PublicKey = serde_json::from_str(&msg0.get(1).unwrap()).unwrap();
 
-        // TODO: generating real funding tx and replace with external values
+        let ser_funding_tx = match funding_tx_file {
+            Some(f) => read_pathfile(f).unwrap(),
+            None => {
+                let s = String::from("--funding-tx argument is required for customer");
+                println!("{}", s);
+                return Err(s);
+            }
+        };
+        let funding_tx: FundingTxInfo = serde_json::from_str(&ser_funding_tx).unwrap();
         // TODO: validate the FundingTxInfo struct with respect to Bitcoin client
-        let b0_cust = 9000;
-        let b0_merch = 0;
-        let tx = generate_funding_tx(rng, b0_cust, b0_merch);
 
-        let (channel_token, mut cust_state) = mpc::init_customer(rng, &pk_m, tx, "Cust");
+        let (channel_token, mut cust_state) = mpc::init_customer(rng, &pk_m, funding_tx, "Customer");
 
         let s0 = mpc::activate_customer(rng, &mut cust_state);
 
@@ -390,62 +368,6 @@ mod cust {
 
         Ok(())
     }
-
-    pub fn construct_escrow_transaction(escrow: Escrow) -> Result<(), String> {
-        let input = Input {
-            private_key: escrow.cust_privkey, // testnet
-            address_format: "p2sh_p2wpkh",
-            transaction_id: escrow.txid,
-            index: escrow.index,
-            redeem_script: None,
-            script_pub_key: None,
-            utxo_amount: Some(escrow.input_sats), // assumes already in sats
-            sequence: Some([0xff, 0xff, 0xff, 0xff]) // 4294967295
-        };
-
-        let config = BitcoinTxConfig {
-            version: 2,
-            lock_time: 0
-        };
-
-        let musig_output = MultiSigOutput {
-            pubkey1: hex::decode(escrow.merch_pubkey).unwrap(),
-            pubkey2: hex::decode(escrow.cust_pubkey).unwrap(),
-            address_format: "native_p2wsh",
-            amount: escrow.output_sats // assumes already in sats
-        };
-
-        // test if we need a change output pubkey
-        let change_sats = escrow.input_sats - escrow.output_sats;
-        let change_output = match change_sats > 0 && escrow.change_pubkey.is_some() {
-            true => Some(Output { pubkey: hex::decode(escrow.change_pubkey.unwrap()).unwrap(),
-                             amount: change_sats }),
-            false => None
-        };
-
-        if change_output.is_none() {
-            return Err(String::from("Require a change pubkey to generate a valid escrow transaction!"));
-        }
-
-        let (escrow_tx_preimage, full_escrow_tx) = create_escrow_transaction::<Testnet>(&config, &input, &musig_output, &change_output.unwrap());
-        let (signed_tx, txid, hash_prevout) = sign_escrow_transaction::<Testnet>(full_escrow_tx, input.private_key);
-
-        println!("writing `txid` and `hash_prevout` to {:?}", escrow.file);
-        println!("signed tx: {}", signed_tx);
-
-        // assuming single-funded channels for now
-        let funding_tx = mpc::FundingTxInfo {
-            init_cust_bal: escrow.output_sats,
-            init_merch_bal: 0,
-            escrow_txid: FixedSizeArray32(txid),
-            escrow_prevout: FixedSizeArray32(hash_prevout),
-            merch_txid: FixedSizeArray32([0u8; 32]),
-            merch_prevout: FixedSizeArray32([0u8; 32])
-        };
-
-        write_pathfile(escrow.file, handle_serde_error!(serde_json::to_string(&funding_tx)))?;
-        Ok(())
-    }
 }
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -458,7 +380,7 @@ mod merch {
         let rng = &mut rand::thread_rng();
 
         let mut channel_state = ChannelMPCState::new(String::from("Channel"), false);
-        let mut merch_state = mpc::init_merchant(rng, &mut channel_state, "Merch");
+        let mut merch_state = mpc::init_merchant(rng, &mut channel_state, "Merchant");
 
         let msg1 = [handle_serde_error!(serde_json::to_string(&channel_state)), handle_serde_error!(serde_json::to_string(&merch_state.pk_m))];
 
@@ -541,35 +463,36 @@ mod merch {
         write_pathfile(out_file, merch_close_tx)?;
         Ok(())
     }
-
 }
 
-#[cfg(feature = "mpc-bitcoin")]
-fn generate_funding_tx<R: Rng>(csprng: &mut R, b0_cust: i64, b0_merch: i64) -> mpc::FundingTxInfo {
-    let mut escrow_txid = [0u8; 32];
-    let mut merch_txid = [0u8; 32];
-
-    csprng.fill_bytes(&mut escrow_txid);
-    csprng.fill_bytes(&mut merch_txid);
-
-    let mut escrow_prevout = [0u8; 32];
-    let mut merch_prevout = [0u8; 32];
-
-    let mut prevout_preimage1: Vec<u8> = Vec::new();
-    prevout_preimage1.extend(escrow_txid.iter()); // txid1
-    prevout_preimage1.extend(vec![0x00, 0x00, 0x00, 0x00]); // index
-    let result1 = Sha256::digest(&Sha256::digest(&prevout_preimage1));
-    escrow_prevout.copy_from_slice(&result1);
-
-    let mut prevout_preimage2: Vec<u8> = Vec::new();
-    prevout_preimage2.extend(merch_txid.iter()); // txid2
-    prevout_preimage2.extend(vec![0x00, 0x00, 0x00, 0x00]); // index
-    let result2 = Sha256::digest(&Sha256::digest(&prevout_preimage2));
-    merch_prevout.copy_from_slice(&result2);
-
-        return mpc::FundingTxInfo { init_cust_bal: b0_cust, init_merch_bal: b0_merch,
-                                    escrow_txid: FixedSizeArray32(escrow_txid),
-                                    merch_txid: FixedSizeArray32(merch_txid),
-                                    escrow_prevout: FixedSizeArray32(escrow_prevout),
-                                    merch_prevout: FixedSizeArray32(merch_prevout) };
-}
+//#[cfg(feature = "mpc-bitcoin")]
+//fn generate_funding_tx<R: Rng>(csprng: &mut R, b0_cust: i64, b0_merch: i64) -> FundingTxInfo {
+//    let mut escrow_txid = [0u8; 32];
+//    let mut merch_txid = [0u8; 32];
+//
+//    csprng.fill_bytes(&mut escrow_txid);
+//    csprng.fill_bytes(&mut merch_txid);
+//
+//    let mut escrow_prevout = [0u8; 32];
+//    let mut merch_prevout = [0u8; 32];
+//
+//    let mut prevout_preimage1: Vec<u8> = Vec::new();
+//    prevout_preimage1.extend(escrow_txid.iter()); // txid1
+//    prevout_preimage1.extend(vec![0x00, 0x00, 0x00, 0x00]); // index
+//    let result1 = Sha256::digest(&Sha256::digest(&prevout_preimage1));
+//    escrow_prevout.copy_from_slice(&result1);
+//
+//    let mut prevout_preimage2: Vec<u8> = Vec::new();
+//    prevout_preimage2.extend(merch_txid.iter()); // txid2
+//    prevout_preimage2.extend(vec![0x00, 0x00, 0x00, 0x00]); // index
+//    let result2 = Sha256::digest(&Sha256::digest(&prevout_preimage2));
+//    merch_prevout.copy_from_slice(&result2);
+//
+//        return FundingTxInfo { init_cust_bal: b0_cust, init_merch_bal: b0_merch,
+//                                escrow_txid: FixedSizeArray32(escrow_txid),
+//                                escrow_index: 0,
+//                                merch_txid: FixedSizeArray32(merch_txid),
+//                                merch_index: 0,
+//                                escrow_prevout: FixedSizeArray32(escrow_prevout),
+//                                merch_prevout: FixedSizeArray32(merch_prevout) };
+//}

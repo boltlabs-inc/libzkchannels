@@ -49,7 +49,10 @@ mpc-bitcoin = []
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [[bin]]
-name = "zkchannels_mpc"
+name = "zkchannels-mpc"
 path = "src/main.rs"
 required-features = ["mpc-bitcoin"]
 
+[[bin]]
+name = "zkchannels-tx"
+path = "src/escrow_main.rs"

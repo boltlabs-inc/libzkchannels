@@ -373,8 +373,8 @@ pub mod btc {
     }
 
     // creates a merch-close-tx that spends from a P2WSH to another
-    pub fn create_merch_close_transaction_params<N: BitcoinNetwork>(config: &BitcoinTxConfig, input: &Input, merch_pubkey: &Vec<u8>, merch_close_pubkey: &Vec<u8>, self_delay: &[u8; 2]) -> BitcoinTransactionParameters<N> {
-        let private_key = BitcoinPrivateKey::<N>::from_str(input.private_key.as_str()).unwrap();
+    pub fn create_merch_close_transaction_params<N: BitcoinNetwork>(config: &BitcoinTxConfig, input: &Input, private_key: &BitcoinPrivateKey<N>, merch_pubkey: &Vec<u8>, merch_close_pubkey: &Vec<u8>, self_delay: &[u8; 2]) -> BitcoinTransactionParameters<N> {
+        // let private_key = BitcoinPrivateKey::<N>::from_str(input.private_key.as_str()).unwrap();
         let cust_pubkey = private_key.to_public_key().to_secp256k1_public_key().serialize();
 
         let address_format = match input.address_format {
@@ -606,7 +606,7 @@ mod tests {
 
         // customer private key
         let input = Input {
-            private_key: String::from("cPmiXrwUfViwwkvZ5NXySiHEudJdJ5aeXU4nx4vZuKWTUibpJdrn"), // testnet
+            private_key: String::from("cNTSD7W8URSCmfPTvNf2B5gyKe2wwyNomkCikVhuHPCsFgBUKrAV"), // testnet
             address_format: "native_p2wsh",
             // outpoint + txid
             transaction_id: String::from("5eb0c50e6f725b88507cda84f339aba539bc99853436db610d6a476a207f82d9"),
@@ -623,7 +623,8 @@ mod tests {
         };
 
         let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
-        let tx_params= transactions::btc::create_merch_close_transaction_params::<Testnet>(&config, &input, &merch_pk, &merch_close_pk, &to_self_delay);
+        let m_private_key = BitcoinPrivateKey::<Testnet>::from_str(merch_private_key).unwrap();
+        let tx_params= transactions::btc::create_merch_close_transaction_params::<Testnet>(&config, &input, &m_private_key, &merch_pk, &merch_close_pk, &to_self_delay);
 
         let (merch_tx_preimage, _) = transactions::btc::create_merch_close_transaction_preimage::<Testnet>(&tx_params);
         println!("merch-close tx raw preimage: {}", hex::encode(&merch_tx_preimage));
@@ -634,7 +635,6 @@ mod tests {
         let cust_signature = transactions::btc::generate_signature_for_multi_sig_transaction::<Testnet>(&merch_tx_preimage, String::from(input.private_key)).unwrap();
 
         // merchant takes the signature and signs the transaction
-        let m_private_key = BitcoinPrivateKey::<Testnet>::from_str(merch_private_key).unwrap();
         let (signed_merch_close_tx, txid, hash_prevout) = transactions::btc::completely_sign_multi_sig_transaction::<Testnet>(&tx_params, &cust_signature, &m_private_key);
         let merch_tx = hex::encode(signed_merch_close_tx.to_transaction_bytes().unwrap());
         println!("========================");

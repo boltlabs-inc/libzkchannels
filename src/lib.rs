@@ -690,8 +690,10 @@ pub mod mpc {
         pub init_cust_bal: i64,
         pub init_merch_bal: i64,
         pub escrow_txid: FixedSizeArray32,
+        pub escrow_index: u32,
         pub escrow_prevout: FixedSizeArray32,
         pub merch_txid: FixedSizeArray32,
+        pub merch_index: u32,
         pub merch_prevout: FixedSizeArray32
     }
 
@@ -1393,7 +1395,9 @@ mod tests {
 
         return mpc::FundingTxInfo { init_cust_bal: b0_cust, init_merch_bal: b0_merch,
                                     escrow_txid: FixedSizeArray32(escrow_txid),
+                                    escrow_index: 0,
                                     merch_txid: FixedSizeArray32(merch_txid),
+                                    merch_index: 0,
                                     escrow_prevout: FixedSizeArray32(escrow_prevout),
                                     merch_prevout: FixedSizeArray32(merch_prevout) };
     }
