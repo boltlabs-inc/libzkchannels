@@ -16,12 +16,13 @@ use wagyu_model::Transaction;
 use std::path::PathBuf;
 use std::io::prelude::*;
 use std::fs::File;
-use zkchannels::mpc::FundingTxInfo;
 use zkchannels::fixed_size_array::FixedSizeArray32;
 use zkchannels::transactions::{Input, BitcoinTxConfig, MultiSigOutput, Output};
 use zkchannels::transactions::btc::{create_escrow_transaction, sign_escrow_transaction, serialize_p2wsh_escrow_redeem_script,
                                     create_merch_close_transaction_params, create_merch_close_transaction_preimage,
                                     generate_signature_for_multi_sig_transaction, completely_sign_multi_sig_transaction};
+use zkchannels::FundingTxInfo;
+
 
 pub fn read_pathfile(path_buf: PathBuf) -> Result<String, String> {
     let mut file = match File::open(path_buf) {

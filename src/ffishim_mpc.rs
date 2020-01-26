@@ -12,6 +12,7 @@ pub mod ffishim_mpc {
     use wallet::State;
     use hex::FromHexError;
     use mpc::RevokedState;
+    use FundingTxInfo;
 
     fn error_message(s: String) -> *mut c_char {
         let ser = ["{\'error\':\'", &s, "\'}"].concat();
@@ -96,7 +97,7 @@ pub mod ffishim_mpc {
         let pk_m = handle_errors!(pk_m_result);
 
         // Deserialize the tx
-        let tx_result: ResultSerdeType<mpc::FundingTxInfo> = deserialize_result_object(ser_tx);
+        let tx_result: ResultSerdeType<FundingTxInfo> = deserialize_result_object(ser_tx);
         let tx = handle_errors!(tx_result);
 
         // Deserialize the name

@@ -20,7 +20,7 @@ use bufstream::BufStream;
 use rand::Rng;
 use std::io::{BufRead, Write, Read};
 use std::path::PathBuf;
-use zkchannels::mpc::FundingTxInfo;
+use zkchannels::FundingTxInfo;
 use std::fs::File;
 
 macro_rules! handle_serde_error {
@@ -86,7 +86,7 @@ pub struct Close {
     #[structopt(short = "e", long = "from-escrow")]
     from_escrow: bool,
     #[structopt(short = "c", long = "channel-token")]
-    channel_token: PathBuf
+    channel_token: Option<PathBuf>
 }
 
 #[derive(Debug, StructOpt, Deserialize)]
@@ -482,12 +482,15 @@ mod merch {
         Ok(())
     }
 
-    pub fn close(out_file: PathBuf, channel_token_file: PathBuf) -> Result<(), String> {
+    pub fn close(out_file: PathBuf, channel_token_file: Option<PathBuf>) -> Result<(), String> {
         // output the merch-close-tx (only thing merchant can broadcast to close channel)
         let ser_merch_state = read_file("merch_state.json").unwrap();
         let merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
 
-        let ser_channel_token = read_pathfile(channel_token_file).unwrap();
+        let ser_channel_token = match channel_token_file {
+            Some(ctf) => read_pathfile(ctf).unwrap(),
+            None => return Err(String::from("Channel-token file required!"))
+        };
         let channel_token: ChannelMPCToken = serde_json::from_str(&ser_channel_token).unwrap();
 
         let channel_id = match channel_token.compute_channel_id() {

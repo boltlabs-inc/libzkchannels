@@ -72,6 +72,7 @@ use std::fmt;
 use std::str;
 use std::collections::HashMap;
 use ff::{Rand, Field};
+pub use fixed_size_array::{FixedSizeArray32, FixedSizeArray64};
 
 use serde::{Serialize, Deserialize};
 
@@ -674,28 +675,28 @@ pub mod wtp_utils {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FundingTxInfo {
+    pub init_cust_bal: i64,
+    pub init_merch_bal: i64,
+    pub escrow_txid: FixedSizeArray32,
+    pub escrow_index: u32,
+    pub escrow_prevout: FixedSizeArray32,
+    pub merch_txid: FixedSizeArray32,
+    pub merch_index: u32,
+    pub merch_prevout: FixedSizeArray32
+}
+
 #[cfg(feature = "mpc-bitcoin")]
 pub mod mpc {
     use rand::Rng;
-    pub use fixed_size_array::{FixedSizeArray32, FixedSizeArray64};
     pub use channels_mpc::{ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState, RevokedState};
     use secp256k1::PublicKey;
     use wallet::{State, NONCE_LEN};
     use channels_mpc::MaskedTxMPCInputs;
     use serde::{Serialize, Deserialize};
     use bindings::ConnType_NETIO;
-
-    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-    pub struct FundingTxInfo {
-        pub init_cust_bal: i64,
-        pub init_merch_bal: i64,
-        pub escrow_txid: FixedSizeArray32,
-        pub escrow_index: u32,
-        pub escrow_prevout: FixedSizeArray32,
-        pub merch_txid: FixedSizeArray32,
-        pub merch_index: u32,
-        pub merch_prevout: FixedSizeArray32
-    }
+    use FundingTxInfo;
 
     ///
     /// init_merchant - takes as input the public params, merchant balance and keypair.
@@ -1371,7 +1372,7 @@ mod tests {
     }
 
     #[cfg(feature = "mpc-bitcoin")]
-    fn generate_funding_tx<R: Rng>(csprng: &mut R, b0_cust: i64, b0_merch: i64) -> mpc::FundingTxInfo {
+    fn generate_funding_tx<R: Rng>(csprng: &mut R, b0_cust: i64, b0_merch: i64) -> FundingTxInfo {
         let mut escrow_txid = [0u8; 32];
         let mut merch_txid = [0u8; 32];
 
@@ -1393,7 +1394,7 @@ mod tests {
         let result2 = Sha256::digest(&Sha256::digest(&prevout_preimage2));
         merch_prevout.copy_from_slice(&result2);
 
-        return mpc::FundingTxInfo { init_cust_bal: b0_cust, init_merch_bal: b0_merch,
+        return FundingTxInfo { init_cust_bal: b0_cust, init_merch_bal: b0_merch,
                                     escrow_txid: FixedSizeArray32(escrow_txid),
                                     escrow_index: 0,
                                     merch_txid: FixedSizeArray32(merch_txid),
@@ -1450,7 +1451,7 @@ rusty_fork_test! {
         let funding_tx_info = generate_funding_tx(&mut rng, 100, 100);
         let ser_tx_info = serde_json::to_string(&funding_tx_info).unwrap();
         println!("Ser Funding Tx Info: {}", ser_tx_info);
-        let orig_funding_tx_info: mpc::FundingTxInfo = serde_json::from_str(&ser_tx_info).unwrap();
+        let orig_funding_tx_info: FundingTxInfo = serde_json::from_str(&ser_tx_info).unwrap();
         assert_eq!(funding_tx_info, orig_funding_tx_info);
 
         let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, funding_tx_info, "Alice");

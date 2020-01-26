@@ -57,7 +57,7 @@ impl ChannelMPCToken {
 pub struct ChannelMPCState {
     tx_fee: i64,
     dust_limit: i64,
-    key_com: FixedSizeArray32, // [u8; 32],
+    key_com: FixedSizeArray32,
     pub name: String,
     pub third_party: bool,
     pub merch_payout_pk: Option<secp256k1::PublicKey>,
