@@ -42,7 +42,7 @@ deps:
 
 mpcgotest:
 	cargo build --release --features=mpc-bitcoin
-	go test -v go/libzkchannels.go go/libzkchannels_test.go
+	go test -v libzkchannels.go libzkchannels_test.go
 
 clean:
 	cargo +nightly clean
