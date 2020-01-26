@@ -1,7 +1,7 @@
 package libzkchannels
 
 // #cgo CFLAGS: -I${SRCDIR}/include -DDEFINE_MPC_BITCOIN=1 -Wno-macro-redefined
-// #cgo LDFLAGS: -lzkchannels -L${SRCDIR}/target/release
+// #cgo LDFLAGS: -lzkchannels
 // #include <cbindings.h>
 import "C"
 import (
