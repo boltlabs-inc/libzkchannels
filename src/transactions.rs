@@ -41,14 +41,21 @@ pub struct BitcoinTxConfig {
     pub lock_time: u32
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ClosePublicKeys {
     pub cust_pk: Vec<u8>,
     pub cust_close_pk: Vec<u8>,
     pub merch_pk: Vec<u8>,
     pub merch_close_pk: Vec<u8>,
     pub merch_disp_pk: Vec<u8>,
-    pub rev_lock: [u8; 32]
+    pub rev_lock: FixedSizeArray32 // [u8; 32]
 }
+
+//impl ClosePublicKeys {
+//    pub fn new() -> Self {
+//
+//    }
+//}
 
 pub mod btc {
 
@@ -345,8 +352,7 @@ pub mod btc {
         return (signed_tx, txid_buf, hash_prevout);
     }
 
-    pub fn generate_signature_for_multi_sig_transaction<N: BitcoinNetwork>(preimage: &Vec<u8>, privkey: String) -> Result<Vec<u8>, String> {
-        let private_key = BitcoinPrivateKey::<N>::from_str(privkey.as_str()).unwrap();
+    pub fn generate_signature_for_multi_sig_transaction<N: BitcoinNetwork>(preimage: &Vec<u8>, private_key: &BitcoinPrivateKey<N>) -> Result<Vec<u8>, String> {
         let transaction_hash = Sha256::digest(&Sha256::digest(preimage));
         let sighash_code = SIGHASH_ALL as u32;
 
@@ -490,7 +496,7 @@ pub mod btc {
         input_vec.push(escrow_tx_input);
 
         // output 1: P2WSH output to customer (handles spending from escrow-tx or merch-close-tx
-        let output1_script_pubkey = get_cust_close_timelocked_p2wsh_address(&pubkeys.rev_lock, &pubkeys.merch_disp_pk, &pubkeys.cust_close_pk, self_delay);
+        let output1_script_pubkey = get_cust_close_timelocked_p2wsh_address(&pubkeys.rev_lock.0, &pubkeys.merch_disp_pk, &pubkeys.cust_close_pk, self_delay);
         // println!("(1) to_customer: {}", hex::encode(&output1_script_pubkey));
         let to_customer = BitcoinTransactionOutput { amount: BitcoinAmount::from_satoshi(cust_bal).unwrap(), script_pub_key: output1_script_pubkey };
         // println!("to_customer: {}", hex::encode(to_customer.serialize().unwrap()));
@@ -502,7 +508,7 @@ pub mod btc {
         // println!("to_merchant: {}", hex::encode(to_merchant.serialize().unwrap()));
 
         // output 3: OP_RETURN output
-        let output3_script_pubkey = create_opreturn_output(&pubkeys.rev_lock, &pubkeys.cust_close_pk);
+        let output3_script_pubkey = create_opreturn_output(&pubkeys.rev_lock.0, &pubkeys.cust_close_pk);
         // println!("(3) OP_RETURN: {}", hex::encode(&output3_script_pubkey));
         let op_return_out = BitcoinTransactionOutput { amount: BitcoinAmount::from_satoshi(0).unwrap(), script_pub_key: output3_script_pubkey };
         // println!("op_return: {}", hex::encode(op_return_out.serialize().unwrap()));
@@ -623,16 +629,18 @@ mod tests {
         };
 
         let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
+
         let m_private_key = BitcoinPrivateKey::<Testnet>::from_str(merch_private_key).unwrap();
         let tx_params= transactions::btc::create_merch_close_transaction_params::<Testnet>(&config, &input, &m_private_key, &merch_pk, &merch_close_pk, &to_self_delay);
 
         let (merch_tx_preimage, _) = transactions::btc::create_merch_close_transaction_preimage::<Testnet>(&tx_params);
         println!("merch-close tx raw preimage: {}", hex::encode(&merch_tx_preimage));
-        let expected_merch_tx_preimage = hex::decode("02000000fdd1def69203bbf96a6ebc56166716401302fcd06eadd147682e8898ba19bee43bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044d9827f206a476a0d61db36348599bc39a5ab39f384da7c50885b726f0ec5b05e0000000047522103af0530f244a154b278b34de709b84bb85bb39ff3f1302fc51ae275e5a45fb35321027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb52ae00ca9a3b00000000ffffffffa87408648d6dfa0d6bd01786008047f225669b9fc634a38452e9ea1448a524b00000000001000000").unwrap();
+        let expected_merch_tx_preimage = hex::decode("02000000fdd1def69203bbf96a6ebc56166716401302fcd06eadd147682e8898ba19bee43bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044d9827f206a476a0d61db36348599bc39a5ab39f384da7c50885b726f0ec5b05e0000000047522103af0530f244a154b278b34de709b84bb85bb39ff3f1302fc51ae275e5a45fb35321027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb52ae00ca9a3b00000000ffffffff9cb3ea1cef59f37ae056a995c3dd3d2666e23d965abd46bbdda9bd8d3c4273da0000000001000000").unwrap();
         assert_eq!(merch_tx_preimage, expected_merch_tx_preimage);
 
         // customer signs the preimage and sends signature to merchant
-        let cust_signature = transactions::btc::generate_signature_for_multi_sig_transaction::<Testnet>(&merch_tx_preimage, String::from(input.private_key)).unwrap();
+        let c_private_key = BitcoinPrivateKey::<Testnet>::from_str(input.private_key.as_str()).unwrap();
+        let cust_signature = transactions::btc::generate_signature_for_multi_sig_transaction::<Testnet>(&merch_tx_preimage, &c_private_key).unwrap();
 
         // merchant takes the signature and signs the transaction
         let (signed_merch_close_tx, txid, hash_prevout) = transactions::btc::completely_sign_multi_sig_transaction::<Testnet>(&tx_params, &cust_signature, &m_private_key);
@@ -672,10 +680,10 @@ mod tests {
             merch_pk: hex::decode("03af0530f244a154b278b34de709b84bb85bb39ff3f1302fc51ae275e5a45fb353").unwrap(),
             merch_close_pk: hex::decode("02ab573100532827bd0e44b4353e4eaa9c79afbc93f69454a4a44d9fea8c45b5af").unwrap(),
             merch_disp_pk: hex::decode("021882b66a9c4ec1b8fc29ac37fbf4607b8c4f1bfe2cc9a49bc1048eb57bcebe67").unwrap(),
-            rev_lock: [0u8; 32]
+            rev_lock: FixedSizeArray32([0u8; 32])
         };
         let rev_lock = hex::decode("3111111111111111111111111111111111111111111111111111111111111111").unwrap();
-        pubkeys.rev_lock.copy_from_slice(&rev_lock);
+        pubkeys.rev_lock.0.copy_from_slice(&rev_lock);
 
         let cust_bal = 8 * SATOSHI;
         let merch_bal = 2 * SATOSHI;
@@ -687,7 +695,8 @@ mod tests {
         assert_eq!(tx_preimage, expected_tx_preimage);
 
         // merchant signs the preimage (note this would happen via MPC)
-        let merch_signature = transactions::btc::generate_signature_for_multi_sig_transaction::<Testnet>(&tx_preimage, String::from(merch_private_key)).unwrap();
+        let m_private_key = BitcoinPrivateKey::<Testnet>::from_str(merch_private_key).unwrap();
+        let merch_signature = transactions::btc::generate_signature_for_multi_sig_transaction::<Testnet>(&tx_preimage, &m_private_key).unwrap();
 
         // customer signs the transaction and embed the merch-signature
         let c_private_key = BitcoinPrivateKey::<Testnet>::from_str(input.private_key.as_str()).unwrap();
@@ -723,10 +732,10 @@ mod tests {
             merch_pk: hex::decode("024596d7b33733c28101dbc6c85901dffaed0cdac63ab0b2ea141217d1990ad4b1").unwrap(),
             merch_close_pk: hex::decode("02ab573100532827bd0e44b4353e4eaa9c79afbc93f69454a4a44d9fea8c45b5af").unwrap(),
             merch_disp_pk: hex::decode("021882b66a9c4ec1b8fc29ac37fbf4607b8c4f1bfe2cc9a49bc1048eb57bcebe67").unwrap(),
-            rev_lock: [0u8; 32]
+            rev_lock: FixedSizeArray32([0u8; 32])
         };
         let rev_lock = hex::decode("3111111111111111111111111111111111111111111111111111111111111111").unwrap();
-        pubkeys.rev_lock.copy_from_slice(&rev_lock);
+        pubkeys.rev_lock.0.copy_from_slice(&rev_lock);
 
         let cust_bal = 8 * SATOSHI;
         let merch_bal = 2 * SATOSHI;

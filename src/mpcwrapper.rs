@@ -488,9 +488,9 @@ mod tests {
             merch_pk: merch_escrow_pub_key.serialize().to_vec(),
             merch_close_pk: merch_payout_pub_key.serialize().to_vec(),
             merch_disp_pk: merch_dispute_key.serialize().to_vec(),
-            rev_lock: [0u8; 32]
+            rev_lock: FixedSizeArray32([0u8; 32])
         };
-        pubkeys.rev_lock.copy_from_slice(&new_state.get_rev_lock());
+        pubkeys.rev_lock.0.copy_from_slice(&new_state.get_rev_lock());
         let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
         let (tx_preimage, _, _) = create_cust_close_transaction::<Testnet>(&input1, &pubkeys, &to_self_delay, new_state.bc, new_state.bm, true);
         println!("TX BUILDER: generated escrow tx preimage: {}", hex::encode(&tx_preimage));

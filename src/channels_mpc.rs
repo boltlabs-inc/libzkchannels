@@ -197,6 +197,7 @@ pub struct CustomerMPCState {
     pub conn_type: u32,
     cust_close_escrow_tx: String,
     cust_close_merch_tx: String,
+    channel_established: bool,
     net_config: Option<NetworkConfig>
 }
 
@@ -247,6 +248,7 @@ impl CustomerMPCState {
             conn_type: 0,
             cust_close_escrow_tx: String::new(),
             cust_close_merch_tx: String::new(),
+            channel_established: false,
             net_config: None
         };
     }
@@ -360,7 +362,7 @@ impl CustomerMPCState {
     // customer side of mpc
     pub fn execute_mpc_context(&mut self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken,
                        old_state: State, new_state: State, paytoken_mask_com: [u8; 32], rev_lock_com: [u8;32], amount: i64) -> Result<bool, String> {
-
+        // assert!(self.channel_established);
         let secp = secp256k1::Secp256k1::new();
         // load the key_com from channel state
         let key_com = channel_state.get_key_com();
@@ -396,20 +398,13 @@ impl CustomerMPCState {
         Ok(true)
     }
 
-    pub fn construct_close_transaction_preimage<N: BitcoinNetwork>(&self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken) -> (Vec<u8>, Vec<u8>, BitcoinTransactionParameters<N>, BitcoinTransactionParameters<N>) {
+    pub fn get_pubkeys(&self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken) -> ClosePublicKeys {
         let secp = secp256k1::Secp256k1::new();
         let cust_escrow_pub_key = self.pk_c.serialize();
         let cust_payout_pub_key = secp256k1::PublicKey::from_secret_key(&secp, &self.payout_sk).serialize();
-
         let merch_escrow_pub_key= channel_token.pk_m.serialize();
         let merch_dispute_key= channel_state.merch_dispute_pk.unwrap().serialize();
         let merch_payout_pub_key = channel_state.merch_payout_pk.unwrap().serialize();
-
-        let init_balance = self.cust_balance + self.merch_balance; // is this right?
-        // TODO: should be configurable via a tx_config
-        let escrow_index = 0;
-        let merch_index = 0;
-        let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
 
         let mut pubkeys = ClosePublicKeys {
             cust_pk: cust_escrow_pub_key.to_vec(),
@@ -417,9 +412,22 @@ impl CustomerMPCState {
             merch_pk: merch_escrow_pub_key.to_vec(),
             merch_close_pk: merch_payout_pub_key.to_vec(),
             merch_disp_pk: merch_dispute_key.to_vec(),
-            rev_lock: [0u8; 32]
+            rev_lock: FixedSizeArray32([0u8; 32])
         };
-        pubkeys.rev_lock.copy_from_slice(&self.state.unwrap().get_rev_lock());
+        pubkeys.rev_lock.0.copy_from_slice(&self.state.unwrap().get_rev_lock());
+        return pubkeys;
+    }
+
+    // Customer constructs initial tx preimage and transaction params
+    pub fn construct_close_transaction_preimage<N: BitcoinNetwork>(&self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken) -> (Vec<u8>, Vec<u8>, BitcoinTransactionParameters<N>, BitcoinTransactionParameters<N>) {
+        let secp = secp256k1::Secp256k1::new();
+        let init_balance = self.cust_balance + self.merch_balance;
+        // TODO: should be configurable via a tx_config
+        let escrow_index = 0;
+        let merch_index = 0;
+        let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
+
+        let pubkeys = self.get_pubkeys(channel_state, channel_token);
         // println!("Escrow TXID: {}", hex::encode(channel_token.escrow_txid));
         let escrow_input = create_input(&channel_token.escrow_txid.0, escrow_index, init_balance);
         let merch_input = create_input(&channel_token.merch_txid.0, merch_index, init_balance);
@@ -433,8 +441,53 @@ impl CustomerMPCState {
         return (escrow_tx_preimage, merch_tx_preimage, escrow_tx_params, merch_tx_params);
     }
 
+    // Customer signs the initial closing transaction (in the clear)
+    pub fn sign_initial_closing_transaction<N: BitcoinNetwork>(&mut self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken, escrow_sig: &Vec<u8>, merch_sig: &Vec<u8>) -> Result<bool, String> {
+        let (escrow_tx_preimage, merch_tx_preimage, escrow_tx_params, merch_tx_params) =
+            self.construct_close_transaction_preimage::<N>(channel_state, channel_token);
+
+        // now that we've got preimages
+        let escrow_tx_hash = Sha256::digest(&Sha256::digest(&escrow_tx_preimage));
+        let merch_tx_hash = Sha256::digest(&Sha256::digest(&merch_tx_preimage));
+
+        let escrow_sig = secp256k1::Signature::from_compact(&escrow_sig.as_slice()).unwrap();
+        let merch_sig = secp256k1::Signature::from_compact(&merch_sig.as_slice()).unwrap();
+
+        // println!("Tx hash: {}", hex::encode(&escrow_tx_hash));
+        let msg1 = secp256k1::Message::from_slice(&escrow_tx_hash).unwrap();
+        let msg2 = secp256k1::Message::from_slice(&merch_tx_hash).unwrap();
+        let secp = secp256k1::Secp256k1::verification_only();
+        let escrow_sig_valid = secp.verify(&msg1, &escrow_sig, &channel_token.pk_m).is_ok();
+        let merch_sig_valid = secp.verify(&msg2, &merch_sig, &channel_token.pk_m).is_ok();
+
+        if escrow_sig_valid && merch_sig_valid {
+            // customer sign the transactions to complete multi-sig and store CT bytes locally
+            let private_key = BitcoinPrivateKey::<N>::from_secp256k1_secret_key(self.sk_c.clone(), false);
+            let escrow_signature = escrow_sig.serialize_der().to_vec();
+            let enc_escrow_signature = [get_var_length_int(escrow_signature.len() as u64).unwrap(), escrow_signature].concat();
+
+            let merch_signature = merch_sig.serialize_der().to_vec();
+            let enc_merch_signature = [get_var_length_int(merch_signature.len() as u64).unwrap(), merch_signature].concat();
+
+            let (signed_cust_close_escrow_tx, _, _) =
+                transactions::btc::completely_sign_multi_sig_transaction::<N>(&escrow_tx_params, &enc_escrow_signature, &private_key);
+            self.cust_close_escrow_tx = hex::encode(&signed_cust_close_escrow_tx.to_transaction_bytes().unwrap());
+
+            // sign the cust-close-from-merch-tx
+            let (signed_cust_close_merch_tx, _, _) =
+                transactions::btc::completely_sign_multi_sig_transaction::<N>(&merch_tx_params, &enc_merch_signature, &private_key);
+            self.cust_close_merch_tx = hex::encode(&signed_cust_close_merch_tx.to_transaction_bytes().unwrap());
+
+            self.channel_established = true;
+            Ok(true)
+        } else {
+            let s = String::from("Could not verify the merchant signature on the initial closing transactions!");
+            Err(s)
+        }
+    }
+
     // TODO: add BoltResult type here
-    pub fn unmask_and_verify_transactions(&mut self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken, mask_bytes: MaskedTxMPCInputs) -> bool {
+    pub fn unmask_and_verify_transactions<N: BitcoinNetwork>(&mut self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken, mask_bytes: MaskedTxMPCInputs) -> bool {
         let mut escrow_mask_bytes = mask_bytes.get_escrow_mask();
         let mut merch_mask_bytes = mask_bytes.get_merch_mask();
 
@@ -449,7 +502,7 @@ impl CustomerMPCState {
 
         // if valid, output (s_{i+1}, CT_{i+1}, pay-token-{i+1})
         let (escrow_tx_preimage, merch_tx_preimage, escrow_tx_params, merch_tx_params) =
-            self.construct_close_transaction_preimage::<Testnet>(channel_state, channel_token);
+            self.construct_close_transaction_preimage::<N>(channel_state, channel_token);
         // println!("Close-Escrow Tx preimage: {}", hex::encode(&escrow_tx_preimage));
         // println!("Close-Merch Tx preimage: {}", hex::encode(&merch_tx_preimage));
 
@@ -474,7 +527,7 @@ impl CustomerMPCState {
         let merch_sig_valid = secp.verify(&msg2, &merch_sig, &channel_token.pk_m).is_ok();
 
         // customer sign the transactions to complete multi-sig and store CT bytes locally
-        let private_key = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(self.sk_c.clone(), false);
+        let private_key = BitcoinPrivateKey::<N>::from_secp256k1_secret_key(self.sk_c.clone(), false);
         let escrow_signature = escrow_sig.serialize_der().to_vec();
         let enc_escrow_signature = [get_var_length_int(escrow_signature.len() as u64).unwrap(), escrow_signature].concat();
 
@@ -483,12 +536,12 @@ impl CustomerMPCState {
 
         // sign the cust-close-from-escrow-tx
         let (signed_cust_close_escrow_tx, _, _) =
-            transactions::btc::completely_sign_multi_sig_transaction::<Testnet>(&escrow_tx_params, &enc_escrow_signature, &private_key);
+            transactions::btc::completely_sign_multi_sig_transaction::<N>(&escrow_tx_params, &enc_escrow_signature, &private_key);
         self.cust_close_escrow_tx = hex::encode(&signed_cust_close_escrow_tx.to_transaction_bytes().unwrap());
 
         // sign the cust-close-from-merch-tx
         let (signed_cust_close_merch_tx, _, _) =
-            transactions::btc::completely_sign_multi_sig_transaction::<Testnet>(&merch_tx_params, &enc_merch_signature, &private_key);
+            transactions::btc::completely_sign_multi_sig_transaction::<N>(&merch_tx_params, &enc_merch_signature, &private_key);
         self.cust_close_merch_tx = hex::encode(&signed_cust_close_merch_tx.to_transaction_bytes().unwrap());
 
         return escrow_sig_valid && merch_sig_valid;
@@ -704,6 +757,28 @@ impl MerchantMPCState {
 
     pub fn set_network_config(&mut self, net_config: NetworkConfig)  {
         self.net_config = Some(net_config);
+    }
+
+    // Merchant sign's the initial closing transaction (in the clear)
+    pub fn sign_initial_closing_transaction<N: BitcoinNetwork>(&self, channel_state: &ChannelMPCState, funding_tx: &FundingTxInfo, pubkeys: &ClosePublicKeys) -> (Vec<u8>, Vec<u8>) {
+        let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
+        let init_balance = funding_tx.init_cust_bal + funding_tx.init_merch_bal;
+
+        let escrow_input = create_input(&funding_tx.escrow_txid.0, funding_tx.escrow_index, init_balance);
+        let merch_input = create_input(&funding_tx.merch_txid.0, funding_tx.merch_index, init_balance);
+
+        let (escrow_tx_preimage, escrow_tx_params, _) =
+            create_cust_close_transaction::<N>(&escrow_input, &pubkeys, &to_self_delay, funding_tx.init_cust_bal, funding_tx.init_merch_bal, true);
+
+        let (merch_tx_preimage, merch_tx_params, _) =
+            create_cust_close_transaction::<N>(&merch_input, &pubkeys, &to_self_delay, funding_tx.init_cust_bal, funding_tx.init_merch_bal, false);
+
+        // merchant generates signatures
+        let m_private_key = BitcoinPrivateKey::<N>::from_secp256k1_secret_key(self.sk_m.clone(), false);
+        let escrow_cust_sig = generate_signature_for_multi_sig_transaction::<N>(&escrow_tx_preimage, &m_private_key).unwrap();
+        let merch_cust_sig = generate_signature_for_multi_sig_transaction::<N>(&merch_tx_preimage, &m_private_key).unwrap();
+
+        return (escrow_cust_sig, merch_cust_sig);
     }
 
     // for merchant side
@@ -951,7 +1026,7 @@ rusty_fork_test!
             println!("merch_masked: {:?}", hex::encode(&mb.merch_mask.0));
 
             println!("now, unmask and verify...");
-            let is_ok = cust_state.unmask_and_verify_transactions(&channel_state, &channel_token, mb.get_tx_masks());
+            let is_ok = cust_state.unmask_and_verify_transactions::<Testnet>(&channel_state, &channel_token, mb.get_tx_masks());
             assert!(is_ok);
 
             cust_state.unmask_and_verify_pay_token(mb.pt_mask.0);

@@ -238,7 +238,8 @@ mod cust {
             Err(e) => return Err(e.to_string())
         };
         // customer signs the preimage and sends signature to merchant
-        let cust_sig = generate_signature_for_multi_sig_transaction::<Testnet>(&merch_tx_preimage, args.cust_privkey).unwrap();
+        let private_key = BitcoinPrivateKey::<Testnet>::from_str(args.cust_privkey.as_str()).unwrap();
+        let cust_sig = generate_signature_for_multi_sig_transaction::<Testnet>(&merch_tx_preimage, &private_key).unwrap();
         let cust_sig_hex = hex::encode(cust_sig);
         // write the signature to a file
         match args.cust_sig {

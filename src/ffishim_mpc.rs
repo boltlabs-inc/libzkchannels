@@ -105,7 +105,7 @@ pub mod ffishim_mpc {
         let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
 
         // We change the channel state
-        let (channel_token, cust_state) = mpc::init_customer(rng, &pk_m, tx, name);
+        let (channel_token, cust_state) = mpc::init_customer(rng, &pk_m, &tx, name);
         let ser = ["{\'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\', \'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()

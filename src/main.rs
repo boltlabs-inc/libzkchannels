@@ -311,7 +311,7 @@ mod cust {
         let funding_tx: FundingTxInfo = serde_json::from_str(&ser_funding_tx).unwrap();
         // TODO: validate the FundingTxInfo struct with respect to Bitcoin client
 
-        let (channel_token, mut cust_state) = mpc::init_customer(rng, &pk_m, funding_tx, "Customer");
+        let (channel_token, mut cust_state) = mpc::init_customer(rng, &pk_m, &funding_tx, "Customer");
 
         let s0 = mpc::activate_customer(rng, &mut cust_state);
 
@@ -340,11 +340,6 @@ mod cust {
 
         let t = cust_state.get_randomness();
         let old_state = cust_state.get_current_state();
-//        // check if there is sufficient balance for payment
-//        if amount > old_state.bc {
-//            println!("Insufficient funds to make payment. Current balance is {}", old_state.bc);
-//            return Err(String::from("Insufficient funds!"));
-//        }
 
         // prepare phase
         let (new_state, r_com, rev_lock, rev_secret) = match mpc::pay_prepare_customer(rng, &mut channel_state, amount, &mut cust_state) {

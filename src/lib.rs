@@ -697,6 +697,7 @@ pub mod mpc {
     use serde::{Serialize, Deserialize};
     use bindings::ConnType_NETIO;
     use FundingTxInfo;
+    use bitcoin::Testnet;
 
     ///
     /// init_merchant - takes as input the public params, merchant balance and keypair.
@@ -716,7 +717,7 @@ pub mod mpc {
     /// Generate initial customer channel state and channel token.
     /// output: a channel token and customer state
     ///
-    pub fn init_customer<'a, R: Rng>(csprng: &mut R, pk_m: &PublicKey, tx: FundingTxInfo, name: &'a str) -> (ChannelMPCToken, CustomerMPCState) {
+    pub fn init_customer<'a, R: Rng>(csprng: &mut R, pk_m: &PublicKey, tx: &FundingTxInfo, name: &'a str) -> (ChannelMPCToken, CustomerMPCState) {
         assert!(tx.init_cust_bal > 0);
         assert!(tx.init_merch_bal >= 0);
 
@@ -843,7 +844,7 @@ pub mod mpc {
     /// output: a success boolean
     ///
     pub fn pay_unmask_tx_customer(channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken, mask_bytes: MaskedTxMPCInputs, cust_state: &mut CustomerMPCState) -> bool {
-        cust_state.unmask_and_verify_transactions(channel_state, channel_token, mask_bytes)
+        cust_state.unmask_and_verify_transactions::<Testnet>(channel_state, channel_token, mask_bytes)
     }
 
     ///
@@ -895,6 +896,8 @@ mod tests {
     #[cfg(feature = "mpc-bitcoin")]
     use channels_mpc::MaskedTxMPCInputs;
     use fixed_size_array::FixedSizeArray32;
+    use transactions::ClosePublicKeys;
+    use bitcoin::Testnet;
 
     fn setup_new_channel_helper(channel_state: &mut zkproofs::ChannelState<Bls12>,
                                 init_cust_bal: i64, init_merch_bal: i64)
@@ -1365,12 +1368,18 @@ mod tests {
     fn test_establish_mpc_channel() {
         let mut rng = &mut rand::thread_rng();
 
-        let mut channel = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
-        let mut merch_state = mpc::init_merchant(rng, &mut channel, "Bob");
+        let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
+        let mut merch_state = mpc::init_merchant(rng, &mut channel_state, "Bob");
 
         let funding_tx_info = generate_funding_tx(&mut rng, 100, 100);
 
-        let (channel_token, mut cust_state) = mpc::init_customer(rng, &merch_state.pk_m,funding_tx_info, "Alice");
+        let (channel_token, mut cust_state) = mpc::init_customer(rng, &merch_state.pk_m,&funding_tx_info, "Alice");
+
+        let pubkeys = cust_state.get_pubkeys(&channel_state, &channel_token);
+        let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(&channel_state, &funding_tx_info, &pubkeys);
+
+        let got_close_tx = cust_state.sign_initial_closing_transaction::<Testnet>(&channel_state, &channel_token, &escrow_sig, &merch_sig);
+        assert!(got_close_tx.is_ok());
 
         let s0 = mpc::activate_customer(rng, &mut cust_state);
 
@@ -1425,7 +1434,7 @@ mod tests {
 
         let funding_tx_info = generate_funding_tx(&mut rng, 100, 100);
 
-        let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, funding_tx_info, "Alice");
+        let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, &funding_tx_info, "Alice");
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
 
@@ -1464,7 +1473,7 @@ rusty_fork_test! {
         let orig_funding_tx_info: FundingTxInfo = serde_json::from_str(&ser_tx_info).unwrap();
         assert_eq!(funding_tx_info, orig_funding_tx_info);
 
-        let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, funding_tx_info, "Alice");
+        let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, &funding_tx_info, "Alice");
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
 
