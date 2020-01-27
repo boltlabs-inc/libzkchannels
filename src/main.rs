@@ -56,7 +56,11 @@ pub struct Init {
     #[structopt(short = "j", long = "other-ip", default_value = "127.0.0.1")]
     other_ip: String,
     #[structopt(short = "q", long = "other-port")]
-    other_port: String
+    other_port: String,
+    #[structopt(short = "d", long = "dust-limit", default_value = "0")]
+    dust_limit: i64,
+    #[structopt(short = "t", long = "tx-fee", default_value = "0")]
+    tx_fee: i64
 }
 
 #[derive(Debug, StructOpt, Deserialize)]
@@ -245,7 +249,7 @@ fn main() {
 
     match args.command {
         Command::INIT(init) => match init.party {
-            Party::MERCH => match merch::init(&mut Conn::new(init.own_ip, init.own_port, init.other_ip, init.other_port)) {
+            Party::MERCH => match merch::init(&mut Conn::new(init.own_ip, init.own_port, init.other_ip, init.other_port), init.dust_limit) {
                 Err(e) => println!("Initialize phase failed with error: {}", e),
                 _ => ()
             },
@@ -336,14 +340,17 @@ mod cust {
 
         let t = cust_state.get_randomness();
         let old_state = cust_state.get_current_state();
-        // check if there is sufficient balance for payment
-        if amount > old_state.bc {
-            println!("Insufficient funds to make payment. Current balance is {}", old_state.bc);
-            return Err(String::from("Insufficient funds!"));
-        }
+//        // check if there is sufficient balance for payment
+//        if amount > old_state.bc {
+//            println!("Insufficient funds to make payment. Current balance is {}", old_state.bc);
+//            return Err(String::from("Insufficient funds!"));
+//        }
 
         // prepare phase
-        let (new_state, r_com, rev_lock, rev_secret) = mpc::pay_prepare_customer(rng, &mut channel_state, amount, &mut cust_state);
+        let (new_state, r_com, rev_lock, rev_secret) = match mpc::pay_prepare_customer(rng, &mut channel_state, amount, &mut cust_state) {
+            Ok(n) => n,
+            Err(e) => return Err(e)
+        };
         if verbose {
             println!("old state: {}", &old_state);
             println!("new state: {}", &new_state);
@@ -413,10 +420,16 @@ mod merch {
     use zkchannels::channels_mpc::{ChannelMPCState, ChannelMPCToken, MerchantMPCState};
     use zkchannels::wallet::State;
 
-    pub fn init(conn: &mut Conn) -> Result<(), String> {
+    pub fn init(conn: &mut Conn, dust_limit: i64) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
 
         let mut channel_state = ChannelMPCState::new(String::from("Channel"), false);
+        if dust_limit == 0 {
+            let s = format!("Dust limit must be greater than 0!");
+            return Err(s);
+        }
+        channel_state.set_dust_limit(dust_limit);
+
         let mut merch_state = mpc::init_merchant(rng, &mut channel_state, "Merchant");
 
         let msg1 = [handle_serde_error!(serde_json::to_string(&channel_state)), handle_serde_error!(serde_json::to_string(&merch_state.pk_m))];

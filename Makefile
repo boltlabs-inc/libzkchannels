@@ -41,7 +41,7 @@ deps:
 	make -C deps
 
 mpcgotest:
-	cargo build --release --features=mpc-bitcoin
+	cargo build --release --features mpc-bitcoin
 	./test_gowrapper.sh
 
 clean:

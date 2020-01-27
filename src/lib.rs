@@ -768,14 +768,24 @@ pub mod mpc {
     /// output: new state (after payment), revocation lock commitment, revocation lock, revocation secret
     /// (only send revocation lock commitment to merchant)
     ///
-    pub fn pay_prepare_customer<R: Rng>(csprng: &mut R, channel: &mut ChannelMPCState, amount: i64, cust_state: &mut CustomerMPCState) -> (State, [u8; 32], [u8; 32], [u8; 32]) {
+    pub fn pay_prepare_customer<R: Rng>(csprng: &mut R, channel: &mut ChannelMPCState, amount: i64, cust_state: &mut CustomerMPCState) -> Result<(State, [u8; 32], [u8; 32], [u8; 32]), String> {
+        // check if payment on current balance is greater than dust limit
+        let new_balance = match amount > 0 {
+            true => cust_state.cust_balance - amount, // positive value
+            false => cust_state.cust_balance + amount // negative value
+        };
+        if new_balance < channel.get_dust_limit() {
+            let max_payment = cust_state.cust_balance - channel.get_dust_limit();
+            let s = format!("Balance after payment is below dust limit: {}. Max payment: {}", channel.get_dust_limit(), max_payment);
+            return Err(s);
+        }
         let (rev_lock, rev_secret) = cust_state.get_rev_pair();
         let r_com = cust_state.generate_rev_lock_commitment(csprng);
 
         cust_state.generate_new_state(csprng, &channel, amount);
         let new_state = cust_state.get_current_state();
 
-        (new_state, r_com, rev_lock, rev_secret)
+        Ok((new_state, r_com, rev_lock, rev_secret))
     }
 
     ///
@@ -1423,7 +1433,7 @@ mod tests {
 
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
-        let (_, rev_lock_com, rev_lock, rev_secret) = mpc::pay_prepare_customer(&mut rng, &mut channel, 10, &mut cust_state);
+        let (_, rev_lock_com, rev_lock, rev_secret) = mpc::pay_prepare_customer(&mut rng, &mut channel, 10, &mut cust_state).unwrap();
         let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, s0.get_nonce(), &mut merch_state);
 
         let res_merch = mpc::pay_merchant(&mut rng, &mut channel, s0.get_nonce(), pay_mask_com, rev_lock_com, 10, &mut merch_state);
@@ -1462,7 +1472,7 @@ rusty_fork_test! {
 
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
-        let (state, rev_lock_com, _, _) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, 10, &mut cust_state);
+        let (state, rev_lock_com, _, _) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, 10, &mut cust_state).unwrap();
         let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, state.get_nonce(), &mut merch_state);
 
         let res_cust = mpc::pay_customer(&mut channel_state, &channel_token, s0, state, pay_mask_com, rev_lock_com, 10, &mut cust_state);

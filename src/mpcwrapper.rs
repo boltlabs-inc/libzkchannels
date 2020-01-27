@@ -12,8 +12,8 @@ use ecdsa_partial::EcdsaPartialSig;
 
 pub type IOCallback = fn(c_uint, c_int);
 
+// , net_config: *mut c_char
 extern "C" fn io_callback(conn_type: c_uint, party: c_int) -> *mut c_void {
-    // TODO: add network config
     let conn_debug = match conn_type {
         ConnType_UNIXNETIO => "Unix domain socket connection",
         ConnType_NETIO => "TCP socket connection",

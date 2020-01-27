@@ -196,7 +196,8 @@ pub struct CustomerMPCState {
     payout_sk: secp256k1::SecretKey,
     pub conn_type: u32,
     cust_close_escrow_tx: String,
-    cust_close_merch_tx: String
+    cust_close_merch_tx: String,
+    net_config: Option<NetworkConfig>
 }
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -245,7 +246,8 @@ impl CustomerMPCState {
             payout_sk: payout_sk,
             conn_type: 0,
             cust_close_escrow_tx: String::new(),
-            cust_close_merch_tx: String::new()
+            cust_close_merch_tx: String::new(),
+            net_config: None
         };
     }
 
@@ -349,6 +351,10 @@ impl CustomerMPCState {
         let index = self.index;
         let is_pt = self.pay_tokens.get(&index).is_some();
         return is_pt;
+    }
+
+    pub fn set_network_config(&mut self, net_config: NetworkConfig)  {
+        self.net_config = Some(net_config);
     }
 
     // customer side of mpc
@@ -600,7 +606,8 @@ pub struct MerchantMPCState {
     pub activate_map: HashMap<String, State>,
     pub lock_map_state: HashMap<String, Option<LockMap>>,
     pub mask_mpc_bytes: HashMap<String, MaskedMPCInputs>,
-    pub conn_type: u32
+    pub conn_type: u32,
+    net_config: Option<NetworkConfig>
 }
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -646,7 +653,8 @@ impl MerchantMPCState {
             activate_map: HashMap::new(),
             lock_map_state: HashMap::new(),
             mask_mpc_bytes: HashMap::new(),
-            conn_type: 0
+            conn_type: 0,
+            net_config: None
         }
     }
 
@@ -692,6 +700,10 @@ impl MerchantMPCState {
 
     pub fn set_mpc_connect_type(&mut self, conn_type: u32) {
         self.conn_type = conn_type;
+    }
+
+    pub fn set_network_config(&mut self, net_config: NetworkConfig)  {
+        self.net_config = Some(net_config);
     }
 
     // for merchant side
