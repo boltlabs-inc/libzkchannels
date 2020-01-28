@@ -1371,15 +1371,19 @@ mod tests {
         let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
         let mut merch_state = mpc::init_merchant(rng, &mut channel_state, "Bob");
 
+        // form all of the transactions
         let funding_tx_info = generate_funding_tx(&mut rng, 100, 100);
 
         let (channel_token, mut cust_state) = mpc::init_customer(rng, &merch_state.pk_m,&funding_tx_info, "Alice");
 
+        // form and sign the cust-close-from-escrow-tx and from-merch-close-tx
         let pubkeys = cust_state.get_pubkeys(&channel_state, &channel_token);
         let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(&channel_state, &funding_tx_info, &pubkeys);
 
         let got_close_tx = cust_state.sign_initial_closing_transaction::<Testnet>(&channel_state, &channel_token, &escrow_sig, &merch_sig);
         assert!(got_close_tx.is_ok());
+
+        // at this point, the escrow-tx can be broadcast and confirmed
 
         let s0 = mpc::activate_customer(rng, &mut cust_state);
 
