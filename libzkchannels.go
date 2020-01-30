@@ -44,6 +44,7 @@ type MerchState struct {
 	PkM          *string                 `json:"pk_m"`
 	SkM          *string                 `json:"sk_m"`
 	HmacKey      string                  `json:"hmac_key"`
+	HmacKeyR     string                  `json:"hmac_key_r"`
 	PayoutSk     *string                 `json:"payout_sk"`
 	PayoutPk     *string                 `json:"payout_pk"`
 	DisputeSk    *string                 `json:"dispute_sk"`
@@ -53,6 +54,7 @@ type MerchState struct {
 	LockMapState *map[string]interface{} `json:"lock_map_state"`
 	MaskMpcBytes *map[string]interface{} `json:"mask_mpc_bytes"`
 	ConnType     int                     `json:"conn_type"`
+	NetConfig    *map[string]interface{} `json:"net_config"`
 }
 
 type CustState struct {
@@ -73,6 +75,8 @@ type CustState struct {
 	ConnType        int                     `json:"conn_type"`
 	CloseEscrowTx   string                  `json:"cust_close_escrow_tx"`
 	CloseMerchTx    string                  `json:"cust_close_merch_tx"`
+	ChannelEstablished     bool             `json:"channel_established"`
+	NetConfig       *map[string]interface{} `json:"net_config"`
 }
 
 type State struct {
@@ -157,21 +161,29 @@ func InitCustomer(pkM string, custBal int64, merchBal int64, name string) (Chann
 	return channelToken, custState, err
 }
 
-func InitFunding(tx string, channelToken ChannelToken, custState CustState) (error) {
+func InitFunding(tx string, channelToken ChannelToken, custState CustState) (ChannelToken, CustState, error) {
 	serChannelToken, err := json.Marshal(channelToken)
 	if err != nil {
-		return err
+		return ChannelToken{}, CustState{}, err
 	}
 	serCustState, err := json.Marshal(custState)
 	if err != nil {
-		return err
+		return ChannelToken{}, CustState{}, err
 	}
 
 	resp := C.GoString(C.mpc_init_funding(C.CString(tx), C.CString(string(serChannelToken)), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
-	    return err
+		return ChannelToken{}, CustState{}, err
 	}
+
+	err = json.Unmarshal([]byte(r.ChannelToken), &channelToken)
+	if err != nil {
+		return ChannelToken{}, CustState{}, err
+	}
+
+	err = json.Unmarshal([]byte(r.CustState), &custState)
+	return channelToken, custState, err
 }
 
 func ActivateCustomer(custState CustState) (State, CustState, error) {

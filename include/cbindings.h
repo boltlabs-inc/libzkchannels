@@ -205,7 +205,11 @@ void mpc_free_string(char *pointer);
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)
-char *mpc_init_customer(char *ser_pk_m, char *ser_tx, const char *name_ptr);
+char *mpc_init_customer(char *ser_pk_m, int64_t cust_bal, int64_t merch_bal, const char *name_ptr);
+#endif
+
+#if defined(DEFINE_MPC_BITCOIN)
+char *mpc_init_funding(char *ser_tx, char *ser_channel_token, char *ser_cust_state);
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)
@@ -233,7 +237,9 @@ char *mpc_pay_merchant(char *ser_channel_state,
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)
-char *mpc_pay_unmask_pay_token_customer(char *ser_pt_mask_bytes, char *ser_cust_state);
+char *mpc_pay_unmask_pay_token_customer(char *ser_pt_mask_bytes,
+                                        char *ser_pt_mask_r,
+                                        char *ser_cust_state);
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)
