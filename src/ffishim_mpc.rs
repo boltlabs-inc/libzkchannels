@@ -349,7 +349,7 @@ pub mod ffishim_mpc {
         // We change the channel state
         let pay_token_mask_result = mpc::pay_validate_rev_lock_merchant(revoked_state, &mut merch_state);
         let pt = handle_errors!(pay_token_mask_result);
-        let ser = ["{\'pay_token_mask\':\'", &hex::encode(pt.0), "\', \'pay_token_mask_r\':\'", &hex::encode(pt.0),
+        let ser = ["{\'pay_token_mask\':\'", &hex::encode(pt.0), "\', \'pay_token_mask_r\':\'", &hex::encode(pt.1),
                           "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()

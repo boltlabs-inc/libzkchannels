@@ -6,9 +6,8 @@ package libzkchannels
 import "C"
 import (
 	"encoding/json"
+	"errors"
 	"strings"
-
-	"github.com/getlantern/errors"
 )
 
 type setupResp struct {
@@ -58,25 +57,25 @@ type MerchState struct {
 }
 
 type CustState struct {
-	Name            string                  `json:"name"`
-	PkC             string                  `json:"pk_c"`
-	SkC             string                  `json:"sk_c"`
-	CustBalance     int64                   `json:"cust_balance"`
-	MerchBalance    int64                   `json:"merch_balance"`
-	RevLock         string                  `json:"rev_lock"`
-	RevSecret       string                  `json:"rev_secret"`
-	T               string                  `json:"t"`
-	State           *State                  `json:"state"`
-	Index           int                     `json:"index"`
-	MaskedOutputs   *map[string]interface{} `json:"masked_outputs"`
-	PayTokens       *map[string]interface{} `json:"pay_tokens"`
-	PayTokenMaskCom string                  `json:"pay_token_mask_com"`
-	PayoutSk        string                  `json:"payout_sk"`
-	ConnType        int                     `json:"conn_type"`
-	CloseEscrowTx   string                  `json:"cust_close_escrow_tx"`
-	CloseMerchTx    string                  `json:"cust_close_merch_tx"`
-	ChannelEstablished     bool             `json:"channel_established"`
-	NetConfig       *map[string]interface{} `json:"net_config"`
+	Name               string                  `json:"name"`
+	PkC                string                  `json:"pk_c"`
+	SkC                string                  `json:"sk_c"`
+	CustBalance        int64                   `json:"cust_balance"`
+	MerchBalance       int64                   `json:"merch_balance"`
+	RevLock            string                  `json:"rev_lock"`
+	RevSecret          string                  `json:"rev_secret"`
+	T                  string                  `json:"t"`
+	State              *State                  `json:"state"`
+	Index              int                     `json:"index"`
+	MaskedOutputs      *map[string]interface{} `json:"masked_outputs"`
+	PayTokens          *map[string]interface{} `json:"pay_tokens"`
+	PayTokenMaskCom    string                  `json:"pay_token_mask_com"`
+	PayoutSk           string                  `json:"payout_sk"`
+	ConnType           int                     `json:"conn_type"`
+	CloseEscrowTx      string                  `json:"cust_close_escrow_tx"`
+	CloseMerchTx       string                  `json:"cust_close_merch_tx"`
+	ChannelInitialized bool                    `json:"channel_initialized"`
+	NetConfig          *map[string]interface{} `json:"net_config"`
 }
 
 type State struct {
