@@ -88,24 +88,42 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
-    #[no_mangle]
-    pub extern fn mpc_init_customer(ser_pk_m: *mut c_char, ser_tx: *mut c_char, name_ptr: *const c_char) -> *mut c_char {
+
+
+    #[no_mangle]  // ser_tx: *mut c_char
+    pub extern fn mpc_init_customer(ser_pk_m: *mut c_char, cust_bal: i64, merch_bal: i64, name_ptr: *const c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
 
         // Deserialize the pk_m
         let pk_m_result: ResultSerdeType<secp256k1::PublicKey> = deserialize_result_object(ser_pk_m);
         let pk_m = handle_errors!(pk_m_result);
 
-        // Deserialize the tx
-        let tx_result: ResultSerdeType<FundingTxInfo> = deserialize_result_object(ser_tx);
-        let tx = handle_errors!(tx_result);
-
         // Deserialize the name
         let bytes = unsafe { CStr::from_ptr(name_ptr).to_bytes() };
         let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
 
         // We change the channel state
-        let (channel_token, cust_state) = mpc::init_customer(rng, &pk_m, &tx, name);
+        let (channel_token, cust_state) = mpc::init_customer(rng, &pk_m, cust_bal,merch_bal, name);
+        let ser = ["{\'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\', \'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str(), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern fn mpc_init_funding(ser_tx: *mut c_char, ser_channel_token: *mut c_char, ser_cust_state: *mut c_char) -> *mut c_char {
+        // Deserialize the tx
+        let tx_result: ResultSerdeType<FundingTxInfo> = deserialize_result_object(ser_tx);
+        let tx = handle_errors!(tx_result);
+
+        // Deserialize the ChannelToken
+        let channel_token_result: ResultSerdeType<ChannelMPCToken> = deserialize_result_object(ser_channel_token);
+        let mut channel_token = handle_errors!(channel_token_result);
+
+        // Deserialize the cust_state
+        let cust_state_result: ResultSerdeType<CustomerMPCState> = deserialize_result_object(ser_cust_state);
+        let mut cust_state = handle_errors!(cust_state_result);
+
+        mpc::init_funding(&tx, &mut channel_token, &mut cust_state);
         let ser = ["{\'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\', \'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
@@ -330,26 +348,33 @@ pub mod ffishim_mpc {
 
         // We change the channel state
         let pay_token_mask_result = mpc::pay_validate_rev_lock_merchant(revoked_state, &mut merch_state);
-        let pay_token_mask = handle_errors!(pay_token_mask_result);
-        let ser = ["{\'pay_token_mask\':\'", &hex::encode(pay_token_mask), "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
+        let pt = handle_errors!(pay_token_mask_result);
+        let ser = ["{\'pay_token_mask\':\'", &hex::encode(pt.0), "\', \'pay_token_mask_r\':\'", &hex::encode(pt.0),
+                          "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn mpc_pay_unmask_pay_token_customer(ser_pt_mask_bytes: *mut c_char, ser_cust_state: *mut c_char) -> *mut c_char {
+    pub extern fn mpc_pay_unmask_pay_token_customer(ser_pt_mask_bytes: *mut c_char, ser_pt_mask_r: *mut c_char, ser_cust_state: *mut c_char) -> *mut c_char {
         // Deserialize pt_mask_bytes
         let pt_mask_bytes_result = deserialize_hex_string(ser_pt_mask_bytes);
         let pt_mask_bytes = handle_errors!(pt_mask_bytes_result);
         let mut pt_mask_bytes_ar = [0u8; 32];
         pt_mask_bytes_ar.copy_from_slice(pt_mask_bytes.as_slice());
 
+        // Deserialize pt_mask_bytes
+        let pt_mask_r_result = deserialize_hex_string(ser_pt_mask_r);
+        let pt_mask_r = handle_errors!(pt_mask_r_result);
+        let mut pt_mask_r_ar = [0u8; 16];
+        pt_mask_r_ar.copy_from_slice(pt_mask_r.as_slice());
+
         // Deserialize the cust_state
         let cust_state_result: ResultSerdeType<CustomerMPCState> = deserialize_result_object(ser_cust_state);
         let mut cust_state = handle_errors!(cust_state_result);
 
         // We change the channel state
-        let is_ok = mpc::pay_unmask_pay_token_customer(pt_mask_bytes_ar, &mut cust_state);
+        let is_ok = mpc::pay_unmask_pay_token_customer(pt_mask_bytes_ar, pt_mask_r_ar, &mut cust_state);
         let ser = ["{\'is_ok\':", &is_ok.to_string(), ", \'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()

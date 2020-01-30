@@ -311,7 +311,8 @@ mod cust {
         let funding_tx: FundingTxInfo = serde_json::from_str(&ser_funding_tx).unwrap();
         // TODO: validate the FundingTxInfo struct with respect to Bitcoin client
 
-        let (channel_token, mut cust_state) = mpc::init_customer(rng, &pk_m, &funding_tx, "Customer");
+        let (channel_token, mut cust_state) = mpc::init_customer(rng, &pk_m,
+                                                                 funding_tx.init_cust_bal, funding_tx.init_merch_bal, "Customer");
 
         let s0 = mpc::activate_customer(rng, &mut cust_state);
 
@@ -369,13 +370,19 @@ mod cust {
 
         let rev_state = RevokedState::new(old_state.get_nonce(),r_com, rev_lock, rev_secret, t);
         let msg3 = [serde_json::to_string(&rev_state).unwrap()];
+
+        // send the revoked state and wait for the pt_mask_bytes and pt_mask_r
         let msg4 = conn.send_and_wait(&msg3, None, false);
         let pt_mask_bytes_vec = hex::decode(msg4.get(0).unwrap()).unwrap();
+        let pt_mask_r_vec = hex::decode(msg4.get(1).unwrap()).unwrap();
+
         let mut pt_mask_bytes = [0u8; 32];
         pt_mask_bytes.copy_from_slice(pt_mask_bytes_vec.as_slice());
+        let mut pt_mask_r = [0u8; 16];
+        pt_mask_r.copy_from_slice(pt_mask_r_vec.as_slice());
 
         // unmask the pay token
-        is_ok = is_ok && mpc::pay_unmask_pay_token_customer(pt_mask_bytes, &mut cust_state);
+        is_ok = is_ok && mpc::pay_unmask_pay_token_customer(pt_mask_bytes, pt_mask_r, &mut cust_state);
 
         conn.send(&[is_ok.to_string()]);
         match is_ok {
@@ -470,9 +477,12 @@ mod merch {
         let msg4 = conn.send_and_wait(&msg3, Some(String::from("Received revoked state")), true);
         let rev_state = serde_json::from_str(msg4.get(0).unwrap()).unwrap();
 
-        let pt_mask_bytes = mpc::pay_validate_rev_lock_merchant(rev_state, &mut merch_state);
+        let (pt_mask_bytes, pt_mask_r) = match mpc::pay_validate_rev_lock_merchant(rev_state, &mut merch_state) {
+            Ok(n) => (n.0, n.1),
+            _ => return Err(String::from("Failed to get the pay token mask and randomness!"))
+        };
 
-        let msg5 = [hex::encode(&pt_mask_bytes.unwrap())];
+        let msg5 = [hex::encode(&pt_mask_bytes), hex::encode(&pt_mask_r)];
         let msg6 = conn.send_and_wait(&msg5, Some(String::from("Sending masked pt bytes")), true);
 
         if msg6.get(0).unwrap() == "true" {

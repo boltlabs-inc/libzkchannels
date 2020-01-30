@@ -24,6 +24,7 @@ type setupResp struct {
 	PayTokenMaskCom string `json:"pay_token_mask_com"`
 	MaskedTxInputs  string `json:"masked_tx_inputs"`
 	PayTokenMask    string `json:"pay_token_mask"`
+	PayTokenMaskR   string `json:"pay_token_mask_r"`
 	IsOk            bool   `json:"is_ok"`
 	Error           string `json:"error"`
 }
@@ -139,8 +140,8 @@ func InitMerchant(channelState ChannelState, name string) (ChannelState, MerchSt
 	return channelState, merchState, err
 }
 
-func InitCustomer(pkM string, tx string, name string) (ChannelToken, CustState, error) {
-	resp := C.GoString(C.mpc_init_customer(C.CString(pkM), C.CString(tx), C.CString(name)))
+func InitCustomer(pkM string, custBal int64, merchBal int64, name string) (ChannelToken, CustState, error) {
+	resp := C.GoString(C.mpc_init_customer(C.CString(pkM), C.longlong(custBal), C.longlong(merchBal), C.CString(name)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return ChannelToken{}, CustState{}, err
@@ -154,6 +155,23 @@ func InitCustomer(pkM string, tx string, name string) (ChannelToken, CustState, 
 	custState := CustState{}
 	err = json.Unmarshal([]byte(r.CustState), &custState)
 	return channelToken, custState, err
+}
+
+func InitFunding(tx string, channelToken ChannelToken, custState CustState) (error) {
+	serChannelToken, err := json.Marshal(channelToken)
+	if err != nil {
+		return err
+	}
+	serCustState, err := json.Marshal(custState)
+	if err != nil {
+		return err
+	}
+
+	resp := C.GoString(C.mpc_init_funding(C.CString(tx), C.CString(string(serChannelToken)), C.CString(string(serCustState))))
+	r, err := processCResponse(resp)
+	if err != nil {
+	    return err
+	}
 }
 
 func ActivateCustomer(custState CustState) (State, CustState, error) {
@@ -350,33 +368,33 @@ func PayUnmaskTxCustomer(channelState ChannelState, channelToken ChannelToken, m
 	return r.IsOk, custState, err
 }
 
-func PayValidateRevLockMerchant(revokedState RevokedState, merchState MerchState) (string, MerchState, error) {
+func PayValidateRevLockMerchant(revokedState RevokedState, merchState MerchState) (string, string, MerchState, error) {
 	serRevokedState, err := json.Marshal(revokedState)
 	if err != nil {
-		return "", MerchState{}, err
+		return "", "", MerchState{}, err
 	}
 	serMerchState, err := json.Marshal(merchState)
 	if err != nil {
-		return "", MerchState{}, err
+		return "", "", MerchState{}, err
 	}
 
 	resp := C.GoString(C.mpc_pay_validate_rev_lock_merchant(C.CString(string(serRevokedState)), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
-		return "", MerchState{}, err
+		return "", "", MerchState{}, err
 	}
 
 	err = json.Unmarshal([]byte(r.MerchState), &merchState)
-	return r.PayTokenMask, merchState, err
+	return r.PayTokenMask, r.PayTokenMaskR, merchState, err
 }
 
-func PayUnmaskPayTokenCustomer(ptMask string, custState CustState) (bool, CustState, error) {
+func PayUnmaskPayTokenCustomer(ptMask string, ptMaskR string, custState CustState) (bool, CustState, error) {
 	serCustState, err := json.Marshal(custState)
 	if err != nil {
 		return false, CustState{}, err
 	}
 
-	resp := C.GoString(C.mpc_pay_unmask_pay_token_customer(C.CString(ptMask), C.CString(string(serCustState))))
+	resp := C.GoString(C.mpc_pay_unmask_pay_token_customer(C.CString(ptMask), C.CString(ptMaskR), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return false, CustState{}, err
