@@ -18,21 +18,16 @@ func Test_fullProtocol(t *testing.T) {
 
 	channelState, merchState, err := InitMerchant(channelState, "merch")
 	assert.Nil(t, err)
-	fmt.Println("Merchant State: ", merchState)
 
 	channelToken, custState, err := InitCustomer(fmt.Sprintf("\"%v\"", *merchState.PkM), 100, 100, "cust")
 	assert.Nil(t, err)
-	fmt.Println("Customer State(1): ", custState)
 
 	tx := "{\"init_cust_bal\":100,\"init_merch_bal\":100,\"escrow_index\":0,\"merch_index\":0,\"escrow_txid\":\"f6f77d4ff12bbcefd3213aaf2aa61d29b8267f89c57792875dead8f9ba2f303d\",\"escrow_prevout\":\"1a4946d25e4699c69d38899858f1173c5b7ab4e89440cf925205f4f244ce0725\",\"merch_txid\":\"42840a4d79fe3259007d8667b5c377db0d6446c20a8b490cfe9973582e937c3d\",\"merch_prevout\":\"e9af3d3478ee5bab17f97cb9da3e5c60104dec7f777f8a529a0d7ae960866449\"}"
 	channelToken, custState, err = InitFunding(tx, channelToken, custState)
 	assert.Nil(t, err)
-	fmt.Println("Customer State(2): ", custState)
 
 	state, custState, err := ActivateCustomer(custState)
 	assert.Nil(t, err)
-	fmt.Println("State(1): ", state)
-	fmt.Println("Customer State(3): ", custState)
 
 	payToken0, merchState, err := ActivateMerchant(channelToken, state, merchState)
 	assert.Nil(t, err)
