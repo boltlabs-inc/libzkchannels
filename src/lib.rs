@@ -696,8 +696,9 @@ pub mod mpc {
     use channels_mpc::MaskedTxMPCInputs;
     use serde::{Serialize, Deserialize};
     use bindings::ConnType_NETIO;
-    use FundingTxInfo;
+    use ::{FundingTxInfo, FixedSizeArray32};
     use bitcoin::Testnet;
+    use fixed_size_array::FixedSizeArray16;
 
     ///
     /// init_merchant - takes as input the public params, merchant balance and keypair.
@@ -775,7 +776,7 @@ pub mod mpc {
     /// output: new state (after payment), revocation lock commitment, revocation lock, revocation secret
     /// (only send revocation lock commitment to merchant)
     ///
-    pub fn pay_prepare_customer<R: Rng>(csprng: &mut R, channel: &mut ChannelMPCState, amount: i64, cust_state: &mut CustomerMPCState) -> Result<(State, [u8; 32], [u8; 32], [u8; 32]), String> {
+    pub fn pay_prepare_customer<R: Rng>(csprng: &mut R, channel: &mut ChannelMPCState, amount: i64, cust_state: &mut CustomerMPCState) -> Result<(State, RevokedState), String> {
         // check if payment on current balance is greater than dust limit
         let new_balance = match amount > 0 {
             true => cust_state.cust_balance - amount, // positive value
@@ -792,7 +793,7 @@ pub mod mpc {
         cust_state.generate_new_state(csprng, &channel, amount);
         let new_state = cust_state.get_current_state();
 
-        Ok((new_state, r_com, rev_lock, rev_secret))
+        Ok((new_state, RevokedState{ nonce: new_state.nonce, rev_lock_com: FixedSizeArray32(r_com), rev_lock: FixedSizeArray32(rev_lock), rev_secret: FixedSizeArray32(rev_secret), t: FixedSizeArray16(cust_state.get_randomness())}))
     }
 
     ///

@@ -17,9 +17,7 @@ type setupResp struct {
 	MerchState      string `json:"merch_state"`
 	PayToken        string `json:"pay_token"`
 	State           string `json:"state"`
-	RevLock         string `json:"rev_lock"`
-	RevSecret       string `json:"rev_secret"`
-	RevLockCom      string `json:"rev_lock_com"`
+	RevState         string `json:"rev_state"`
 	PayTokenMaskCom string `json:"pay_token_mask_com"`
 	MaskedTxInputs  string `json:"masked_tx_inputs"`
 	PayTokenMask    string `json:"pay_token_mask"`
@@ -245,33 +243,39 @@ func ActivateCustomerFinalize(payToken string, custState CustState) (CustState, 
 	return custState, err
 }
 
-func PreparePaymentCustomer(channelState ChannelState, amount int64, custState CustState) (string, string, string, State, ChannelState, CustState, error) {
+func PreparePaymentCustomer(channelState ChannelState, amount int64, custState CustState) (RevokedState, State, ChannelState, CustState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
-		return "", "", "", State{}, ChannelState{}, CustState{}, err
+		return RevokedState{}, State{}, ChannelState{}, CustState{}, err
 	}
 	serCustState, err := json.Marshal(custState)
 	if err != nil {
-		return "", "", "", State{}, ChannelState{}, CustState{}, err
+		return RevokedState{}, State{}, ChannelState{}, CustState{}, err
 	}
 	resp := C.GoString(C.mpc_prepare_payment_customer(C.CString(string(serChannelState)), C.longlong(amount), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
-		return "", "", "", State{}, ChannelState{}, CustState{}, err
+		return RevokedState{}, State{}, ChannelState{}, CustState{}, err
 	}
 
 	state := State{}
 	err = json.Unmarshal([]byte(r.State), &state)
 	if err != nil {
-		return "", "", "", State{}, ChannelState{}, CustState{}, err
+		return RevokedState{}, State{}, ChannelState{}, CustState{}, err
 	}
 
 	err = json.Unmarshal([]byte(r.ChannelState), &channelState)
 	if err != nil {
-		return "", "", "", State{}, ChannelState{}, CustState{}, err
+		return RevokedState{}, State{}, ChannelState{}, CustState{}, err
 	}
 	err = json.Unmarshal([]byte(r.CustState), &custState)
-	return r.RevLockCom, r.RevLock, r.RevSecret, state, channelState, custState, err
+	if err != nil {
+		return RevokedState{}, State{}, ChannelState{}, CustState{}, err
+	}
+	revState := RevokedState{}
+	err = json.Unmarshal([]byte(r.RevState), &revState)
+
+	return revState, state, channelState, custState, err
 }
 
 func PreparePaymentMerchant(nonce string, merchState MerchState) (string, MerchState, error) {

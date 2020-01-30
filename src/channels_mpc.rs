@@ -616,10 +616,10 @@ fn xor_in_place(a: &mut [u8], b: &[u8]) {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RevokedState {
     pub nonce: FixedSizeArray16,
-    rev_lock_com: FixedSizeArray32,
-    rev_lock: FixedSizeArray32,
-    rev_secret: FixedSizeArray32,
-    t: FixedSizeArray16
+    pub rev_lock_com: FixedSizeArray32,
+    pub rev_lock: FixedSizeArray32,
+    pub rev_secret: FixedSizeArray32,
+    pub t: FixedSizeArray16
 }
 
 #[cfg(feature = "mpc-bitcoin")]

@@ -343,7 +343,7 @@ mod cust {
         let old_state = cust_state.get_current_state();
 
         // prepare phase
-        let (new_state, r_com, rev_lock, rev_secret) = match mpc::pay_prepare_customer(rng, &mut channel_state, amount, &mut cust_state) {
+        let (new_state, rev_state) = match mpc::pay_prepare_customer(rng, &mut channel_state, amount, &mut cust_state) {
             Ok(n) => n,
             Err(e) => return Err(e)
         };
@@ -352,14 +352,14 @@ mod cust {
             println!("new state: {}", &new_state);
         }
 
-        let msg = [hex::encode(&old_state.get_nonce()), hex::encode(&r_com)];
+        let msg = [hex::encode(&old_state.get_nonce()), hex::encode(&rev_state.rev_lock_com.0)];
         let msg1 = conn.send_and_wait(&msg, Some(String::from("nonce and rev_lock com")), true);
         let pay_token_mask_com_vec = hex::decode(msg1.get(0).unwrap()).unwrap();
         let mut pay_token_mask_com = [0u8; 32];
         pay_token_mask_com.copy_from_slice(pay_token_mask_com_vec.as_slice());
 
         // execute the mpc phase
-        let result = mpc::pay_customer(&mut channel_state, &mut channel_token, old_state, new_state, pay_token_mask_com, r_com, amount, &mut cust_state);
+        let result = mpc::pay_customer(&mut channel_state, &mut channel_token, old_state, new_state, pay_token_mask_com, rev_state.rev_lock_com.0, amount, &mut cust_state);
         let mut is_ok = result.is_ok() && result.unwrap();
 
         let msg2 = conn.wait_for(None, false);
@@ -368,7 +368,6 @@ mod cust {
         // unmask the closing tx
         is_ok = is_ok && mpc::pay_unmask_tx_customer(&mut channel_state, &mut channel_token, mask_bytes, &mut cust_state);
 
-        let rev_state = RevokedState::new(old_state.get_nonce(),r_com, rev_lock, rev_secret, t);
         let msg3 = [serde_json::to_string(&rev_state).unwrap()];
 
         // send the revoked state and wait for the pt_mask_bytes and pt_mask_r

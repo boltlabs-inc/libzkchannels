@@ -40,9 +40,10 @@ func Test_fullProtocol(t *testing.T) {
 	custState, err = ActivateCustomerFinalize(payToken0, custState)
 	assert.Nil(t, err)
 
-	revLockCom, revLock, revSecret, newState, channelState, custState, err := PreparePaymentCustomer(channelState, 10, custState)
+	revState, newState, channelState, custState, err := PreparePaymentCustomer(channelState, 10, custState)
 	assert.Nil(t, err)
 
+	assert.NotNil(t, revState)
 	assert.NotNil(t, newState)
 	assert.NotNil(t, channelState)
 	assert.NotNil(t, custState)
@@ -52,8 +53,8 @@ func Test_fullProtocol(t *testing.T) {
 	payTokenMaskCom, merchState, err := PreparePaymentMerchant(state.Nonce, merchState)
 	assert.Nil(t, err)
 
-	go runPayCust(channelState, channelToken, state, newState, payTokenMaskCom, revLockCom, custState)
-	maskedTxInputs, merchState, err := PayMerchant(channelState, state.Nonce, payTokenMaskCom, revLockCom, 10, merchState)
+	go runPayCust(channelState, channelToken, state, newState, payTokenMaskCom, revState.RevLockCom, custState)
+	maskedTxInputs, merchState, err := PayMerchant(channelState, state.Nonce, payTokenMaskCom, revState.RevLockCom, 10, merchState)
 	assert.Nil(t, err)
 	time.Sleep(time.Second * 5)
 
@@ -64,15 +65,7 @@ func Test_fullProtocol(t *testing.T) {
 	assert.Nil(t, err)
 	assert.True(t, isOk)
 
-	revokedState := RevokedState{
-		Nonce:      state.Nonce,
-		RevLockCom: revLockCom,
-		RevLock:    revLock,
-		RevSecret:  revSecret,
-		T:          custState.T,
-	}
-
-	payTokenMask, payTokenMaskR, merchState, err := PayValidateRevLockMerchant(revokedState, merchState)
+	payTokenMask, payTokenMaskR, merchState, err := PayValidateRevLockMerchant(revState, merchState)
 	assert.Nil(t, err)
 
 	isOk, custState, err = PayUnmaskPayTokenCustomer(payTokenMask, payTokenMaskR, custState)
