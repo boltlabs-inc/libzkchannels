@@ -57,7 +57,7 @@ impl EcdsaPartialSig {
 
 // local functions
 // adds padding and messes around with types?
-fn translate_rx(rx: &[u8]) -> [i8; 256] {
+pub fn translate_rx(rx: &[u8]) -> [i8; 256] {
     //println!("translating in ecdsa_partial");
     let int = BigInt::from_bytes_be(Sign::Plus, rx);
     let out = CString::new(int.to_string()).unwrap();
