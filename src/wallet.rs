@@ -1,7 +1,7 @@
 use super::*;
 use pairing::Engine;
 use ff::PrimeField;
-use util::{hash_to_fr, hash_to_slice};
+use util::hash_to_fr;
 use std::fmt;
 use fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
 

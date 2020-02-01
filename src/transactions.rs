@@ -48,14 +48,8 @@ pub struct ClosePublicKeys {
     pub merch_pk: Vec<u8>,
     pub merch_close_pk: Vec<u8>,
     pub merch_disp_pk: Vec<u8>,
-    pub rev_lock: FixedSizeArray32 // [u8; 32]
+    pub rev_lock: FixedSizeArray32
 }
-
-//impl ClosePublicKeys {
-//    pub fn new() -> Self {
-//
-//    }
-//}
 
 pub mod btc {
 
@@ -666,11 +660,6 @@ mod tests {
             script_pub_key: None,
             utxo_amount: Some(10 * SATOSHI),
             sequence: Some([0xff, 0xff, 0xff, 0xff]) // 4294967295
-        };
-
-        let config = BitcoinTxConfig {
-            version: 2,
-            lock_time: 0
         };
 
         let merch_private_key = "cNTSD7W8URSCmfPTvNf2B5gyKe2wwyNomkCikVhuHPCsFgBUKrAV"; // for merch-pk

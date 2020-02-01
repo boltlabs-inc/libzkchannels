@@ -17,17 +17,21 @@ use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::thread::sleep;
 use std::time;
 use bufstream::BufStream;
-use rand::Rng;
 use std::io::{BufRead, Write, Read};
 use std::path::PathBuf;
 use zkchannels::FundingTxInfo;
 use std::fs::File;
+use bitcoin::Testnet;
 
 macro_rules! handle_serde_error {
     ($e:expr) => (match $e {
         Ok(val) => val,
         Err(err) => return Err(err.to_string()),
     });
+}
+
+macro_rules! create_connection {
+    ($e: expr) => (&mut Conn::new($e.own_ip, $e.own_port, $e.other_ip, $e.other_port));
 }
 
 #[derive(Debug, Deserialize)]
@@ -41,6 +45,28 @@ impl FromStr for Party {
     fn from_str(s: &str) -> Result<Party, serde_json::error::Error> {
         Ok(serde_json::from_str(&format!("\"{}\"", s))?)
     }
+}
+
+#[derive(Debug, StructOpt, Deserialize)]
+pub struct Open {
+    #[structopt(long = "party")]
+    party: Party,
+    #[structopt(short = "c", long = "cust-bal", default_value = "0")]
+    cust_bal: i64,
+    #[structopt(short = "m", long = "merch-bal", default_value = "0")]
+    merch_bal: i64,
+    #[structopt(short = "i", long = "own-ip", default_value = "127.0.0.1")]
+    own_ip: String,
+    #[structopt(short = "p", long = "own-port")]
+    own_port: String,
+    #[structopt(short = "j", long = "other-ip", default_value = "127.0.0.1")]
+    other_ip: String,
+    #[structopt(short = "q", long = "other-port")]
+    other_port: String,
+    #[structopt(short = "d", long = "dust-limit", default_value = "0")]
+    dust_limit: i64,
+    #[structopt(short = "t", long = "tx-fee", default_value = "0")]
+    tx_fee: i64
 }
 
 #[derive(Debug, StructOpt, Deserialize)]
@@ -64,10 +90,24 @@ pub struct Init {
 }
 
 #[derive(Debug, StructOpt, Deserialize)]
+pub struct Activate {
+    #[structopt(long = "party")]
+    party: Party,
+    #[structopt(short = "i", long = "own-ip", default_value = "127.0.0.1")]
+    own_ip: String,
+    #[structopt(short = "p", long = "own-port")]
+    own_port: String,
+    #[structopt(short = "j", long = "other-ip", default_value = "127.0.0.1")]
+    other_ip: String,
+    #[structopt(short = "q", long = "other-port")]
+    other_port: String
+}
+
+#[derive(Debug, StructOpt, Deserialize)]
 pub struct Pay {
     #[structopt(long = "party")]
     party: Party,
-    #[structopt(short = "a", long = "amount")]
+    #[structopt(short = "a", long = "amount", allow_hyphen_values = true)]
     amount: Option<i64>,
     #[structopt(short = "i", long = "own-ip", default_value = "127.0.0.1")]
     own_ip: String,
@@ -95,13 +135,17 @@ pub struct Close {
 
 #[derive(Debug, StructOpt, Deserialize)]
 pub enum Command {
-    #[structopt(name = "init")]
+    #[structopt(name = "open")] // for initializing channel state and cust/merch state
+    OPEN(Open),
+    #[structopt(name = "init")] // for creating/signing txs between cust/merch
     INIT(Init),
-    #[structopt(name = "unlink")]
+    #[structopt(name = "activate")] // for activating channel
+    ACTIVATE(Activate),
+    #[structopt(name = "unlink")] // for unlinking channel
     UNLINK(Pay),
-    #[structopt(name = "pay")]
+    #[structopt(name = "pay")] // for making a payment on an existing channel
     PAY(Pay),
-    #[structopt(name = "close")]
+    #[structopt(name = "close")] // for generating closing txs
     CLOSE(Close),
 }
 
@@ -248,32 +292,40 @@ fn main() {
     let args = Cli::from_args();
 
     match args.command {
+        Command::OPEN(open) => match open.party {
+            Party::MERCH => match merch::open(create_connection!(open), open.dust_limit) {
+                Err(e) => println!("Channel opening phase failed with error: {}", e),
+                _ => ()
+            },
+            Party::CUST => match cust::open(create_connection!(open), open.cust_bal, open.merch_bal) {
+                Err(e) => println!("Channel opening phase failed with error: {}", e),
+                _ => ()
+            },
+        },
         Command::INIT(init) => match init.party {
-            Party::MERCH => match merch::init(&mut Conn::new(init.own_ip, init.own_port, init.other_ip, init.other_port), init.dust_limit) {
+            Party::MERCH => match merch::init(create_connection!(init)) {
                 Err(e) => println!("Initialize phase failed with error: {}", e),
                 _ => ()
             },
-            Party::CUST => match cust::init(&mut Conn::new(init.own_ip, init.own_port, init.other_ip, init.other_port), init.funding_tx_file) {
+            Party::CUST => match cust::init(create_connection!(init), init.funding_tx_file) {
                 Err(e) => println!("Initialize phase failed with error: {}", e),
                 _ => ()
             },
+        },
+        Command::ACTIVATE(activate) => match activate.party {
+            Party::MERCH => merch::activate(create_connection!(activate)).unwrap(),
+            Party::CUST => cust::activate(create_connection!(activate)).unwrap()
         },
         Command::UNLINK(unlink) => match unlink.party {
-            Party::MERCH => merch::pay(0,
-                                       &mut Conn::new(unlink.own_ip, unlink.own_port, unlink.other_ip, unlink.other_port)).unwrap(),
-            Party::CUST => cust::pay(0,
-                                     &mut Conn::new(unlink.own_ip, unlink.own_port, unlink.other_ip, unlink.other_port),
-                                     unlink.verbose).unwrap(),
+            Party::MERCH => merch::pay(0, create_connection!(unlink)).unwrap(),
+            Party::CUST => cust::pay(0, create_connection!(unlink), unlink.verbose).unwrap(),
         },
         Command::PAY(pay) => match pay.party {
-            Party::MERCH => match merch::pay(pay.amount.unwrap(),
-                                       &mut Conn::new(pay.own_ip, pay.own_port, pay.other_ip, pay.other_port)) {
+            Party::MERCH => match merch::pay(pay.amount.unwrap(), create_connection!(pay)) {
                 Err(e) => println!("Pay phase failed with error: {}", e),
                 _ => ()
             },
-            Party::CUST => match cust::pay(pay.amount.unwrap(),
-                                     &mut Conn::new(pay.own_ip, pay.own_port, pay.other_ip, pay.other_port),
-                                     pay.verbose) {
+            Party::CUST => match cust::pay(pay.amount.unwrap(), create_connection!(pay), pay.verbose) {
                 Err(e) => println!("Pay protocol failed with error: {}", e),
                 _ => ()
             },
@@ -293,13 +345,27 @@ mod cust {
     use zkchannels::channels_mpc::{ChannelMPCToken, ChannelMPCState, CustomerMPCState, MaskedTxMPCInputs};
     use zkchannels::mpc::RevokedState;
 
-    pub fn init(conn: &mut Conn, funding_tx_file: Option<PathBuf>) -> Result<(), String> {
+    pub fn open(conn: &mut Conn, b0_cust: i64, b0_merch: i64) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
 
+        println!("Waiting for merchant's channel_state and pk_m...");
         let msg0 = conn.wait_for(None, false);
         let channel_state: ChannelMPCState = serde_json::from_str(&msg0.get(0).unwrap()).unwrap();
         let pk_m: secp256k1::PublicKey = serde_json::from_str(&msg0.get(1).unwrap()).unwrap();
 
+        if b0_cust == 0 && b0_merch == 0 {
+            return Err(String::from("cust-bal or merch-bal must be greater than 0."));
+        }
+
+        let (channel_token, cust_state) = mpc::init_customer(rng, &pk_m,
+                                                                 b0_cust, b0_merch, "Customer");
+
+        println!("Saving the initial customer state...");
+        save_state_cust(channel_state, channel_token, cust_state)
+    }
+
+    pub fn init(conn: &mut Conn, funding_tx_file: Option<PathBuf>) -> Result<(), String> {
+        // at this point, escrow-tx and merch-close-tx have been formed but not signed!
         let ser_funding_tx = match funding_tx_file {
             Some(f) => read_pathfile(f).unwrap(),
             None => {
@@ -309,22 +375,69 @@ mod cust {
             }
         };
         let funding_tx: FundingTxInfo = serde_json::from_str(&ser_funding_tx).unwrap();
-        // TODO: validate the FundingTxInfo struct with respect to Bitcoin client
 
-        let (channel_token, mut cust_state) = mpc::init_customer(rng, &pk_m,
-                                                                 funding_tx.init_cust_bal, funding_tx.init_merch_bal, "Customer");
+        let ser_channel_state = read_file("cust_channel_state.json").unwrap();
+        let channel_state: ChannelMPCState = handle_serde_error!(serde_json::from_str(&ser_channel_state));
+
+        let ser_channel_token = read_file("cust_channel_token.json").unwrap();
+        let mut channel_token: ChannelMPCToken = handle_serde_error!(serde_json::from_str(&ser_channel_token));
+
+        let ser_cust_state = read_file("cust_state.json").unwrap();
+        let mut cust_state: CustomerMPCState = handle_serde_error!(serde_json::from_str(&ser_cust_state));
+
+        mpc::init_funding(&funding_tx, &mut channel_token, &mut cust_state);
+
+        let init_cust_state = match cust_state.get_init_cust_state() {
+            Ok(n) => n,
+            Err(e) => return Err(e.to_string())
+        };
+
+        // customer sends pk_c, n_0, rl_0 to the merchant
+        let pubkeys = cust_state.get_pubkeys(&channel_state, &channel_token);
+
+        let msg1 = [handle_serde_error!(serde_json::to_string(&init_cust_state)),
+                               handle_serde_error!(serde_json::to_string(&funding_tx)),
+                               handle_serde_error!(serde_json::to_string(&pubkeys))];
+        let msg2 = conn.send_and_wait(&msg1, Some(String::from("Sending initial cust state")), true);
+
+        // form and sign the cust-close-from-escrow-tx and from-merch-close-tx
+        let escrow_sig: Vec<u8> = serde_json::from_str(&msg2.get(0).unwrap()).unwrap();
+        let merch_sig: Vec<u8> = serde_json::from_str(&msg2.get(1).unwrap()).unwrap();
+
+        // now sign the customer's initial closing txs
+        let got_close_tx = match cust_state.sign_initial_closing_transaction::<Testnet>(&channel_state, &channel_token, &escrow_sig, &merch_sig) {
+            Ok(n) => n,
+            Err(e) => return Err(e.to_string())
+        };
+
+        save_state_cust(channel_state, channel_token, cust_state)?;
+
+        // TODO: now proceed to signing the escrow and merch-close-txs
+
+        Ok(())
+    }
+
+    pub fn activate(conn: &mut Conn) -> Result<(), String> {
+        let rng = &mut rand::thread_rng();
+
+        let ser_cust_state = read_file("cust_state.json").unwrap();
+        let mut cust_state: CustomerMPCState = serde_json::from_str(&ser_cust_state).unwrap();
+
+        let ser_channel_token = read_file("cust_channel_token.json").unwrap();
+        let channel_token: ChannelMPCToken = handle_serde_error!(serde_json::from_str(&ser_channel_token));
 
         let s0 = mpc::activate_customer(rng, &mut cust_state);
 
+        // send the channel token and initial state
         let msg1 = [handle_serde_error!(serde_json::to_string(&channel_token)), handle_serde_error!(serde_json::to_string(&s0))];
         let msg2 = conn.send_and_wait(&msg1, Some(String::from("Sending channel token and state (s0)")), true);
 
         let pay_token: [u8; 32] = serde_json::from_str(&msg2.get(0).unwrap()).unwrap();
-        println!("Obtained pay token (p0): {:?}", pay_token);
+        println!("Obtained pay token (p0): {}", hex::encode(&pay_token));
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
-        println!("Saving the customer state...");
-        save_state_cust(channel_state, channel_token, cust_state)
+        write_file("cust_state.json", handle_serde_error!(serde_json::to_string(&cust_state)))?;
+        Ok(())
     }
 
     pub fn pay(amount: i64, conn: &mut Conn, verbose: bool) -> Result<(), String> {
@@ -339,7 +452,6 @@ mod cust {
         let ser_channel_token = read_file("cust_channel_token.json").unwrap();
         let mut channel_token: ChannelMPCToken = handle_serde_error!(serde_json::from_str(&ser_channel_token));
 
-        let t = cust_state.get_randomness();
         let old_state = cust_state.get_current_state();
 
         // prepare phase
@@ -418,10 +530,11 @@ mod cust {
 #[cfg(feature = "mpc-bitcoin")]
 mod merch {
     use super::*;
-    use zkchannels::channels_mpc::{ChannelMPCState, ChannelMPCToken, MerchantMPCState};
+    use zkchannels::channels_mpc::{ChannelMPCState, ChannelMPCToken, MerchantMPCState, InitCustState};
     use zkchannels::wallet::State;
+    use zkchannels::transactions::ClosePublicKeys;
 
-    pub fn init(conn: &mut Conn, dust_limit: i64) -> Result<(), String> {
+    pub fn open(conn: &mut Conn, dust_limit: i64) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
 
         let mut channel_state = ChannelMPCState::new(String::from("Channel"), false);
@@ -431,11 +544,46 @@ mod merch {
         }
         channel_state.set_dust_limit(dust_limit);
 
-        let mut merch_state = mpc::init_merchant(rng, &mut channel_state, "Merchant");
+        let merch_state = mpc::init_merchant(rng, &mut channel_state, "Merchant");
 
         let msg1 = [handle_serde_error!(serde_json::to_string(&channel_state)), handle_serde_error!(serde_json::to_string(&merch_state.pk_m))];
+        conn.send(&msg1);
 
-        let msg2 = conn.send_and_wait(&msg1, Some(String::from("Sending channel state and pk_m")), true);
+        save_state_merch(channel_state, merch_state)
+    }
+
+    pub fn init(conn: &mut Conn) -> Result<(), String> {
+        // build tx and sign it
+        let ser_channel_state = read_file("merch_channel_state.json").unwrap();
+        let channel_state: ChannelMPCState = serde_json::from_str(&ser_channel_state).unwrap();
+
+        let ser_merch_state = read_file("merch_state.json").unwrap();
+        let merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
+
+        let msg2 = conn.wait_for(None, false);
+        let init_cust_state: InitCustState = serde_json::from_str(&msg2.get(0).unwrap()).unwrap();
+        let funding_tx: FundingTxInfo = serde_json::from_str(&msg2.get(1).unwrap()).unwrap();
+        let pubkeys: ClosePublicKeys = serde_json::from_str(&msg2.get(2).unwrap()).unwrap();
+        let pkc = init_cust_state.pk_c.serialize().to_vec();
+
+        if pkc != pubkeys.cust_pk {
+            return Err(String::from("Customer pk for channel doesn't match initial state"));
+        }
+
+        let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(&channel_state, &funding_tx, &pubkeys);
+
+        let msg3 = [handle_serde_error!(serde_json::to_string(&escrow_sig)), handle_serde_error!(serde_json::to_string(&merch_sig))];
+        conn.send(&msg3);
+
+        Ok(())
+    }
+
+    pub fn activate(conn: &mut Conn) -> Result<(), String> {
+        let ser_merch_state = read_file("merch_state.json").unwrap();
+        let mut merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
+
+        let msg2 = conn.wait_for(None, false);
+        // TODO: verify msg2
 
         let channel_token: ChannelMPCToken = serde_json::from_str(&msg2.get(0).unwrap()).unwrap();
         let s0: State = serde_json::from_str(msg2[1].as_ref()).unwrap();
@@ -445,7 +593,9 @@ mod merch {
         let msg3 = [handle_serde_error!(serde_json::to_string(&pay_token))];
         conn.send(&msg3);
 
-        save_state_merch(channel_state, merch_state)
+        // save_state_merch(channel_state, merch_state)
+        write_file("merch_state.json", handle_serde_error!(serde_json::to_string(&merch_state)))?;
+        Ok(())
     }
 
     pub fn pay(amount: i64, conn: &mut Conn) -> Result<(), String> {

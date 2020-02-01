@@ -694,7 +694,6 @@ pub mod mpc {
     use secp256k1::PublicKey;
     use wallet::{State, NONCE_LEN};
     use channels_mpc::MaskedTxMPCInputs;
-    use serde::{Serialize, Deserialize};
     use bindings::ConnType_NETIO;
     use ::{FundingTxInfo, FixedSizeArray32};
     use bitcoin::Testnet;
@@ -1387,8 +1386,7 @@ mod tests {
         let (channel_token, mut cust_state) = mpc::init_customer(rng, &merch_state.pk_m, 100, 100, "Alice");
 
         // customer sends pk_c, n_0, rl_0 to the merchant
-
-        // merchant checks these values are well-formed
+        let init_cust_state = cust_state.get_init_cust_state().unwrap();
 
         // form all of the escrow and merch-close-tx transactions
         let funding_tx_info = generate_funding_tx(&mut rng, 100, 100);
@@ -1472,16 +1470,15 @@ mod tests {
 
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
-        let (_, rev_lock_com, rev_lock, rev_secret) = mpc::pay_prepare_customer(&mut rng, &mut channel, 10, &mut cust_state).unwrap();
+        let (new_state, revoked_state) = mpc::pay_prepare_customer(&mut rng, &mut channel, 10, &mut cust_state).unwrap();
+        let rev_lock_com = revoked_state.rev_lock_com.0;
+
         let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, s0.get_nonce(), &mut merch_state);
 
         let res_merch = mpc::pay_merchant(&mut rng, &mut channel, s0.get_nonce(), pay_mask_com, rev_lock_com, 10, &mut merch_state);
         assert!(res_merch.is_ok());
         let _inputs = res_merch.unwrap();
 
-        let t = cust_state.get_randomness();
-
-        let revoked_state = mpc::RevokedState::new(s0.get_nonce(), rev_lock_com, rev_lock, rev_secret, t);
         let (pay_token_mask, pay_token_mask_r) = match mpc::pay_validate_rev_lock_merchant(revoked_state, &mut merch_state) {
             Ok(n) => (n.0, n.1),
             _ => panic!("Could not get pay token mask and randomness")
@@ -1516,13 +1513,14 @@ rusty_fork_test! {
 
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
-//        let ser_tx_info = serde_json::to_string(&funding_tx_info).unwrap();
-//        println!("Ser Funding Tx Info: {}", ser_tx_info);
-//        let orig_funding_tx_info: FundingTxInfo = serde_json::from_str(&ser_tx_info).unwrap();
-//        assert_eq!(funding_tx_info, orig_funding_tx_info);
+        let ser_tx_info = serde_json::to_string(&funding_tx_info).unwrap();
+        println!("Ser Funding Tx Info: {}", ser_tx_info);
+        let orig_funding_tx_info: FundingTxInfo = serde_json::from_str(&ser_tx_info).unwrap();
+        assert_eq!(funding_tx_info, orig_funding_tx_info);
 
+        let (state, rev_state) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, 10, &mut cust_state).unwrap();
+        let rev_lock_com = rev_state.rev_lock_com.0;
 
-        let (state, rev_lock_com, _, _) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, 10, &mut cust_state).unwrap();
         let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, state.get_nonce(), &mut merch_state);
 
         let res_cust = mpc::pay_customer(&mut channel_state, &channel_token, s0, state, pay_mask_com, rev_lock_com, 10, &mut cust_state);

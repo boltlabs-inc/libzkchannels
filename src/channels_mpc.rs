@@ -7,7 +7,6 @@ use rand::Rng;
 use wallet::{State, NONCE_LEN};
 use mpcwrapper::{mpc_build_masked_tokens_cust, mpc_build_masked_tokens_merch};
 use transactions::ClosePublicKeys;
-use transactions::btc::{create_escrow_transaction, create_merch_close_transaction_params, create_merch_close_transaction_preimage, sign_escrow_transaction};
 use transactions::btc::{create_input, get_var_length_int, create_cust_close_transaction, generate_signature_for_multi_sig_transaction, completely_sign_multi_sig_transaction};
 use bitcoin::{Testnet, BitcoinTransactionParameters, BitcoinNetwork, BitcoinPrivateKey};
 use sha2::{Sha256, Digest};
@@ -203,6 +202,26 @@ pub struct CustomerMPCState {
 }
 
 #[cfg(feature = "mpc-bitcoin")]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct InitCustState {
+    pub pk_c: secp256k1::PublicKey,
+    pub nonce: FixedSizeArray16,
+    pub rev_lock: FixedSizeArray32
+}
+
+#[cfg(feature = "mpc-bitcoin")]
+impl fmt::Display for InitCustState {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let nonce_hex = hex::encode(self.nonce.0.to_vec());
+        let rev_lock_hex = hex::encode(self.rev_lock.0.to_vec());
+
+        write!(f, "InitCustState : (\npkc={:?}\nnonce={:?}\nrev_lock={:?}\n)",
+               &self.pk_c, nonce_hex, rev_lock_hex)
+    }
+}
+
+
+#[cfg(feature = "mpc-bitcoin")]
 impl CustomerMPCState {
     pub fn new<R: Rng>(csprng: &mut R, cust_bal: i64, merch_bal: i64, name: String) -> Self
     {
@@ -320,6 +339,20 @@ impl CustomerMPCState {
 
         channel_token.escrow_txid = tx.escrow_txid.clone();
         channel_token.merch_txid = tx.merch_txid.clone();
+    }
+
+    pub fn get_init_cust_state(&self) -> Result<InitCustState, String> {
+        assert!(self.state.is_some());
+        if self.channel_initialized {
+            return Err(String::from("Customer state has already been initialized!"));
+        };
+
+        let s = self.state.unwrap();
+        Ok(InitCustState {
+            pk_c: self.pk_c.clone(),
+            nonce: FixedSizeArray16(s.get_nonce()),
+            rev_lock: FixedSizeArray32(s.get_rev_lock())
+        })
     }
 
     pub fn generate_new_state<R: Rng>(&mut self, csprng: &mut R, channel: &ChannelMPCState, amount: i64) {
@@ -465,8 +498,28 @@ impl CustomerMPCState {
         let escrow_tx_hash = Sha256::digest(&Sha256::digest(&escrow_tx_preimage));
         let merch_tx_hash = Sha256::digest(&Sha256::digest(&merch_tx_preimage));
 
-        let escrow_sig = secp256k1::Signature::from_compact(&escrow_sig.as_slice()).unwrap();
-        let merch_sig = secp256k1::Signature::from_compact(&merch_sig.as_slice()).unwrap();
+        // new escrow signature
+        let sig_len = escrow_sig[0] as usize;
+        let mut new_escrow_sig = escrow_sig[1..].to_vec();
+        if sig_len != new_escrow_sig.len() {
+            return Err(String::from("Invalid escrow_sig len!"));
+        }
+        new_escrow_sig.pop(); // remove last byte for sighash flag
+        let escrow_sig = match secp256k1::Signature::from_der(&new_escrow_sig.as_slice()) {
+            Ok(n) => n,
+            Err(e) => return Err(e.to_string())
+        };
+        // new merch signature
+        let sig_len = merch_sig[0] as usize;
+        let mut new_merch_sig = merch_sig[1..].to_vec();
+        if sig_len != new_merch_sig.len() {
+            return Err(String::from("Invalid merch_sig len!"));
+        }
+        new_merch_sig.pop(); // remove last byte for sighash flag
+        let merch_sig = match secp256k1::Signature::from_der(&new_merch_sig.as_slice()) {
+            Ok(n) => n,
+            Err(e) => return Err(e.to_string())
+        };
 
         // println!("Tx hash: {}", hex::encode(&escrow_tx_hash));
         let msg1 = secp256k1::Message::from_slice(&escrow_tx_hash).unwrap();
@@ -801,17 +854,17 @@ impl MerchantMPCState {
     }
 
     // Merchant sign's the initial closing transaction (in the clear)
-    pub fn sign_initial_closing_transaction<N: BitcoinNetwork>(&self, channel_state: &ChannelMPCState, funding_tx: &FundingTxInfo, pubkeys: &ClosePublicKeys) -> (Vec<u8>, Vec<u8>) {
+    pub fn sign_initial_closing_transaction<N: BitcoinNetwork>(&self, _channel_state: &ChannelMPCState, funding_tx: &FundingTxInfo, pubkeys: &ClosePublicKeys) -> (Vec<u8>, Vec<u8>) {
         let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
         let init_balance = funding_tx.init_cust_bal + funding_tx.init_merch_bal;
 
         let escrow_input = create_input(&funding_tx.escrow_txid.0, funding_tx.escrow_index, init_balance);
         let merch_input = create_input(&funding_tx.merch_txid.0, funding_tx.merch_index, init_balance);
 
-        let (escrow_tx_preimage, escrow_tx_params, _) =
+        let (escrow_tx_preimage, _, _) =
             create_cust_close_transaction::<N>(&escrow_input, &pubkeys, &to_self_delay, funding_tx.init_cust_bal, funding_tx.init_merch_bal, true);
 
-        let (merch_tx_preimage, merch_tx_params, _) =
+        let (merch_tx_preimage, _, _) =
             create_cust_close_transaction::<N>(&merch_input, &pubkeys, &to_self_delay, funding_tx.init_cust_bal, funding_tx.init_merch_bal, false);
 
         // merchant generates signatures
@@ -873,13 +926,13 @@ impl MerchantMPCState {
                                                   &pay_mask_bytes, &pay_mask_r, &escrow_mask_bytes);
 
         // store the rev_lock_com => (pt_mask_bytes, escrow_mask_bytes, merch_mask_bytes)
-        println!("=================================================================");
-        println!("merchant pt_mask: {:?}", hex::encode(&pay_mask_bytes));
-        println!("merchant escrow_mask: {:?}", hex::encode(&escrow_mask_bytes));
-        println!("merchant merch_mask: {:?}", hex::encode(&merch_mask_bytes));
-        println!("merchant r_escrow_sig: {:?}", hex::encode(&r_esc));
-        println!("merchant r_merch_sig: {:?}", hex::encode(&r_merch));
-        println!("=================================================================");
+//        println!("=================================================================");
+//        println!("merchant pt_mask: {:?}", hex::encode(&pay_mask_bytes));
+//        println!("merchant escrow_mask: {:?}", hex::encode(&escrow_mask_bytes));
+//        println!("merchant merch_mask: {:?}", hex::encode(&merch_mask_bytes));
+//        println!("merchant r_escrow_sig: {:?}", hex::encode(&r_esc));
+//        println!("merchant r_merch_sig: {:?}", hex::encode(&r_merch));
+//        println!("=================================================================");
 
         let mask_bytes = MaskedMPCInputs {
             pt_mask: FixedSizeArray32(pay_mask_bytes),

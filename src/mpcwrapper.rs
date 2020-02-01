@@ -1,5 +1,5 @@
 use libc::{c_int, c_uint, c_void};
-use secp256k1::{Signature, Message, PublicKey, Secp256k1};
+use secp256k1;
 use std::ffi::CString;
 use rand::Rng;
 use bindings::{get_netio_ptr, get_unixnetio_ptr, build_masked_tokens_cust, build_masked_tokens_merch,
@@ -294,7 +294,7 @@ mod tests {
     use num::bigint::Sign;
     use std::time::Duration;
     use sha2::{Sha256, Digest};
-    use secp256k1::PartialSignature;
+    use secp256k1::{Secp256k1, Signature, PublicKey, Message, PartialSignature};
     use std::str::FromStr;
     use rand::RngCore;
     use rand::rngs::mock::StepRng;
