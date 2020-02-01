@@ -789,7 +789,7 @@ pub mod mpc {
         let (rev_lock, rev_secret) = cust_state.get_rev_pair();
         let r_com = cust_state.generate_rev_lock_commitment(csprng);
 
-        cust_state.generate_new_state(csprng, &channel, amount);
+        cust_state.generate_new_state(csprng, amount);
         let new_state = cust_state.get_current_state();
 
         Ok((new_state, RevokedState{ nonce: new_state.nonce, rev_lock_com: FixedSizeArray32(r_com), rev_lock: FixedSizeArray32(rev_lock), rev_secret: FixedSizeArray32(rev_secret), t: FixedSizeArray16(cust_state.get_randomness())}))

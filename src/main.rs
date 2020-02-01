@@ -343,7 +343,6 @@ fn main() {
 mod cust {
     use super::*;
     use zkchannels::channels_mpc::{ChannelMPCToken, ChannelMPCState, CustomerMPCState, MaskedTxMPCInputs};
-    use zkchannels::mpc::RevokedState;
 
     pub fn open(conn: &mut Conn, b0_cust: i64, b0_merch: i64) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
@@ -410,7 +409,9 @@ mod cust {
             Err(e) => return Err(e.to_string())
         };
 
-        save_state_cust(channel_state, channel_token, cust_state)?;
+        if got_close_tx {
+            save_state_cust(channel_state, channel_token, cust_state)?;
+        }
 
         // TODO: now proceed to signing the escrow and merch-close-txs
 
@@ -652,7 +653,7 @@ mod merch {
     pub fn close(out_file: PathBuf, channel_token_file: Option<PathBuf>) -> Result<(), String> {
         // output the merch-close-tx (only thing merchant can broadcast to close channel)
         let ser_merch_state = read_file("merch_state.json").unwrap();
-        let merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
+        let _merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
 
         let ser_channel_token = match channel_token_file {
             Some(ctf) => read_pathfile(ctf).unwrap(),
@@ -660,7 +661,7 @@ mod merch {
         };
         let channel_token: ChannelMPCToken = serde_json::from_str(&ser_channel_token).unwrap();
 
-        let channel_id = match channel_token.compute_channel_id() {
+        let _channel_id = match channel_token.compute_channel_id() {
             Ok(n) => hex::encode(&n),
             Err(e) => return Err(e.to_string())
         };

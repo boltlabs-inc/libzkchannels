@@ -256,7 +256,7 @@ mod cust {
 mod merch {
     use super::*;
 
-    pub fn validate_signature(preimage: &Vec<u8>, sig_and_len: &Vec<u8>, pk: &Vec<u8>) -> bool {
+    pub fn validate_signature(_preimage: &Vec<u8>, _sig_and_len: &Vec<u8>, _pk: &Vec<u8>) -> bool {
         // TODO: verify the signature with respect to preimage and cust-pubkey
         println!("verifying the cust signature on merch-close-tx preimage!");
         return true;

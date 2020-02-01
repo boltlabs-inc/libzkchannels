@@ -7,8 +7,11 @@ use rand::Rng;
 use wallet::{State, NONCE_LEN};
 use mpcwrapper::{mpc_build_masked_tokens_cust, mpc_build_masked_tokens_merch};
 use transactions::ClosePublicKeys;
-use transactions::btc::{create_input, get_var_length_int, create_cust_close_transaction, generate_signature_for_multi_sig_transaction, completely_sign_multi_sig_transaction};
-use bitcoin::{Testnet, BitcoinTransactionParameters, BitcoinNetwork, BitcoinPrivateKey};
+use bindings::ConnType;
+use wagyu_model::Transaction;
+use transactions::btc::{create_input, get_var_length_int, create_cust_close_transaction,
+                        generate_signature_for_multi_sig_transaction, completely_sign_multi_sig_transaction};
+use bitcoin::{BitcoinTransactionParameters, BitcoinNetwork, BitcoinPrivateKey};
 use sha2::{Sha256, Digest};
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -355,7 +358,7 @@ impl CustomerMPCState {
         })
     }
 
-    pub fn generate_new_state<R: Rng>(&mut self, csprng: &mut R, channel: &ChannelMPCState, amount: i64) {
+    pub fn generate_new_state<R: Rng>(&mut self, csprng: &mut R, amount: i64) {
         assert!(!self.state.is_none());
 
         let mut new_state = self.state.unwrap().clone();
@@ -468,7 +471,6 @@ impl CustomerMPCState {
 
     // Customer constructs initial tx preimage and transaction params
     pub fn construct_close_transaction_preimage<N: BitcoinNetwork>(&self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken) -> (Vec<u8>, Vec<u8>, BitcoinTransactionParameters<N>, BitcoinTransactionParameters<N>) {
-        let secp = secp256k1::Secp256k1::new();
         let init_balance = self.cust_balance + self.merch_balance;
         // TODO: should be configurable via a tx_config
         let escrow_index = 0;
@@ -476,7 +478,6 @@ impl CustomerMPCState {
         let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
 
         let pubkeys = self.get_pubkeys(channel_state, channel_token);
-        // println!("Escrow TXID: {}", hex::encode(channel_token.escrow_txid));
         let escrow_input = create_input(&channel_token.escrow_txid.0, escrow_index, init_balance);
         let merch_input = create_input(&channel_token.merch_txid.0, merch_index, init_balance);
 
@@ -538,12 +539,12 @@ impl CustomerMPCState {
             let enc_merch_signature = [get_var_length_int(merch_signature.len() as u64).unwrap(), merch_signature].concat();
 
             let (signed_cust_close_escrow_tx, _, _) =
-                transactions::btc::completely_sign_multi_sig_transaction::<N>(&escrow_tx_params, &enc_escrow_signature, &private_key);
+                completely_sign_multi_sig_transaction::<N>(&escrow_tx_params, &enc_escrow_signature, &private_key);
             self.cust_close_escrow_tx = hex::encode(&signed_cust_close_escrow_tx.to_transaction_bytes().unwrap());
 
             // sign the cust-close-from-merch-tx
             let (signed_cust_close_merch_tx, _, _) =
-                transactions::btc::completely_sign_multi_sig_transaction::<N>(&merch_tx_params, &enc_merch_signature, &private_key);
+                completely_sign_multi_sig_transaction::<N>(&merch_tx_params, &enc_merch_signature, &private_key);
             self.cust_close_merch_tx = hex::encode(&signed_cust_close_merch_tx.to_transaction_bytes().unwrap());
 
             self.channel_initialized = true;
@@ -604,12 +605,12 @@ impl CustomerMPCState {
 
         // sign the cust-close-from-escrow-tx
         let (signed_cust_close_escrow_tx, _, _) =
-            transactions::btc::completely_sign_multi_sig_transaction::<N>(&escrow_tx_params, &enc_escrow_signature, &private_key);
+            completely_sign_multi_sig_transaction::<N>(&escrow_tx_params, &enc_escrow_signature, &private_key);
         self.cust_close_escrow_tx = hex::encode(&signed_cust_close_escrow_tx.to_transaction_bytes().unwrap());
 
         // sign the cust-close-from-merch-tx
         let (signed_cust_close_merch_tx, _, _) =
-            transactions::btc::completely_sign_multi_sig_transaction::<N>(&merch_tx_params, &enc_merch_signature, &private_key);
+            completely_sign_multi_sig_transaction::<N>(&merch_tx_params, &enc_merch_signature, &private_key);
         self.cust_close_merch_tx = hex::encode(&signed_cust_close_merch_tx.to_transaction_bytes().unwrap());
 
         return escrow_sig_valid && merch_sig_valid;
@@ -984,23 +985,22 @@ impl MerchantMPCState {
 
 }
 
-#[cfg(test)]
-use rand::SeedableRng;
-use rand_xorshift::XorShiftRng;
-use wagyu_model::AddressError::Message;
-use bindings::ConnType;
-use wagyu_model::Transaction;
-
 #[cfg(feature = "mpc-bitcoin")]
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand_xorshift::XorShiftRng;
     use channels_mpc::{ChannelMPCState, MerchantMPCState, CustomerMPCState};
     use std::thread;
     use std::time::Duration;
     use sha2::Digest;
     use sha2::Sha256;
     use serde::de::value::Error;
+    use bitcoin::Testnet;
+    use rand::SeedableRng;
+    use wagyu_model::AddressError::Message;
+    use bindings::ConnType;
+    use wagyu_model::Transaction;
 
     fn generate_test_txs<R: Rng>(csprng: &mut R, b0_cust: i64, b0_merch: i64) -> FundingTxInfo {
         let mut escrow_txid = [0u8; 32];
@@ -1083,7 +1083,7 @@ rusty_fork_test!
 
         let amount = 10;
 
-        cust_state.generate_new_state(&mut rng, &channel_state, amount);
+        cust_state.generate_new_state(&mut rng, amount);
         let s_1 = cust_state.get_current_state();
         println!("Updated state: {}", s_1);
 
@@ -1210,7 +1210,7 @@ rusty_fork_test!
 
         let amount = 10;
 
-        cust_state.generate_new_state(&mut rng, &channel, amount);
+        cust_state.generate_new_state(&mut rng, amount);
         let s_1 = cust_state.get_current_state();
         println!("Updated state: {}", s_1);
 
