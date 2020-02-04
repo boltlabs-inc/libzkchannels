@@ -391,10 +391,10 @@ mod tests {
         csprng.fill_bytes(&mut seckey);
 
         let sk_m = secp256k1::SecretKey::from_slice(&seckey).unwrap();
-        let pk_m = PublicKey::from_secret_key(&Secp256k1::new(), &sk_m);
+        let _pk_m = PublicKey::from_secret_key(&Secp256k1::new(), &sk_m);
 
         let sk_c = secp256k1::SecretKey::from_slice(&seckey).unwrap();
-        let pk_c = PublicKey::from_secret_key(&Secp256k1::new(), &sk_c);
+        let _pk_c = PublicKey::from_secret_key(&Secp256k1::new(), &sk_c);
 
         /*   CUSTOMER SECRET INPUTS */
         /*   old_state, new_state, old_paytoken, 2x public_keys */
@@ -502,7 +502,7 @@ mod tests {
         merch_mask_bytes.copy_from_slice(hex::decode("1c92f6e3dfb5f805a436b727a340fd08d41e4de53b7f6dd5865b5f30fcf80709").unwrap().as_slice());
         let mut escrow_mask_bytes = [0u8; 32];
         escrow_mask_bytes.copy_from_slice(hex::decode("2670345a391379cd02514a35ee4fb3f1f0c14b5fb75381b7e797b5dd26ee057d").unwrap().as_slice());
-        let sk_m = secp256k1::SecretKey::from_slice(&hex::decode("bbb22af17dc660de6c26ff59e8090dbbc19dcde76beed4f5970c9eaccfbdc96c").unwrap().as_slice()).unwrap();
+        // let sk_m = secp256k1::SecretKey::from_slice(&hex::decode("bbb22af17dc660de6c26ff59e8090dbbc19dcde76beed4f5970c9eaccfbdc96c").unwrap().as_slice()).unwrap();
         let secp = Secp256k1::new();
 
         // We are signing this thing (this is post hash): "c76b9fbe0364d533b6ee018de59b3f3d529c6caa1d6fbe28853785e03b006047"

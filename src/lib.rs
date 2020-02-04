@@ -786,13 +786,20 @@ pub mod mpc {
             let s = format!("Balance after payment is below dust limit: {}. Max payment: {}", channel.get_dust_limit(), max_payment);
             return Err(s);
         }
-        let (rev_lock, rev_secret) = cust_state.get_rev_pair();
-        let r_com = cust_state.generate_rev_lock_commitment(csprng);
+        let (cur_rev_lock, cur_rev_secret) = cust_state.get_rev_pair();
+        // get current rev lock commitment
+        let cur_rev_lock_com = cust_state.generate_rev_lock_commitment(csprng);
+        // get old state
+        let cur_state = cust_state.get_current_state();
+        // randomness for old rev lock commitment
+        let cur_t = cust_state.get_randomness();
 
         cust_state.generate_new_state(csprng, amount);
         let new_state = cust_state.get_current_state();
 
-        Ok((new_state, RevokedState{ nonce: new_state.nonce, rev_lock_com: FixedSizeArray32(r_com), rev_lock: FixedSizeArray32(rev_lock), rev_secret: FixedSizeArray32(rev_secret), t: FixedSizeArray16(cust_state.get_randomness())}))
+        Ok((new_state, RevokedState{ nonce: cur_state.nonce, rev_lock_com: FixedSizeArray32(cur_rev_lock_com),
+                                     rev_lock: FixedSizeArray32(cur_rev_lock), rev_secret: FixedSizeArray32(cur_rev_secret),
+                                     t: FixedSizeArray16(cur_t)}))
     }
 
     ///

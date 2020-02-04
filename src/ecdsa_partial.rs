@@ -3,12 +3,12 @@ use num::BigInt;
 use num::bigint::Sign;
 use rand::{Rng};
 use std::slice;
-use std::ffi::{CString, CStr};
+use std::ffi::CString;
 use super::*;
 
 // include our libraries
 use bindings::{EcdsaPartialSig_l};
-use secp256k1::{Signature, Message, PublicKey, Secp256k1};
+use secp256k1;
 
 #[derive(Copy, Clone)] //, Serialize, Deserialize)]
 pub struct EcdsaPartialSig {
@@ -25,7 +25,7 @@ impl EcdsaPartialSig {
         // generate random nonce
         let mut nonce = [0u8; 32];
         rng.fill_bytes(&mut nonce);
-        let nonce_message = Message::from_slice(&nonce);
+        let nonce_message = secp256k1::Message::from_slice(&nonce);
  
         // compute partial signature
         let partial_signature = secp.partial_sign(&nonce_message.unwrap(), &sk);
@@ -66,7 +66,7 @@ pub fn translate_rx(rx: &[u8]) -> [i8; 256] {
     let mut out_vec = out_slice.to_vec();
     let pad = 256 - out_vec.len();
     let mut padding_vec = Vec::new();
-    for i in 0..pad {
+    for _ in 0..pad {
         padding_vec.push(0x0 as i8);
     }
     out_vec.append(&mut padding_vec);

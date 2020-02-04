@@ -13,6 +13,8 @@ use transactions::btc::{create_input, get_var_length_int, create_cust_close_tran
                         generate_signature_for_multi_sig_transaction, completely_sign_multi_sig_transaction};
 use bitcoin::{BitcoinTransactionParameters, BitcoinNetwork, BitcoinPrivateKey};
 use sha2::{Sha256, Digest};
+use std::fmt::Debug;
+use std::hash::Hash;
 
 #[cfg(feature = "mpc-bitcoin")]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -382,6 +384,7 @@ impl CustomerMPCState {
         new_state.nonce.0.copy_from_slice(&new_nonce);
         new_state.rev_lock.0.copy_from_slice(&new_rev_lock);
 
+        // generate new rev_secret, rev_lock
         self.rev_secret.0.copy_from_slice(&new_rev_secret);
         self.rev_lock.0.copy_from_slice(&new_rev_lock);
         self.cust_balance = new_state.bc;
@@ -819,7 +822,7 @@ impl MerchantMPCState {
         // check if n_i not in S
         let nonce_hex = hex::encode(nonce);
         if self.lock_map_state.get(&nonce_hex).is_some() {
-            return Err(String::from("nonce has been used already."));
+            return Err(format!("nonce {} has been used already.", &nonce_hex));
         }
 
         // pick mask_pay and form commitment to it
@@ -876,6 +879,12 @@ impl MerchantMPCState {
         return (escrow_cust_sig, merch_cust_sig);
     }
 
+    fn print_map<K: Debug + Eq + Hash, V: Debug>(&self, map: &HashMap<K, V>) {
+        for (k, v) in map.iter() {
+            println!("{:?}: {:?}", k, v);
+        }
+    }
+
     // for merchant side
     pub fn execute_mpc_context<R: Rng>(&mut self, csprng: &mut R, channel_state: &ChannelMPCState, nonce: [u8; NONCE_LEN],
                                rev_lock_com: [u8; 32], paytoken_mask_com: [u8; 32], amount: i64) -> Result<bool, String> {
@@ -888,7 +897,7 @@ impl MerchantMPCState {
         // check if n_i not in S
         let nonce_hex = hex::encode(nonce);
         if self.lock_map_state.get(&nonce_hex).is_some() {
-            return Err(String::from("nonce has been used already."));
+            return Err(format!("nonce {} has been used already.", &nonce_hex));
         }
 
         // check the nonce & paytoken_mask (based on the nonce)

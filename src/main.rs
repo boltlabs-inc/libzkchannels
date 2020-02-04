@@ -23,6 +23,12 @@ use zkchannels::FundingTxInfo;
 use std::fs::File;
 use bitcoin::Testnet;
 
+macro_rules! handle_file_error {
+    ($e:expr, $f:expr) => (match $e {
+        Ok(val) => val,
+        Err(err) => return Err(format!("- {:?}: {}", $f, err)),
+    });
+}
 macro_rules! handle_serde_error {
     ($e:expr) => (match $e {
         Ok(val) => val,
@@ -366,7 +372,7 @@ mod cust {
     pub fn init(conn: &mut Conn, funding_tx_file: Option<PathBuf>) -> Result<(), String> {
         // at this point, escrow-tx and merch-close-tx have been formed but not signed!
         let ser_funding_tx = match funding_tx_file {
-            Some(f) => read_pathfile(f).unwrap(),
+            Some(f) => handle_file_error!(read_pathfile(f.clone()), f),
             None => {
                 let s = String::from("--funding-tx argument is required for customer");
                 println!("{}", s);
@@ -450,6 +456,10 @@ mod cust {
         let ser_cust_state = read_file("cust_state.json").unwrap();
         let mut cust_state: CustomerMPCState = serde_json::from_str(&ser_cust_state).unwrap();
 
+        println!("Payment amount: {}", amount);
+        println!("Current balance: {}", cust_state.cust_balance);
+        println!("Merchant balance: {}", cust_state.merch_balance);
+
         let ser_channel_token = read_file("cust_channel_token.json").unwrap();
         let mut channel_token: ChannelMPCToken = handle_serde_error!(serde_json::from_str(&ser_channel_token));
 
@@ -461,8 +471,12 @@ mod cust {
             Err(e) => return Err(e)
         };
         if verbose {
+            let chan_id = channel_token.compute_channel_id().unwrap();
+            println!("====================================");
+            println!("Updating channel: ID={}", hex::encode(&chan_id));
             println!("old state: {}", &old_state);
             println!("new state: {}", &new_state);
+            println!("====================================");
         }
 
         let msg = [hex::encode(&old_state.get_nonce()), hex::encode(&rev_state.rev_lock_com.0)];
@@ -612,6 +626,7 @@ mod merch {
         let nonce_vec = hex::decode(msg0.get(0).unwrap()).unwrap();
         let mut nonce = [0u8; 16];
         nonce.copy_from_slice(nonce_vec.as_slice());
+        println!("Customer revealed a nonce: {}", hex::encode(&nonce));
         let rev_lock_com_vec = hex::decode(msg0.get(1).unwrap()).unwrap();
         let mut rev_lock_com = [0u8; 32];
         rev_lock_com.copy_from_slice(rev_lock_com_vec.as_slice());
@@ -656,7 +671,7 @@ mod merch {
         let _merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
 
         let ser_channel_token = match channel_token_file {
-            Some(ctf) => read_pathfile(ctf).unwrap(),
+            Some(ctf) => handle_file_error!(read_pathfile(ctf.clone()), ctf),
             None => return Err(String::from("Channel-token file required!"))
         };
         let channel_token: ChannelMPCToken = serde_json::from_str(&ser_channel_token).unwrap();

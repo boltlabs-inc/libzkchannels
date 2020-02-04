@@ -1,10 +1,8 @@
-use secp256k1::{Signature, Message, PublicKey, Secp256k1};
-use rand::{RngCore};
-use ecdsa_partial::{EcdsaPartialSig, translate_rx};
+use secp256k1;
 use bindings::{EcdsaPartialSig_l};
 use std::convert::TryInto;
-use std::str;
-use std::ffi::{CString, CStr};
+//use std::str;
+use std::ffi::CString;
 use std::os::raw::c_char;
 
 
@@ -40,6 +38,8 @@ mod tests {
     use super::*;
     use sha2::{Sha256, Digest};
     const NUM_TESTS: i32 = 50;
+    use ecdsa_partial::{EcdsaPartialSig, translate_rx};
+    use rand::RngCore;
 
     // rusty fork tests call the two parties separately.
     rusty_fork_test! {
@@ -56,7 +56,7 @@ mod tests {
     fn test_mpc_ecdsa_VARS() {
         let csprng = &mut rand::thread_rng();
 
-        for i in 0..NUM_TESTS {
+        for _ in 0..NUM_TESTS {
             let mut seckey = [0u8; 32];
             csprng.fill_bytes(&mut seckey);
             let sk = secp256k1::SecretKey::from_slice(&seckey).unwrap();
@@ -71,7 +71,7 @@ mod tests {
             let hash = hasher.result();
 
             let secp = secp256k1::Secp256k1::new();
-            let signature = secp.compute_sign(&Message::from_slice(&hash).unwrap(), &(partial.getSecpRepr()));
+            let signature = secp.compute_sign(&secp256k1::Message::from_slice(&hash).unwrap(), &(partial.getSecpRepr()));
 
             // compute signature under mpc as merch=1
             let hmsg: [u8; 32] = hash.as_slice().try_into().expect("Wrong length");
@@ -89,7 +89,7 @@ mod tests {
     fn test_mpc_ecdsa_NOVARS() {
         let csprng = &mut rand::thread_rng();
 
-        for i in 0..NUM_TESTS {
+        for _ in 0..NUM_TESTS {
             /* this will all be ignored when we share the object */
             let mut seckey = [0u8; 32];
             csprng.fill_bytes(&mut seckey);
