@@ -23,7 +23,6 @@ use zkchannels::transactions::btc::{create_escrow_transaction, sign_escrow_trans
                                     generate_signature_for_multi_sig_transaction, completely_sign_multi_sig_transaction};
 use zkchannels::FundingTxInfo;
 
-
 pub fn read_pathfile(path_buf: PathBuf) -> Result<String, String> {
     let mut file = match File::open(path_buf) {
         Ok(n) => n,
@@ -196,16 +195,20 @@ mod cust {
         };
 
         let private_key = get_private_key::<Testnet>(escrow.cust_privkey)?;
-        let (_escrow_tx_preimage, full_escrow_tx) = create_escrow_transaction::<Testnet>(&config, &input, &musig_output, &change_output.unwrap(), private_key.clone());
+        let (_escrow_tx_preimage, full_escrow_tx) = match create_escrow_transaction::<Testnet>(&config, &input, &musig_output, &change_output.unwrap(), private_key.clone()) {
+            Ok(n) => n,
+            Err(e) => return Err(e.to_string())
+        };
         let (signed_tx, txid, hash_prevout) = sign_escrow_transaction::<Testnet>(full_escrow_tx, private_key);
+        let signed_tx_hex = hex::encode(&signed_tx);
 
         println!("writing txid and hash_prevout to: {:?}", escrow.file);
         match escrow.tx_signed {
             Some(n) => {
                 println!("writing signed tx: {:?}", n);
-                write_pathfile(n, signed_tx)?
+                write_pathfile(n, signed_tx_hex)?
             },
-            _ => println!("signed tx: {}", signed_tx)
+            _ => println!("signed tx: {}", signed_tx_hex)
         }
 
         // assuming single-funded channels for now

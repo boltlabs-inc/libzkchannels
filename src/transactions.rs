@@ -220,11 +220,22 @@ pub mod btc {
         }
     }
 
+    macro_rules! check_pk_valid {
+        ($x: expr) => (match secp256k1::PublicKey::from_slice(&$x) {
+            Ok(p) => true,
+            Err(e) => return Err(e.to_string())
+        });
+    }
+
     // creates a funding transaction with the following input/outputs
     // input => p2pkh or p2sh_p2wpkh
     // output1 => multi-sig addr via p2wsh
     // output2 => change output to p2wpkh
-    pub fn create_escrow_transaction<N: BitcoinNetwork>(config: &BitcoinTxConfig, input: &Input, output1: &MultiSigOutput, output2: &Output, private_key: BitcoinPrivateKey<N>) -> (Vec<u8>, BitcoinTransaction<N>) {
+    pub fn create_escrow_transaction<N: BitcoinNetwork>(config: &BitcoinTxConfig, input: &Input, output1: &MultiSigOutput, output2: &Output, private_key: BitcoinPrivateKey<N>) -> Result<(Vec<u8>, BitcoinTransaction<N>), String> {
+        // check that specified public keys are valid
+        check_pk_valid!(output1.pubkey1);
+        check_pk_valid!(output1.pubkey2);
+        check_pk_valid!(output2.pubkey);
         // types of UTXO inputs to support
         let address_format = match input.address_format {
             "p2pkh" => BitcoinFormat::P2PKH,
@@ -291,18 +302,18 @@ pub mod btc {
         let transaction = BitcoinTransaction::<N>::new(&transaction_parameters).unwrap();
         let hash_preimage = transaction.segwit_hash_preimage(0, SIGHASH_ALL).unwrap();
         // return hash preimage of transaction and the transaction itself (for later signing)
-        return (hash_preimage, transaction);
+        Ok((hash_preimage, transaction))
     }
 
     // signs a given transaction using a specified private key
     // assumes that transaction has already been loaded
-    pub fn sign_escrow_transaction<N: BitcoinNetwork>(unsigned_tx: BitcoinTransaction<N>, private_key: BitcoinPrivateKey<N>) -> (String, [u8; 32], [u8; 32]) {
+    pub fn sign_escrow_transaction<N: BitcoinNetwork>(unsigned_tx: BitcoinTransaction<N>, private_key: BitcoinPrivateKey<N>) -> (Vec<u8>, [u8; 32], [u8; 32]) {
         // let private_key = BitcoinPrivateKey::<N>::from_str(&private_key.as_str()).unwrap();
 
         let signed_tx = unsigned_tx.sign(&private_key).unwrap();
         let tx_id_hex = signed_tx.to_transaction_id().unwrap();
 
-        let signed_tx_hex = hex::encode(signed_tx.to_transaction_bytes().unwrap());
+        let signed_tx_hex = signed_tx.to_transaction_bytes().unwrap();
 
         let txid = hex::decode(tx_id_hex.to_string()).unwrap();
         println!("signed txid: {}", hex::encode(&txid));
@@ -593,7 +604,7 @@ mod tests {
         // println!("escrow tx: {}", full_escrow_tx);
         assert_eq!(escrow_tx_preimage, hex::decode(expected_escrow_preimage).unwrap());
         let (signed_tx, txid, hash_prevout) = transactions::btc::sign_escrow_transaction(full_escrow_tx, private_key);
-        println!("signed_tx: {}", signed_tx);
+        println!("signed_tx: {}", hex::encode(signed_tx));
         println!("txid: {}", hex::encode(txid));
         println!("hash prevout: {}", hex::encode(hash_prevout));
     }

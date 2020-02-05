@@ -901,8 +901,34 @@ pub mod txutil {
     use bitcoin::{Testnet, BitcoinTransactionParameters};
     use bitcoin::{BitcoinPrivateKey};
     use wagyu_model::Transaction;
+    use num::checked_pow;
 
-    pub fn customer_sign_escrow_transaction(txid: Vec<u8>, index: u32, input_sats: i64, output_sats: i64, cust_sk: Vec<u8>, cust_pk: Vec<u8>, merch_pk: Vec<u8>, change_pk: Option<Vec<u8>>) -> Result<(String, String, String), String> {
+    macro_rules! check_pk_length {
+        ($x: expr) => (
+            if $x.len() != 33 {
+                return Err(format!("{} not a compressed pk", stringify!($x)));
+            }
+        );
+    }
+
+    macro_rules! handle_tx_error {
+        ($x: expr) => (match $x {
+            Ok(n) => n,
+            Err(e) => return Err(e.to_string())
+        });
+    }
+
+    pub fn customer_sign_escrow_transaction(txid: Vec<u8>, index: u32, input_sats: i64, output_sats: i64, cust_sk: Vec<u8>, cust_pk: Vec<u8>, merch_pk: Vec<u8>, change_pk: Option<Vec<u8>>) -> Result<(Vec<u8>, [u8; 32], [u8; 32]), String> {
+        check_pk_length!(cust_pk);
+        check_pk_length!(merch_pk);
+        let change_pubkey = match change_pk {
+            Some(pk) => {
+                check_pk_length!(pk);
+                pk
+            },
+            None => Vec::new()
+        };
+
         let input = Input {
             address_format: "p2sh_p2wpkh", // TODO: make this configurable
             transaction_id: txid,
@@ -927,12 +953,12 @@ pub mod txutil {
 
         // test if we need a change output pubkey
         let change_sats = input_sats - output_sats;
-        let change_output = match change_sats > 0 && change_pk.is_some() {
+        let change_output = match change_sats > 0 && change_pubkey.len() > 0 {
             true => Output {
-                pubkey: change_pk.unwrap(),
+                pubkey: change_pubkey,
                 amount: change_sats
             },
-            false => return Err(String::from("Require a change pubkey to generate a valid escrow transaction!"))
+            false => return Err(String::from("Require a change pubkey to generate a valid escrow transaction"))
         };
 
         let sk = match secp256k1::SecretKey::from_slice(&cust_sk) {
@@ -941,20 +967,18 @@ pub mod txutil {
         };
         let secp = secp256k1::Secp256k1::new();
         let private_key = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(sk, false);
-        let (_escrow_tx_preimage, full_escrow_tx) = create_escrow_transaction::<Testnet>(&config, &input, &musig_output, &change_output, private_key.clone());
+        let (_escrow_tx_preimage, full_escrow_tx) = handle_tx_error!(create_escrow_transaction::<Testnet>(&config, &input, &musig_output, &change_output, private_key.clone()));
         let (signed_tx, txid, hash_prevout) = sign_escrow_transaction::<Testnet>(full_escrow_tx, private_key);
 
-        Ok((signed_tx, hex::encode(txid), hex::encode(hash_prevout)))
+        Ok((signed_tx, txid, hash_prevout))
     }
 
-    pub fn merchant_form_close_transaction(escrow_txid: Vec<u8>, cust_pk: String, merch_pk: String, merch_close_pk: String,
-                                           cust_bal_sats: i64, merch_bal_sats: i64, to_self_delay: [u8; 2]) -> Result<(String, BitcoinTransactionParameters<Testnet>), String> {
-       // construct
-        let merch_pk = hex::decode(merch_pk).unwrap();
-        let cust_pk = hex::decode(cust_pk).unwrap();
-        let merch_close_pk = hex::decode(merch_close_pk).unwrap();
-        // hard code self delay (for now)
-        let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
+    pub fn merchant_form_close_transaction(escrow_txid: Vec<u8>, cust_pk: Vec<u8>, merch_pk: Vec<u8>, merch_close_pk: Vec<u8>,
+                                           cust_bal_sats: i64, merch_bal_sats: i64, to_self_delay: [u8; 2]) -> Result<(Vec<u8>, BitcoinTransactionParameters<Testnet>), String> {
+
+        check_pk_length!(cust_pk);
+        check_pk_length!(merch_pk);
+        check_pk_length!(merch_close_pk);
 
         let redeem_script = serialize_p2wsh_escrow_redeem_script(&merch_pk, &cust_pk);
         let escrow_index = 0;
@@ -969,15 +993,11 @@ pub mod txutil {
             utxo_amount: Some(cust_bal_sats + merch_bal_sats),
             sequence: Some([0xff, 0xff, 0xff, 0xff]) // 4294967295
         };
-        let tx_params=
-            match create_merch_close_transaction_params::<Testnet>(&input, &cust_pk, &merch_pk, &merch_close_pk, &to_self_delay) {
-                Ok(tx) => tx,
-                Err(e) => return Err(e.to_string())
-            };
+        let tx_params = handle_tx_error!(create_merch_close_transaction_params::<Testnet>(&input, &cust_pk, &merch_pk, &merch_close_pk, &to_self_delay));
 
         let (merch_tx_preimage, _) = create_merch_close_transaction_preimage::<Testnet>(&tx_params);
 
-        Ok((hex::encode(merch_tx_preimage), tx_params))
+        Ok((merch_tx_preimage, tx_params))
     }
 
     pub fn customer_sign_merch_close_transaction(cust_sk: String, merch_tx_preimage: Vec<u8>) -> Result<String, String> {

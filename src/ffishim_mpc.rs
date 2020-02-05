@@ -403,13 +403,18 @@ pub mod ffishim_mpc {
         let change_pk_result = deserialize_hex_string(ser_change_pk);
         let change_pk = handle_errors!(change_pk_result);
 
-        let (signed_tx, txid, prevout) = txutil::customer_sign_escrow_transaction(txid, index, input_sats, output_sats, cust_sk, cust_pk, merch_pk, Some(change_pk)).unwrap();
-        let ser = ["{\'signed_tx\':", &signed_tx.to_string(), ", \'txid\':\'", &txid.to_string(),
-                          ", \'hash_prevout\':\'", &prevout.to_string(), "\'}"].concat();
+        let (signed_tx, txid, prevout) = handle_errors!(txutil::customer_sign_escrow_transaction(txid, index, input_sats, output_sats, cust_sk, cust_pk, merch_pk, Some(change_pk)));
+        let ser = ["{\'signed_tx\':\'", &hex::encode(signed_tx), "\', \'txid\':\'", &hex::encode(txid),
+                          "\', \'hash_prevout\':\'", &hex::encode(prevout), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
 
     }
+
+//    #[no_mangle]
+//    pub extern fn form_merch_close_transaction() -> *mut c_char {
+//
+//    }
 
 
     #[no_mangle]
