@@ -165,7 +165,7 @@ mod cust {
     pub fn generate_escrow_transaction(escrow: Escrow) -> Result<(), String> {
         let input = Input {
             address_format: "p2sh_p2wpkh",
-            transaction_id: escrow.txid,
+            transaction_id: hex::decode(escrow.txid).unwrap(),
             index: escrow.index,
             redeem_script: None,
             script_pub_key: None,
@@ -274,7 +274,7 @@ mod merch {
         let input = Input {
             address_format: "native_p2wsh",
             // outpoint of escrow
-            transaction_id: hex::encode(funding_tx.escrow_txid.0),
+            transaction_id: funding_tx.escrow_txid.0.to_vec(),
             index: funding_tx.escrow_index,
             redeem_script: Some(redeem_script),
             script_pub_key: None,

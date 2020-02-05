@@ -15,7 +15,7 @@ pub const SATOSHI: i64 = 100000000;
 
 pub struct Input {
     pub address_format: &'static str,
-    pub transaction_id: String,
+    pub transaction_id: Vec<u8>,
     pub index: u32,
     pub redeem_script: Option<Vec<u8>>,
     pub script_pub_key: Option<&'static str>,
@@ -207,11 +207,11 @@ pub mod btc {
     pub fn create_input(txid_be: &[u8; 32], index: u32, input_amount: i64) -> Input {
         let mut txid_buf = txid_be.clone();
         txid_buf.reverse();
-        let txid_str = hex::encode(txid_buf);
+        // let txid_str = hex::encode(txid_buf);
         Input {
             address_format: "native_p2wsh",
             // outpoint + txid
-            transaction_id: txid_str,
+            transaction_id: txid_buf.to_vec(),
             index: index,
             redeem_script: None,
             script_pub_key: None,
@@ -233,7 +233,6 @@ pub mod btc {
             _ => panic!("do not currently support specified address format as funding input: {}", input.address_format)
         };
         let address = private_key.to_address(&address_format).unwrap();
-        let transaction_id = hex::decode(input.transaction_id.as_str()).unwrap();
         let redeem_script = match (input.redeem_script.as_ref(), address_format.clone()) {
             (Some(script), _) => Some(script.clone()),
             (None, BitcoinFormat::P2SH_P2WPKH) => {
@@ -250,7 +249,7 @@ pub mod btc {
         let sequence = input.sequence.map(|seq| seq.to_vec());
 
         let transaction_input = BitcoinTransactionInput::<N>::new(
-            transaction_id,
+            input.transaction_id.clone(),
             input.index,
             Some(address),
             Some(BitcoinAmount::from_satoshi(input.utxo_amount.unwrap()).unwrap()),
@@ -396,7 +395,6 @@ pub mod btc {
             _ => return Err(format!("do not currently support specified address format: {}", input.address_format))
         };
 
-        let transaction_id = hex::decode(input.transaction_id.as_str()).unwrap();
         let redeem_script = match (input.redeem_script.as_ref(), address_format.clone()) {
             (Some(script), _) => Some(script.clone()),
             (None, BitcoinFormat::P2SH_P2WPKH) => {
@@ -416,7 +414,7 @@ pub mod btc {
         // println!("redeem_script: {}", hex::encode(redeem_script.as_ref().unwrap()));
 
         let escrow_tx_input = BitcoinTransactionInput::<N>::new(
-            transaction_id,
+            input.transaction_id.clone(),
             input.index,
             Some(address),
             Some(BitcoinAmount::from_satoshi(input.utxo_amount.unwrap()).unwrap()),
@@ -466,7 +464,6 @@ pub mod btc {
             _ => panic!("do not currently support specified address format: {}", input.address_format)
         };
 
-        let transaction_id = hex::decode(input.transaction_id.as_str()).unwrap();
         let redeem_script = match from_escrow {
             true => {
                 let redeem_script = serialize_p2wsh_escrow_redeem_script(&pubkeys.merch_pk, &pubkeys.cust_pk);
@@ -487,7 +484,7 @@ pub mod btc {
         let sequence = input.sequence.map(|seq| seq.to_vec());
 
         let escrow_tx_input = BitcoinTransactionInput::<N>::new(
-            transaction_id,
+            input.transaction_id.clone(),
             input.index,
             Some(address),
             Some(BitcoinAmount::from_satoshi(input.utxo_amount.unwrap()).unwrap()),
@@ -562,7 +559,7 @@ mod tests {
     fn test_bitcoin_testnet_escrow_tx() {
         let input = Input {
             address_format: "p2sh_p2wpkh",
-            transaction_id: String::from("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1"),
+            transaction_id: hex::decode("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1").unwrap(),
             index: 0,
             redeem_script: None,
             script_pub_key: None,
@@ -620,7 +617,7 @@ mod tests {
         let input = Input {
             address_format: "native_p2wsh",
             // outpoint + txid
-            transaction_id: String::from("5eb0c50e6f725b88507cda84f339aba539bc99853436db610d6a476a207f82d9"),
+            transaction_id: hex::decode("5eb0c50e6f725b88507cda84f339aba539bc99853436db610d6a476a207f82d9").unwrap(),
             index: 0,
             redeem_script: Some(redeem_script),
             script_pub_key: None,
@@ -664,7 +661,7 @@ mod tests {
         let input = Input {
             address_format: "native_p2wsh",
             // outpoint + txid
-            transaction_id: String::from("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1"),
+            transaction_id: hex::decode("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1").unwrap(),
             index: 0,
             redeem_script: None,
             script_pub_key: None,
@@ -716,7 +713,7 @@ mod tests {
         let input = Input {
             address_format: "native_p2wsh",
             // outpoint + txid
-            transaction_id: String::from("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1"),
+            transaction_id: hex::decode("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1").unwrap(),
             index: 0,
             redeem_script: None,
             script_pub_key: None,

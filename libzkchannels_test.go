@@ -22,6 +22,17 @@ func Test_fullProtocol(t *testing.T) {
 	channelToken, custState, err := InitCustomer(fmt.Sprintf("\"%v\"", *merchState.PkM), 100, 100, "cust")
 	assert.Nil(t, err)
 
+	signed_tx, txid, prevout, err := FormEscrowTx("f6f77d4ff12bbcefd3213aaf2aa61d29b8267f89c57792875dead8f9ba2f303d", 0, 10000, 9000,
+		"4157697b6428532758a9d0f9a73ce58befe3fd665797427d1c5bb3d33f6a132e",
+		"037bed6ab680a171ef2ab564af25eff15c0659313df0bbfb96414da7c7d1e65882",
+		"027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb",
+		"021882b66a9c4ec1b8fc29ac37fbf4607b8c4f1bfe2cc9a49bc1048eb57bcebe67")
+
+	fmt.Println("err => ", err)
+	fmt.Println("outpoint => txid : ", txid)
+	fmt.Println("outpoint => prevout : ", prevout)
+	// fmt.Println("signed_tx => ", signed_tx)
+
 	tx := "{\"init_cust_bal\":100,\"init_merch_bal\":100,\"escrow_index\":0,\"merch_index\":0,\"escrow_txid\":\"f6f77d4ff12bbcefd3213aaf2aa61d29b8267f89c57792875dead8f9ba2f303d\",\"escrow_prevout\":\"1a4946d25e4699c69d38899858f1173c5b7ab4e89440cf925205f4f244ce0725\",\"merch_txid\":\"42840a4d79fe3259007d8667b5c377db0d6446c20a8b490cfe9973582e937c3d\",\"merch_prevout\":\"e9af3d3478ee5bab17f97cb9da3e5c60104dec7f777f8a529a0d7ae960866449\"}"
 	channelToken, custState, err = InitFunding(tx, channelToken, custState)
 	assert.Nil(t, err)

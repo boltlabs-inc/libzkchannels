@@ -4,6 +4,7 @@ pub mod ffishim_mpc {
     extern crate libc;
 
     use mpc;
+    use txutil;
     use serde::Deserialize;
     use libc::c_char;
     use std::ffi::{CStr, CString};
@@ -381,7 +382,36 @@ pub mod ffishim_mpc {
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
-    
+
+    // TRANSACTION BUILDER FOR ESCROW, MERCH-CLOSE-TX and CUST-CLOSE-TXS
+
+    #[no_mangle]
+    pub extern fn cust_form_escrow_transaction(ser_txid: *mut c_char, index: u32, input_sats: i64, output_sats: i64,
+                                          ser_cust_sk: *mut c_char, ser_cust_pk: *mut c_char, ser_merch_pk: *mut c_char, ser_change_pk: *mut c_char) -> *mut c_char {
+        let txid_result = deserialize_hex_string(ser_txid);
+        let txid = handle_errors!(txid_result);
+
+        let cust_sk_result = deserialize_hex_string(ser_cust_sk);
+        let cust_sk = handle_errors!(cust_sk_result);
+
+        let cust_pk_result = deserialize_hex_string(ser_cust_pk);
+        let cust_pk = handle_errors!(cust_pk_result);
+
+        let merch_pk_result = deserialize_hex_string(ser_merch_pk);
+        let merch_pk = handle_errors!(merch_pk_result);
+
+        let change_pk_result = deserialize_hex_string(ser_change_pk);
+        let change_pk = handle_errors!(change_pk_result);
+
+        let (signed_tx, txid, prevout) = txutil::customer_sign_escrow_transaction(txid, index, input_sats, output_sats, cust_sk, cust_pk, merch_pk, Some(change_pk)).unwrap();
+        let ser = ["{\'signed_tx\':", &signed_tx.to_string(), ", \'txid\':\'", &txid.to_string(),
+                          ", \'hash_prevout\':\'", &prevout.to_string(), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+
+    }
+
+
     #[no_mangle]
     pub extern fn merch_sign_init_cust_close_txs(ser_channel_state: *mut c_char, ser_funding_tx: *mut c_char, ser_pubkeys: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
         // Deserialize the channel_state

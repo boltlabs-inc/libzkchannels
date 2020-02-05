@@ -2,7 +2,7 @@ package libzkchannels
 
 // #cgo CFLAGS: -I${SRCDIR}/include -DDEFINE_MPC_BITCOIN=1 -Wno-macro-redefined
 // #cgo LDFLAGS: -lzkchannels
-// #include <cbindings.h>
+// #include <bindings.h>
 import "C"
 import (
 	"encoding/json"
@@ -17,12 +17,15 @@ type setupResp struct {
 	MerchState      string `json:"merch_state"`
 	PayToken        string `json:"pay_token"`
 	State           string `json:"state"`
-	RevState         string `json:"rev_state"`
+	RevState        string `json:"rev_state"`
 	PayTokenMaskCom string `json:"pay_token_mask_com"`
 	MaskedTxInputs  string `json:"masked_tx_inputs"`
 	PayTokenMask    string `json:"pay_token_mask"`
 	PayTokenMaskR   string `json:"pay_token_mask_r"`
 	IsOk            bool   `json:"is_ok"`
+	SignedTx        string `json:"signed_tx"`
+	TxId            string `json:"txid"`
+	HashPrevOut     string `json:"hash_prevout"`
 	Error           string `json:"error"`
 }
 
@@ -181,6 +184,19 @@ func InitFunding(tx string, channelToken ChannelToken, custState CustState) (Cha
 
 	err = json.Unmarshal([]byte(r.CustState), &custState)
 	return channelToken, custState, err
+}
+
+func FormEscrowTx(txid string, index uint32, inputAmt int64, outputAmt int64, custSk string, custPk string, merchPk string, changePk string) (string, string, string, error) {
+
+	resp := C.GoString(C.cust_form_escrow_transaction(C.CString(txid), C.uint(index), C.longlong(inputAmt),
+		C.longlong(outputAmt), C.CString(custSk), C.CString(custPk),
+		C.CString(merchPk), C.CString(changePk)))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	return r.SignedTx, r.TxId, r.HashPrevOut, err
 }
 
 func ActivateCustomer(custState CustState) (State, CustState, error) {

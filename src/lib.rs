@@ -902,7 +902,7 @@ pub mod txutil {
     use bitcoin::{BitcoinPrivateKey};
     use wagyu_model::Transaction;
 
-    pub fn customer_sign_escrow_transaction(txid: String, index: u32, input_sats: i64, output_sats: i64, cust_sk: String, cust_pk: String, merch_pk: String, change_pk: Option<String>) -> Result<(String, String, String), String> {
+    pub fn customer_sign_escrow_transaction(txid: Vec<u8>, index: u32, input_sats: i64, output_sats: i64, cust_sk: Vec<u8>, cust_pk: Vec<u8>, merch_pk: Vec<u8>, change_pk: Option<Vec<u8>>) -> Result<(String, String, String), String> {
         let input = Input {
             address_format: "p2sh_p2wpkh", // TODO: make this configurable
             transaction_id: txid,
@@ -919,8 +919,8 @@ pub mod txutil {
         };
 
         let musig_output = MultiSigOutput {
-            pubkey1: hex::decode(merch_pk).unwrap(),
-            pubkey2: hex::decode(cust_pk).unwrap(),
+            pubkey1: merch_pk,
+            pubkey2: cust_pk,
             address_format: "native_p2wsh",
             amount: output_sats // assumes already in sats
         };
@@ -929,13 +929,12 @@ pub mod txutil {
         let change_sats = input_sats - output_sats;
         let change_output = match change_sats > 0 && change_pk.is_some() {
             true => Output {
-                pubkey: hex::decode(change_pk.unwrap()).unwrap(),
+                pubkey: change_pk.unwrap(),
                 amount: change_sats
             },
             false => return Err(String::from("Require a change pubkey to generate a valid escrow transaction!"))
         };
 
-        let cust_sk = hex::decode(cust_sk).unwrap();
         let sk = match secp256k1::SecretKey::from_slice(&cust_sk) {
             Ok(n) => n,
             Err(e) => return Err(e.to_string())
@@ -948,7 +947,7 @@ pub mod txutil {
         Ok((signed_tx, hex::encode(txid), hex::encode(hash_prevout)))
     }
 
-    pub fn merchant_form_close_transaction(escrow_txid: String, cust_pk: String, merch_pk: String, merch_close_pk: String,
+    pub fn merchant_form_close_transaction(escrow_txid: Vec<u8>, cust_pk: String, merch_pk: String, merch_close_pk: String,
                                            cust_bal_sats: i64, merch_bal_sats: i64, to_self_delay: [u8; 2]) -> Result<(String, BitcoinTransactionParameters<Testnet>), String> {
        // construct
         let merch_pk = hex::decode(merch_pk).unwrap();
