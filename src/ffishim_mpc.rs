@@ -13,6 +13,8 @@ pub mod ffishim_mpc {
     use hex::FromHexError;
     use mpc::RevokedState;
     use FundingTxInfo;
+    use transactions::ClosePublicKeys;
+    use bitcoin::Testnet;
 
     fn error_message(s: String) -> *mut c_char {
         let ser = ["{\'error\':\'", &s, "\'}"].concat();
@@ -379,5 +381,61 @@ pub mod ffishim_mpc {
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
+    
+    #[no_mangle]
+    pub extern fn merch_sign_init_cust_close_txs(ser_channel_state: *mut c_char, ser_funding_tx: *mut c_char, ser_pubkeys: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
+        // Deserialize the channel_state
+        let channel_state_result: ResultSerdeType<ChannelMPCState> = deserialize_result_object(ser_channel_state);
+        let channel_state = handle_errors!(channel_state_result);
+
+        // Deserialize the tx
+        let tx_result: ResultSerdeType<FundingTxInfo> = deserialize_result_object(ser_funding_tx);
+        let funding_tx = handle_errors!(tx_result);
+
+        // Deserialize the pubkeys
+        let pubkeys_result: ResultSerdeType<ClosePublicKeys> = deserialize_result_object(ser_pubkeys);
+        let pubkeys = handle_errors!(pubkeys_result);
+
+        // Deserialize the merch_state
+        let merch_state_result: ResultSerdeType<MerchantMPCState> = deserialize_result_object(ser_merch_state);
+        let merch_state = handle_errors!(merch_state_result);
+
+        let (_escrow_sig, _merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(&channel_state, &funding_tx, &pubkeys);
+
+        let escrow_sig = handle_errors!(serde_json::to_string(&_escrow_sig));
+        let merch_sig = handle_errors!(serde_json::to_string(&_merch_sig));
+        let ser = ["{\'escrow_sig\':", escrow_sig.as_str(), ", \'merch_sig\':\'", merch_sig.as_str(), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern fn cust_sign_init_cust_close_txs(ser_channel_state: *mut c_char, ser_channel_token: *mut c_char, ser_escrow_sig: *mut c_char, ser_merch_sig: *mut c_char, ser_cust_state: *mut c_char) -> *mut c_char {
+        // Deserialize the channel_state
+        let channel_state_result: ResultSerdeType<ChannelMPCState> = deserialize_result_object(ser_channel_state);
+        let channel_state = handle_errors!(channel_state_result);
+
+        // Deserialize the ChannelToken
+        let channel_token_result: ResultSerdeType<ChannelMPCToken> = deserialize_result_object(ser_channel_token);
+        let channel_token = handle_errors!(channel_token_result);
+
+        // Deserialize escrow-sig & merch-sig
+        let escrow_sig_result = deserialize_hex_string(ser_escrow_sig);
+        let escrow_sig = handle_errors!(escrow_sig_result);
+
+        let merch_sig_result = deserialize_hex_string(ser_merch_sig);
+        let merch_sig = handle_errors!(merch_sig_result);
+
+        // Deserialize the cust_state
+        let cust_state_result: ResultSerdeType<CustomerMPCState> = deserialize_result_object(ser_cust_state);
+        let mut cust_state = handle_errors!(cust_state_result);
+
+        // now sign the customer's initial closing txs iff escrow-sig and merch-sig are valid
+        let got_close_tx = handle_errors!(cust_state.sign_initial_closing_transaction::<Testnet>(&channel_state, &channel_token, &escrow_sig, &merch_sig));
+        let ser = ["{\'is_valid\':", serde_json::to_string(&got_close_tx).unwrap().as_str(), ", \'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
 
 }

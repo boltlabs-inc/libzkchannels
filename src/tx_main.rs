@@ -11,7 +11,7 @@ extern crate wagyu_model;
 use structopt::StructOpt;
 use std::str::FromStr;
 use serde::Deserialize;
-use bitcoin::{Testnet, BitcoinPrivateKey};
+use bitcoin::{Testnet, BitcoinNetwork, BitcoinPrivateKey};
 use wagyu_model::Transaction;
 use std::path::PathBuf;
 use std::io::prelude::*;
@@ -19,7 +19,7 @@ use std::fs::File;
 use zkchannels::fixed_size_array::FixedSizeArray32;
 use zkchannels::transactions::{Input, BitcoinTxConfig, MultiSigOutput, Output};
 use zkchannels::transactions::btc::{create_escrow_transaction, sign_escrow_transaction, serialize_p2wsh_escrow_redeem_script,
-                                    create_merch_close_transaction_params, create_merch_close_transaction_preimage,
+                                    create_merch_close_transaction_params, create_merch_close_transaction_preimage, get_private_key,
                                     generate_signature_for_multi_sig_transaction, completely_sign_multi_sig_transaction};
 use zkchannels::FundingTxInfo;
 
@@ -102,7 +102,7 @@ pub struct CreateMerchClose {
     #[structopt(long = "merch-pk")]
     merch_pubkey: String,
     #[structopt(long = "merch-sk")]
-    merch_privkey: String,
+    merch_privkey: Option<String>,
     #[structopt(long = "merch-close-pk")]
     merch_close_pubkey: String,
     #[structopt(long = "tx-preimage")]
@@ -164,7 +164,6 @@ mod cust {
 
     pub fn generate_escrow_transaction(escrow: Escrow) -> Result<(), String> {
         let input = Input {
-            private_key: escrow.cust_privkey, // testnet
             address_format: "p2sh_p2wpkh",
             transaction_id: escrow.txid,
             index: escrow.index,
@@ -193,15 +192,12 @@ mod cust {
                 pubkey: hex::decode(escrow.change_pubkey.unwrap()).unwrap(),
                 amount: change_sats
             }),
-            false => None
+            false => return Err(String::from("Require a change pubkey to generate a valid escrow transaction!"))
         };
 
-        if change_output.is_none() {
-            return Err(String::from("Require a change pubkey to generate a valid escrow transaction!"));
-        }
-
-        let (_escrow_tx_preimage, full_escrow_tx) = create_escrow_transaction::<Testnet>(&config, &input, &musig_output, &change_output.unwrap());
-        let (signed_tx, txid, hash_prevout) = sign_escrow_transaction::<Testnet>(full_escrow_tx, input.private_key);
+        let private_key = get_private_key::<Testnet>(escrow.cust_privkey)?;
+        let (_escrow_tx_preimage, full_escrow_tx) = create_escrow_transaction::<Testnet>(&config, &input, &musig_output, &change_output.unwrap(), private_key.clone());
+        let (signed_tx, txid, hash_prevout) = sign_escrow_transaction::<Testnet>(full_escrow_tx, private_key);
 
         println!("writing txid and hash_prevout to: {:?}", escrow.file);
         match escrow.tx_signed {
@@ -238,7 +234,7 @@ mod cust {
             Err(e) => return Err(e.to_string())
         };
         // customer signs the preimage and sends signature to merchant
-        let private_key = BitcoinPrivateKey::<Testnet>::from_str(args.cust_privkey.as_str()).unwrap();
+        let private_key = get_private_key::<Testnet>(args.cust_privkey)?;
         let cust_sig = generate_signature_for_multi_sig_transaction::<Testnet>(&merch_tx_preimage, &private_key).unwrap();
         let cust_sig_hex = hex::encode(cust_sig);
         // write the signature to a file
@@ -276,7 +272,6 @@ mod merch {
         let redeem_script = serialize_p2wsh_escrow_redeem_script(&merch_pk, &cust_pk);
 
         let input = Input {
-            private_key: String::new(),
             address_format: "native_p2wsh",
             // outpoint of escrow
             transaction_id: hex::encode(funding_tx.escrow_txid.0),
@@ -287,14 +282,8 @@ mod merch {
             sequence: Some([0xff, 0xff, 0xff, 0xff]) // 4294967295
         };
 
-        let config = BitcoinTxConfig {
-            version: 2,
-            lock_time: 0
-        };
-
-        let merch_sk = BitcoinPrivateKey::<Testnet>::from_str(merch_close.merch_privkey.as_str()).unwrap();
-        let tx_params=
-            create_merch_close_transaction_params::<Testnet>(&config, &input, &merch_sk, &merch_pk, &merch_close_pk, &to_self_delay);
+        let tx_params =
+            create_merch_close_transaction_params::<Testnet>(&input, &cust_pk, &merch_pk, &merch_close_pk, &to_self_delay)?;
 
         let (merch_tx_preimage, _) = create_merch_close_transaction_preimage::<Testnet>(&tx_params);
 
@@ -310,6 +299,12 @@ mod merch {
                 _ => println!("Merch-close-tx preimage: {}", hex_tx_preimage)
             };
         } else {
+
+            // check if merch-sk provided
+            let merch_sk = match merch_close.merch_privkey {
+                Some(sk) => get_private_key::<Testnet>(sk)?,
+                None => return Err(String::from("need merch private key to sign the merch-close-tx"))
+            };
             // if cust signature provided, then merchant signs the preimage
             let cust_sig_and_len_byte = match read_pathfile(merch_close.cust_sig.unwrap()) {
                 Ok(n) => match hex::decode(n) {

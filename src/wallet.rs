@@ -1,7 +1,7 @@
 use super::*;
 use pairing::Engine;
 use ff::PrimeField;
-use util::hash_to_fr;
+use util::{hash_to_fr, hash_to_slice};
 use std::fmt;
 use fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
 
@@ -82,6 +82,12 @@ impl State {
 
     pub fn get_rev_lock(&self) -> [u8; 32] {
         self.rev_lock.0
+    }
+
+    pub fn compute_fingerprint(&self) -> [u8; 32] {
+        let output_buf = self.serialize_compact();
+        // TODO: add prefix
+        return hash_to_slice(&output_buf);
     }
 }
 

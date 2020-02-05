@@ -55,4 +55,4 @@ required-features = ["mpc-bitcoin"]
 
 [[bin]]
 name = "zkchannels-tx"
-path = "src/escrow_main.rs"
+path = "src/tx_main.rs"
