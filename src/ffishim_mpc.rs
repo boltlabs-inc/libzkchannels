@@ -14,7 +14,6 @@ pub mod ffishim_mpc {
     use hex::FromHexError;
     use mpc::RevokedState;
     use FundingTxInfo;
-    use transactions::ClosePublicKeys;
     use bitcoin::Testnet;
 
     fn error_message(s: String) -> *mut c_char {
@@ -459,7 +458,7 @@ pub mod ffishim_mpc {
         let merch_sk_result = deserialize_hex_string(ser_merch_sk);
         let merch_sk = handle_errors!(merch_sk_result);
 
-        let (merch_tx_preimage, tx_params) = handle_errors!(txutil::merchant_form_close_transaction(escrow_txid, cust_pk, merch_pk, merch_close_pk, cust_bal_sats, merch_bal_sats, to_self_delay));
+        let (_, tx_params) = handle_errors!(txutil::merchant_form_close_transaction(escrow_txid, cust_pk, merch_pk, merch_close_pk, cust_bal_sats, merch_bal_sats, to_self_delay));
 
         let (signed_tx, txid, prevout) = handle_errors!(txutil::merchant_sign_merch_close_transaction(tx_params, cust_sig, merch_sk));
 

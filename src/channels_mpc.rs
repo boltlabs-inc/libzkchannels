@@ -459,7 +459,6 @@ impl CustomerMPCState {
     }
 
     pub fn get_pubkeys(&self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken) -> ClosePublicKeys {
-        let secp = secp256k1::Secp256k1::new();
         let cust_escrow_pub_key = self.pk_c.serialize();
         let cust_payout_pub_key = self.payout_pk.serialize();
         let merch_escrow_pub_key= channel_token.pk_m.serialize();
@@ -503,8 +502,6 @@ impl CustomerMPCState {
     pub fn sign_initial_closing_transaction<N: BitcoinNetwork>(&mut self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken, escrow_sig: &Vec<u8>, merch_sig: &Vec<u8>) -> Result<bool, String> {
         let (escrow_tx_preimage, merch_tx_preimage, escrow_tx_params, merch_tx_params) =
             self.construct_close_transaction_preimage::<N>(channel_state, channel_token);
-
-        println!("customer side: escrow tx preimage = {}", hex::encode(&escrow_tx_preimage));
 
         // now that we've got preimages
         let escrow_tx_hash = Sha256::digest(&Sha256::digest(&escrow_tx_preimage));
@@ -809,7 +806,8 @@ impl MerchantMPCState {
     pub fn activate_channel(&self, channel_token: &ChannelMPCToken, s_0: &State) -> [u8; 32] {
         // store the state inside the ActivateBucket
         let channel_id = channel_token.compute_channel_id().unwrap();
-        let channel_id_str = hex::encode(channel_id.to_vec());
+        let _channel_id_str = hex::encode(channel_id.to_vec());
+        // TODO: check that s_0 is consistent with init phase before signing
 
         let key = self.hmac_key.get_bytes();
         let s_vec= s_0.serialize_compact();
@@ -887,11 +885,8 @@ impl MerchantMPCState {
         let (escrow_tx_preimage, _, _) =
             create_cust_close_transaction::<N>(&escrow_input, &pubkeys, &to_self_delay, funding_tx.init_cust_bal, funding_tx.init_merch_bal, true);
 
-        println!("escrow tx preimage: {}", hex::encode(&escrow_tx_preimage));
-
         let (merch_tx_preimage, _, _) =
             create_cust_close_transaction::<N>(&merch_input, &pubkeys, &to_self_delay, funding_tx.init_cust_bal, funding_tx.init_merch_bal, false);
-        println!("merch tx preimage: {}", hex::encode(&merch_tx_preimage));
 
         // merchant generates signatures
         let m_private_key = BitcoinPrivateKey::<N>::from_secp256k1_secret_key(self.sk_m.clone(), false);
@@ -1055,7 +1050,7 @@ mod tests {
         let result2 = Sha256::digest(&Sha256::digest(&prevout_preimage2));
         merch_prevout.copy_from_slice(&result2);
 
-        return FundingTxInfo { escrow_index: 0, merch_index: 0, init_cust_bal: b0_cust, init_merch_bal: b0_merch,
+        return FundingTxInfo { init_cust_bal: b0_cust, init_merch_bal: b0_merch,
                         escrow_txid: FixedSizeArray32(escrow_txid), escrow_prevout: FixedSizeArray32(escrow_prevout),
                         merch_txid: FixedSizeArray32(merch_txid), merch_prevout: FixedSizeArray32(merch_prevout) };
     }
@@ -1087,7 +1082,7 @@ rusty_fork_test!
         // generate and send initial state to the merchant
         cust_state.generate_init_state(&mut rng, &mut channel_token);
         // set escrow-tx and merch-close-tx info
-        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info);
+        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info).unwrap();
         // get initial state
         let s_0 = cust_state.get_current_state();
 
@@ -1214,7 +1209,7 @@ rusty_fork_test!
         // generate and send initial state to the merchant
         cust_state.generate_init_state(&mut rng, &mut channel_token);
         // set escrow-tx and merch-close-tx info
-        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info);
+        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info).unwrap();
         // get initial state
         let s_0 = cust_state.get_current_state();
 

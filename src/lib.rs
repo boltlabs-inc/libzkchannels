@@ -14,6 +14,7 @@
 #![allow(non_upper_case_globals)]
 #![allow(unused_results)]
 #![allow(missing_docs)]
+#![allow(unused)]  // TODO: remove to clean up warnings
 
 #![cfg_attr(all(test, feature = "unstable"), feature(test))]
 #[cfg(all(test, feature = "unstable"))]
@@ -693,9 +694,8 @@ pub mod mpc {
     use wallet::{State, NONCE_LEN};
     use channels_mpc::MaskedTxMPCInputs;
     use bindings::ConnType_NETIO;
-    use ::{FundingTxInfo, FixedSizeArray32};
     use bitcoin::Testnet;
-    use fixed_size_array::FixedSizeArray16;
+    use fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
 
     ///
     /// init_merchant - takes as input the public params, merchant balance and keypair.
@@ -715,7 +715,7 @@ pub mod mpc {
     /// Generate initial customer channel state and channel token.
     /// output: a channel token and customer state
     ///
-    pub fn init_customer<'a, R: Rng>(csprng: &mut R, pk_m: &PublicKey, b0_cust: i64, b0_merch: i64, name: &'a str) -> (ChannelMPCToken, CustomerMPCState) { // tx: &FundingTxInfo
+    pub fn init_customer<'a, R: Rng>(csprng: &mut R, pk_m: &PublicKey, b0_cust: i64, b0_merch: i64, name: &'a str) -> (ChannelMPCToken, CustomerMPCState) {
         assert!(b0_cust > 0);
         assert!(b0_merch >= 0);
 
@@ -728,12 +728,6 @@ pub mod mpc {
 
         (channel_token, cust_state)
     }
-
-//    pub fn init_funding(funding_tx: &FundingTxInfo, channel_token: &mut ChannelMPCToken, cust_state: &mut CustomerMPCState) -> Result<(), String> {
-//        // set escrow-tx and merch-close-tx info
-//        cust_state.set_funding_tx_info(channel_token, &funding_tx)?;
-//        Ok(())
-//    }
 
     ///
     /// activate_customer - takes as input an rng and the customer state.
@@ -900,7 +894,6 @@ pub mod txutil {
     use bitcoin::{Testnet, BitcoinTransactionParameters};
     use bitcoin::{BitcoinPrivateKey};
     use wagyu_model::Transaction;
-    use num::checked_pow;
 
     macro_rules! check_pk_length {
         ($x: expr) => (
@@ -964,7 +957,7 @@ pub mod txutil {
             Ok(n) => n,
             Err(e) => return Err(e.to_string())
         };
-        let secp = secp256k1::Secp256k1::new();
+
         let private_key = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(sk, false);
         let (_escrow_tx_preimage, full_escrow_tx) = handle_tx_error!(create_escrow_transaction::<Testnet>(&config, &input, &musig_output, &change_output, private_key.clone()));
         let (signed_tx, txid, hash_prevout) = sign_escrow_transaction::<Testnet>(full_escrow_tx, private_key);
@@ -1040,7 +1033,7 @@ mod tests {
     #[cfg(feature = "mpc-bitcoin")]
     use channels_mpc::MaskedTxMPCInputs;
     use fixed_size_array::FixedSizeArray32;
-    use transactions::ClosePublicKeys;
+    // use transactions::ClosePublicKeys;
     use bitcoin::Testnet;
 
     fn setup_new_channel_helper(channel_state: &mut zkproofs::ChannelState<Bls12>,
@@ -1527,7 +1520,8 @@ mod tests {
         let pubkeys = cust_state.get_pubkeys(&channel_state, &channel_token);
 
         // merchant signs the customer's closing transactions and sends signatures back to customer
-        let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(&channel_state, &funding_tx_info, &pubkeys);
+        let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
+        let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(funding_tx_info.clone(), pubkeys.rev_lock.0, pubkeys.cust_pk, pubkeys.cust_close_pk, to_self_delay);
 
         let got_close_tx = cust_state.sign_initial_closing_transaction::<Testnet>(&channel_state, &channel_token, &escrow_sig, &merch_sig);
         assert!(got_close_tx.is_ok());
@@ -1592,7 +1586,7 @@ mod tests {
 
         let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch);
 
-        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info);
+        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info).unwrap();
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
 
@@ -1635,7 +1629,7 @@ rusty_fork_test! {
 
         let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch);
 
-        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info);
+        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info).unwrap();
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
 

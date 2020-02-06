@@ -133,7 +133,6 @@ pub mod btc {
             Ok(n) => n,
             Err(e) => return Err(e.to_string())
         };
-        let secp = secp256k1::Secp256k1::new();
         let private_key = BitcoinPrivateKey::<N>::from_secp256k1_secret_key(sk, false);
         Ok(private_key)
     }
@@ -218,7 +217,7 @@ pub mod btc {
 
     macro_rules! check_pk_valid {
         ($x: expr) => (match secp256k1::PublicKey::from_slice(&$x) {
-            Ok(p) => true,
+            Ok(_p) => true,
             Err(e) => return Err(e.to_string())
         });
     }

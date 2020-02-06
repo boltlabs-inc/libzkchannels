@@ -390,7 +390,6 @@ mod cust {
         let ser_cust_state = read_file("cust_state.json").unwrap();
         let mut cust_state: CustomerMPCState = handle_serde_error!(serde_json::from_str(&ser_cust_state));
 
-        // mpc::init_funding(&funding_tx, &mut channel_token, &mut cust_state);
         cust_state.set_funding_tx_info(&mut channel_token, &funding_tx)?;
         let init_cust_state = match cust_state.get_init_cust_state() {
             Ok(n) => n,
@@ -569,9 +568,6 @@ mod merch {
 
     pub fn init(conn: &mut Conn) -> Result<(), String> {
         // build tx and sign it
-        let ser_channel_state = read_file("merch_channel_state.json").unwrap();
-        let channel_state: ChannelMPCState = serde_json::from_str(&ser_channel_state).unwrap();
-
         let ser_merch_state = read_file("merch_state.json").unwrap();
         let merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
 

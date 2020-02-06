@@ -11,7 +11,7 @@ extern crate wagyu_model;
 use structopt::StructOpt;
 use std::str::FromStr;
 use serde::Deserialize;
-use bitcoin::{Testnet, BitcoinNetwork, BitcoinPrivateKey};
+use bitcoin::{Testnet};
 use wagyu_model::Transaction;
 use std::path::PathBuf;
 use std::io::prelude::*;
