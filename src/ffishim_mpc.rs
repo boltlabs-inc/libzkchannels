@@ -411,35 +411,114 @@ pub mod ffishim_mpc {
 
     }
 
-//    #[no_mangle]
-//    pub extern fn form_merch_close_transaction() -> *mut c_char {
-//
-//    }
+    #[no_mangle]
+    pub extern fn form_merch_close_transaction(ser_escrow_txid: *mut c_char, ser_cust_pk: *mut c_char, ser_merch_pk: *mut c_char, ser_merch_close_pk: *mut c_char, cust_bal_sats: i64, merch_bal_sats: i64, ser_self_delay: *mut c_char) -> *mut c_char {
+
+        let escrow_txid_result = deserialize_hex_string(ser_escrow_txid);
+        let escrow_txid = handle_errors!(escrow_txid_result);
+
+        let cust_pk_result = deserialize_hex_string(ser_cust_pk);
+        let cust_pk = handle_errors!(cust_pk_result);
+
+        let merch_pk_result = deserialize_hex_string(ser_merch_pk);
+        let merch_pk = handle_errors!(merch_pk_result);
+
+        let merch_close_pk_result = deserialize_hex_string(ser_merch_close_pk);
+        let merch_close_pk = handle_errors!(merch_close_pk_result);
+
+        let self_delay_result = deserialize_hex_string(ser_self_delay);
+        let self_delay = handle_errors!(self_delay_result);
+        let mut to_self_delay = [0u8; 2];
+        to_self_delay.copy_from_slice(&self_delay);
+
+        let (merch_tx_preimage, _) = handle_errors!(txutil::merchant_form_close_transaction(escrow_txid, cust_pk, merch_pk, merch_close_pk, cust_bal_sats, merch_bal_sats, to_self_delay));
+
+        let ser = ["{\'merch_tx_preimage\':\'", &hex::encode(merch_tx_preimage), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern fn customer_sign_merch_close_tx(ser_cust_sk: *mut c_char, ser_merch_tx_preimage: *mut c_char) -> *mut c_char {
+
+        let cust_sk_result = deserialize_hex_string(ser_cust_sk);
+        let cust_sk = handle_errors!(cust_sk_result);
+
+        let tx_preimage_result = deserialize_hex_string(ser_merch_tx_preimage);
+        let merch_tx_preimage = handle_errors!(tx_preimage_result);
+
+        let cust_sig = handle_errors!(txutil::customer_sign_merch_close_transaction(cust_sk, merch_tx_preimage));
+        let ser = ["{\'cust_sig\':\'", &hex::encode(cust_sig), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern fn merchant_sign_merch_close_tx(ser_escrow_txid: *mut c_char, ser_cust_pk: *mut c_char, ser_merch_pk: *mut c_char, ser_merch_close_pk: *mut c_char, cust_bal_sats: i64, merch_bal_sats: i64, ser_self_delay: *mut c_char, ser_cust_sig: *mut c_char, ser_merch_sk: *mut c_char) -> *mut c_char {
+
+        let escrow_txid_result = deserialize_hex_string(ser_escrow_txid);
+        let escrow_txid = handle_errors!(escrow_txid_result);
+
+        let cust_pk_result = deserialize_hex_string(ser_cust_pk);
+        let cust_pk = handle_errors!(cust_pk_result);
+
+        let merch_pk_result = deserialize_hex_string(ser_merch_pk);
+        let merch_pk = handle_errors!(merch_pk_result);
+
+        let merch_close_pk_result = deserialize_hex_string(ser_merch_close_pk);
+        let merch_close_pk = handle_errors!(merch_close_pk_result);
+
+        let self_delay_result = deserialize_hex_string(ser_self_delay);
+        let self_delay = handle_errors!(self_delay_result);
+        let mut to_self_delay = [0u8; 2];
+        to_self_delay.copy_from_slice(&self_delay);
+
+        let cust_sig_result = deserialize_hex_string(ser_cust_sig);
+        let cust_sig = handle_errors!(cust_sig_result);
+
+        let merch_sk_result = deserialize_hex_string(ser_merch_sk);
+        let merch_sk = handle_errors!(merch_sk_result);
+
+        let (merch_tx_preimage, tx_params) = handle_errors!(txutil::merchant_form_close_transaction(escrow_txid, cust_pk, merch_pk, merch_close_pk, cust_bal_sats, merch_bal_sats, to_self_delay));
+
+        let (signed_tx, txid, prevout) = handle_errors!(txutil::merchant_sign_merch_close_transaction(tx_params, cust_sig, merch_sk));
+
+        let ser = ["{\'signed_tx\':\'", &hex::encode(signed_tx), "\', \'txid\':\'", &hex::encode(txid),
+                          "\', \'hash_prevout\':\'", &hex::encode(prevout), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
 
 
     #[no_mangle]
-    pub extern fn merch_sign_init_cust_close_txs(ser_channel_state: *mut c_char, ser_funding_tx: *mut c_char, ser_pubkeys: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
-        // Deserialize the channel_state
-        let channel_state_result: ResultSerdeType<ChannelMPCState> = deserialize_result_object(ser_channel_state);
-        let channel_state = handle_errors!(channel_state_result);
-
+    pub extern fn merch_sign_init_cust_close_txs(ser_funding_tx: *mut c_char, ser_rev_lock: *mut c_char, ser_cust_pk: *mut c_char, ser_cust_close_pk: *mut c_char, ser_self_delay: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
         // Deserialize the tx
         let tx_result: ResultSerdeType<FundingTxInfo> = deserialize_result_object(ser_funding_tx);
         let funding_tx = handle_errors!(tx_result);
 
-        // Deserialize the pubkeys
-        let pubkeys_result: ResultSerdeType<ClosePublicKeys> = deserialize_result_object(ser_pubkeys);
-        let pubkeys = handle_errors!(pubkeys_result);
+        let rev_lock_result = deserialize_hex_string(ser_rev_lock);
+        let _rev_lock = handle_errors!(rev_lock_result);
+        let mut rl = [0u8; 32];
+        rl.copy_from_slice(_rev_lock.as_slice());
+
+        let cust_pk_result = deserialize_hex_string(ser_cust_pk);
+        let cust_pk = handle_errors!(cust_pk_result);
+
+        let cust_close_pk_result = deserialize_hex_string(ser_cust_close_pk);
+        let cust_close_pk = handle_errors!(cust_close_pk_result);
+
+        let self_delay_result = deserialize_hex_string(ser_self_delay);
+        let self_delay = handle_errors!(self_delay_result);
+        let mut to_self_delay = [0u8; 2];
+        to_self_delay.copy_from_slice(&self_delay);
 
         // Deserialize the merch_state
         let merch_state_result: ResultSerdeType<MerchantMPCState> = deserialize_result_object(ser_merch_state);
         let merch_state = handle_errors!(merch_state_result);
 
-        let (_escrow_sig, _merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(&channel_state, &funding_tx, &pubkeys);
+        let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(funding_tx, rl, cust_pk, cust_close_pk, to_self_delay);
 
-        let escrow_sig = handle_errors!(serde_json::to_string(&_escrow_sig));
-        let merch_sig = handle_errors!(serde_json::to_string(&_merch_sig));
-        let ser = ["{\'escrow_sig\':", escrow_sig.as_str(), ", \'merch_sig\':\'", merch_sig.as_str(), "\'}"].concat();
+        let ser = ["{\'escrow_sig\': \'", &hex::encode(escrow_sig), "\', \'merch_sig\':\'", &hex::encode(merch_sig), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }

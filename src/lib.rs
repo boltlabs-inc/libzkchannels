@@ -680,10 +680,8 @@ pub struct FundingTxInfo {
     pub init_cust_bal: i64,
     pub init_merch_bal: i64,
     pub escrow_txid: FixedSizeArray32,
-    pub escrow_index: u32,
     pub escrow_prevout: FixedSizeArray32,
     pub merch_txid: FixedSizeArray32,
-    pub merch_index: u32,
     pub merch_prevout: FixedSizeArray32
 }
 
@@ -973,8 +971,7 @@ pub mod txutil {
         Ok((signed_tx, txid, hash_prevout))
     }
 
-    pub fn merchant_form_close_transaction(escrow_txid: Vec<u8>, cust_pk: Vec<u8>, merch_pk: Vec<u8>, merch_close_pk: Vec<u8>,
-                                           cust_bal_sats: i64, merch_bal_sats: i64, to_self_delay: [u8; 2]) -> Result<(Vec<u8>, BitcoinTransactionParameters<Testnet>), String> {
+    pub fn merchant_form_close_transaction(escrow_txid: Vec<u8>, cust_pk: Vec<u8>, merch_pk: Vec<u8>, merch_close_pk: Vec<u8>, cust_bal_sats: i64, merch_bal_sats: i64, to_self_delay: [u8; 2]) -> Result<(Vec<u8>, BitcoinTransactionParameters<Testnet>), String> {
 
         check_pk_length!(cust_pk);
         check_pk_length!(merch_pk);
@@ -1000,22 +997,21 @@ pub mod txutil {
         Ok((merch_tx_preimage, tx_params))
     }
 
-    pub fn customer_sign_merch_close_transaction(cust_sk: String, merch_tx_preimage: Vec<u8>) -> Result<String, String> {
+    pub fn customer_sign_merch_close_transaction(cust_sk: Vec<u8>, merch_tx_preimage: Vec<u8>) -> Result<Vec<u8>, String> {
         // customer signs the preimage and sends signature to merchant
         let cust_sk = get_private_key::<Testnet>(cust_sk)?;
         let cust_sig = generate_signature_for_multi_sig_transaction::<Testnet>(&merch_tx_preimage, &cust_sk)?;
-        Ok(hex::encode(cust_sig))
+        Ok(cust_sig)
     }
 
-    pub fn merchant_sign_merch_close_transaction(tx_params: BitcoinTransactionParameters<Testnet>, cust_sig_and_len_byte: String, merch_sk: String) -> Result<(String, String, String), String> {
+    pub fn merchant_sign_merch_close_transaction(tx_params: BitcoinTransactionParameters<Testnet>, cust_sig_and_len_byte: Vec<u8>, merch_sk: Vec<u8>) -> Result<(Vec<u8>, [u8; 32], [u8; 32]), String> {
         // merchant takes as input the tx params and signs it
-        let cust_sig = hex::decode(cust_sig_and_len_byte).unwrap();
         let merch_sk = get_private_key::<Testnet>(merch_sk)?;
         let (signed_merch_close_tx, txid, hash_prevout) =
-            completely_sign_multi_sig_transaction::<Testnet>(&tx_params, &cust_sig, &merch_sk);
-        let signed_merch_close_tx = hex::encode(signed_merch_close_tx.to_transaction_bytes().unwrap());
+            completely_sign_multi_sig_transaction::<Testnet>(&tx_params, &cust_sig_and_len_byte, &merch_sk);
+        let signed_merch_close_tx = signed_merch_close_tx.to_transaction_bytes().unwrap();
 
-        Ok((signed_merch_close_tx, hex::encode(txid), hex::encode(hash_prevout)))
+        Ok((signed_merch_close_tx, txid, hash_prevout))
     }
 
 }
@@ -1572,9 +1568,7 @@ mod tests {
 
         return FundingTxInfo { init_cust_bal: b0_cust, init_merch_bal: b0_merch,
                                     escrow_txid: FixedSizeArray32(escrow_txid),
-                                    escrow_index: 0,
                                     merch_txid: FixedSizeArray32(merch_txid),
-                                    merch_index: 0,
                                     escrow_prevout: FixedSizeArray32(escrow_prevout),
                                     merch_prevout: FixedSizeArray32(merch_prevout) };
     }

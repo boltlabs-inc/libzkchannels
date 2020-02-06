@@ -128,19 +128,15 @@ pub mod btc {
         return script_pubkey;
     }
 
-    pub fn get_private_key<N: BitcoinNetwork>(private_key: String) -> Result<BitcoinPrivateKey<N>, String> {
-        let sk = match hex::decode(private_key) {
-            Ok(n) => match secp256k1::SecretKey::from_slice(&n) {
-                Ok(n) => n,
-                Err(e) => return Err(e.to_string())
-            },
+    pub fn get_private_key<N: BitcoinNetwork>(private_key: Vec<u8>) -> Result<BitcoinPrivateKey<N>, String> {
+        let sk = match secp256k1::SecretKey::from_slice(&private_key) {
+            Ok(n) => n,
             Err(e) => return Err(e.to_string())
         };
         let secp = secp256k1::Secp256k1::new();
         let private_key = BitcoinPrivateKey::<N>::from_secp256k1_secret_key(sk, false);
         Ok(private_key)
     }
-
 
     pub fn get_merch_close_timelocked_p2wsh_address(cust_pubkey: &Vec<u8>, merch_pubkey: &Vec<u8>, merch_close_pubkey: &Vec<u8>, to_self_delay: &[u8; 2]) -> Vec<u8> {
         // get the script
@@ -596,7 +592,7 @@ mod tests {
                                      amount: (1 * SATOSHI) };
 
         let private_key = BitcoinPrivateKey::<Testnet>::from_str("cPmiXrwUfViwwkvZ5NXySiHEudJdJ5aeXU4nx4vZuKWTUibpJdrn").unwrap();
-        let (escrow_tx_preimage, full_escrow_tx) = transactions::btc::create_escrow_transaction::<Testnet>(&config, &input, &musig_output, &change_output, private_key.clone());
+        let (escrow_tx_preimage, full_escrow_tx) = transactions::btc::create_escrow_transaction::<Testnet>(&config, &input, &musig_output, &change_output, private_key.clone()).unwrap();
 
         let expected_escrow_preimage = "020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000001976a914a496306b960746361e3528534d04b1ac4726655a88ac00286bee00000000ffffffff51bbd879074a16332d89cd524d8672b9cbe2096ed6825847141b9798cb915ad80000000001000000";
 

@@ -199,6 +199,7 @@ pub struct CustomerMPCState {
     pay_tokens: HashMap<i32, FixedSizeArray32>,
     pay_token_mask_com: FixedSizeArray32,
     payout_sk: secp256k1::SecretKey,
+    payout_pk: secp256k1::PublicKey,
     pub conn_type: u32,
     cust_close_escrow_tx: String,
     cust_close_merch_tx: String,
@@ -251,6 +252,7 @@ impl CustomerMPCState {
         let mut _payout_sk: [u8; 32] = [0; 32];
         csprng.fill_bytes(&mut _payout_sk);
         let payout_sk = secp256k1::SecretKey::from_slice(&_payout_sk).unwrap();
+        let payout_pk = secp256k1::PublicKey::from_secret_key(&secp, &payout_sk);
 
         let mpc_outputs = HashMap::new();
         let pt_db = HashMap::new();
@@ -270,6 +272,7 @@ impl CustomerMPCState {
             pay_tokens: pt_db,
             pay_token_mask_com: FixedSizeArray32(pay_mask_com),
             payout_sk: payout_sk,
+            payout_pk: payout_pk,
             conn_type: 0,
             cust_close_escrow_tx: String::new(),
             cust_close_merch_tx: String::new(),
@@ -417,13 +420,12 @@ impl CustomerMPCState {
     pub fn execute_mpc_context(&mut self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken,
                                old_state: State, new_state: State, paytoken_mask_com: [u8; 32], rev_lock_com: [u8;32], amount: i64) -> Result<bool, String> {
         // assert!(self.channel_initialized);
-        let secp = secp256k1::Secp256k1::new();
         // load the key_com from channel state
         let key_com = channel_state.get_key_com();
 
         // get cust pub keys
         let cust_escrow_pub_key = self.pk_c.clone();
-        let cust_payout_pub_key = secp256k1::PublicKey::from_secret_key(&secp, &self.payout_sk);
+        let cust_payout_pub_key = self.payout_pk;
 
         let merch_escrow_pub_key= channel_token.pk_m.clone();
         let merch_dispute_key= channel_state.merch_dispute_pk.unwrap();
@@ -455,7 +457,7 @@ impl CustomerMPCState {
     pub fn get_pubkeys(&self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken) -> ClosePublicKeys {
         let secp = secp256k1::Secp256k1::new();
         let cust_escrow_pub_key = self.pk_c.serialize();
-        let cust_payout_pub_key = secp256k1::PublicKey::from_secret_key(&secp, &self.payout_sk).serialize();
+        let cust_payout_pub_key = self.payout_pk.serialize();
         let merch_escrow_pub_key= channel_token.pk_m.serialize();
         let merch_dispute_key= channel_state.merch_dispute_pk.unwrap().serialize();
         let merch_payout_pub_key = channel_state.merch_payout_pk.unwrap().serialize();
@@ -858,12 +860,23 @@ impl MerchantMPCState {
     }
 
     // Merchant sign's the initial closing transaction (in the clear)
-    pub fn sign_initial_closing_transaction<N: BitcoinNetwork>(&self, _channel_state: &ChannelMPCState, funding_tx: &FundingTxInfo, pubkeys: &ClosePublicKeys) -> (Vec<u8>, Vec<u8>) {
-        let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
+    pub fn sign_initial_closing_transaction<N: BitcoinNetwork>(&self, funding_tx: FundingTxInfo, rev_lock: [u8; 32], cust_pk: Vec<u8>, cust_close_pk: Vec<u8>, to_self_delay: [u8; 2]) -> (Vec<u8>, Vec<u8>) {
+        // let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
         let init_balance = funding_tx.init_cust_bal + funding_tx.init_merch_bal;
+        let escrow_index = 0;
+        let merch_index = 0;
 
-        let escrow_input = create_input(&funding_tx.escrow_txid.0, funding_tx.escrow_index, init_balance);
-        let merch_input = create_input(&funding_tx.merch_txid.0, funding_tx.merch_index, init_balance);
+        let escrow_input = create_input(&funding_tx.escrow_txid.0, escrow_index, init_balance);
+        let merch_input = create_input(&funding_tx.merch_txid.0, merch_index, init_balance);
+
+        let pubkeys = ClosePublicKeys {
+            cust_pk: cust_pk.clone(),
+            merch_pk: self.pk_m.serialize().to_vec(),
+            merch_close_pk: self.payout_pk.serialize().to_vec(),
+            merch_disp_pk: self.dispute_pk.serialize().to_vec(),
+            cust_close_pk: cust_close_pk.clone(),
+            rev_lock: FixedSizeArray32(rev_lock)
+        };
 
         let (escrow_tx_preimage, _, _) =
             create_cust_close_transaction::<N>(&escrow_input, &pubkeys, &to_self_delay, funding_tx.init_cust_bal, funding_tx.init_merch_bal, true);

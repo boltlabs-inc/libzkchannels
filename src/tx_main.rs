@@ -194,7 +194,8 @@ mod cust {
             false => return Err(String::from("Require a change pubkey to generate a valid escrow transaction!"))
         };
 
-        let private_key = get_private_key::<Testnet>(escrow.cust_privkey)?;
+        let cust_privkey = handle_serde_error!(hex::decode(escrow.cust_privkey));
+        let private_key = get_private_key::<Testnet>(cust_privkey)?;
         let (_escrow_tx_preimage, full_escrow_tx) = match create_escrow_transaction::<Testnet>(&config, &input, &musig_output, &change_output.unwrap(), private_key.clone()) {
             Ok(n) => n,
             Err(e) => return Err(e.to_string())
@@ -216,10 +217,8 @@ mod cust {
             init_cust_bal: escrow.output_sats,
             init_merch_bal: 0,
             escrow_txid: FixedSizeArray32(txid),
-            escrow_index: escrow.index,
             escrow_prevout: FixedSizeArray32(hash_prevout),
             merch_txid: FixedSizeArray32([0u8; 32]),
-            merch_index: 0,
             merch_prevout: FixedSizeArray32([0u8; 32])
         };
 
@@ -237,7 +236,8 @@ mod cust {
             Err(e) => return Err(e.to_string())
         };
         // customer signs the preimage and sends signature to merchant
-        let private_key = get_private_key::<Testnet>(args.cust_privkey)?;
+        let cust_privkey = handle_serde_error!(hex::decode(args.cust_privkey));
+        let private_key = get_private_key::<Testnet>(cust_privkey)?;
         let cust_sig = generate_signature_for_multi_sig_transaction::<Testnet>(&merch_tx_preimage, &private_key).unwrap();
         let cust_sig_hex = hex::encode(cust_sig);
         // write the signature to a file
@@ -266,6 +266,7 @@ mod merch {
         let mut funding_tx: FundingTxInfo = serde_json::from_str(&ser_funding_tx).unwrap();
 
         // construct
+        let escrow_index = 0;
         let merch_pk = hex::decode(merch_close.merch_pubkey).unwrap();
         let cust_pk = hex::decode(merch_close.cust_pubkey).unwrap();
         let merch_close_pk = hex::decode(merch_close.merch_close_pubkey).unwrap();
@@ -278,7 +279,7 @@ mod merch {
             address_format: "native_p2wsh",
             // outpoint of escrow
             transaction_id: funding_tx.escrow_txid.0.to_vec(),
-            index: funding_tx.escrow_index,
+            index: escrow_index,
             redeem_script: Some(redeem_script),
             script_pub_key: None,
             utxo_amount: Some(funding_tx.init_cust_bal + funding_tx.init_merch_bal),
@@ -305,7 +306,10 @@ mod merch {
 
             // check if merch-sk provided
             let merch_sk = match merch_close.merch_privkey {
-                Some(sk) => get_private_key::<Testnet>(sk)?,
+                Some(sk) => match hex::decode(sk) {
+                    Ok(s) => get_private_key::<Testnet>(s)?,
+                    Err(e) => return Err(e.to_string())
+                },
                 None => return Err(String::from("need merch private key to sign the merch-close-tx"))
             };
             // if cust signature provided, then merchant signs the preimage

@@ -585,7 +585,8 @@ mod merch {
             return Err(String::from("Customer pk for channel doesn't match initial state"));
         }
 
-        let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(&channel_state, &funding_tx, &pubkeys);
+        let to_self_delay: [u8; 2] = [0xcf, 0x05];
+        let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(funding_tx, pubkeys.rev_lock.0, pubkeys.cust_pk, pubkeys.cust_close_pk, to_self_delay);
 
         let msg3 = [handle_serde_error!(serde_json::to_string(&escrow_sig)), handle_serde_error!(serde_json::to_string(&merch_sig))];
         conn.send(&msg3);
