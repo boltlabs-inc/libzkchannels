@@ -390,8 +390,8 @@ mod cust {
         let ser_cust_state = read_file("cust_state.json").unwrap();
         let mut cust_state: CustomerMPCState = handle_serde_error!(serde_json::from_str(&ser_cust_state));
 
-        mpc::init_funding(&funding_tx, &mut channel_token, &mut cust_state);
-
+        // mpc::init_funding(&funding_tx, &mut channel_token, &mut cust_state);
+        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx)?;
         let init_cust_state = match cust_state.get_init_cust_state() {
             Ok(n) => n,
             Err(e) => return Err(e.to_string())

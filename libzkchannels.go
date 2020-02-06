@@ -2,7 +2,7 @@ package libzkchannels
 
 // #cgo CFLAGS: -I${SRCDIR}/include -DDEFINE_MPC_BITCOIN=1 -Wno-macro-redefined
 // #cgo LDFLAGS: -lzkchannels
-// #include <bindings.h>
+// #include <cbindings.h>
 import "C"
 import (
 	"encoding/json"
@@ -184,31 +184,6 @@ func InitCustomer(pkM string, custBal int64, merchBal int64, name string) (Chann
 	return channelToken, custState, err
 }
 
-func InitFunding(tx string, channelToken ChannelToken, custState CustState) (ChannelToken, CustState, error) {
-	serChannelToken, err := json.Marshal(channelToken)
-	if err != nil {
-		return ChannelToken{}, CustState{}, err
-	}
-	serCustState, err := json.Marshal(custState)
-	if err != nil {
-		return ChannelToken{}, CustState{}, err
-	}
-
-	resp := C.GoString(C.mpc_init_funding(C.CString(tx), C.CString(string(serChannelToken)), C.CString(string(serCustState))))
-	r, err := processCResponse(resp)
-	if err != nil {
-		return ChannelToken{}, CustState{}, err
-	}
-
-	err = json.Unmarshal([]byte(r.ChannelToken), &channelToken)
-	if err != nil {
-		return ChannelToken{}, CustState{}, err
-	}
-
-	err = json.Unmarshal([]byte(r.CustState), &custState)
-	return channelToken, custState, err
-}
-
 func FormEscrowTx(txid string, index uint32, inputAmt int64, outputAmt int64, custSk string, custPk string, merchPk string, changePk string) (string, string, string, error) {
 
 	resp := C.GoString(C.cust_form_escrow_transaction(C.CString(txid), C.uint(index), C.longlong(inputAmt),
@@ -272,23 +247,39 @@ func MerchantSignInitCustCloseTx(tx FundingTxInfo, revLock string, custPk string
 	return r.EscrowSig, r.MerchSig, err
 }
 
-// func CustomerSignInitCustCloseTx(channelState ChannelState, channelToken ChannelToken, escrowSig string, merchSig string, custState CustState) (bool, CustState) {
-// 	serChannelState, err := json.Marshal(channelState)
-// 	if err != nil {
-// 		return false, "", err
-// 	}
+func CustomerSignInitCustCloseTx(tx FundingTxInfo, channelState ChannelState, channelToken ChannelToken, escrowSig string, merchSig string, custState CustState) (bool, ChannelToken, CustState, error) {
+	serFundingTx, err := json.Marshal(tx)
+	if err != nil {
+		return false, ChannelToken{}, CustState{}, err
+	}
 
-// 	serChannelToken, err := json.Marshal(channelToken)
-// 	if err != nil {
-// 		return false, custState
-// 	}
+	serChannelState, err := json.Marshal(channelState)
+	if err != nil {
+		return false, ChannelToken{}, CustState{}, err
+	}
 
-// 	serCustState, err := json.Marshal(custState)
-// 	if err != nil {
-// 		return false, CustState{}, err
-// 	}
+	serChannelToken, err := json.Marshal(channelToken)
+	if err != nil {
+		return false, ChannelToken{}, CustState{}, err
+	}
 
-// }
+	serCustState, err := json.Marshal(custState)
+	if err != nil {
+		return false, ChannelToken{}, CustState{}, err
+	}
+
+	resp := C.GoString(C.cust_sign_init_cust_close_txs(C.CString(string(serFundingTx)), C.CString(string(serChannelState)), C.CString(string(serChannelToken)),
+		C.CString(escrowSig), C.CString(merchSig), C.CString(string(serCustState))))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return false, ChannelToken{}, CustState{}, err
+	}
+
+	err = json.Unmarshal([]byte(r.ChannelToken), &channelToken)
+	err = json.Unmarshal([]byte(r.CustState), &custState)
+	return r.IsOk, channelToken, custState, err
+
+}
 
 func ActivateCustomer(custState CustState) (State, CustState, error) {
 	serCustState, err := json.Marshal(custState)

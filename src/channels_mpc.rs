@@ -333,8 +333,10 @@ impl CustomerMPCState {
         self.pay_tokens.insert(0, FixedSizeArray32(pay_token));
     }
 
-    pub fn set_funding_tx_info(&mut self, channel_token: &mut ChannelMPCToken, tx: &FundingTxInfo) {
-        assert!(self.state.is_some());
+    pub fn set_funding_tx_info(&mut self, channel_token: &mut ChannelMPCToken, tx: &FundingTxInfo) -> Result<(), String> {
+        if self.state.is_none() {
+            return Err(String::from("Customer initial state has not been created!"))
+        }
 
         let mut s = self.state.unwrap();
         s.escrow_txid = tx.escrow_txid.clone();
@@ -347,6 +349,8 @@ impl CustomerMPCState {
 
         channel_token.escrow_txid = tx.escrow_txid.clone();
         channel_token.merch_txid = tx.merch_txid.clone();
+
+        Ok(())
     }
 
     pub fn get_init_cust_state(&self) -> Result<InitCustState, String> {
@@ -499,6 +503,8 @@ impl CustomerMPCState {
     pub fn sign_initial_closing_transaction<N: BitcoinNetwork>(&mut self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken, escrow_sig: &Vec<u8>, merch_sig: &Vec<u8>) -> Result<bool, String> {
         let (escrow_tx_preimage, merch_tx_preimage, escrow_tx_params, merch_tx_params) =
             self.construct_close_transaction_preimage::<N>(channel_state, channel_token);
+
+        println!("customer side: escrow tx preimage = {}", hex::encode(&escrow_tx_preimage));
 
         // now that we've got preimages
         let escrow_tx_hash = Sha256::digest(&Sha256::digest(&escrow_tx_preimage));
@@ -881,8 +887,11 @@ impl MerchantMPCState {
         let (escrow_tx_preimage, _, _) =
             create_cust_close_transaction::<N>(&escrow_input, &pubkeys, &to_self_delay, funding_tx.init_cust_bal, funding_tx.init_merch_bal, true);
 
+        println!("escrow tx preimage: {}", hex::encode(&escrow_tx_preimage));
+
         let (merch_tx_preimage, _, _) =
             create_cust_close_transaction::<N>(&merch_input, &pubkeys, &to_self_delay, funding_tx.init_cust_bal, funding_tx.init_merch_bal, false);
+        println!("merch tx preimage: {}", hex::encode(&merch_tx_preimage));
 
         // merchant generates signatures
         let m_private_key = BitcoinPrivateKey::<N>::from_secp256k1_secret_key(self.sk_m.clone(), false);

@@ -112,26 +112,6 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
-    #[no_mangle]
-    pub extern fn mpc_init_funding(ser_tx: *mut c_char, ser_channel_token: *mut c_char, ser_cust_state: *mut c_char) -> *mut c_char {
-        // Deserialize the tx
-        let tx_result: ResultSerdeType<FundingTxInfo> = deserialize_result_object(ser_tx);
-        let tx = handle_errors!(tx_result);
-
-        // Deserialize the ChannelToken
-        let channel_token_result: ResultSerdeType<ChannelMPCToken> = deserialize_result_object(ser_channel_token);
-        let mut channel_token = handle_errors!(channel_token_result);
-
-        // Deserialize the cust_state
-        let cust_state_result: ResultSerdeType<CustomerMPCState> = deserialize_result_object(ser_cust_state);
-        let mut cust_state = handle_errors!(cust_state_result);
-
-        mpc::init_funding(&tx, &mut channel_token, &mut cust_state);
-        let ser = ["{\'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\', \'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str(), "\'}"].concat();
-        let cser = CString::new(ser).unwrap();
-        cser.into_raw()
-    }
-
     // ACTIVATE
 
     #[no_mangle]
@@ -524,14 +504,18 @@ pub mod ffishim_mpc {
     }
 
     #[no_mangle]
-    pub extern fn cust_sign_init_cust_close_txs(ser_channel_state: *mut c_char, ser_channel_token: *mut c_char, ser_escrow_sig: *mut c_char, ser_merch_sig: *mut c_char, ser_cust_state: *mut c_char) -> *mut c_char {
+    pub extern fn cust_sign_init_cust_close_txs(ser_funding_tx: *mut c_char, ser_channel_state: *mut c_char, ser_channel_token: *mut c_char, ser_escrow_sig: *mut c_char, ser_merch_sig: *mut c_char, ser_cust_state: *mut c_char) -> *mut c_char {
+        // Deserialize the tx
+        let tx_result: ResultSerdeType<FundingTxInfo> = deserialize_result_object(ser_funding_tx);
+        let funding_tx = handle_errors!(tx_result);
+
         // Deserialize the channel_state
         let channel_state_result: ResultSerdeType<ChannelMPCState> = deserialize_result_object(ser_channel_state);
         let channel_state = handle_errors!(channel_state_result);
 
         // Deserialize the ChannelToken
         let channel_token_result: ResultSerdeType<ChannelMPCToken> = deserialize_result_object(ser_channel_token);
-        let channel_token = handle_errors!(channel_token_result);
+        let mut channel_token = handle_errors!(channel_token_result);
 
         // Deserialize escrow-sig & merch-sig
         let escrow_sig_result = deserialize_hex_string(ser_escrow_sig);
@@ -544,9 +528,12 @@ pub mod ffishim_mpc {
         let cust_state_result: ResultSerdeType<CustomerMPCState> = deserialize_result_object(ser_cust_state);
         let mut cust_state = handle_errors!(cust_state_result);
 
+        handle_errors!(cust_state.set_funding_tx_info(&mut channel_token, &funding_tx));
+
         // now sign the customer's initial closing txs iff escrow-sig and merch-sig are valid
         let got_close_tx = handle_errors!(cust_state.sign_initial_closing_transaction::<Testnet>(&channel_state, &channel_token, &escrow_sig, &merch_sig));
-        let ser = ["{\'is_valid\':", serde_json::to_string(&got_close_tx).unwrap().as_str(), ", \'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\'}"].concat();
+        let ser = ["{\'is_ok\':", serde_json::to_string(&got_close_tx).unwrap().as_str(), ", \'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str(),
+                          "\', \'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }

@@ -729,10 +729,11 @@ pub mod mpc {
         (channel_token, cust_state)
     }
 
-    pub fn init_funding(funding_tx: &FundingTxInfo, channel_token: &mut ChannelMPCToken, cust_state: &mut CustomerMPCState) {
-        // set escrow-tx and merch-close-tx info
-        cust_state.set_funding_tx_info(channel_token, &funding_tx);
-    }
+//    pub fn init_funding(funding_tx: &FundingTxInfo, channel_token: &mut ChannelMPCToken, cust_state: &mut CustomerMPCState) -> Result<(), String> {
+//        // set escrow-tx and merch-close-tx info
+//        cust_state.set_funding_tx_info(channel_token, &funding_tx)?;
+//        Ok(())
+//    }
 
     ///
     /// activate_customer - takes as input an rng and the customer state.
@@ -1591,7 +1592,7 @@ mod tests {
 
         let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch);
 
-        mpc::init_funding(&funding_tx_info, &mut channel_token, &mut cust_state);
+        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info);
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
 
@@ -1634,7 +1635,7 @@ rusty_fork_test! {
 
         let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch);
 
-        mpc::init_funding(&funding_tx_info, &mut channel_token, &mut cust_state);
+        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info);
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
 
