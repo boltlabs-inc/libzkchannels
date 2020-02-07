@@ -22,15 +22,16 @@ use std::path::PathBuf;
 use zkchannels::FundingTxInfo;
 use std::fs::File;
 use bitcoin::Testnet;
-use rand::{Rng, RngCore};
+use rand::Rng;
 
-macro_rules! handle_file_error {
-    ($e:expr, $f:expr) => (match $e {
-        Ok(val) => val,
-        Err(err) => return Err(format!("- {:?}: {}", $f, err)),
-    });
-}
-macro_rules! handle_serde_error {
+//macro_rules! handle_file_error {
+//    ($e:expr, $f:expr) => (match $e {
+//        Ok(val) => val,
+//        Err(err) => return Err(format!("- {:?}: {}", $f, err)),
+//    });
+//}
+
+macro_rules! handle_error_result {
     ($e:expr) => (match $e {
         Ok(val) => val,
         Err(err) => return Err(err.to_string()),
@@ -394,13 +395,13 @@ mod cust {
         let mut rng = &mut rand::thread_rng();
 
         let ser_cust_state = read_file("cust_state.json").unwrap();
-        let mut cust_state: CustomerMPCState = handle_serde_error!(serde_json::from_str(&ser_cust_state));
+        let mut cust_state: CustomerMPCState = handle_error_result!(serde_json::from_str(&ser_cust_state));
 
         let ser_channel_state = read_file("cust_channel_state.json").unwrap();
-        let channel_state: ChannelMPCState = handle_serde_error!(serde_json::from_str(&ser_channel_state));
+        let channel_state: ChannelMPCState = handle_error_result!(serde_json::from_str(&ser_channel_state));
 
         let ser_channel_token = read_file("cust_channel_token.json").unwrap();
-        let mut channel_token: ChannelMPCToken = handle_serde_error!(serde_json::from_str(&ser_channel_token));
+        let mut channel_token: ChannelMPCToken = handle_error_result!(serde_json::from_str(&ser_channel_token));
 
         let to_self_delay: [u8; 2] = [0xcf, 0x05];
         let cust_sk = cust_state.get_secret_key();
@@ -418,16 +419,16 @@ mod cust {
 
         // form the escrow transaction
         let (signed_tx, escrow_txid, escrow_prevout) =
-            handle_serde_error!(customer_sign_escrow_transaction(input_txid, index, input_sats, output_sats, cust_sk.clone(), cust_pk.clone(), merch_pk.clone(), Some(change_pk_vec)));
+            handle_error_result!(customer_sign_escrow_transaction(input_txid, index, input_sats, output_sats, cust_sk.clone(), cust_pk.clone(), merch_pk.clone(), Some(change_pk_vec)));
 
         // form the merch-close-tx
         let cust_bal = cust_state.cust_balance;
         let merch_bal = cust_state.merch_balance;
         let merch_close_pk = channel_state.merch_payout_pk.unwrap().serialize().to_vec();
-        let (merch_tx_preimage, _) = handle_serde_error!(merchant_form_close_transaction(escrow_txid.to_vec(), cust_pk, merch_pk, merch_close_pk, cust_bal, merch_bal, to_self_delay));
+        let (merch_tx_preimage, _) = handle_error_result!(merchant_form_close_transaction(escrow_txid.to_vec(), cust_pk, merch_pk, merch_close_pk, cust_bal, merch_bal, to_self_delay));
 
         // get the cust-sig on the merch-close-tx
-        let cust_sig = handle_serde_error!(customer_sign_merch_close_transaction(cust_sk, merch_tx_preimage));
+        let cust_sig = handle_error_result!(customer_sign_merch_close_transaction(cust_sk, merch_tx_preimage));
 
         let init_cust_state = match cust_state.get_init_cust_state() {
             Ok(n) => n,
@@ -435,10 +436,10 @@ mod cust {
         };
 
         // customer sends pk_c, n_0, rl_0, B_c, B_m, and escrow_txid/prevout to the merchant
-        let msg0 = [handle_serde_error!(serde_json::to_string(&cust_sig)),
-                              handle_serde_error!(serde_json::to_string(&escrow_txid)),
-                              handle_serde_error!(serde_json::to_string(&escrow_prevout)),
-                              handle_serde_error!(serde_json::to_string(&init_cust_state))];
+        let msg0 = [handle_error_result!(serde_json::to_string(&cust_sig)),
+                              handle_error_result!(serde_json::to_string(&escrow_txid)),
+                              handle_error_result!(serde_json::to_string(&escrow_prevout)),
+                              handle_error_result!(serde_json::to_string(&init_cust_state))];
 
         println!("Sending cust-sig, escrow-txid/prevout and init cust state");
         let msg1 = conn.send_and_wait(&msg0, None, false);
@@ -461,7 +462,7 @@ mod cust {
         };
 
         cust_state.set_funding_tx_info(&mut channel_token, &funding_tx)?;
-        let pubkeys = cust_state.get_pubkeys(&channel_state, &channel_token);
+        // let pubkeys = cust_state.get_pubkeys(&channel_state, &channel_token);
 
         // now sign the customer's initial closing txs
         println!("Signing the initial closing transactions...");
@@ -476,7 +477,7 @@ mod cust {
 
         println!("Can now broadcast the signed escrow transaction");
         write_file("signed_escrow_tx.txt", hex::encode(&signed_tx))?;
-        write_file("change_sk.txt", handle_serde_error!(serde_json::to_string(&change_sk)))?;
+        write_file("change_sk.txt", handle_error_result!(serde_json::to_string(&change_sk)))?;
 
         Ok(())
     }
@@ -488,12 +489,12 @@ mod cust {
         let mut cust_state: CustomerMPCState = serde_json::from_str(&ser_cust_state).unwrap();
 
         let ser_channel_token = read_file("cust_channel_token.json").unwrap();
-        let channel_token: ChannelMPCToken = handle_serde_error!(serde_json::from_str(&ser_channel_token));
+        let channel_token: ChannelMPCToken = handle_error_result!(serde_json::from_str(&ser_channel_token));
 
         let s0 = mpc::activate_customer(rng, &mut cust_state);
 
         // send the channel token and initial state
-        let msg1 = [handle_serde_error!(serde_json::to_string(&channel_token)), handle_serde_error!(serde_json::to_string(&s0))];
+        let msg1 = [handle_error_result!(serde_json::to_string(&channel_token)), handle_error_result!(serde_json::to_string(&s0))];
         println!("Sending channel token and state (s0)");
         let msg2 = conn.send_and_wait(&msg1, None, false);
 
@@ -501,7 +502,7 @@ mod cust {
         println!("Obtained pay token (p0): {}", hex::encode(&pay_token));
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
-        write_file("cust_state.json", handle_serde_error!(serde_json::to_string(&cust_state)))?;
+        write_file("cust_state.json", handle_error_result!(serde_json::to_string(&cust_state)))?;
         Ok(())
     }
 
@@ -521,7 +522,7 @@ mod cust {
         }
 
         let ser_channel_token = read_file("cust_channel_token.json").unwrap();
-        let mut channel_token: ChannelMPCToken = handle_serde_error!(serde_json::from_str(&ser_channel_token));
+        let mut channel_token: ChannelMPCToken = handle_error_result!(serde_json::from_str(&ser_channel_token));
 
         let old_state = cust_state.get_current_state();
 
@@ -594,9 +595,9 @@ mod cust {
     }
 
     fn save_state_cust(channel_state: ChannelMPCState, channel_token: ChannelMPCToken, cust_state: CustomerMPCState) -> Result<(), String> {
-        write_file("cust_channel_state.json", handle_serde_error!(serde_json::to_string(&channel_state)))?;
-        write_file("cust_state.json", handle_serde_error!(serde_json::to_string(&cust_state)))?;
-        write_file("cust_channel_token.json", handle_serde_error!(serde_json::to_string(&channel_token)))?;
+        write_file("cust_channel_state.json", handle_error_result!(serde_json::to_string(&channel_state)))?;
+        write_file("cust_state.json", handle_error_result!(serde_json::to_string(&cust_state)))?;
+        write_file("cust_channel_token.json", handle_error_result!(serde_json::to_string(&channel_token)))?;
 
         Ok(())
     }
@@ -607,11 +608,10 @@ mod merch {
     use super::*;
     use zkchannels::channels_mpc::{ChannelMPCState, ChannelMPCToken, MerchantMPCState, InitCustState};
     use zkchannels::wallet::State;
-    use zkchannels::transactions::ClosePublicKeys;
     use zkchannels::transactions::btc::completely_sign_multi_sig_transaction;
     use zkchannels::txutil::merchant_form_close_transaction;
-    use bitcoin::{BitcoinPrivateKey, BitcoinTransaction};
-    use wagyu_model::{transaction, Transaction};
+    use bitcoin::BitcoinPrivateKey;
+    use wagyu_model::Transaction;
     use zkchannels::fixed_size_array::FixedSizeArray32;
 
     pub fn open(conn: &mut Conn, dust_limit: i64) -> Result<(), String> {
@@ -626,7 +626,7 @@ mod merch {
 
         let merch_state = mpc::init_merchant(rng, &mut channel_state, "Merchant");
 
-        let msg1 = [handle_serde_error!(serde_json::to_string(&channel_state)), handle_serde_error!(serde_json::to_string(&merch_state.pk_m))];
+        let msg1 = [handle_error_result!(serde_json::to_string(&channel_state)), handle_error_result!(serde_json::to_string(&merch_state.pk_m))];
         conn.send(&msg1);
 
         save_state_merch(channel_state, merch_state)
@@ -657,7 +657,7 @@ mod merch {
         let merch_bal = init_cust_state.merch_bal;
 
         // form the merch-close-tx
-        let (_, tx_params) = handle_serde_error!(merchant_form_close_transaction(escrow_txid.to_vec(), cust_pk.clone(), merch_pk, merch_close_pk, cust_bal, merch_bal, to_self_delay));
+        let (_, tx_params) = handle_error_result!(merchant_form_close_transaction(escrow_txid.to_vec(), cust_pk.clone(), merch_pk, merch_close_pk, cust_bal, merch_bal, to_self_delay));
 
         // sign the merch-close-tx given cust-sig
         let merch_private_key = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(merch_sk, false);
@@ -682,8 +682,8 @@ mod merch {
         println!("Signing customer's initial closing tx...");
         let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(funding_tx, rev_lock, cust_pk, cust_close_pk, to_self_delay);
 
-        let msg3 = [handle_serde_error!(serde_json::to_string(&merch_txid)), handle_serde_error!(serde_json::to_string(&merch_prevout)),
-                               handle_serde_error!(serde_json::to_string(&escrow_sig)), handle_serde_error!(serde_json::to_string(&merch_sig))];
+        let msg3 = [handle_error_result!(serde_json::to_string(&merch_txid)), handle_error_result!(serde_json::to_string(&merch_prevout)),
+                               handle_error_result!(serde_json::to_string(&escrow_sig)), handle_error_result!(serde_json::to_string(&merch_sig))];
         conn.send(&msg3);
 
         write_file("signed_merch_close_tx.txt", hex::encode(&signed_merch_close_tx))?;
@@ -703,11 +703,11 @@ mod merch {
 
         let pay_token = mpc::activate_merchant(channel_token, &s0, &mut merch_state);
 
-        let msg3 = [handle_serde_error!(serde_json::to_string(&pay_token))];
+        let msg3 = [handle_error_result!(serde_json::to_string(&pay_token))];
         conn.send(&msg3);
 
         // save_state_merch(channel_state, merch_state)
-        write_file("merch_state.json", handle_serde_error!(serde_json::to_string(&merch_state)))?;
+        write_file("merch_state.json", handle_error_result!(serde_json::to_string(&merch_state)))?;
         Ok(())
     }
 
@@ -736,7 +736,7 @@ mod merch {
 
         let result = mpc::pay_merchant(rng, &mut channel_state, nonce, pay_token_mask_com, rev_lock_com, amount, &mut merch_state);
         let masked_inputs = result.unwrap();
-        let msg3 = [handle_serde_error!(serde_json::to_string(&masked_inputs))];
+        let msg3 = [handle_error_result!(serde_json::to_string(&masked_inputs))];
         let msg4 = conn.send_and_wait(&msg3, Some(String::from("Received revoked state")), true);
         let rev_state = serde_json::from_str(msg4.get(0).unwrap()).unwrap();
 
@@ -758,30 +758,30 @@ mod merch {
     }
 
     fn save_state_merch(channel_state: ChannelMPCState, merch_state: MerchantMPCState) -> Result<(), String> {
-        write_file("merch_channel_state.json", handle_serde_error!(serde_json::to_string(&channel_state)))?;
-        write_file("merch_state.json", handle_serde_error!(serde_json::to_string(&merch_state)))?;
+        write_file("merch_channel_state.json", handle_error_result!(serde_json::to_string(&channel_state)))?;
+        write_file("merch_state.json", handle_error_result!(serde_json::to_string(&merch_state)))?;
         Ok(())
     }
 
-    pub fn close(out_file: PathBuf, channel_token_file: Option<PathBuf>) -> Result<(), String> {
-        // output the merch-close-tx (only thing merchant can broadcast to close channel)
-        let ser_merch_state = read_file("merch_state.json").unwrap();
-        let _merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
-
-        let ser_channel_token = match channel_token_file {
-            Some(ctf) => handle_file_error!(read_pathfile(ctf.clone()), ctf),
-            None => return Err(String::from("Channel-token file required!"))
-        };
-        let channel_token: ChannelMPCToken = serde_json::from_str(&ser_channel_token).unwrap();
-
-        let _channel_id = match channel_token.compute_channel_id() {
-            Ok(n) => hex::encode(&n),
-            Err(e) => return Err(e.to_string())
-        };
-
-        // TODO: get the merch-close-tx for the given channel-id
-        let merch_close_tx = String::from("retrieve the merch-close-tx here from merch-state for channel-id");
-        write_pathfile(out_file, merch_close_tx)?;
-        Ok(())
-    }
+//    pub fn close(out_file: PathBuf, channel_token_file: Option<PathBuf>) -> Result<(), String> {
+//        // output the merch-close-tx (only thing merchant can broadcast to close channel)
+//        let ser_merch_state = read_file("merch_state.json").unwrap();
+//        let _merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
+//
+//        let ser_channel_token = match channel_token_file {
+//            Some(ctf) => handle_file_error!(read_pathfile(ctf.clone()), ctf),
+//            None => return Err(String::from("Channel-token file required!"))
+//        };
+//        let channel_token: ChannelMPCToken = serde_json::from_str(&ser_channel_token).unwrap();
+//
+//        let _channel_id = match channel_token.compute_channel_id() {
+//            Ok(n) => hex::encode(&n),
+//            Err(e) => return Err(e.to_string())
+//        };
+//
+//        // TODO: get the merch-close-tx for the given channel-id
+//        let merch_close_tx = String::from("retrieve the merch-close-tx here from merch-state for channel-id");
+//        write_pathfile(out_file, merch_close_tx)?;
+//        Ok(())
+//    }
 }
