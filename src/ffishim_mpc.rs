@@ -370,7 +370,8 @@ pub mod ffishim_mpc {
         let txid_result = deserialize_hex_string(ser_txid);
         let txid = handle_errors!(txid_result);
 
-        let cust_sk_result = deserialize_hex_string(ser_cust_sk);
+        // Deserialize the sk_c
+        let cust_sk_result: ResultSerdeType<secp256k1::SecretKey> = deserialize_result_object(ser_cust_sk);
         let cust_sk = handle_errors!(cust_sk_result);
 
         let cust_pk_result = deserialize_hex_string(ser_cust_pk);
@@ -420,7 +421,11 @@ pub mod ffishim_mpc {
     #[no_mangle]
     pub extern fn customer_sign_merch_close_tx(ser_cust_sk: *mut c_char, ser_merch_tx_preimage: *mut c_char) -> *mut c_char {
 
-        let cust_sk_result = deserialize_hex_string(ser_cust_sk);
+//        let cust_sk_result = deserialize_hex_string(ser_cust_sk);
+//        let cust_sk = handle_errors!(cust_sk_result);
+
+        // Deserialize the sk_c
+        let cust_sk_result: ResultSerdeType<secp256k1::SecretKey> = deserialize_result_object(ser_cust_sk);
         let cust_sk = handle_errors!(cust_sk_result);
 
         let tx_preimage_result = deserialize_hex_string(ser_merch_tx_preimage);
@@ -455,7 +460,8 @@ pub mod ffishim_mpc {
         let cust_sig_result = deserialize_hex_string(ser_cust_sig);
         let cust_sig = handle_errors!(cust_sig_result);
 
-        let merch_sk_result = deserialize_hex_string(ser_merch_sk);
+        // Deserialize the sk_m
+        let merch_sk_result: ResultSerdeType<secp256k1::SecretKey> = deserialize_result_object(ser_merch_sk);
         let merch_sk = handle_errors!(merch_sk_result);
 
         let (_, tx_params) = handle_errors!(txutil::merchant_form_close_transaction(escrow_txid, cust_pk, merch_pk, merch_close_pk, cust_bal_sats, merch_bal_sats, to_self_delay));

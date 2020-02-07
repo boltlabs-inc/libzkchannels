@@ -211,8 +211,11 @@ pub struct CustomerMPCState {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct InitCustState {
     pub pk_c: secp256k1::PublicKey,
+    pub close_pk: secp256k1::PublicKey,
     pub nonce: FixedSizeArray16,
-    pub rev_lock: FixedSizeArray32
+    pub rev_lock: FixedSizeArray32,
+    pub cust_bal: i64,
+    pub merch_bal: i64
 }
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -279,6 +282,10 @@ impl CustomerMPCState {
             channel_initialized: false,
             net_config: None
         };
+    }
+
+    pub fn get_secret_key(&self) -> secp256k1::SecretKey {
+        return self.sk_c.clone();
     }
 
     pub fn set_mpc_connect_type(&mut self, conn_type: u32) {
@@ -362,8 +369,11 @@ impl CustomerMPCState {
         let s = self.state.unwrap();
         Ok(InitCustState {
             pk_c: self.pk_c.clone(),
+            close_pk: self.payout_pk.clone(),
             nonce: FixedSizeArray16(s.get_nonce()),
-            rev_lock: FixedSizeArray32(s.get_rev_lock())
+            rev_lock: FixedSizeArray32(s.get_rev_lock()),
+            cust_bal: self.cust_balance,
+            merch_bal: self.merch_balance
         })
     }
 
@@ -801,6 +811,10 @@ impl MerchantMPCState {
             conn_type: 0,
             net_config: None
         }
+    }
+
+    pub fn get_secret_key(&self) -> secp256k1::SecretKey {
+        return self.sk_m.clone();
     }
 
     pub fn activate_channel(&self, channel_token: &ChannelMPCToken, s_0: &State) -> [u8; 32] {
