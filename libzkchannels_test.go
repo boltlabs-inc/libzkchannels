@@ -21,7 +21,7 @@ func Test_fullProtocol(t *testing.T) {
 
 	inputSats := int64(10000)
 	custBal := int64(9000)
-	merchBal := int64(100)
+	merchBal := int64(0)
 
 	channelToken, custState, err := InitCustomer(fmt.Sprintf("\"%v\"", *merchState.PkM), custBal, merchBal, "cust")
 	assert.Nil(t, err)
@@ -42,7 +42,8 @@ func Test_fullProtocol(t *testing.T) {
 	// fmt.Println("merchPk :=> ", merchPk)
 	// fmt.Println("merchClosePk :=> ", merchClosePk)
 
-	signedEscrowTx, escrowTxid, escrowPrevout, err := FormEscrowTx(cust_utxo_txid, 0, inputSats, custBal, custSk, custPk, merchPk, changePk)
+	outputSats := custBal + merchBal
+	signedEscrowTx, escrowTxid, escrowPrevout, err := FormEscrowTx(cust_utxo_txid, 0, inputSats, outputSats, custSk, custPk, merchPk, changePk)
 	assert.Nil(t, err)
 
 	// fmt.Println("escrow txid => ", escrowTxid)
