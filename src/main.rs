@@ -1,6 +1,6 @@
 extern crate rand;
 extern crate zkchannels;
-extern crate secp256k1;
+extern crate secp256k1_boltlabs as secp256k1;
 extern crate structopt;
 extern crate serde;
 extern crate bufstream;
@@ -333,6 +333,7 @@ fn main() {
                 Err(e) => println!("Initialize phase failed with error: {}", e),
                 _ => ()
             },
+            // TODO: clean this up
             Party::CUST => match cust::init(create_connection!(init), init.txid.unwrap(), init.index.unwrap(), init.input_sats.unwrap(), init.output_sats.unwrap()) {
                 Err(e) => println!("Initialize phase failed with error: {}", e),
                 _ => ()
@@ -357,7 +358,7 @@ fn main() {
             },
         },
         Command::CLOSE(close) => match close.party {
-            Party::MERCH => println!("Signed merch-close-tx is sufficient to initiate closure for channel."), // merch::close(close.file, close.channel_token).unwrap()
+            Party::MERCH => println!("Signed merch-close-tx is sufficient to initiate closure for channel."),
             Party::CUST => cust::close(close.file, close.from_escrow).unwrap(),
         },
     }
@@ -394,13 +395,13 @@ mod cust {
     pub fn init(conn: &mut Conn, txid: String, index: u32, input_sats: i64, output_sats: i64) -> Result<(), String> {
         let mut rng = &mut rand::thread_rng();
 
-        let ser_cust_state = read_file("cust_state.json").unwrap();
+        let ser_cust_state = handle_error_result!(read_file("cust_state.json"));
         let mut cust_state: CustomerMPCState = handle_error_result!(serde_json::from_str(&ser_cust_state));
 
-        let ser_channel_state = read_file("cust_channel_state.json").unwrap();
+        let ser_channel_state = handle_error_result!(read_file("cust_channel_state.json"));
         let channel_state: ChannelMPCState = handle_error_result!(serde_json::from_str(&ser_channel_state));
 
-        let ser_channel_token = read_file("cust_channel_token.json").unwrap();
+        let ser_channel_token = handle_error_result!(read_file("cust_channel_token.json"));
         let mut channel_token: ChannelMPCToken = handle_error_result!(serde_json::from_str(&ser_channel_token));
 
         let to_self_delay: [u8; 2] = [0xcf, 0x05];
@@ -415,7 +416,7 @@ mod cust {
 
         println!("change pk: {}", hex::encode(&change_pk_vec));
 
-        let input_txid = hex::decode(txid).unwrap();
+        let input_txid = handle_error_result!(hex::decode(txid));
 
         // form the escrow transaction
         let (signed_tx, escrow_txid, escrow_prevout) =
@@ -485,10 +486,10 @@ mod cust {
     pub fn activate(conn: &mut Conn) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
 
-        let ser_cust_state = read_file("cust_state.json").unwrap();
+        let ser_cust_state = handle_error_result!(read_file("cust_state.json"));
         let mut cust_state: CustomerMPCState = serde_json::from_str(&ser_cust_state).unwrap();
 
-        let ser_channel_token = read_file("cust_channel_token.json").unwrap();
+        let ser_channel_token = handle_error_result!(read_file("cust_channel_token.json"));
         let channel_token: ChannelMPCToken = handle_error_result!(serde_json::from_str(&ser_channel_token));
 
         let s0 = mpc::activate_customer(rng, &mut cust_state);
@@ -509,10 +510,10 @@ mod cust {
     pub fn pay(amount: i64, conn: &mut Conn, verbose: bool) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
 
-        let ser_channel_state = read_file("cust_channel_state.json").unwrap();
+        let ser_channel_state = handle_error_result!(read_file("cust_channel_state.json"));
         let mut channel_state: ChannelMPCState = serde_json::from_str(&ser_channel_state).unwrap();
 
-        let ser_cust_state = read_file("cust_state.json").unwrap();
+        let ser_cust_state = handle_error_result!(read_file("cust_state.json"));
         let mut cust_state: CustomerMPCState = serde_json::from_str(&ser_cust_state).unwrap();
 
         if verbose {
@@ -581,7 +582,7 @@ mod cust {
     }
 
     pub fn close(out_file: PathBuf, from_escrow: bool) -> Result<(), String> {
-        let ser_cust_state = read_file("cust_state.json").unwrap();
+        let ser_cust_state = handle_error_result!(read_file("cust_state.json"));
         let cust_state: CustomerMPCState = serde_json::from_str(&ser_cust_state).unwrap();
 
         let closing_tx = match from_escrow {

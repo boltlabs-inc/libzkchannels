@@ -101,7 +101,7 @@ func Test_fullProtocol(t *testing.T) {
 	// unlink should happen at this point (0-value payment)
 	fmt.Println("proceed with pay protocol...")
 
-	revState, newState, channelState, custState, err := PreparePaymentCustomer(channelState, 10, custState)
+	revState, newState, custState, err := PreparePaymentCustomer(channelState, 10, custState)
 	assert.Nil(t, err)
 
 	assert.NotNil(t, revState)

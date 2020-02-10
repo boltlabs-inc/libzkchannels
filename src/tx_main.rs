@@ -1,6 +1,6 @@
 extern crate rand;
 extern crate zkchannels;
-extern crate secp256k1;
+extern crate secp256k1_boltlabs as secp256k1;
 extern crate structopt;
 extern crate serde;
 extern crate bufstream;

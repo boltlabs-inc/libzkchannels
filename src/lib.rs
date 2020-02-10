@@ -24,7 +24,7 @@ extern crate ff_bl as ff;
 extern crate pairing_bl as pairing;
 extern crate rand;
 
-extern crate secp256k1;
+extern crate secp256k1_boltlabs as secp256k1;
 extern crate time;
 extern crate sha2;
 
@@ -768,7 +768,7 @@ pub mod mpc {
     /// output: new state (after payment), revocation lock commitment, revocation lock, revocation secret
     /// (only send revocation lock commitment to merchant)
     ///
-    pub fn pay_prepare_customer<R: Rng>(csprng: &mut R, channel: &mut ChannelMPCState, amount: i64, cust_state: &mut CustomerMPCState) -> Result<(State, RevokedState), String> {
+    pub fn pay_prepare_customer<R: Rng>(csprng: &mut R, channel: &ChannelMPCState, amount: i64, cust_state: &mut CustomerMPCState) -> Result<(State, RevokedState), String> {
         // check if payment on current balance is greater than dust limit
         let new_balance = match amount > 0 {
             true => cust_state.cust_balance - amount, // positive value
@@ -1570,7 +1570,6 @@ mod tests {
                                     merch_prevout: FixedSizeArray32(merch_prevout) };
     }
 
-
     #[test]
     #[ignore]
     #[cfg(feature = "mpc-bitcoin")]
@@ -1596,7 +1595,7 @@ mod tests {
 
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
-        let (new_state, revoked_state) = mpc::pay_prepare_customer(&mut rng, &mut channel, 10, &mut cust_state).unwrap();
+        let (new_state, revoked_state) = mpc::pay_prepare_customer(&mut rng, &channel, 10, &mut cust_state).unwrap();
         let rev_lock_com = revoked_state.rev_lock_com.0;
 
         let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, s0.get_nonce(), &mut merch_state);
@@ -1612,7 +1611,6 @@ mod tests {
         println!("pt_mask_r => {}", hex::encode(&pay_token_mask_r));
         assert_eq!(hex::encode(pay_token_mask), "f53a27a851a43c7843c4781962a54fa36cd32e3254e7adaf3e742870ecab92ae");
         assert_eq!(hex::encode(pay_token_mask_r), "e1b863eabe75342a427d8e1954787822");
-
     }
 
 rusty_fork_test! {

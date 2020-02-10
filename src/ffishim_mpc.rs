@@ -176,18 +176,18 @@ pub mod ffishim_mpc {
 
         // Deserialize the channel_state
         let channel_state_result: ResultSerdeType<ChannelMPCState> = deserialize_result_object(ser_channel_state);
-        let mut channel_state = handle_errors!(channel_state_result);
+        let channel_state = handle_errors!(channel_state_result);
 
         // Deserialize the cust_state
         let cust_state_result: ResultSerdeType<CustomerMPCState> = deserialize_result_object(ser_cust_state);
         let mut cust_state = handle_errors!(cust_state_result);
 
         // We change the channel state
-        let (state, rev_state) = match mpc::pay_prepare_customer(rng, &mut channel_state, amount, &mut cust_state) {
+        let (state, rev_state) = match mpc::pay_prepare_customer(rng, &channel_state, amount, &mut cust_state) {
             Ok(n) => n,
             Err(e) => return error_message(e)
         };
-        let ser = ["{\'rev_state\':\'", serde_json::to_string(&rev_state).unwrap().as_str(), "\', \'state\':\'", serde_json::to_string(&state).unwrap().as_str(), "\', \'channel_state\':\'", serde_json::to_string(&channel_state).unwrap().as_str(), "\', \'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\'}"].concat();
+        let ser = ["{\'rev_state\':\'", serde_json::to_string(&rev_state).unwrap().as_str(), "\', \'state\':\'", serde_json::to_string(&state).unwrap().as_str(), "\', \'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
