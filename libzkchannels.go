@@ -362,14 +362,15 @@ func PreparePaymentCustomer(channelState ChannelState, amount int64, custState C
 		return RevokedState{}, State{}, CustState{}, err
 	}
 
-	err = json.Unmarshal([]byte(r.CustState), &custState)
+	newCustState := CustState{}
+	err = json.Unmarshal([]byte(r.CustState), &newCustState)
 	if err != nil {
 		return RevokedState{}, State{}, CustState{}, err
 	}
 	revState := RevokedState{}
 	err = json.Unmarshal([]byte(r.RevState), &revState)
 
-	return revState, state, custState, err
+	return revState, state, newCustState, err
 }
 
 func PreparePaymentMerchant(nonce string, merchState MerchState) (string, MerchState, error) {
