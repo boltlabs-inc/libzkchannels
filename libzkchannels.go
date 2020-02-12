@@ -31,6 +31,8 @@ type setupResp struct {
 	CustSig         string `json:"cust_sig"`
 	EscrowSig       string `json:"escrow_sig"`
 	MerchSig        string `json:"merch_sig"`
+	InitCustState   string `json:"init_state"`
+	InitHash        string `json:"init_hash"`
 	Error           string `json:"error"`
 }
 
@@ -129,13 +131,14 @@ type FundingTxInfo struct {
 	InitMerchBal  int64  `json:"init_merch_bal"`
 }
 
-// type ChannelPublicKeys struct {
-// 	CustPk         string `json:"cust_pk"`
-// 	CustClosePk    string `json:"cust_close_pk"`
-// 	MerchPk        string `json:"merch_pk"`
-// 	MerchClosePk   string `json:"merch_close_pk"`
-// 	MerchDisputePk string `json:"merch_disp_pk"`
-// }
+type InitCustState struct {
+	PkC      *string `json:"pk_c"`
+	ClosePk  *string `json:"close_pk"`
+	Nonce    string  `json:"nonce"`
+	RevLock  string  `json:"rev_lock"`
+	CustBal  int64   `json:"cust_bal"`
+	MerchBal int64   `json:"merch_bal"`
+}
 
 func ChannelSetup(name string, channelSupport bool) (ChannelState, error) {
 	resp := C.GoString(C.mpc_channel_setup(C.CString(name), C.uint(btoi(channelSupport))))
@@ -279,6 +282,48 @@ func CustomerSignInitCustCloseTx(tx FundingTxInfo, channelState ChannelState, ch
 	err = json.Unmarshal([]byte(r.CustState), &custState)
 	return r.IsOk, channelToken, custState, err
 
+}
+
+func CustomerGetInitialState(custState CustState) (InitCustState, string, error) {
+	serCustState, err := json.Marshal(custState)
+	if err != nil {
+		return InitCustState{}, "", err
+	}
+
+	resp := C.GoString(C.mpc_get_initial_state(C.CString(string(serCustState))))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return InitCustState{}, "", err
+	}
+	initCustState := InitCustState{}
+	err = json.Unmarshal([]byte(r.InitCustState), &initCustState)
+	return initCustState, r.InitHash, err
+}
+
+func MerchantValidateInitialState(channelToken ChannelToken, initCustState InitCustState, initHash string, merchState MerchState) (bool, MerchState, error) {
+	serMerchState, err := json.Marshal(merchState)
+	if err != nil {
+		return false, MerchState{}, err
+	}
+
+	serChannelToken, err := json.Marshal(channelToken)
+	if err != nil {
+		return false, MerchState{}, err
+	}
+
+	serInitCustState, err := json.Marshal(initCustState)
+	if err != nil {
+		return false, MerchState{}, err
+	}
+
+	resp := C.GoString(C.mpc_validate_initial_state(C.CString(string(serChannelToken)), C.CString(string(serInitCustState)), C.CString(initHash), C.CString(string(serMerchState))))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return false, MerchState{}, err
+	}
+
+	err = json.Unmarshal([]byte(r.MerchState), &merchState)
+	return r.IsOk, merchState, err
 }
 
 func ActivateCustomer(custState CustState) (State, CustState, error) {

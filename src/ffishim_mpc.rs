@@ -9,7 +9,8 @@ pub mod ffishim_mpc {
     use libc::c_char;
     use std::ffi::{CStr, CString};
     use std::str;
-    use channels_mpc::{CustomerMPCState, MerchantMPCState, ChannelMPCToken, ChannelMPCState, MaskedTxMPCInputs};
+    use channels_mpc::{CustomerMPCState, MerchantMPCState, ChannelMPCToken, InitCustState,
+                       ChannelMPCState, MaskedTxMPCInputs};
     use wallet::State;
     use hex::FromHexError;
     use mpc::RevokedState;
@@ -90,9 +91,7 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
-
-
-    #[no_mangle]  // ser_tx: *mut c_char
+    #[no_mangle]
     pub extern fn mpc_init_customer(ser_pk_m: *mut c_char, cust_bal: i64, merch_bal: i64, name_ptr: *const c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
 
@@ -107,6 +106,45 @@ pub mod ffishim_mpc {
         // We change the channel state
         let (channel_token, cust_state) = mpc::init_customer(rng, &pk_m, cust_bal,merch_bal, name);
         let ser = ["{\'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\', \'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str(), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    // VALIDATE INITIAL STATE
+    #[no_mangle]
+    pub extern fn mpc_get_initial_state(ser_cust_state: *mut c_char) -> *mut c_char {
+        // Deserialize the cust_state
+        let cust_state_result: ResultSerdeType<CustomerMPCState> = deserialize_result_object(ser_cust_state);
+        let cust_state = handle_errors!(cust_state_result);
+
+        let (init_state, init_hash) = handle_errors!(mpc::get_initial_state(&cust_state));
+        let ser = ["{\'init_state\':\'", serde_json::to_string(&init_state).unwrap().as_str(), "\', \'init_hash\':\'", &hex::encode(init_hash), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern fn mpc_validate_initial_state(ser_channel_token: *mut c_char, ser_init_state: *mut c_char, ser_init_hash: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
+        // Deserialize the ChannelToken
+        let channel_token_result: ResultSerdeType<ChannelMPCToken> = deserialize_result_object(ser_channel_token);
+        let channel_token = handle_errors!(channel_token_result);
+
+        // Deserialize the init state
+        let init_state_result: ResultSerdeType<InitCustState> = deserialize_result_object(ser_init_state);
+        let init_state = handle_errors!(init_state_result);
+
+        // Deserialize init hash
+        let init_hash_result = deserialize_hex_string(ser_init_hash);
+        let hash_buf = handle_errors!(init_hash_result);
+        let mut init_hash = [0u8; 32];
+        init_hash.copy_from_slice(hash_buf.as_slice());
+
+        // Deserialize the merch_state
+        let merch_state_result: ResultSerdeType<MerchantMPCState> = deserialize_result_object(ser_merch_state);
+        let mut merch_state = handle_errors!(merch_state_result);
+
+        let is_ok = handle_errors!(mpc::validate_initial_state(&channel_token, &init_state, init_hash, &mut merch_state));
+        let ser = ["{\'is_ok\':", &is_ok.to_string(), ", \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -143,7 +181,7 @@ pub mod ffishim_mpc {
         let mut merch_state = handle_errors!(merch_state_result);
 
         // We change the channel state
-        let pay_token = mpc::activate_merchant(channel_token, &state, &mut merch_state);
+        let pay_token = handle_errors!(mpc::activate_merchant(channel_token, &state, &mut merch_state));
         let ser = ["{\'pay_token\':\'", &hex::encode(pay_token), "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()

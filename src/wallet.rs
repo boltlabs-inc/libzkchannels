@@ -49,6 +49,8 @@ impl<E: Engine> fmt::Display for Wallet<E> {
 
 pub const NONCE_LEN: usize = 16;
 
+static STATE_HASH_PREFIX: &str = "ZKCHANNELS_STATE";
+
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct State {
     pub nonce: FixedSizeArray16, // 128-bits
@@ -84,9 +86,10 @@ impl State {
         self.rev_lock.0
     }
 
-    pub fn compute_fingerprint(&self) -> [u8; 32] {
-        let output_buf = self.serialize_compact();
-        // TODO: add prefix
+    pub fn compute_hash(&self) -> [u8; 32] {
+        let mut output_buf = Vec::new();
+        output_buf.extend(STATE_HASH_PREFIX.as_bytes());
+        output_buf.extend(self.serialize_compact());
         return hash_to_slice(&output_buf);
     }
 }

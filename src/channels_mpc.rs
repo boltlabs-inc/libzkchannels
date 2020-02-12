@@ -360,11 +360,8 @@ impl CustomerMPCState {
         Ok(())
     }
 
-    pub fn get_init_cust_state(&self) -> Result<InitCustState, String> {
+    pub fn get_initial_cust_state(&self) -> Result<InitCustState, String> {
         assert!(self.state.is_some());
-        if self.channel_initialized {
-            return Err(String::from("Customer state has already been initialized!"));
-        };
 
         let s = self.state.unwrap();
         Ok(InitCustState {
@@ -817,25 +814,82 @@ impl MerchantMPCState {
         return self.sk_m.clone();
     }
 
-    pub fn activate_channel(&self, channel_token: &ChannelMPCToken, s_0: &State) -> [u8; 32] {
-        // store the state inside the ActivateBucket
+    pub fn activate_channel(&self, channel_token: &ChannelMPCToken, s0: &State) -> Result<[u8; 32], String> {
+        // refer to the state stored inside ActivateBucket by the channel_id
         let channel_id = channel_token.compute_channel_id().unwrap();
-        let _channel_id_str = hex::encode(channel_id.to_vec());
-        // TODO: check that s_0 is consistent with init phase before signing
+        let channel_id_str = hex::encode(channel_id.to_vec());
 
+        // check that s_0 is consistent with init phase before signing
+        let s0_hash = s0.compute_hash();
+        let init_state_hash = match self.activate_map.get(&channel_id_str) {
+            Some(n) => n.compute_hash(),
+            None => return Err(String::from("activate_channel: Could not find initial state given channel token"))
+        };
+
+        if s0_hash != init_state_hash {
+            return Err(String::from("activate_channel: Initial state on activation does not match stored state"))
+        }
+
+        // proceed to sign the initial state
         let key = self.hmac_key.get_bytes();
-        let s_vec= s_0.serialize_compact();
+        let s_vec= s0.serialize_compact();
         let init_pay_token = hmac_sign(key, &s_vec);
 
-        return init_pay_token;
+        Ok(init_pay_token)
     }
 
-    pub fn store_initial_state(&mut self, channel_token: &ChannelMPCToken, s0: &State) -> bool {
+    pub fn validate_initial_state(&mut self, channel_token: &ChannelMPCToken, init_state: &InitCustState, init_state_hash: [u8; 32]) -> Result<bool, String> {
         let channel_id = channel_token.compute_channel_id().unwrap();
         let channel_id_str= hex::encode(channel_id.to_vec());
-        self.activate_map.insert(channel_id_str, s0.clone());
 
-        return true;
+        // check if pk_c
+        let pk_c = match channel_token.pk_c {
+            Some(pk) => pk,
+            None => return Err(String::from("Cannot validate channel token: pk_c not set"))
+        };
+
+        if pk_c != init_state.pk_c {
+            return Err(String::from("Init state pk_c does not match channel token pk_c"));
+        }
+
+        if channel_token.pk_m != self.pk_m {
+            return Err(String::from("Channel token pk_m does not match merch state pk_m"));
+        }
+
+        // cache prevout from escrow_txid and escrow_prevout
+        let mut escrow_prevout = [0u8; 32];
+        let mut merch_prevout = [0u8; 32];
+
+        let mut prevout_preimage1: Vec<u8> = Vec::new();
+        prevout_preimage1.extend(channel_token.escrow_txid.0.iter()); // txid1
+        prevout_preimage1.extend(vec![0x00, 0x00, 0x00, 0x00]); // index
+        let result1 = Sha256::digest(&Sha256::digest(&prevout_preimage1));
+        escrow_prevout.copy_from_slice(&result1);
+
+        let mut prevout_preimage2: Vec<u8> = Vec::new();
+        prevout_preimage2.extend(channel_token.merch_txid.0.iter()); // txid2
+        prevout_preimage2.extend(vec![0x00, 0x00, 0x00, 0x00]); // index
+        let result2 = Sha256::digest(&Sha256::digest(&prevout_preimage2));
+        merch_prevout.copy_from_slice(&result2);
+
+        let s0 = State {
+            bc: init_state.cust_bal,
+            bm: init_state.merch_bal,
+            nonce: init_state.nonce.clone(),
+            rev_lock: init_state.rev_lock.clone(),
+            escrow_txid: channel_token.escrow_txid,
+            escrow_prevout: FixedSizeArray32(escrow_prevout),
+            merch_txid: channel_token.merch_txid,
+            merch_prevout: FixedSizeArray32(merch_prevout),
+        };
+
+        if init_state_hash != s0.compute_hash() {
+            return Err(String::from("Initial state not well-formed"));
+        }
+
+        self.activate_map.insert(channel_id_str, s0);
+
+        Ok(true)
     }
 
     pub fn generate_pay_mask_commitment<R: Rng>(&mut self, csprng: &mut R, nonce: [u8; NONCE_LEN]) -> Result<[u8; 32], String> {
@@ -1100,6 +1154,12 @@ rusty_fork_test!
         // get initial state
         let s_0 = cust_state.get_current_state();
 
+        // retrieve the initial state from cust state
+        let init_cust_state = cust_state.get_initial_cust_state().unwrap();
+
+        // validate the initial state with merchant
+        merch_state.validate_initial_state(&channel_token, &init_cust_state, s_0.compute_hash());
+
         println!("Begin activate phase for channel");
         println!("customer channel token: {}", &serde_json::to_string(&channel_token).unwrap());
 
@@ -1108,11 +1168,11 @@ rusty_fork_test!
         println!("Initial state: {}", s_0);
         println!("Init rev_lock commitment => {:?}", r_com);
 
-        // send the initial state s_0 to merchant
-        merch_state.store_initial_state(&channel_token, &s_0);
-
         // activate channel - generate pay_token
-        let pay_token_0 = merch_state.activate_channel(&channel_token, &s_0);
+        let pay_token_0 = match merch_state.activate_channel(&channel_token, &s_0) {
+            Ok(p) => p,
+            Err(e) => panic!(e)
+        };
 
         println!("Pay Token on s_0 => {:?}", pay_token_0);
 
@@ -1227,6 +1287,12 @@ rusty_fork_test!
         // get initial state
         let s_0 = cust_state.get_current_state();
 
+        // retrieve the initial state from cust state
+        let init_cust_state = cust_state.get_initial_cust_state().unwrap();
+
+        // validate the initial state with merchant
+        merch_state.validate_initial_state(&channel_token, &init_cust_state, s_0.compute_hash());
+
         println!("Begin activate phase for channel");
         println!("merchant channel token: {}", &serde_json::to_string(&channel_token).unwrap());
 
@@ -1235,11 +1301,11 @@ rusty_fork_test!
         println!("Initial state: {}", s_0);
         println!("Init rev_lock commitment => {:?}", r_com);
 
-        // send the initial state s_0 to merchant
-        merch_state.store_initial_state(&channel_token, &s_0);
-
         // activate channel - generate pay_token
-        let pay_token_0 = merch_state.activate_channel(&channel_token, &s_0);
+        let pay_token_0 = match merch_state.activate_channel(&channel_token, &s_0) {
+            Ok(p) => p,
+            Err(e) => panic!(e)
+        };
 
         println!("Pay Token on s_0 => {:?}", pay_token_0);
 
@@ -1314,10 +1380,7 @@ rusty_fork_test!
         // initialize the channel token on with pks
         let mut channel_token = cust_state.generate_init_channel_token(&merch_state.pk_m);
 
-        let ser_channel_token = serde_json::to_string(&channel_token).unwrap();
-        println!("Channel token: {}", ser_channel_token);
-        let orig_channel_token: ChannelMPCToken = serde_json::from_str(&ser_channel_token).unwrap();
-        assert_eq!(channel_token, orig_channel_token);
+        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info);
 
         // generate and send initial state to the merchant
         cust_state.generate_init_state(&mut rng, &mut channel_token);
@@ -1329,5 +1392,9 @@ rusty_fork_test!
         let orig_state: State = serde_json::from_str(&ser_state).unwrap();
         assert_eq!(s_0, orig_state);
 
+        let ser_channel_token = serde_json::to_string(&channel_token).unwrap();
+        println!("Ser channel token: {}", ser_channel_token);
+        let orig_channel_token: ChannelMPCToken = serde_json::from_str(&ser_channel_token).unwrap();
+        assert_eq!(channel_token, orig_channel_token);
     }
 }

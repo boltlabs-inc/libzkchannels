@@ -260,6 +260,10 @@ void mpc_free_string(char *pointer);
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)
+char *mpc_get_initial_state(char *ser_cust_state);
+#endif
+
+#if defined(DEFINE_MPC_BITCOIN)
 char *mpc_init_customer(char *ser_pk_m, int64_t cust_bal, int64_t merch_bal, const char *name_ptr);
 #endif
 
@@ -310,6 +314,13 @@ char *mpc_prepare_payment_customer(char *ser_channel_state, int64_t amount, char
 
 #if defined(DEFINE_MPC_BITCOIN)
 char *mpc_prepare_payment_merchant(char *ser_nonce, char *ser_merch_state);
+#endif
+
+#if defined(DEFINE_MPC_BITCOIN)
+char *mpc_validate_initial_state(char *ser_channel_token,
+                                 char *ser_init_state,
+                                 char *ser_init_hash,
+                                 char *ser_merch_state);
 #endif
 
 extern void test_ecdsa_e2e(EcdsaPartialSig_l partial,

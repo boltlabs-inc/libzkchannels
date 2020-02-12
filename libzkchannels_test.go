@@ -84,6 +84,15 @@ func Test_fullProtocol(t *testing.T) {
 	isOk, channelToken, custState, err := CustomerSignInitCustCloseTx(txInfo, channelState, channelToken, escrowSig, merchSig, custState)
 	assert.Nil(t, err)
 
+	initCustState, initHash, err := CustomerGetInitialState(custState)
+
+	fmt.Println("initial cust state: ", initCustState)
+	fmt.Println("initial hash: ", initHash)
+
+	isOk, merchState, err = MerchantValidateInitialState(channelToken, initCustState, initHash, merchState)
+	assert.Nil(t, err)
+	fmt.Println("merchant validates initial state: ", isOk)
+
 	fmt.Println("initial close transactions validated: ", isOk)
 
 	fmt.Println("can now broadcast <signed-escrow-tx>...")
