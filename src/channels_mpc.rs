@@ -430,7 +430,7 @@ impl CustomerMPCState {
     // customer side of mpc
     pub fn execute_mpc_context(&mut self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken,
                                old_state: State, new_state: State, paytoken_mask_com: [u8; 32], rev_lock_com: [u8;32], amount: i64) -> Result<bool, String> {
-        // assert!(self.channel_initialized);
+        assert!(self.channel_initialized);
         // load the key_com from channel state
         let key_com = channel_state.get_key_com();
 
