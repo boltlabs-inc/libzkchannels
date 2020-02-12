@@ -235,7 +235,7 @@ pub mod btc {
         let address_format = match input.address_format {
             "p2pkh" => BitcoinFormat::P2PKH,
             "p2sh_p2wpkh" => BitcoinFormat::P2SH_P2WPKH,
-            "native_p2wsh" => BitcoinFormat::NATIVE_P2WSH,
+            "native_p2wsh" => BitcoinFormat::P2WSH,
             _ => panic!("do not currently support specified address format as funding input: {}", input.address_format)
         };
         let address = private_key.to_address(&address_format).unwrap();
@@ -397,7 +397,7 @@ pub mod btc {
         let address_format = match input.address_format {
             "p2pkh" => BitcoinFormat::P2PKH,
             "p2sh_p2wpkh" => BitcoinFormat::P2SH_P2WPKH,
-            "native_p2wsh" => BitcoinFormat::NATIVE_P2WSH,
+            "native_p2wsh" => BitcoinFormat::P2WSH,
             _ => return Err(format!("do not currently support specified address format: {}", input.address_format))
         };
 
@@ -412,7 +412,7 @@ pub mod btc {
         };
 
         let address = match address_format {
-            BitcoinFormat::NATIVE_P2WSH => BitcoinAddress::<N>::p2wsh(redeem_script.as_ref().unwrap()).unwrap(),
+            BitcoinFormat::P2WSH => BitcoinAddress::<N>::p2wsh(redeem_script.as_ref().unwrap()).unwrap(),
             _ => return Err(format!("address format {} not supported right now", address_format)) // private_key.to_address(&address_format).unwrap()
         };
         // println!("address: {}", address);
@@ -466,7 +466,7 @@ pub mod btc {
             lock_time: 0
         };
         let address_format = match input.address_format {
-            "native_p2wsh" => BitcoinFormat::NATIVE_P2WSH,
+            "native_p2wsh" => BitcoinFormat::P2WSH,
             _ => panic!("do not currently support specified address format: {}", input.address_format)
         };
 
@@ -483,7 +483,7 @@ pub mod btc {
             }
         };
         let address = match address_format {
-            BitcoinFormat::NATIVE_P2WSH => BitcoinAddress::<N>::p2wsh(redeem_script.as_ref().unwrap()).unwrap(),
+            BitcoinFormat::P2WSH => BitcoinAddress::<N>::p2wsh(redeem_script.as_ref().unwrap()).unwrap(),
             _ => panic!("do not currently support specified address format")
         };
         // println!("address: {}", address);
