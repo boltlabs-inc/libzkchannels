@@ -959,7 +959,7 @@ pub mod txutil {
         let musig_output = MultiSigOutput {
             pubkey1: merch_pk,
             pubkey2: cust_pk,
-            address_format: "native_p2wsh",
+            address_format: "p2wsh",
             amount: output_sats // assumes already in sats
         };
 
@@ -995,7 +995,7 @@ pub mod txutil {
         let escrow_index = 0;
 
         let input = Input {
-            address_format: "native_p2wsh",
+            address_format: "p2wsh",
             // outpoint of escrow
             transaction_id: escrow_txid,
             index: escrow_index,

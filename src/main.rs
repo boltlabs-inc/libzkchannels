@@ -431,11 +431,7 @@ mod cust {
         // get the cust-sig on the merch-close-tx
         let cust_sig = handle_error_result!(customer_sign_merch_close_transaction(cust_sk, merch_tx_preimage));
 
-        let init_cust_state = match cust_state.get_initial_cust_state() {
-            Ok(n) => n,
-            Err(e) => return Err(e.to_string())
-        };
-
+        let init_cust_state = handle_error_result!(cust_state.get_initial_cust_state());
         // customer sends pk_c, n_0, rl_0, B_c, B_m, and escrow_txid/prevout to the merchant
         let msg0 = [handle_error_result!(serde_json::to_string(&cust_sig)),
                               handle_error_result!(serde_json::to_string(&escrow_txid)),
@@ -463,7 +459,6 @@ mod cust {
         };
 
         cust_state.set_funding_tx_info(&mut channel_token, &funding_tx)?;
-        // let pubkeys = cust_state.get_pubkeys(&channel_state, &channel_token);
 
         // now sign the customer's initial closing txs
         println!("Signing the initial closing transactions...");
@@ -471,6 +466,16 @@ mod cust {
             Ok(n) => n,
             Err(e) => return Err(e.to_string())
         };
+
+        // handle_error_result!(serde_json::to_string(&init_hash))];
+        let (init_cust_state, init_hash) = handle_error_result!(mpc::get_initial_state(&cust_state));
+        let msg2 = [handle_error_result!(serde_json::to_string(&channel_token)),
+                              handle_error_result!(serde_json::to_string(&init_cust_state)),
+                              handle_error_result!(serde_json::to_string(&init_hash))];
+        let msg3 = conn.send_and_wait(&msg2, None, false);
+
+        let res: bool = serde_json::from_str(&msg3.get(0).unwrap()).unwrap();
+        assert!(res);
 
         if got_close_tx {
             save_state_cust(channel_state, channel_token, cust_state)?;
@@ -636,7 +641,7 @@ mod merch {
     pub fn init(conn: &mut Conn) -> Result<(), String> {
         // build tx and sign it
         let ser_merch_state = read_file("merch_state.json").unwrap();
-        let merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
+        let mut merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
 
         let msg0 = conn.wait_for(None, false);
         // wait for cust_sig, escrow_txid and escrow_prevout
@@ -685,8 +690,20 @@ mod merch {
 
         let msg3 = [handle_error_result!(serde_json::to_string(&merch_txid)), handle_error_result!(serde_json::to_string(&merch_prevout)),
                                handle_error_result!(serde_json::to_string(&escrow_sig)), handle_error_result!(serde_json::to_string(&merch_sig))];
-        conn.send(&msg3);
+        let msg4 = conn.send_and_wait(&msg3, None, false);
 
+        let channel_token: ChannelMPCToken = serde_json::from_str(&msg4.get(0).unwrap()).unwrap();
+        let init_cust_state: InitCustState = serde_json::from_str(&msg4.get(1).unwrap()).unwrap();
+        let init_hash: [u8; 32] = serde_json::from_str(&msg4.get(2).unwrap()).unwrap();
+
+        let res = handle_error_result!(mpc::validate_initial_state(&channel_token, &init_cust_state, init_hash, &mut merch_state));
+        println!("Initial state for customer is correct: {}", res);
+
+        let msg5 = [handle_error_result!(serde_json::to_string(&res))];
+
+        conn.send(&msg5);
+
+        write_file("merch_state.json", handle_error_result!(serde_json::to_string(&merch_state)))?;
         write_file("signed_merch_close_tx.txt", hex::encode(&signed_merch_close_tx))?;
 
         Ok(())
@@ -697,17 +714,15 @@ mod merch {
         let mut merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
 
         let msg2 = conn.wait_for(None, false);
-        // TODO: verify msg2
 
         let channel_token: ChannelMPCToken = serde_json::from_str(&msg2.get(0).unwrap()).unwrap();
         let s0: State = serde_json::from_str(msg2[1].as_ref()).unwrap();
 
-        let pay_token = mpc::activate_merchant(channel_token, &s0, &mut merch_state);
+        let pay_token = handle_error_result!(mpc::activate_merchant(channel_token, &s0, &mut merch_state));
 
         let msg3 = [handle_error_result!(serde_json::to_string(&pay_token))];
         conn.send(&msg3);
 
-        // save_state_merch(channel_state, merch_state)
         write_file("merch_state.json", handle_error_result!(serde_json::to_string(&merch_state)))?;
         Ok(())
     }
@@ -735,8 +750,7 @@ mod merch {
         let msg1 = [hex::encode(&pay_token_mask_com)];
         conn.send(&msg1);
 
-        let result = mpc::pay_merchant(rng, &mut channel_state, nonce, pay_token_mask_com, rev_lock_com, amount, &mut merch_state);
-        let masked_inputs = result.unwrap();
+        let masked_inputs = handle_error_result!(mpc::pay_merchant(rng, &mut channel_state, nonce, pay_token_mask_com, rev_lock_com, amount, &mut merch_state));
         let msg3 = [handle_error_result!(serde_json::to_string(&masked_inputs))];
         let msg4 = conn.send_and_wait(&msg3, Some(String::from("Received revoked state")), true);
         let rev_state = serde_json::from_str(msg4.get(0).unwrap()).unwrap();

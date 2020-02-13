@@ -57,6 +57,23 @@ impl ChannelMPCToken {
 }
 
 #[cfg(feature = "mpc-bitcoin")]
+impl fmt::Display for ChannelMPCToken {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let pkc_hex = match self.pk_c {
+            Some(n) => hex::encode(n.serialize().to_vec()),
+            None => "None".to_string()
+        };
+        let pkm_hex = hex::encode(self.pk_m.serialize().to_vec());
+        let escrow_txid_hex = hex::encode(self.escrow_txid.0.to_vec());
+        let merch_txid_hex = hex::encode(self.merch_txid.0.to_vec());
+
+        write!(f, "ChannelMPCToken : (\npkc={}\npkm={}\nescrow_txid={:?}\nmerch_txid={:?}\n)",
+               pkc_hex, pkm_hex, escrow_txid_hex, merch_txid_hex)
+    }
+}
+
+
+#[cfg(feature = "mpc-bitcoin")]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ChannelMPCState {
     tx_fee: i64,
@@ -884,6 +901,7 @@ impl MerchantMPCState {
         };
 
         if init_state_hash != s0.compute_hash() {
+            println!("state: {}", s0);
             return Err(String::from("Initial state not well-formed"));
         }
 

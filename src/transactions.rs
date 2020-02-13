@@ -204,7 +204,7 @@ pub mod btc {
         txid_buf.reverse();
         // let txid_str = hex::encode(txid_buf);
         Input {
-            address_format: "native_p2wsh",
+            address_format: "p2wsh",
             // outpoint + txid
             transaction_id: txid_buf.to_vec(),
             index: index,
@@ -235,7 +235,7 @@ pub mod btc {
         let address_format = match input.address_format {
             "p2pkh" => BitcoinFormat::P2PKH,
             "p2sh_p2wpkh" => BitcoinFormat::P2SH_P2WPKH,
-            "native_p2wsh" => BitcoinFormat::P2WSH,
+            "p2wsh" => BitcoinFormat::P2WSH,
             _ => panic!("do not currently support specified address format as funding input: {}", input.address_format)
         };
         let address = private_key.to_address(&address_format).unwrap();
@@ -397,7 +397,7 @@ pub mod btc {
         let address_format = match input.address_format {
             "p2pkh" => BitcoinFormat::P2PKH,
             "p2sh_p2wpkh" => BitcoinFormat::P2SH_P2WPKH,
-            "native_p2wsh" => BitcoinFormat::P2WSH,
+            "p2wsh" => BitcoinFormat::P2WSH,
             _ => return Err(format!("do not currently support specified address format: {}", input.address_format))
         };
 
@@ -466,7 +466,7 @@ pub mod btc {
             lock_time: 0
         };
         let address_format = match input.address_format {
-            "native_p2wsh" => BitcoinFormat::P2WSH,
+            "p2wsh" => BitcoinFormat::P2WSH,
             _ => panic!("do not currently support specified address format: {}", input.address_format)
         };
 
@@ -581,7 +581,7 @@ mod tests {
         let musig_output = MultiSigOutput {
             pubkey1: hex::decode("027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb").unwrap(),
             pubkey2: hex::decode("037bed6ab680a171ef2ab564af25eff15c0659313df0bbfb96414da7c7d1e65882").unwrap(),
-            address_format: "native_p2wsh",
+            address_format: "p2wsh",
             amount: 39 * SATOSHI
         };
 
@@ -621,7 +621,7 @@ mod tests {
 
         // customer private key
         let input = Input {
-            address_format: "native_p2wsh",
+            address_format: "p2wsh",
             // outpoint + txid
             transaction_id: hex::decode("5eb0c50e6f725b88507cda84f339aba539bc99853436db610d6a476a207f82d9").unwrap(),
             index: 0,
@@ -665,7 +665,7 @@ mod tests {
     fn test_bitcoin_testnet_cust_close_from_escrow_tx() {
         let spend_from_escrow = true;
         let input = Input {
-            address_format: "native_p2wsh",
+            address_format: "p2wsh",
             // outpoint + txid
             transaction_id: hex::decode("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1").unwrap(),
             index: 0,
@@ -717,7 +717,7 @@ mod tests {
     fn test_bitcoin_testnet_cust_close_from_merch_tx() {
         let spend_from_escrow = false;
         let input = Input {
-            address_format: "native_p2wsh",
+            address_format: "p2wsh",
             // outpoint + txid
             transaction_id: hex::decode("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1").unwrap(),
             index: 0,

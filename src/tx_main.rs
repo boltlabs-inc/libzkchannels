@@ -180,7 +180,7 @@ mod cust {
         let musig_output = MultiSigOutput {
             pubkey1: hex::decode(escrow.merch_pubkey).unwrap(),
             pubkey2: hex::decode(escrow.cust_pubkey).unwrap(),
-            address_format: "native_p2wsh",
+            address_format: "p2wsh",
             amount: escrow.output_sats // assumes already in sats
         };
 
