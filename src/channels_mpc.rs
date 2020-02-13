@@ -57,6 +57,23 @@ impl ChannelMPCToken {
 }
 
 #[cfg(feature = "mpc-bitcoin")]
+impl fmt::Display for ChannelMPCToken {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let pkc_hex = match self.pk_c {
+            Some(n) => hex::encode(n.serialize().to_vec()),
+            None => "None".to_string()
+        };
+        let pkm_hex = hex::encode(self.pk_m.serialize().to_vec());
+        let escrow_txid_hex = hex::encode(self.escrow_txid.0.to_vec());
+        let merch_txid_hex = hex::encode(self.merch_txid.0.to_vec());
+
+        write!(f, "ChannelMPCToken : (\npkc={}\npkm={}\nescrow_txid={:?}\nmerch_txid={:?}\n)",
+               pkc_hex, pkm_hex, escrow_txid_hex, merch_txid_hex)
+    }
+}
+
+
+#[cfg(feature = "mpc-bitcoin")]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ChannelMPCState {
     tx_fee: i64,
@@ -199,6 +216,7 @@ pub struct CustomerMPCState {
     pay_tokens: HashMap<i32, FixedSizeArray32>,
     pay_token_mask_com: FixedSizeArray32,
     payout_sk: secp256k1::SecretKey,
+    payout_pk: secp256k1::PublicKey,
     pub conn_type: u32,
     cust_close_escrow_tx: String,
     cust_close_merch_tx: String,
@@ -210,8 +228,11 @@ pub struct CustomerMPCState {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct InitCustState {
     pub pk_c: secp256k1::PublicKey,
+    pub close_pk: secp256k1::PublicKey,
     pub nonce: FixedSizeArray16,
-    pub rev_lock: FixedSizeArray32
+    pub rev_lock: FixedSizeArray32,
+    pub cust_bal: i64,
+    pub merch_bal: i64
 }
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -251,6 +272,7 @@ impl CustomerMPCState {
         let mut _payout_sk: [u8; 32] = [0; 32];
         csprng.fill_bytes(&mut _payout_sk);
         let payout_sk = secp256k1::SecretKey::from_slice(&_payout_sk).unwrap();
+        let payout_pk = secp256k1::PublicKey::from_secret_key(&secp, &payout_sk);
 
         let mpc_outputs = HashMap::new();
         let pt_db = HashMap::new();
@@ -270,12 +292,17 @@ impl CustomerMPCState {
             pay_tokens: pt_db,
             pay_token_mask_com: FixedSizeArray32(pay_mask_com),
             payout_sk: payout_sk,
+            payout_pk: payout_pk,
             conn_type: 0,
             cust_close_escrow_tx: String::new(),
             cust_close_merch_tx: String::new(),
             channel_initialized: false,
             net_config: None
         };
+    }
+
+    pub fn get_secret_key(&self) -> secp256k1::SecretKey {
+        return self.sk_c.clone();
     }
 
     pub fn set_mpc_connect_type(&mut self, conn_type: u32) {
@@ -330,8 +357,10 @@ impl CustomerMPCState {
         self.pay_tokens.insert(0, FixedSizeArray32(pay_token));
     }
 
-    pub fn set_funding_tx_info(&mut self, channel_token: &mut ChannelMPCToken, tx: &FundingTxInfo) {
-        assert!(self.state.is_some());
+    pub fn set_funding_tx_info(&mut self, channel_token: &mut ChannelMPCToken, tx: &FundingTxInfo) -> Result<(), String> {
+        if self.state.is_none() {
+            return Err(String::from("Customer initial state has not been created!"))
+        }
 
         let mut s = self.state.unwrap();
         s.escrow_txid = tx.escrow_txid.clone();
@@ -344,19 +373,21 @@ impl CustomerMPCState {
 
         channel_token.escrow_txid = tx.escrow_txid.clone();
         channel_token.merch_txid = tx.merch_txid.clone();
+
+        Ok(())
     }
 
-    pub fn get_init_cust_state(&self) -> Result<InitCustState, String> {
+    pub fn get_initial_cust_state(&self) -> Result<InitCustState, String> {
         assert!(self.state.is_some());
-        if self.channel_initialized {
-            return Err(String::from("Customer state has already been initialized!"));
-        };
 
         let s = self.state.unwrap();
         Ok(InitCustState {
             pk_c: self.pk_c.clone(),
+            close_pk: self.payout_pk.clone(),
             nonce: FixedSizeArray16(s.get_nonce()),
-            rev_lock: FixedSizeArray32(s.get_rev_lock())
+            rev_lock: FixedSizeArray32(s.get_rev_lock()),
+            cust_bal: self.cust_balance,
+            merch_bal: self.merch_balance
         })
     }
 
@@ -416,14 +447,13 @@ impl CustomerMPCState {
     // customer side of mpc
     pub fn execute_mpc_context(&mut self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken,
                                old_state: State, new_state: State, paytoken_mask_com: [u8; 32], rev_lock_com: [u8;32], amount: i64) -> Result<bool, String> {
-        // assert!(self.channel_initialized);
-        let secp = secp256k1::Secp256k1::new();
+        assert!(self.channel_initialized);
         // load the key_com from channel state
         let key_com = channel_state.get_key_com();
 
         // get cust pub keys
         let cust_escrow_pub_key = self.pk_c.clone();
-        let cust_payout_pub_key = secp256k1::PublicKey::from_secret_key(&secp, &self.payout_sk);
+        let cust_payout_pub_key = self.payout_pk;
 
         let merch_escrow_pub_key= channel_token.pk_m.clone();
         let merch_dispute_key= channel_state.merch_dispute_pk.unwrap();
@@ -453,9 +483,8 @@ impl CustomerMPCState {
     }
 
     pub fn get_pubkeys(&self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken) -> ClosePublicKeys {
-        let secp = secp256k1::Secp256k1::new();
         let cust_escrow_pub_key = self.pk_c.serialize();
-        let cust_payout_pub_key = secp256k1::PublicKey::from_secret_key(&secp, &self.payout_sk).serialize();
+        let cust_payout_pub_key = self.payout_pk.serialize();
         let merch_escrow_pub_key= channel_token.pk_m.serialize();
         let merch_dispute_key= channel_state.merch_dispute_pk.unwrap().serialize();
         let merch_payout_pub_key = channel_state.merch_payout_pk.unwrap().serialize();
@@ -798,24 +827,87 @@ impl MerchantMPCState {
         }
     }
 
-    pub fn activate_channel(&self, channel_token: &ChannelMPCToken, s_0: &State) -> [u8; 32] {
-        // store the state inside the ActivateBucket
+    pub fn get_secret_key(&self) -> secp256k1::SecretKey {
+        return self.sk_m.clone();
+    }
+
+    pub fn activate_channel(&self, channel_token: &ChannelMPCToken, s0: &State) -> Result<[u8; 32], String> {
+        // refer to the state stored inside ActivateBucket by the channel_id
         let channel_id = channel_token.compute_channel_id().unwrap();
         let channel_id_str = hex::encode(channel_id.to_vec());
 
+        // check that s_0 is consistent with init phase before signing
+        let s0_hash = s0.compute_hash();
+        let init_state_hash = match self.activate_map.get(&channel_id_str) {
+            Some(n) => n.compute_hash(),
+            None => return Err(String::from("activate_channel: Could not find initial state given channel token"))
+        };
+
+        if s0_hash != init_state_hash {
+            return Err(String::from("activate_channel: Initial state on activation does not match stored state"))
+        }
+
+        // proceed to sign the initial state
         let key = self.hmac_key.get_bytes();
-        let s_vec= s_0.serialize_compact();
+        let s_vec= s0.serialize_compact();
         let init_pay_token = hmac_sign(key, &s_vec);
 
-        return init_pay_token;
+        Ok(init_pay_token)
     }
 
-    pub fn store_initial_state(&mut self, channel_token: &ChannelMPCToken, s0: &State) -> bool {
+    pub fn validate_initial_state(&mut self, channel_token: &ChannelMPCToken, init_state: &InitCustState, init_state_hash: [u8; 32]) -> Result<bool, String> {
         let channel_id = channel_token.compute_channel_id().unwrap();
         let channel_id_str= hex::encode(channel_id.to_vec());
-        self.activate_map.insert(channel_id_str, s0.clone());
 
-        return true;
+        // check if pk_c
+        let pk_c = match channel_token.pk_c {
+            Some(pk) => pk,
+            None => return Err(String::from("Cannot validate channel token: pk_c not set"))
+        };
+
+        if pk_c != init_state.pk_c {
+            return Err(String::from("Init state pk_c does not match channel token pk_c"));
+        }
+
+        if channel_token.pk_m != self.pk_m {
+            return Err(String::from("Channel token pk_m does not match merch state pk_m"));
+        }
+
+        // cache prevout from escrow_txid and escrow_prevout
+        let mut escrow_prevout = [0u8; 32];
+        let mut merch_prevout = [0u8; 32];
+
+        let mut prevout_preimage1: Vec<u8> = Vec::new();
+        prevout_preimage1.extend(channel_token.escrow_txid.0.iter()); // txid1
+        prevout_preimage1.extend(vec![0x00, 0x00, 0x00, 0x00]); // index
+        let result1 = Sha256::digest(&Sha256::digest(&prevout_preimage1));
+        escrow_prevout.copy_from_slice(&result1);
+
+        let mut prevout_preimage2: Vec<u8> = Vec::new();
+        prevout_preimage2.extend(channel_token.merch_txid.0.iter()); // txid2
+        prevout_preimage2.extend(vec![0x00, 0x00, 0x00, 0x00]); // index
+        let result2 = Sha256::digest(&Sha256::digest(&prevout_preimage2));
+        merch_prevout.copy_from_slice(&result2);
+
+        let s0 = State {
+            bc: init_state.cust_bal,
+            bm: init_state.merch_bal,
+            nonce: init_state.nonce.clone(),
+            rev_lock: init_state.rev_lock.clone(),
+            escrow_txid: channel_token.escrow_txid,
+            escrow_prevout: FixedSizeArray32(escrow_prevout),
+            merch_txid: channel_token.merch_txid,
+            merch_prevout: FixedSizeArray32(merch_prevout),
+        };
+
+        if init_state_hash != s0.compute_hash() {
+            println!("state: {}", s0);
+            return Err(String::from("Initial state not well-formed"));
+        }
+
+        self.activate_map.insert(channel_id_str, s0);
+
+        Ok(true)
     }
 
     pub fn generate_pay_mask_commitment<R: Rng>(&mut self, csprng: &mut R, nonce: [u8; NONCE_LEN]) -> Result<[u8; 32], String> {
@@ -858,12 +950,23 @@ impl MerchantMPCState {
     }
 
     // Merchant sign's the initial closing transaction (in the clear)
-    pub fn sign_initial_closing_transaction<N: BitcoinNetwork>(&self, _channel_state: &ChannelMPCState, funding_tx: &FundingTxInfo, pubkeys: &ClosePublicKeys) -> (Vec<u8>, Vec<u8>) {
-        let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
+    pub fn sign_initial_closing_transaction<N: BitcoinNetwork>(&self, funding_tx: FundingTxInfo, rev_lock: [u8; 32], cust_pk: Vec<u8>, cust_close_pk: Vec<u8>, to_self_delay: [u8; 2]) -> (Vec<u8>, Vec<u8>) {
+        // let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
         let init_balance = funding_tx.init_cust_bal + funding_tx.init_merch_bal;
+        let escrow_index = 0;
+        let merch_index = 0;
 
-        let escrow_input = create_input(&funding_tx.escrow_txid.0, funding_tx.escrow_index, init_balance);
-        let merch_input = create_input(&funding_tx.merch_txid.0, funding_tx.merch_index, init_balance);
+        let escrow_input = create_input(&funding_tx.escrow_txid.0, escrow_index, init_balance);
+        let merch_input = create_input(&funding_tx.merch_txid.0, merch_index, init_balance);
+
+        let pubkeys = ClosePublicKeys {
+            cust_pk: cust_pk.clone(),
+            merch_pk: self.pk_m.serialize().to_vec(),
+            merch_close_pk: self.payout_pk.serialize().to_vec(),
+            merch_disp_pk: self.dispute_pk.serialize().to_vec(),
+            cust_close_pk: cust_close_pk.clone(),
+            rev_lock: FixedSizeArray32(rev_lock)
+        };
 
         let (escrow_tx_preimage, _, _) =
             create_cust_close_transaction::<N>(&escrow_input, &pubkeys, &to_self_delay, funding_tx.init_cust_bal, funding_tx.init_merch_bal, true);
@@ -1033,7 +1136,7 @@ mod tests {
         let result2 = Sha256::digest(&Sha256::digest(&prevout_preimage2));
         merch_prevout.copy_from_slice(&result2);
 
-        return FundingTxInfo { escrow_index: 0, merch_index: 0, init_cust_bal: b0_cust, init_merch_bal: b0_merch,
+        return FundingTxInfo { init_cust_bal: b0_cust, init_merch_bal: b0_merch,
                         escrow_txid: FixedSizeArray32(escrow_txid), escrow_prevout: FixedSizeArray32(escrow_prevout),
                         merch_txid: FixedSizeArray32(merch_txid), merch_prevout: FixedSizeArray32(merch_prevout) };
     }
@@ -1065,9 +1168,15 @@ rusty_fork_test!
         // generate and send initial state to the merchant
         cust_state.generate_init_state(&mut rng, &mut channel_token);
         // set escrow-tx and merch-close-tx info
-        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info);
+        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info).unwrap();
         // get initial state
         let s_0 = cust_state.get_current_state();
+
+        // retrieve the initial state from cust state
+        let init_cust_state = cust_state.get_initial_cust_state().unwrap();
+
+        // validate the initial state with merchant
+        merch_state.validate_initial_state(&channel_token, &init_cust_state, s_0.compute_hash());
 
         println!("Begin activate phase for channel");
         println!("customer channel token: {}", &serde_json::to_string(&channel_token).unwrap());
@@ -1077,11 +1186,11 @@ rusty_fork_test!
         println!("Initial state: {}", s_0);
         println!("Init rev_lock commitment => {:?}", r_com);
 
-        // send the initial state s_0 to merchant
-        merch_state.store_initial_state(&channel_token, &s_0);
-
         // activate channel - generate pay_token
-        let pay_token_0 = merch_state.activate_channel(&channel_token, &s_0);
+        let pay_token_0 = match merch_state.activate_channel(&channel_token, &s_0) {
+            Ok(p) => p,
+            Err(e) => panic!(e)
+        };
 
         println!("Pay Token on s_0 => {:?}", pay_token_0);
 
@@ -1192,9 +1301,15 @@ rusty_fork_test!
         // generate and send initial state to the merchant
         cust_state.generate_init_state(&mut rng, &mut channel_token);
         // set escrow-tx and merch-close-tx info
-        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info);
+        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info).unwrap();
         // get initial state
         let s_0 = cust_state.get_current_state();
+
+        // retrieve the initial state from cust state
+        let init_cust_state = cust_state.get_initial_cust_state().unwrap();
+
+        // validate the initial state with merchant
+        merch_state.validate_initial_state(&channel_token, &init_cust_state, s_0.compute_hash());
 
         println!("Begin activate phase for channel");
         println!("merchant channel token: {}", &serde_json::to_string(&channel_token).unwrap());
@@ -1204,11 +1319,11 @@ rusty_fork_test!
         println!("Initial state: {}", s_0);
         println!("Init rev_lock commitment => {:?}", r_com);
 
-        // send the initial state s_0 to merchant
-        merch_state.store_initial_state(&channel_token, &s_0);
-
         // activate channel - generate pay_token
-        let pay_token_0 = merch_state.activate_channel(&channel_token, &s_0);
+        let pay_token_0 = match merch_state.activate_channel(&channel_token, &s_0) {
+            Ok(p) => p,
+            Err(e) => panic!(e)
+        };
 
         println!("Pay Token on s_0 => {:?}", pay_token_0);
 
@@ -1283,10 +1398,7 @@ rusty_fork_test!
         // initialize the channel token on with pks
         let mut channel_token = cust_state.generate_init_channel_token(&merch_state.pk_m);
 
-        let ser_channel_token = serde_json::to_string(&channel_token).unwrap();
-        println!("Channel token: {}", ser_channel_token);
-        let orig_channel_token: ChannelMPCToken = serde_json::from_str(&ser_channel_token).unwrap();
-        assert_eq!(channel_token, orig_channel_token);
+        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info);
 
         // generate and send initial state to the merchant
         cust_state.generate_init_state(&mut rng, &mut channel_token);
@@ -1298,5 +1410,9 @@ rusty_fork_test!
         let orig_state: State = serde_json::from_str(&ser_state).unwrap();
         assert_eq!(s_0, orig_state);
 
+        let ser_channel_token = serde_json::to_string(&channel_token).unwrap();
+        println!("Ser channel token: {}", ser_channel_token);
+        let orig_channel_token: ChannelMPCToken = serde_json::from_str(&ser_channel_token).unwrap();
+        assert_eq!(channel_token, orig_channel_token);
     }
 }

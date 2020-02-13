@@ -3,7 +3,7 @@ extern crate zkchannels;
 extern crate ff_bl as ff;
 extern crate pairing_bl as pairing;
 extern crate time;
-extern crate secp256k1;
+extern crate secp256k1_boltlabs as secp256k1;
 
 use zkchannels::zkproofs;
 use std::time::Instant;

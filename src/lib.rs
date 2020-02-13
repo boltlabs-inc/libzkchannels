@@ -14,6 +14,7 @@
 #![allow(non_upper_case_globals)]
 #![allow(unused_results)]
 #![allow(missing_docs)]
+#![allow(unused)]  // TODO: remove to clean up warnings
 
 #![cfg_attr(all(test, feature = "unstable"), feature(test))]
 #[cfg(all(test, feature = "unstable"))]
@@ -23,7 +24,7 @@ extern crate ff_bl as ff;
 extern crate pairing_bl as pairing;
 extern crate rand;
 
-extern crate secp256k1;
+extern crate secp256k1_boltlabs as secp256k1;
 extern crate time;
 extern crate sha2;
 
@@ -680,10 +681,8 @@ pub struct FundingTxInfo {
     pub init_cust_bal: i64,
     pub init_merch_bal: i64,
     pub escrow_txid: FixedSizeArray32,
-    pub escrow_index: u32,
     pub escrow_prevout: FixedSizeArray32,
     pub merch_txid: FixedSizeArray32,
-    pub merch_index: u32,
     pub merch_prevout: FixedSizeArray32
 }
 
@@ -693,14 +692,13 @@ pub mod mpc {
     pub use channels_mpc::{ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState, RevokedState};
     use secp256k1::PublicKey;
     use wallet::{State, NONCE_LEN};
-    use channels_mpc::MaskedTxMPCInputs;
+    use channels_mpc::{MaskedTxMPCInputs, InitCustState};
     use bindings::ConnType_NETIO;
-    use ::{FundingTxInfo, FixedSizeArray32};
     use bitcoin::Testnet;
-    use fixed_size_array::FixedSizeArray16;
+    use fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
 
     ///
-    /// init_merchant - takes as input the public params, merchant balance and keypair.
+    /// init_merchant() - takes as input the public params, merchant balance and keypair.
     /// Generates merchant data which consists of channel token and merchant state.
     /// output: merchant state
     ///
@@ -713,11 +711,11 @@ pub mod mpc {
     }
 
     ///
-    /// init_customer - takes as input the merchant's public key, and initial balance for customer and merchant.
+    /// init_customer() - takes as input the merchant's public key, and initial balance for customer and merchant.
     /// Generate initial customer channel state and channel token.
     /// output: a channel token and customer state
     ///
-    pub fn init_customer<'a, R: Rng>(csprng: &mut R, pk_m: &PublicKey, b0_cust: i64, b0_merch: i64, name: &'a str) -> (ChannelMPCToken, CustomerMPCState) { // tx: &FundingTxInfo
+    pub fn init_customer<'a, R: Rng>(csprng: &mut R, pk_m: &PublicKey, b0_cust: i64, b0_merch: i64, name: &'a str) -> (ChannelMPCToken, CustomerMPCState) {
         assert!(b0_cust > 0);
         assert!(b0_merch >= 0);
 
@@ -731,13 +729,29 @@ pub mod mpc {
         (channel_token, cust_state)
     }
 
-    pub fn init_funding(funding_tx: &FundingTxInfo, channel_token: &mut ChannelMPCToken, cust_state: &mut CustomerMPCState) {
-        // set escrow-tx and merch-close-tx info
-        cust_state.set_funding_tx_info(channel_token, &funding_tx);
+    ///
+    /// get_initial_state() - takes as input the customer state
+    /// output: initial cust state and expected hash
+    ///
+    pub fn get_initial_state(cust_state: &CustomerMPCState) -> Result<(InitCustState, [u8; 32]), String> {
+        let init_state = match cust_state.get_initial_cust_state() {
+            Ok(n) => n,
+            Err(e) => return Err(e.to_string())
+        };
+        let init_state_hash = cust_state.get_current_state().compute_hash();
+        Ok((init_state, init_state_hash))
     }
 
     ///
-    /// activate_customer - takes as input an rng and the customer state.
+    /// validate_initial_state() - takes as input the channel token, initial state and verifies that they are well-formed
+    /// output: true or false
+    ///
+    pub fn validate_initial_state(channel_token: &ChannelMPCToken, init_state: &InitCustState, init_hash: [u8; 32], merch_state: &mut MerchantMPCState) -> Result<bool, String> {
+        merch_state.validate_initial_state(channel_token, init_state, init_hash)
+    }
+
+    ///
+    /// activate_customer() - takes as input an rng and the customer state.
     /// Prepare to activate the channel for the customer (call activate_customer_finalize to finalize activation)
     /// output: initial state
     ///
@@ -749,19 +763,17 @@ pub mod mpc {
     }
 
     ///
-    /// activate_merchant - takes as input a channel token, the intial state, and the merchant state.
+    /// activate_merchant() - takes as input a channel token, the intial state, and the merchant state.
     /// Activate the channel for the merchant
     /// output: intial pay token
     ///
-    pub fn activate_merchant(channel_token: ChannelMPCToken, s0: &State, merch_state: &mut MerchantMPCState) -> [u8; 32] {
-        merch_state.store_initial_state(&channel_token, s0);
-
+    pub fn activate_merchant(channel_token: ChannelMPCToken, s0: &State, merch_state: &mut MerchantMPCState) -> Result<[u8; 32], String> {
         // activate channel - generate pay_token
         merch_state.activate_channel(&channel_token, s0)
     }
 
     ///
-    /// activate_customer_finalize - takes as input the initial pay token and the customer state.
+    /// activate_customer_finalize() - takes as input the initial pay token and the customer state.
     /// Finalize activation of the channel for customer
     /// no output
     ///
@@ -770,12 +782,12 @@ pub mod mpc {
     }
 
     ///
-    /// pay_prepare_customer - takes as input an rng, the channel state, the payment amount, and the customer state.
+    /// pay_prepare_customer() - takes as input an rng, the channel state, the payment amount, and the customer state.
     /// Prepare payment for customer
     /// output: new state (after payment), revocation lock commitment, revocation lock, revocation secret
     /// (only send revocation lock commitment to merchant)
     ///
-    pub fn pay_prepare_customer<R: Rng>(csprng: &mut R, channel: &mut ChannelMPCState, amount: i64, cust_state: &mut CustomerMPCState) -> Result<(State, RevokedState), String> {
+    pub fn pay_prepare_customer<R: Rng>(csprng: &mut R, channel: &ChannelMPCState, amount: i64, cust_state: &mut CustomerMPCState) -> Result<(State, RevokedState), String> {
         // check if payment on current balance is greater than dust limit
         let new_balance = match amount > 0 {
             true => cust_state.cust_balance - amount, // positive value
@@ -803,7 +815,7 @@ pub mod mpc {
     }
 
     ///
-    /// pay_prepare_merchant - takes as input an rng, the channel state, the nonce of the old state, and the merchant state.
+    /// pay_prepare_merchant() - takes as input an rng, the channel state, the nonce of the old state, and the merchant state.
     /// Prepare payment for merchant
     /// output: commitment of the payment token mask
     ///
@@ -812,7 +824,7 @@ pub mod mpc {
     }
 
     ///
-    /// pay_customer - takes as input the channel state, the channel token, the intial state, the final state, a commitment for the mask for the pay token,
+    /// pay_customer() - takes as input the channel state, the channel token, the intial state, the final state, a commitment for the mask for the pay token,
     /// the revocation lock commitment, the payment amount, and the customer state.
     /// Start the MPC for a payment for the Customer
     /// output: a success boolean, or error
@@ -826,7 +838,7 @@ pub mod mpc {
     }
 
     ///
-    /// pay_merchant - takes as input an rng, the channel state, the intial state, a commitment for the mask for the pay token,
+    /// pay_merchant() - takes as input an rng, the channel state, the intial state, a commitment for the mask for the pay token,
     /// the revocation lock commitment, the payment amount, and the merchant state.
     /// Start the MPC for a payment for the Merchant
     /// output: the transaction masks (escrow and merch tx), or error
@@ -852,7 +864,7 @@ pub mod mpc {
     }
 
     ///
-    /// pay_unmask_tx_customer - takes as input the transaction masks and the customer state.
+    /// pay_unmask_tx_customer() - takes as input the transaction masks and the customer state.
     /// Unmask the transactions received from the MPC
     /// output: a success boolean
     ///
@@ -861,7 +873,7 @@ pub mod mpc {
     }
 
     ///
-    /// pay_validate_rev_lock_merchant - takes as input the nonce, the revocation lock commitment, the revocation lock,
+    /// pay_validate_rev_lock_merchant() - takes as input the nonce, the revocation lock commitment, the revocation lock,
     /// the revocation secret and the merchant state.
     /// Verify the revocation lock commitment
     /// output: the pay token mask and randomness
@@ -883,7 +895,7 @@ pub mod mpc {
     }
 
     ///
-    /// pay_unmask_pay_token_customer - takes as input the paytoken mask and the customer state.
+    /// pay_unmask_pay_token_customer() - takes as input the paytoken mask and the customer state.
     /// Verify the paytoken mask commitment and unmask paytoken
     /// output: success boolean
     ///
@@ -901,8 +913,34 @@ pub mod txutil {
     use bitcoin::{Testnet, BitcoinTransactionParameters};
     use bitcoin::{BitcoinPrivateKey};
     use wagyu_model::Transaction;
+    use bitcoin::Denomination::Bitcoin;
 
-    pub fn customer_sign_escrow_transaction(txid: Vec<u8>, index: u32, input_sats: i64, output_sats: i64, cust_sk: Vec<u8>, cust_pk: Vec<u8>, merch_pk: Vec<u8>, change_pk: Option<Vec<u8>>) -> Result<(String, String, String), String> {
+    macro_rules! check_pk_length {
+        ($x: expr) => (
+            if $x.len() != 33 {
+                return Err(format!("{} not a compressed pk", stringify!($x)));
+            }
+        );
+    }
+
+    macro_rules! handle_tx_error {
+        ($x: expr) => (match $x {
+            Ok(n) => n,
+            Err(e) => return Err(e.to_string())
+        });
+    }
+
+    pub fn customer_sign_escrow_transaction(txid: Vec<u8>, index: u32, input_sats: i64, output_sats: i64, cust_sk: secp256k1::SecretKey, cust_pk: Vec<u8>, merch_pk: Vec<u8>, change_pk: Option<Vec<u8>>) -> Result<(Vec<u8>, [u8; 32], [u8; 32]), String> {
+        check_pk_length!(cust_pk);
+        check_pk_length!(merch_pk);
+        let change_pubkey = match change_pk {
+            Some(pk) => {
+                check_pk_length!(pk);
+                pk
+            },
+            None => Vec::new()
+        };
+
         let input = Input {
             address_format: "p2sh_p2wpkh", // TODO: make this configurable
             transaction_id: txid,
@@ -921,46 +959,43 @@ pub mod txutil {
         let musig_output = MultiSigOutput {
             pubkey1: merch_pk,
             pubkey2: cust_pk,
-            address_format: "native_p2wsh",
+            address_format: "p2wsh",
             amount: output_sats // assumes already in sats
         };
 
         // test if we need a change output pubkey
         let change_sats = input_sats - output_sats;
-        let change_output = match change_sats > 0 && change_pk.is_some() {
+        let change_output = match change_sats > 0 && change_pubkey.len() > 0 {
             true => Output {
-                pubkey: change_pk.unwrap(),
+                pubkey: change_pubkey,
                 amount: change_sats
             },
-            false => return Err(String::from("Require a change pubkey to generate a valid escrow transaction!"))
+            false => return Err(String::from("Require a change pubkey to generate a valid escrow transaction"))
         };
 
-        let sk = match secp256k1::SecretKey::from_slice(&cust_sk) {
-            Ok(n) => n,
-            Err(e) => return Err(e.to_string())
-        };
-        let secp = secp256k1::Secp256k1::new();
-        let private_key = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(sk, false);
-        let (_escrow_tx_preimage, full_escrow_tx) = create_escrow_transaction::<Testnet>(&config, &input, &musig_output, &change_output, private_key.clone());
+//        let sk = match secp256k1::SecretKey::from_slice(&cust_sk) {
+//            Ok(n) => n,
+//            Err(e) => return Err(e.to_string())
+//        };
+
+        let private_key = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(cust_sk, false);
+        let (_escrow_tx_preimage, full_escrow_tx) = handle_tx_error!(create_escrow_transaction::<Testnet>(&config, &input, &musig_output, &change_output, private_key.clone()));
         let (signed_tx, txid, hash_prevout) = sign_escrow_transaction::<Testnet>(full_escrow_tx, private_key);
 
-        Ok((signed_tx, hex::encode(txid), hex::encode(hash_prevout)))
+        Ok((signed_tx, txid, hash_prevout))
     }
 
-    pub fn merchant_form_close_transaction(escrow_txid: Vec<u8>, cust_pk: String, merch_pk: String, merch_close_pk: String,
-                                           cust_bal_sats: i64, merch_bal_sats: i64, to_self_delay: [u8; 2]) -> Result<(String, BitcoinTransactionParameters<Testnet>), String> {
-       // construct
-        let merch_pk = hex::decode(merch_pk).unwrap();
-        let cust_pk = hex::decode(cust_pk).unwrap();
-        let merch_close_pk = hex::decode(merch_close_pk).unwrap();
-        // hard code self delay (for now)
-        let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
+    pub fn merchant_form_close_transaction(escrow_txid: Vec<u8>, cust_pk: Vec<u8>, merch_pk: Vec<u8>, merch_close_pk: Vec<u8>, cust_bal_sats: i64, merch_bal_sats: i64, to_self_delay: [u8; 2]) -> Result<(Vec<u8>, BitcoinTransactionParameters<Testnet>), String> {
+
+        check_pk_length!(cust_pk);
+        check_pk_length!(merch_pk);
+        check_pk_length!(merch_close_pk);
 
         let redeem_script = serialize_p2wsh_escrow_redeem_script(&merch_pk, &cust_pk);
         let escrow_index = 0;
 
         let input = Input {
-            address_format: "native_p2wsh",
+            address_format: "p2wsh",
             // outpoint of escrow
             transaction_id: escrow_txid,
             index: escrow_index,
@@ -969,33 +1004,29 @@ pub mod txutil {
             utxo_amount: Some(cust_bal_sats + merch_bal_sats),
             sequence: Some([0xff, 0xff, 0xff, 0xff]) // 4294967295
         };
-        let tx_params=
-            match create_merch_close_transaction_params::<Testnet>(&input, &cust_pk, &merch_pk, &merch_close_pk, &to_self_delay) {
-                Ok(tx) => tx,
-                Err(e) => return Err(e.to_string())
-            };
+        let tx_params = handle_tx_error!(create_merch_close_transaction_params::<Testnet>(&input, &cust_pk, &merch_pk, &merch_close_pk, &to_self_delay));
 
         let (merch_tx_preimage, _) = create_merch_close_transaction_preimage::<Testnet>(&tx_params);
 
-        Ok((hex::encode(merch_tx_preimage), tx_params))
+        Ok((merch_tx_preimage, tx_params))
     }
 
-    pub fn customer_sign_merch_close_transaction(cust_sk: String, merch_tx_preimage: Vec<u8>) -> Result<String, String> {
+    pub fn customer_sign_merch_close_transaction(cust_sk: secp256k1::SecretKey, merch_tx_preimage: Vec<u8>) -> Result<Vec<u8>, String> {
         // customer signs the preimage and sends signature to merchant
-        let cust_sk = get_private_key::<Testnet>(cust_sk)?;
-        let cust_sig = generate_signature_for_multi_sig_transaction::<Testnet>(&merch_tx_preimage, &cust_sk)?;
-        Ok(hex::encode(cust_sig))
+        let sk = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(cust_sk, false); // get_private_key::<Testnet>(cust_sk)?;
+        let cust_sig = generate_signature_for_multi_sig_transaction::<Testnet>(&merch_tx_preimage, &sk)?;
+        Ok(cust_sig)
     }
 
-    pub fn merchant_sign_merch_close_transaction(tx_params: BitcoinTransactionParameters<Testnet>, cust_sig_and_len_byte: String, merch_sk: String) -> Result<(String, String, String), String> {
+    pub fn merchant_sign_merch_close_transaction(tx_params: BitcoinTransactionParameters<Testnet>, cust_sig_and_len_byte: Vec<u8>, merch_sk: secp256k1::SecretKey) -> Result<(Vec<u8>, [u8; 32], [u8; 32]), String> {
         // merchant takes as input the tx params and signs it
-        let cust_sig = hex::decode(cust_sig_and_len_byte).unwrap();
-        let merch_sk = get_private_key::<Testnet>(merch_sk)?;
+        // let merch_sk = get_private_key::<Testnet>(merch_sk)?;
+        let sk = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(merch_sk, false); // get_private_key::<Testnet>(cust_sk)?;
         let (signed_merch_close_tx, txid, hash_prevout) =
-            completely_sign_multi_sig_transaction::<Testnet>(&tx_params, &cust_sig, &merch_sk);
-        let signed_merch_close_tx = hex::encode(signed_merch_close_tx.to_transaction_bytes().unwrap());
+            completely_sign_multi_sig_transaction::<Testnet>(&tx_params, &cust_sig_and_len_byte, &sk);
+        let signed_merch_close_tx = signed_merch_close_tx.to_transaction_bytes().unwrap();
 
-        Ok((signed_merch_close_tx, hex::encode(txid), hex::encode(hash_prevout)))
+        Ok((signed_merch_close_tx, txid, hash_prevout))
     }
 
 }
@@ -1023,7 +1054,7 @@ mod tests {
     #[cfg(feature = "mpc-bitcoin")]
     use channels_mpc::MaskedTxMPCInputs;
     use fixed_size_array::FixedSizeArray32;
-    use transactions::ClosePublicKeys;
+    // use transactions::ClosePublicKeys;
     use bitcoin::Testnet;
 
     fn setup_new_channel_helper(channel_state: &mut zkproofs::ChannelState<Bls12>,
@@ -1501,7 +1532,7 @@ mod tests {
         let (channel_token, mut cust_state) = mpc::init_customer(rng, &merch_state.pk_m, 100, 100, "Alice");
 
         // customer sends pk_c, n_0, rl_0 to the merchant
-        let init_cust_state = cust_state.get_init_cust_state().unwrap();
+        let init_cust_state = cust_state.get_initial_cust_state().unwrap();
 
         // form all of the escrow and merch-close-tx transactions
         let funding_tx_info = generate_funding_tx(&mut rng, 100, 100);
@@ -1510,7 +1541,8 @@ mod tests {
         let pubkeys = cust_state.get_pubkeys(&channel_state, &channel_token);
 
         // merchant signs the customer's closing transactions and sends signatures back to customer
-        let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(&channel_state, &funding_tx_info, &pubkeys);
+        let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
+        let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(funding_tx_info.clone(), pubkeys.rev_lock.0, pubkeys.cust_pk, pubkeys.cust_close_pk, to_self_delay);
 
         let got_close_tx = cust_state.sign_initial_closing_transaction::<Testnet>(&channel_state, &channel_token, &escrow_sig, &merch_sig);
         assert!(got_close_tx.is_ok());
@@ -1520,7 +1552,7 @@ mod tests {
 
         let s0 = mpc::activate_customer(rng, &mut cust_state);
 
-        let pay_token = mpc::activate_merchant(channel_token, &s0, &mut merch_state);
+        let pay_token = mpc::activate_merchant(channel_token, &s0, &mut merch_state).unwrap();
 
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
@@ -1552,13 +1584,10 @@ mod tests {
 
         return FundingTxInfo { init_cust_bal: b0_cust, init_merch_bal: b0_merch,
                                     escrow_txid: FixedSizeArray32(escrow_txid),
-                                    escrow_index: 0,
                                     merch_txid: FixedSizeArray32(merch_txid),
-                                    merch_index: 0,
                                     escrow_prevout: FixedSizeArray32(escrow_prevout),
                                     merch_prevout: FixedSizeArray32(merch_prevout) };
     }
-
 
     #[test]
     #[ignore]
@@ -1577,15 +1606,19 @@ mod tests {
 
         let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch);
 
-        mpc::init_funding(&funding_tx_info, &mut channel_token, &mut cust_state);
+        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info).unwrap();
+
+        let (init_cust_state, init_hash) = mpc::get_initial_state(&cust_state).unwrap();
+
+        mpc::validate_initial_state(&channel_token, &init_cust_state, init_hash, &mut merch_state);
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
 
-        let pay_token = mpc::activate_merchant(channel_token.clone(), &s0, &mut merch_state);
+        let pay_token = mpc::activate_merchant(channel_token.clone(), &s0, &mut merch_state).unwrap();
 
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
-        let (new_state, revoked_state) = mpc::pay_prepare_customer(&mut rng, &mut channel, 10, &mut cust_state).unwrap();
+        let (new_state, revoked_state) = mpc::pay_prepare_customer(&mut rng, &channel, 10, &mut cust_state).unwrap();
         let rev_lock_com = revoked_state.rev_lock_com.0;
 
         let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, s0.get_nonce(), &mut merch_state);
@@ -1601,7 +1634,6 @@ mod tests {
         println!("pt_mask_r => {}", hex::encode(&pay_token_mask_r));
         assert_eq!(hex::encode(pay_token_mask), "f53a27a851a43c7843c4781962a54fa36cd32e3254e7adaf3e742870ecab92ae");
         assert_eq!(hex::encode(pay_token_mask_r), "e1b863eabe75342a427d8e1954787822");
-
     }
 
 rusty_fork_test! {
@@ -1620,11 +1652,18 @@ rusty_fork_test! {
 
         let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch);
 
-        mpc::init_funding(&funding_tx_info, &mut channel_token, &mut cust_state);
+        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info).unwrap();
+
+        let (init_cust_state, init_hash) = match mpc::get_initial_state(&cust_state) {
+            Ok(n) => (n.0, n.1),
+            Err(e) => panic!(e)
+        };
+
+        mpc::validate_initial_state(&channel_token, &init_cust_state, init_hash, &mut merch_state);
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
 
-        let pay_token = mpc::activate_merchant(channel_token.clone(), &s0, &mut merch_state);
+        let pay_token = mpc::activate_merchant(channel_token.clone(), &s0, &mut merch_state).unwrap();
 
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 

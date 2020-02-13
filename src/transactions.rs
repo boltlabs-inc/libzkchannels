@@ -128,19 +128,14 @@ pub mod btc {
         return script_pubkey;
     }
 
-    pub fn get_private_key<N: BitcoinNetwork>(private_key: String) -> Result<BitcoinPrivateKey<N>, String> {
-        let sk = match hex::decode(private_key) {
-            Ok(n) => match secp256k1::SecretKey::from_slice(&n) {
-                Ok(n) => n,
-                Err(e) => return Err(e.to_string())
-            },
+    pub fn get_private_key<N: BitcoinNetwork>(private_key: Vec<u8>) -> Result<BitcoinPrivateKey<N>, String> {
+        let sk = match secp256k1::SecretKey::from_slice(&private_key) {
+            Ok(n) => n,
             Err(e) => return Err(e.to_string())
         };
-        let secp = secp256k1::Secp256k1::new();
         let private_key = BitcoinPrivateKey::<N>::from_secp256k1_secret_key(sk, false);
         Ok(private_key)
     }
-
 
     pub fn get_merch_close_timelocked_p2wsh_address(cust_pubkey: &Vec<u8>, merch_pubkey: &Vec<u8>, merch_close_pubkey: &Vec<u8>, to_self_delay: &[u8; 2]) -> Vec<u8> {
         // get the script
@@ -209,7 +204,7 @@ pub mod btc {
         txid_buf.reverse();
         // let txid_str = hex::encode(txid_buf);
         Input {
-            address_format: "native_p2wsh",
+            address_format: "p2wsh",
             // outpoint + txid
             transaction_id: txid_buf.to_vec(),
             index: index,
@@ -220,16 +215,27 @@ pub mod btc {
         }
     }
 
+    macro_rules! check_pk_valid {
+        ($x: expr) => (match secp256k1::PublicKey::from_slice(&$x) {
+            Ok(_p) => true,
+            Err(e) => return Err(e.to_string())
+        });
+    }
+
     // creates a funding transaction with the following input/outputs
     // input => p2pkh or p2sh_p2wpkh
     // output1 => multi-sig addr via p2wsh
     // output2 => change output to p2wpkh
-    pub fn create_escrow_transaction<N: BitcoinNetwork>(config: &BitcoinTxConfig, input: &Input, output1: &MultiSigOutput, output2: &Output, private_key: BitcoinPrivateKey<N>) -> (Vec<u8>, BitcoinTransaction<N>) {
+    pub fn create_escrow_transaction<N: BitcoinNetwork>(config: &BitcoinTxConfig, input: &Input, output1: &MultiSigOutput, output2: &Output, private_key: BitcoinPrivateKey<N>) -> Result<(Vec<u8>, BitcoinTransaction<N>), String> {
+        // check that specified public keys are valid
+        check_pk_valid!(output1.pubkey1);
+        check_pk_valid!(output1.pubkey2);
+        check_pk_valid!(output2.pubkey);
         // types of UTXO inputs to support
         let address_format = match input.address_format {
             "p2pkh" => BitcoinFormat::P2PKH,
             "p2sh_p2wpkh" => BitcoinFormat::P2SH_P2WPKH,
-            "native_p2wsh" => BitcoinFormat::NATIVE_P2WSH,
+            "p2wsh" => BitcoinFormat::P2WSH,
             _ => panic!("do not currently support specified address format as funding input: {}", input.address_format)
         };
         let address = private_key.to_address(&address_format).unwrap();
@@ -291,18 +297,18 @@ pub mod btc {
         let transaction = BitcoinTransaction::<N>::new(&transaction_parameters).unwrap();
         let hash_preimage = transaction.segwit_hash_preimage(0, SIGHASH_ALL).unwrap();
         // return hash preimage of transaction and the transaction itself (for later signing)
-        return (hash_preimage, transaction);
+        Ok((hash_preimage, transaction))
     }
 
     // signs a given transaction using a specified private key
     // assumes that transaction has already been loaded
-    pub fn sign_escrow_transaction<N: BitcoinNetwork>(unsigned_tx: BitcoinTransaction<N>, private_key: BitcoinPrivateKey<N>) -> (String, [u8; 32], [u8; 32]) {
+    pub fn sign_escrow_transaction<N: BitcoinNetwork>(unsigned_tx: BitcoinTransaction<N>, private_key: BitcoinPrivateKey<N>) -> (Vec<u8>, [u8; 32], [u8; 32]) {
         // let private_key = BitcoinPrivateKey::<N>::from_str(&private_key.as_str()).unwrap();
 
         let signed_tx = unsigned_tx.sign(&private_key).unwrap();
         let tx_id_hex = signed_tx.to_transaction_id().unwrap();
 
-        let signed_tx_hex = hex::encode(signed_tx.to_transaction_bytes().unwrap());
+        let signed_tx_hex = signed_tx.to_transaction_bytes().unwrap();
 
         let txid = hex::decode(tx_id_hex.to_string()).unwrap();
         println!("signed txid: {}", hex::encode(&txid));
@@ -391,7 +397,7 @@ pub mod btc {
         let address_format = match input.address_format {
             "p2pkh" => BitcoinFormat::P2PKH,
             "p2sh_p2wpkh" => BitcoinFormat::P2SH_P2WPKH,
-            "native_p2wsh" => BitcoinFormat::NATIVE_P2WSH,
+            "p2wsh" => BitcoinFormat::P2WSH,
             _ => return Err(format!("do not currently support specified address format: {}", input.address_format))
         };
 
@@ -406,7 +412,7 @@ pub mod btc {
         };
 
         let address = match address_format {
-            BitcoinFormat::NATIVE_P2WSH => BitcoinAddress::<N>::p2wsh(redeem_script.as_ref().unwrap()).unwrap(),
+            BitcoinFormat::P2WSH => BitcoinAddress::<N>::p2wsh(redeem_script.as_ref().unwrap()).unwrap(),
             _ => return Err(format!("address format {} not supported right now", address_format)) // private_key.to_address(&address_format).unwrap()
         };
         // println!("address: {}", address);
@@ -460,7 +466,7 @@ pub mod btc {
             lock_time: 0
         };
         let address_format = match input.address_format {
-            "native_p2wsh" => BitcoinFormat::NATIVE_P2WSH,
+            "p2wsh" => BitcoinFormat::P2WSH,
             _ => panic!("do not currently support specified address format: {}", input.address_format)
         };
 
@@ -477,7 +483,7 @@ pub mod btc {
             }
         };
         let address = match address_format {
-            BitcoinFormat::NATIVE_P2WSH => BitcoinAddress::<N>::p2wsh(redeem_script.as_ref().unwrap()).unwrap(),
+            BitcoinFormat::P2WSH => BitcoinAddress::<N>::p2wsh(redeem_script.as_ref().unwrap()).unwrap(),
             _ => panic!("do not currently support specified address format")
         };
         // println!("address: {}", address);
@@ -575,7 +581,7 @@ mod tests {
         let musig_output = MultiSigOutput {
             pubkey1: hex::decode("027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb").unwrap(),
             pubkey2: hex::decode("037bed6ab680a171ef2ab564af25eff15c0659313df0bbfb96414da7c7d1e65882").unwrap(),
-            address_format: "native_p2wsh",
+            address_format: "p2wsh",
             amount: 39 * SATOSHI
         };
 
@@ -585,7 +591,7 @@ mod tests {
                                      amount: (1 * SATOSHI) };
 
         let private_key = BitcoinPrivateKey::<Testnet>::from_str("cPmiXrwUfViwwkvZ5NXySiHEudJdJ5aeXU4nx4vZuKWTUibpJdrn").unwrap();
-        let (escrow_tx_preimage, full_escrow_tx) = transactions::btc::create_escrow_transaction::<Testnet>(&config, &input, &musig_output, &change_output, private_key.clone());
+        let (escrow_tx_preimage, full_escrow_tx) = transactions::btc::create_escrow_transaction::<Testnet>(&config, &input, &musig_output, &change_output, private_key.clone()).unwrap();
 
         let expected_escrow_preimage = "020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000001976a914a496306b960746361e3528534d04b1ac4726655a88ac00286bee00000000ffffffff51bbd879074a16332d89cd524d8672b9cbe2096ed6825847141b9798cb915ad80000000001000000";
 
@@ -593,7 +599,7 @@ mod tests {
         // println!("escrow tx: {}", full_escrow_tx);
         assert_eq!(escrow_tx_preimage, hex::decode(expected_escrow_preimage).unwrap());
         let (signed_tx, txid, hash_prevout) = transactions::btc::sign_escrow_transaction(full_escrow_tx, private_key);
-        println!("signed_tx: {}", signed_tx);
+        println!("signed_tx: {}", hex::encode(signed_tx));
         println!("txid: {}", hex::encode(txid));
         println!("hash prevout: {}", hex::encode(hash_prevout));
     }
@@ -615,7 +621,7 @@ mod tests {
 
         // customer private key
         let input = Input {
-            address_format: "native_p2wsh",
+            address_format: "p2wsh",
             // outpoint + txid
             transaction_id: hex::decode("5eb0c50e6f725b88507cda84f339aba539bc99853436db610d6a476a207f82d9").unwrap(),
             index: 0,
@@ -659,7 +665,7 @@ mod tests {
     fn test_bitcoin_testnet_cust_close_from_escrow_tx() {
         let spend_from_escrow = true;
         let input = Input {
-            address_format: "native_p2wsh",
+            address_format: "p2wsh",
             // outpoint + txid
             transaction_id: hex::decode("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1").unwrap(),
             index: 0,
@@ -711,7 +717,7 @@ mod tests {
     fn test_bitcoin_testnet_cust_close_from_merch_tx() {
         let spend_from_escrow = false;
         let input = Input {
-            address_format: "native_p2wsh",
+            address_format: "p2wsh",
             // outpoint + txid
             transaction_id: hex::decode("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1").unwrap(),
             index: 0,
