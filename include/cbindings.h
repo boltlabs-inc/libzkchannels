@@ -3,18 +3,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define INTMAX_MAX 9223372036854775807
-
-#define INTMAX_MIN -9223372036854775808
-
-#define PTRDIFF_MAX 9223372036854775807
-
-#define PTRDIFF_MIN -9223372036854775808
-
-#define UINTMAX_MAX -1
-
-#define _LIBCPP_HAS_MERGED_TYPEINFO_NAMES_DEFAULT 1
-
 typedef struct {
   char r[256];
   char k_inv[256];
@@ -272,7 +260,8 @@ char *mpc_init_merchant(char *ser_channel_state, const char *name_ptr);
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)
-char *mpc_pay_customer(char *ser_channel_state,
+char *mpc_pay_customer(uintptr_t peer,
+                       char *ser_channel_state,
                        char *ser_channel_token,
                        char *ser_start_state,
                        char *ser_end_state,
@@ -283,7 +272,8 @@ char *mpc_pay_customer(char *ser_channel_state,
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)
-char *mpc_pay_merchant(char *ser_channel_state,
+char *mpc_pay_merchant(uintptr_t peer,
+                       char *ser_channel_state,
                        char *ser_nonce,
                        char *ser_pay_token_mask_com,
                        char *ser_rev_lock_com,

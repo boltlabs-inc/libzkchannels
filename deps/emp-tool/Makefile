@@ -12,6 +12,7 @@ emp-tool-$(VERSION)/.built: emp-tool-${VERSION}
 	make && \
 	make install && \
 	touch ../$@ && \
+	../fix_rpath_osx.sh libgo_io_channel && \
 	../fix_rpath_osx.sh libemp-tool
 
 emp-tool-$(VERSION): emp-tool-$(VERSION).tar.gz

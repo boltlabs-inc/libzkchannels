@@ -434,7 +434,7 @@ func PreparePaymentMerchant(nonce string, merchState MerchState) (string, MerchS
 	return r.PayTokenMaskCom, merchState, err
 }
 
-func PayCustomer(channelState ChannelState, channelToken ChannelToken, startState State, endState State, payTokenMaskCom string, revLockCom string, amount int64, custState CustState) (bool, CustState, error) {
+func PayCustomer(peer uintptr, channelState ChannelState, channelToken ChannelToken, startState State, endState State, payTokenMaskCom string, revLockCom string, amount int64, custState CustState) (bool, CustState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
 		return false, CustState{}, err
@@ -456,7 +456,7 @@ func PayCustomer(channelState ChannelState, channelToken ChannelToken, startStat
 		return false, CustState{}, err
 	}
 
-	resp := C.GoString(C.mpc_pay_customer(C.CString(string(serChannelState)), C.CString(string(serChannelToken)), C.CString(string(serStartState)),
+	resp := C.GoString(C.mpc_pay_customer(C.uintptr_t(peer), C.CString(string(serChannelState)), C.CString(string(serChannelToken)), C.CString(string(serStartState)),
 		C.CString(string(serEndState)), C.CString(payTokenMaskCom), C.CString(revLockCom), C.longlong(amount), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
@@ -467,7 +467,7 @@ func PayCustomer(channelState ChannelState, channelToken ChannelToken, startStat
 	return r.IsOk, custState, err
 }
 
-func PayMerchant(channelState ChannelState, nonce string, payTokenMaskCom string, revLockCom string, amount int64, merchState MerchState) (MaskedTxInputs, MerchState, error) {
+func PayMerchant(peer uintptr, channelState ChannelState, nonce string, payTokenMaskCom string, revLockCom string, amount int64, merchState MerchState) (MaskedTxInputs, MerchState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
 		return MaskedTxInputs{}, MerchState{}, err
@@ -478,7 +478,7 @@ func PayMerchant(channelState ChannelState, nonce string, payTokenMaskCom string
 		return MaskedTxInputs{}, MerchState{}, err
 	}
 
-	resp := C.GoString(C.mpc_pay_merchant(C.CString(string(serChannelState)), C.CString(nonce), C.CString(payTokenMaskCom), C.CString(revLockCom), C.longlong(amount), C.CString(string(serMerchState))))
+	resp := C.GoString(C.mpc_pay_merchant(C.uintptr_t(peer), C.CString(string(serChannelState)), C.CString(nonce), C.CString(payTokenMaskCom), C.CString(revLockCom), C.longlong(amount), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return MaskedTxInputs{}, MerchState{}, err

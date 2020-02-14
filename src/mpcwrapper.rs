@@ -354,7 +354,7 @@ mod tests {
         merch_public_key_hash.copy_from_slice(hex::decode("43e9e81bc632ad9cad48fc23f800021c5769a063").unwrap().as_slice());
         let merch_payout_pub_key = secp256k1::PublicKey::from_slice(hex::decode("02f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90").unwrap().as_slice()).unwrap();
 
-        let (r1, r2) = mpc_build_masked_tokens_merch(&mut csprng, ConnType_UNIXNETIO, amount, &paytoken_mask_com, &rev_lock_com,
+        let (r1, r2) = mpc_build_masked_tokens_merch(&mut csprng, 0, ConnType_UNIXNETIO, amount, &paytoken_mask_com, &rev_lock_com,
                                       &key_com, &key_com_r, merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key, nonce, &hmac_key,
                                       merch_escrow_secret_key, &merch_mask_bytes, &paytoken_mask_bytes, &paytoken_mask_r, &escrow_mask_bytes);
 
@@ -484,7 +484,7 @@ mod tests {
         let merch_payout_pub_key = secp256k1::PublicKey::from_slice(hex::decode("02f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90").unwrap().as_slice()).unwrap();
 
         let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) =
-            mpc_build_masked_tokens_cust(ConnType_UNIXNETIO, amount, &paytoken_mask_com, &rev_lock_com, &rev_lock_r, &key_com,
+            mpc_build_masked_tokens_cust(0, ConnType_UNIXNETIO, amount, &paytoken_mask_com, &rev_lock_com, &rev_lock_r, &key_com,
                                          merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key,
                                          new_state, old_state,
                                          &old_paytoken, cust_escrow_pub_key, cust_payout_pub_key);
