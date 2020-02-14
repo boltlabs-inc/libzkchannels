@@ -445,7 +445,7 @@ impl CustomerMPCState {
     }
 
     // customer side of mpc
-    pub fn execute_mpc_context(&mut self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken,
+    pub fn execute_mpc_context(&mut self, peer: usize, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken,
                                old_state: State, new_state: State, paytoken_mask_com: [u8; 32], rev_lock_com: [u8;32], amount: i64) -> Result<bool, String> {
         assert!(self.channel_initialized);
         // load the key_com from channel state
@@ -467,7 +467,7 @@ impl CustomerMPCState {
         };
 
         let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) =
-            mpc_build_masked_tokens_cust(self.conn_type, amount, &paytoken_mask_com, &rev_lock_com, &self.t.0, &key_com,
+            mpc_build_masked_tokens_cust(peer, self.conn_type, amount, &paytoken_mask_com, &rev_lock_com, &self.t.0, &key_com,
                                      merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key,
                                      new_state, old_state,&old_paytoken.0, cust_escrow_pub_key, cust_payout_pub_key);
 
@@ -989,7 +989,7 @@ impl MerchantMPCState {
     }
 
     // for merchant side
-    pub fn execute_mpc_context<R: Rng>(&mut self, csprng: &mut R, channel_state: &ChannelMPCState, nonce: [u8; NONCE_LEN],
+    pub fn execute_mpc_context<R: Rng>(&mut self, csprng: &mut R, peer: usize, channel_state: &ChannelMPCState, nonce: [u8; NONCE_LEN],
                                rev_lock_com: [u8; 32], paytoken_mask_com: [u8; 32], amount: i64) -> Result<bool, String> {
         // if epsilon > 0, check if acceptable (above dust limit).
         if amount > 0 && amount < channel_state.get_dust_limit() {
@@ -1033,7 +1033,7 @@ impl MerchantMPCState {
         let pk_input_buf = self.payout_pk.serialize();
         let merch_public_key_hash= compute_hash160(&pk_input_buf.to_vec());
 
-        let (r_merch, r_esc) = mpc_build_masked_tokens_merch(csprng, self.conn_type, amount, &paytoken_mask_com, &rev_lock_com, &hmac_key_com, &self.hmac_key_r.0,
+        let (r_merch, r_esc) = mpc_build_masked_tokens_merch(csprng, peer, self.conn_type, amount, &paytoken_mask_com, &rev_lock_com, &hmac_key_com, &self.hmac_key_r.0,
                                                   merch_escrow_pub_key, self.dispute_pk, merch_public_key_hash, self.payout_pk, nonce,
                                                   &hmac_key, self.sk_m.clone(), &merch_mask_bytes,
                                                   &pay_mask_bytes, &pay_mask_r, &escrow_mask_bytes);

@@ -553,7 +553,7 @@ mod cust {
         pay_token_mask_com.copy_from_slice(pay_token_mask_com_vec.as_slice());
 
         // execute the mpc phase
-        let result = mpc::pay_customer(&mut channel_state, &mut channel_token, old_state, new_state, pay_token_mask_com, rev_state.rev_lock_com.0, amount, &mut cust_state);
+        let result = mpc::pay_customer(0, &mut channel_state, &mut channel_token, old_state, new_state, pay_token_mask_com, rev_state.rev_lock_com.0, amount, &mut cust_state);
         let mut is_ok = result.is_ok() && result.unwrap();
 
         let msg2 = conn.wait_for(None, false);
@@ -750,7 +750,7 @@ mod merch {
         let msg1 = [hex::encode(&pay_token_mask_com)];
         conn.send(&msg1);
 
-        let masked_inputs = handle_error_result!(mpc::pay_merchant(rng, &mut channel_state, nonce, pay_token_mask_com, rev_lock_com, amount, &mut merch_state));
+        let masked_inputs = handle_error_result!(mpc::pay_merchant(rng, 0, &mut channel_state, nonce, pay_token_mask_com, rev_lock_com, amount, &mut merch_state));
         let msg3 = [handle_error_result!(serde_json::to_string(&masked_inputs))];
         let msg4 = conn.send_and_wait(&msg3, Some(String::from("Received revoked state")), true);
         let rev_state = serde_json::from_str(msg4.get(0).unwrap()).unwrap();
