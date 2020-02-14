@@ -166,6 +166,7 @@ def main():
     out = subprocess.getoutput("btcctl --simnet --rpcuser=kek --rpcpass=kek sendrawtransaction " + escrow_tx)
     # if tx was broadcast, return txid, otherwise return err msg
     if len(out) == 64:
+        print("broadcasted successful")
         print("escrow_txid => " + out)
     else:
         print("broadcast escrow_tx error msg: " + out)
@@ -181,6 +182,7 @@ def main():
         out = subprocess.getoutput("btcctl --simnet --rpcuser=kek --rpcpass=kek sendrawtransaction " + merch_close_tx)
         # if tx was broadcast, return txid, otherwise return err msg
         if len(out) == 64:
+            print("broadcasted successful")
             print("merch_close_txid => " + out)
         else:
             print("broadcast merch_close_tx error msg: " + out)
@@ -190,6 +192,7 @@ def main():
         out = subprocess.getoutput("btcctl --simnet --rpcuser=kek --rpcpass=kek sendrawtransaction " + cust_close_tx)
         # if tx was broadcast, return txid, otherwise return err msg
         if len(out) == 64:
+            print("broadcasted successful")
             print("cust_close_txid => " + out)
         else:
             print("broadcast cust_close_tx error msg: " + out)
