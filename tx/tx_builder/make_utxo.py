@@ -97,38 +97,43 @@ def pk_to_p2wpkh(compressed, network):
 
 
 # Example usage
-# python make_utxo.py --cust_input_sk=5511111111111111111111111111111100000000000000000000000000000000
+# python3 make_utxo.py --cust_input_sk=5511111111111111111111111111111100000000000000000000000000000000
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--cust_input_sk", "-sk", help="secret key used to generate pubkey output for coinbase tx")
+    parser.add_argument("--network", "-n", help="select the type of network", default="simnet")
     args = parser.parse_args()
     cust_input_sk = str(args.cust_input_sk)
+    network = str(args.network)
+    print("Network: ", network)
 
     # Generate pubkey and p2sh_p2wpkh address
     miner_pubkey_bytes = privkey_to_pubkey(bytes.fromhex(cust_input_sk))
+    print("Miner PK: ", miner_pubkey_bytes.hex())
     # miner_p2wpkh_address = pk_to_p2wpkh(miner_pubkey_bytes, network = "simnet")
-    miner_p2sh_p2wpkh_address = pk_to_p2sh_p2wpkh(miner_pubkey_bytes, network = "simnet")
+    miner_p2sh_p2wpkh_address = pk_to_p2sh_p2wpkh(miner_pubkey_bytes, network)
+    print("Miner address: ", miner_p2sh_p2wpkh_address)
 
     # Make sure btcd is not already running
-    out = subprocess.getoutput("btcctl --simnet --rpcuser=kek --rpcpass=kek stop")
+    out = subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek stop".format(net=network))
     # if btcd was not running already, it'll return "Post https://localhost:18556: dial tcp [::1]:18556: connect: connection refused"
     print(out)
 
     # start up btcd in simnet mode with Alice's address as coinbase tx output
     # NOTE: This needs to be run in a separate terminal, otherwise it'll get stuck here
     print("\nExecute this command in a separate terminal\n")
-    print("btcd --txindex --simnet --rpcuser=kek --rpcpass=kek --minrelaytxfee=0 --miningaddr=" + miner_p2sh_p2wpkh_address)
+    print("btcd --txindex --{net} --rpcuser=kek --rpcpass=kek --minrelaytxfee=0 --miningaddr={addr}".format(net=network, addr=miner_p2sh_p2wpkh_address))
     input("\nPress Enter to continue...")
 
     # generate 1 block to fund Alice
     # get block hash to find the coinbase transaction
-    blockhash = json.loads(subprocess.getoutput("btcctl --simnet --rpcuser=kek --rpcpass=kek generate 1"))
-    block = json.loads(subprocess.getoutput("btcctl --simnet --rpcuser=kek --rpcpass=kek getblock " + blockhash[0]))
+    blockhash = json.loads(subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek generate 1".format(net=network)))
+    block = json.loads(subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek getblock {block}".format(net=network, block=blockhash[0])))
 
     # mine 300 blocks so that segwit is active (incase blockchain is starting from scratch)
     # and so that the coinbase tx is spendable (>100 confirmations)
-    subprocess.getoutput("btcctl --simnet --rpcuser=kek --rpcpass=kek generate 300");
+    subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek generate 300".format(net=network));
 
     # get the coinbase txid
     mined_txid = block["tx"][0]

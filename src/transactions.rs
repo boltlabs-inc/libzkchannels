@@ -202,7 +202,8 @@ pub mod btc {
     pub fn create_input(txid_be: &[u8; 32], index: u32, input_amount: i64) -> Input {
         let mut txid_buf = txid_be.clone();
         txid_buf.reverse();
-        // let txid_str = hex::encode(txid_buf);
+        // let txid_str = hex::encode(&txid_buf);
+        // println!("txid: {}", txid_str);
         Input {
             address_format: "p2wsh",
             // outpoint + txid

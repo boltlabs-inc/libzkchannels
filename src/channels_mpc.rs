@@ -447,7 +447,7 @@ impl CustomerMPCState {
     // customer side of mpc
     pub fn execute_mpc_context(&mut self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken,
                                old_state: State, new_state: State, paytoken_mask_com: [u8; 32], rev_lock_com: [u8;32], amount: i64) -> Result<bool, String> {
-        assert!(self.channel_initialized);
+        //assert!(self.channel_initialized);
         // load the key_com from channel state
         let key_com = channel_state.get_key_com();
 
@@ -603,8 +603,8 @@ impl CustomerMPCState {
         // if valid, output (s_{i+1}, CT_{i+1}, pay-token-{i+1})
         let (escrow_tx_preimage, merch_tx_preimage, escrow_tx_params, merch_tx_params) =
             self.construct_close_transaction_preimage::<N>(channel_state, channel_token);
-        // println!("Close-Escrow Tx preimage: {}", hex::encode(&escrow_tx_preimage));
-        // println!("Close-Merch Tx preimage: {}", hex::encode(&merch_tx_preimage));
+        println!("Close-Escrow Tx preimage: {}", hex::encode(&escrow_tx_preimage));
+        println!("Close-Merch Tx preimage: {}", hex::encode(&merch_tx_preimage));
 
         let mut escrow_sig_vec = mask_bytes.r_escrow_sig.0.to_vec();
         escrow_sig_vec.append(&mut escrow_mask_bytes.to_vec());
@@ -626,6 +626,8 @@ impl CustomerMPCState {
         let secp = secp256k1::Secp256k1::verification_only();
         let escrow_sig_valid = secp.verify(&msg1, &escrow_sig, &channel_token.pk_m).is_ok();
         let merch_sig_valid = secp.verify(&msg2, &merch_sig, &channel_token.pk_m).is_ok();
+        println!("escrow_sig_valid: {}", escrow_sig_valid);
+        println!("merch_sig_valid: {}", merch_sig_valid);
 
         // customer sign the transactions to complete multi-sig and store CT bytes locally
         let private_key = BitcoinPrivateKey::<N>::from_secp256k1_secret_key(self.sk_c.clone(), false);
