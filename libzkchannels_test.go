@@ -12,23 +12,26 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_fullProtocol(t *testing.T) {
+func Test_transactions(t *testing.T) {
 	channelState, err := ChannelSetup("channel", false)
 	assert.Nil(t, err)
 
 	channelState, merchState, err := InitMerchant(channelState, "merch")
 	assert.Nil(t, err)
 
-	inputSats := int64(10000)
-	custBal := int64(9000)
+	// cust_utxo_txid := "f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1"
+	// inputSats := int64(10000)
+	custBal := int64(10000)
 	merchBal := int64(0)
 
 	channelToken, custState, err := InitCustomer(fmt.Sprintf("\"%v\"", *merchState.PkM), custBal, merchBal, "cust")
 	assert.Nil(t, err)
 
+	inputSats := int64(50 * 100000000)
 	cust_utxo_txid := "f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1"
+	custSk := fmt.Sprintf("\"%v\"", "5511111111111111111111111111111100000000000000000000000000000000")
 
-	custSk := fmt.Sprintf("\"%v\"", custState.SkC)
+	custSk = fmt.Sprintf("\"%v\"", custState.SkC)
 	custPk := fmt.Sprintf("%v", custState.PkC)
 	merchSk := fmt.Sprintf("\"%v\"", *merchState.SkM)
 	merchPk := fmt.Sprintf("%v", *merchState.PkM)
@@ -48,7 +51,7 @@ func Test_fullProtocol(t *testing.T) {
 
 	// fmt.Println("escrow txid => ", escrowTxid)
 	// fmt.Println("escrow prevout => ", escrowPrevout)
-	fmt.Println("signedEscrowTx => ", signedEscrowTx)
+	fmt.Println("TX1: signedEscrowTx => ", signedEscrowTx)
 
 	merchTxPreimage, err := FormMerchCloseTx(escrowTxid, custPk, merchPk, merchClosePk, custBal, merchBal, toSelfDelay)
 
@@ -59,7 +62,100 @@ func Test_fullProtocol(t *testing.T) {
 
 	signedMerchCloseTx, merchTxid, merchPrevout, err := MerchantSignMerchCloseTx(escrowTxid, custPk, merchPk, merchClosePk, custBal, merchBal, toSelfDelay, custSig, merchSk)
 
-	fmt.Println("Merchant has signed merch close tx => ", signedMerchCloseTx)
+	fmt.Println("TX2: Merchant has signed merch close tx => ", signedMerchCloseTx)
+	fmt.Println("merch txid = ", merchTxid)
+	fmt.Println("merch prevout = ", merchPrevout)
+
+	txInfo := FundingTxInfo{
+		EscrowTxId:    escrowTxid,
+		EscrowPrevout: escrowPrevout,
+		MerchTxId:     merchTxid,
+		MerchPrevout:  merchPrevout,
+		InitCustBal:   int64(custBal),
+		InitMerchBal:  int64(merchBal),
+	}
+
+	fmt.Println("RevLock => ", custState.RevLock)
+
+	custClosePk := custState.PayoutPk
+	escrowSig, merchSig, err := MerchantSignInitCustCloseTx(txInfo, custState.RevLock, custState.PkC, custClosePk, toSelfDelay, merchState)
+	assert.Nil(t, err)
+
+	fmt.Println("escrow sig: ", escrowSig)
+	fmt.Println("merch sig: ", merchSig)
+
+	isOk, channelToken, custState, err := CustomerSignInitCustCloseTx(txInfo, channelState, channelToken, escrowSig, merchSig, custState)
+	assert.Nil(t, err)
+
+	initCustState, initHash, err := CustomerGetInitialState(custState)
+
+	fmt.Println("initial cust state: ", initCustState)
+	fmt.Println("initial hash: ", initHash)
+
+	isOk, merchState, err = MerchantValidateInitialState(channelToken, initCustState, initHash, merchState)
+	assert.Nil(t, err)
+	fmt.Println("merchant validates initial state: ", isOk)
+
+	fmt.Println("initial close transactions validated: ", isOk)
+
+	fmt.Println("Output initial closing transactions")
+	fmt.Println("TX3: Close from EscrowTx => ", string(custState.CloseEscrowTx))
+	fmt.Println("TX4: Close from MerchCloseTx => ", string(custState.CloseMerchTx))
+
+	return
+}
+
+func Test_fullProtocol(t *testing.T) {
+	channelState, err := ChannelSetup("channel", false)
+	assert.Nil(t, err)
+
+	channelState, merchState, err := InitMerchant(channelState, "merch")
+	assert.Nil(t, err)
+
+	// cust_utxo_txid := "f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1"
+	// inputSats := int64(10000)
+	custBal := int64(10000)
+	merchBal := int64(0)
+
+	channelToken, custState, err := InitCustomer(fmt.Sprintf("\"%v\"", *merchState.PkM), custBal, merchBal, "cust")
+	assert.Nil(t, err)
+
+	inputSats := int64(50 * 100000000)
+	cust_utxo_txid := "f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1"
+	custSk := fmt.Sprintf("\"%v\"", "5511111111111111111111111111111100000000000000000000000000000000")
+
+	custSk = fmt.Sprintf("\"%v\"", custState.SkC)
+	custPk := fmt.Sprintf("%v", custState.PkC)
+	merchSk := fmt.Sprintf("\"%v\"", *merchState.SkM)
+	merchPk := fmt.Sprintf("%v", *merchState.PkM)
+	// changeSk := "4157697b6428532758a9d0f9a73ce58befe3fd665797427d1c5bb3d33f6a132e"
+	changePk := "037bed6ab680a171ef2ab564af25eff15c0659313df0bbfb96414da7c7d1e65882"
+	merchClosePk := fmt.Sprintf("%v", *merchState.PayoutPk)
+	toSelfDelay := "cf05"
+	// fmt.Println("custSk :=> ", custSk)
+	// fmt.Println("custPk :=> ", custPk)
+	// fmt.Println("merchSk :=> ", merchSk)
+	// fmt.Println("merchPk :=> ", merchPk)
+	// fmt.Println("merchClosePk :=> ", merchClosePk)
+
+	outputSats := custBal + merchBal
+	signedEscrowTx, escrowTxid, escrowPrevout, err := FormEscrowTx(cust_utxo_txid, 0, inputSats, outputSats, custSk, custPk, merchPk, changePk)
+	assert.Nil(t, err)
+
+	// fmt.Println("escrow txid => ", escrowTxid)
+	// fmt.Println("escrow prevout => ", escrowPrevout)
+	fmt.Println("TX1: signedEscrowTx => ", signedEscrowTx)
+
+	merchTxPreimage, err := FormMerchCloseTx(escrowTxid, custPk, merchPk, merchClosePk, custBal, merchBal, toSelfDelay)
+
+	fmt.Println("merch TxPreimage => ", merchTxPreimage)
+
+	custSig, err := CustomerSignMerchCloseTx(custSk, merchTxPreimage)
+	fmt.Println("cust sig for merchCloseTx => ", custSig)
+
+	signedMerchCloseTx, merchTxid, merchPrevout, err := MerchantSignMerchCloseTx(escrowTxid, custPk, merchPk, merchClosePk, custBal, merchBal, toSelfDelay, custSig, merchSk)
+
+	fmt.Println("TX2: Merchant has signed merch close tx => ", signedMerchCloseTx)
 	fmt.Println("merch txid = ", merchTxid)
 	fmt.Println("merch prevout = ", merchPrevout)
 
