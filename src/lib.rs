@@ -849,7 +849,11 @@ pub mod mpc {
     ///
     pub fn pay_merchant<R: Rng>(csprng: &mut R, peer: usize, channel: &mut ChannelMPCState, nonce: [u8; NONCE_LEN], pay_token_mask_com: [u8; 32],
                                 rev_lock_com: [u8; 32], amount: i64, merch_state: &mut MerchantMPCState) -> Result<MaskedTxMPCInputs, String> {
-        merch_state.set_mpc_connect_type(ConnType_NETIO);
+        if peer != 0 {
+            merch_state.set_mpc_connect_type(ConnType_LNDNETIO);
+        } else {
+            merch_state.set_mpc_connect_type(ConnType_NETIO);
+        }
         let result = merch_state.execute_mpc_context(csprng, peer, &channel, nonce, rev_lock_com, pay_token_mask_com, amount);
         match result.is_err() {
             false => {

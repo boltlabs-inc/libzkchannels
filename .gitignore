@@ -6,6 +6,7 @@ deps/relic/*.tar.gz
 deps/time/*.tar.gz
 deps/emp-*/*.tar.gz
 deps/emp-*/build-*
+deps/mpc-connection/build-*
 deps/*/*.git
 deps/*/tmp-*
 

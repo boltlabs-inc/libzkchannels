@@ -16,7 +16,7 @@ debug:
 
 release:
 	cargo +nightly build --release --features mpc-bitcoin
-	cargo +nightly run --release --example zkchannels_zkproofs
+	cargo +nightly run --release --features mpc-bitcoin --example zkchannels_zkproofs
 
 bench:
 	cargo +nightly bench
