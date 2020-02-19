@@ -83,10 +83,11 @@ pub fn mpc_build_masked_tokens_cust(conn_type: u32, amount: i64, pay_mask_com: &
 
     unsafe {
         build_masked_tokens_cust(Some(io_callback), conn_type, translate_balance(amount),
-                                 rl_c, rl_rand_c, paymask_com, key_com,
+                                 rl_c, paymask_com, key_com,
                                  merch_escrow_pub_key_c, merch_dispute_key_c,
                                  merch_public_key_hash_c, merch_payout_pub_key_c,
                                  nonce,
+                                 rl_rand_c,
                                  new_state_c, old_state_c, pt_old_c,
                                  cust_escrow_pub_key_c, cust_payout_pub_key_c,
                                  &mut pt_return, &mut ct_escrow, &mut ct_merch);

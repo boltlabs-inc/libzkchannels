@@ -1,7 +1,6 @@
 use secp256k1;
 use bindings::{EcdsaPartialSig_l};
 use std::convert::TryInto;
-//use std::str;
 use std::ffi::CString;
 use std::os::raw::c_char;
 
@@ -20,7 +19,6 @@ fn call_ecdsa(psl: EcdsaPartialSig_l, hashedmsg: [u8; 32], party: u32) -> [u8; 3
     let hmsg = CString::new(hex::encode(hashedmsg)).unwrap();
 
     unsafe {
-        // TODO: pass hashed message
         test_ecdsa_e2e(psl, hmsg.as_ptr(), party, &return_digest);
     };
 
