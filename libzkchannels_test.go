@@ -12,21 +12,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_transactions(t *testing.T) {
+func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	channelState, err := ChannelSetup("channel", false)
 	assert.Nil(t, err)
 
 	channelState, merchState, err := InitMerchant(channelState, "merch")
 	assert.Nil(t, err)
 
-	custBal := int64(10000)
+	custBal := int64(1000000)
 	merchBal := int64(0)
 
 	channelToken, custState, err := InitCustomer(fmt.Sprintf("\"%v\"", *merchState.PkM), custBal, merchBal, "cust")
 	assert.Nil(t, err)
 
 	inputSats := int64(50 * 100000000)
-	// cust_utxo_txid := "f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1"
 	cust_utxo_txid := os.Getenv("UTXO_TXID")
 	if cust_utxo_txid == "" {
 		fmt.Println("Did not specify a UTXO_TXID.")
@@ -105,18 +104,68 @@ func Test_transactions(t *testing.T) {
 	fmt.Println("TX3: Close from EscrowTx => ", string(custState.CloseEscrowTx))
 	fmt.Println("TX4: Close from MerchCloseTx => ", string(custState.CloseMerchTx))
 
+	/////////////////////////////////////////////////////////
+	fmt.Println("Proceed with channel activation...")
+
+	state, custState, err := ActivateCustomer(custState)
+	assert.Nil(t, err)
+
+	payToken0, merchState, err := ActivateMerchant(channelToken, state, merchState)
+	assert.Nil(t, err)
+
+	custState, err = ActivateCustomerFinalize(payToken0, custState)
+	assert.Nil(t, err)
+
+	fmt.Println("channel activated...")
+	// unlink should happen at this point (0-value payment)
+	fmt.Println("proceed with pay protocol...")
+
+	revState, newState, custState, err := PreparePaymentCustomer(channelState, 10, custState)
+	assert.Nil(t, err)
+
+	assert.NotNil(t, revState)
+	assert.NotNil(t, newState)
+	assert.NotNil(t, channelState)
+	assert.NotNil(t, custState)
+
+	fmt.Println("Nonce: ", state.Nonce)
+
+	payTokenMaskCom, merchState, err := PreparePaymentMerchant(state.Nonce, merchState)
+	assert.Nil(t, err)
+
+	go runPayCust(channelState, channelToken, state, newState, payTokenMaskCom, revState.RevLockCom, custState)
+	maskedTxInputs, merchState, err := PayMerchant(channelState, state.Nonce, payTokenMaskCom, revState.RevLockCom, 10, merchState)
+	assert.Nil(t, err)
+	time.Sleep(time.Second * 5)
+
+	serCustState := os.Getenv("custStateRet")
+	err = json.Unmarshal([]byte(serCustState), &custState)
+	assert.Nil(t, err)
+	isOk, custState, err = PayUnmaskTxCustomer(channelState, channelToken, maskedTxInputs, custState)
+	assert.Nil(t, err)
+	assert.True(t, isOk)
+
+	payTokenMask, payTokenMaskR, merchState, err := PayValidateRevLockMerchant(revState, merchState)
+	assert.Nil(t, err)
+
+	isOk, custState, err = PayUnmaskPayTokenCustomer(payTokenMask, payTokenMaskR, custState)
+	assert.Nil(t, err)
+	assert.True(t, isOk)
+
+	fmt.Println("Get new signed close transactions...")
+	fmt.Println("TX5: CloseEscrowTx => ", string(custState.CloseEscrowTx))
+	fmt.Println("TX6: CloseMerchTx => ", string(custState.CloseMerchTx))
+
 	return
 }
 
-func Test_fullProtocol(t *testing.T) {
+func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	channelState, err := ChannelSetup("channel", false)
 	assert.Nil(t, err)
 
 	channelState, merchState, err := InitMerchant(channelState, "merch")
 	assert.Nil(t, err)
 
-	// cust_utxo_txid := "f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1"
-	// inputSats := int64(10000)
 	custBal := int64(10000)
 	merchBal := int64(0)
 
@@ -125,9 +174,9 @@ func Test_fullProtocol(t *testing.T) {
 
 	inputSats := int64(50 * 100000000)
 	cust_utxo_txid := "f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1"
-	custSk := fmt.Sprintf("\"%v\"", "5511111111111111111111111111111100000000000000000000000000000000")
+	custInputSk := fmt.Sprintf("\"%v\"", "5511111111111111111111111111111100000000000000000000000000000000")
 
-	custSk = fmt.Sprintf("\"%v\"", custState.SkC)
+	custSk := fmt.Sprintf("\"%v\"", custState.SkC)
 	custPk := fmt.Sprintf("%v", custState.PkC)
 	merchSk := fmt.Sprintf("\"%v\"", *merchState.SkM)
 	merchPk := fmt.Sprintf("%v", *merchState.PkM)
@@ -142,7 +191,7 @@ func Test_fullProtocol(t *testing.T) {
 	// fmt.Println("merchClosePk :=> ", merchClosePk)
 
 	outputSats := custBal + merchBal
-	signedEscrowTx, escrowTxid, escrowPrevout, err := FormEscrowTx(cust_utxo_txid, 0, inputSats, outputSats, custSk, custPk, merchPk, changePk)
+	signedEscrowTx, escrowTxid, escrowPrevout, err := FormEscrowTx(cust_utxo_txid, 0, inputSats, outputSats, custInputSk, custPk, merchPk, changePk)
 	assert.Nil(t, err)
 
 	// fmt.Println("escrow txid => ", escrowTxid)

@@ -668,7 +668,7 @@ mod merch {
         // sign the merch-close-tx given cust-sig
         let merch_private_key = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(merch_sk, false);
         let (signed_merch_close_tx, merch_txid, merch_prevout) =
-            completely_sign_multi_sig_transaction::<Testnet>(&tx_params, &cust_sig, &merch_private_key);
+            completely_sign_multi_sig_transaction::<Testnet>(&tx_params, &cust_sig, false, None, &merch_private_key);
         let signed_merch_close_tx = match signed_merch_close_tx.to_transaction_bytes() {
             Ok(n) => n,
             Err(e) => return Err(e.to_string())

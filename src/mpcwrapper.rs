@@ -304,7 +304,7 @@ mod tests {
     use std::slice;
     use std::ffi::CStr;
     use transactions::{ClosePublicKeys, BitcoinTxConfig, Input, SATOSHI};
-    use transactions::btc::{create_input, create_cust_close_transaction};
+    use transactions::btc::{create_reverse_input, create_cust_close_transaction};
 
     fn compute_commitment(buf: &Vec<u8>, r: &[u8; 16]) -> [u8; 32] {
         let mut input_buf = buf.clone();
@@ -509,7 +509,7 @@ mod tests {
         // the escrow Preimage is: "020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000004752210342da23a1de903cd7a141a99b5e8051abfcd4d2d1b3c2112bac5c8997d9f12a002103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae8000000000000000ffffffff1d09283c2d7b7c31643a0cf2f5d01912519b7d2f1dfde22f30f45c87852bbc0a0000000001000000"
         let escrow_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff40000000047522103f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd2103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae8000000000000000ffffffff1d09283c2d7b7c31643a0cf2f5d01912519b7d2f1dfde22f30f45c87852bbc0a0000000001000000").unwrap();
         // automatically generate the escrow_preimage
-        let input1 = create_input(&tx_id_esc, 0, 128);
+        let input1 = create_reverse_input(&tx_id_esc, 0, 128);
         let mut pubkeys = ClosePublicKeys {
             cust_pk: cust_escrow_pub_key.serialize().to_vec(),
             cust_close_pk: cust_payout_pub_key.serialize().to_vec(),
@@ -532,7 +532,7 @@ mod tests {
         let merch_tx = Message::from_slice(merch_tx_ar.as_slice()).unwrap();
 
         // automatically generate the escrow_preimage
-        let input2 = create_input(&tx_id_merch, 0, 128);
+        let input2 = create_reverse_input(&tx_id_merch, 0, 128);
         let (m_tx_preimage, _, _) = create_cust_close_transaction::<Testnet>(&input2, &pubkeys, &to_self_delay, new_state.bc, new_state.bm, false);
         println!("TX BUILDER: generated merch tx preimage: {}", hex::encode(&m_tx_preimage));
         assert_eq!(m_tx_preimage, merch_preimage);

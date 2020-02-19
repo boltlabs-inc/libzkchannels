@@ -957,8 +957,8 @@ pub mod txutil {
         };
 
         let musig_output = MultiSigOutput {
-            pubkey1: merch_pk,
-            pubkey2: cust_pk,
+            cust_pubkey: cust_pk,
+            merch_pubkey: merch_pk,
             address_format: "p2wsh",
             amount: output_sats // assumes already in sats
         };
@@ -973,11 +973,6 @@ pub mod txutil {
             false => return Err(String::from("Require a change pubkey to generate a valid escrow transaction"))
         };
 
-//        let sk = match secp256k1::SecretKey::from_slice(&cust_sk) {
-//            Ok(n) => n,
-//            Err(e) => return Err(e.to_string())
-//        };
-
         let private_key = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(cust_sk, false);
         let (_escrow_tx_preimage, full_escrow_tx) = handle_tx_error!(create_escrow_transaction::<Testnet>(&config, &input, &musig_output, &change_output, private_key.clone()));
         let (signed_tx, txid, hash_prevout) = sign_escrow_transaction::<Testnet>(full_escrow_tx, private_key);
@@ -985,19 +980,21 @@ pub mod txutil {
         Ok((signed_tx, txid, hash_prevout))
     }
 
-    pub fn merchant_form_close_transaction(escrow_txid: Vec<u8>, cust_pk: Vec<u8>, merch_pk: Vec<u8>, merch_close_pk: Vec<u8>, cust_bal_sats: i64, merch_bal_sats: i64, to_self_delay: [u8; 2]) -> Result<(Vec<u8>, BitcoinTransactionParameters<Testnet>), String> {
+    pub fn merchant_form_close_transaction(escrow_txid_be: Vec<u8>, cust_pk: Vec<u8>, merch_pk: Vec<u8>, merch_close_pk: Vec<u8>, cust_bal_sats: i64, merch_bal_sats: i64, to_self_delay: [u8; 2]) -> Result<(Vec<u8>, BitcoinTransactionParameters<Testnet>), String> {
 
         check_pk_length!(cust_pk);
         check_pk_length!(merch_pk);
         check_pk_length!(merch_close_pk);
 
-        let redeem_script = serialize_p2wsh_escrow_redeem_script(&merch_pk, &cust_pk);
+        let redeem_script = serialize_p2wsh_escrow_redeem_script(&cust_pk, &merch_pk);
         let escrow_index = 0;
+        let mut escrow_txid_le = escrow_txid_be.clone();
+        escrow_txid_le.reverse();
 
         let input = Input {
             address_format: "p2wsh",
             // outpoint of escrow
-            transaction_id: escrow_txid,
+            transaction_id: escrow_txid_le,
             index: escrow_index,
             redeem_script: Some(redeem_script),
             script_pub_key: None,
@@ -1013,17 +1010,16 @@ pub mod txutil {
 
     pub fn customer_sign_merch_close_transaction(cust_sk: secp256k1::SecretKey, merch_tx_preimage: Vec<u8>) -> Result<Vec<u8>, String> {
         // customer signs the preimage and sends signature to merchant
-        let sk = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(cust_sk, false); // get_private_key::<Testnet>(cust_sk)?;
+        let sk = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(cust_sk, false);
         let cust_sig = generate_signature_for_multi_sig_transaction::<Testnet>(&merch_tx_preimage, &sk)?;
         Ok(cust_sig)
     }
 
     pub fn merchant_sign_merch_close_transaction(tx_params: BitcoinTransactionParameters<Testnet>, cust_sig_and_len_byte: Vec<u8>, merch_sk: secp256k1::SecretKey) -> Result<(Vec<u8>, [u8; 32], [u8; 32]), String> {
         // merchant takes as input the tx params and signs it
-        // let merch_sk = get_private_key::<Testnet>(merch_sk)?;
-        let sk = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(merch_sk, false); // get_private_key::<Testnet>(cust_sk)?;
+        let sk = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(merch_sk, false);
         let (signed_merch_close_tx, txid, hash_prevout) =
-            completely_sign_multi_sig_transaction::<Testnet>(&tx_params, &cust_sig_and_len_byte, &sk);
+            completely_sign_multi_sig_transaction::<Testnet>(&tx_params, &cust_sig_and_len_byte, false, None, &sk);
         let signed_merch_close_tx = signed_merch_close_tx.to_transaction_bytes().unwrap();
 
         Ok((signed_merch_close_tx, txid, hash_prevout))

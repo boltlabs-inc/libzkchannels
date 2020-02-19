@@ -178,8 +178,8 @@ mod cust {
         };
 
         let musig_output = MultiSigOutput {
-            pubkey1: hex::decode(escrow.merch_pubkey).unwrap(),
-            pubkey2: hex::decode(escrow.cust_pubkey).unwrap(),
+            cust_pubkey: hex::decode(escrow.cust_pubkey).unwrap(),
+            merch_pubkey: hex::decode(escrow.merch_pubkey).unwrap(),
             address_format: "p2wsh",
             amount: escrow.output_sats // assumes already in sats
         };
@@ -273,10 +273,10 @@ mod merch {
         // hard code self delay (for now)
         let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
 
-        let redeem_script = serialize_p2wsh_escrow_redeem_script(&merch_pk, &cust_pk);
+        let redeem_script = serialize_p2wsh_escrow_redeem_script(&cust_pk, &merch_pk);
 
         let input = Input {
-            address_format: "native_p2wsh",
+            address_format: "p2wsh",
             // outpoint of escrow
             transaction_id: funding_tx.escrow_txid.0.to_vec(),
             index: escrow_index,
@@ -328,7 +328,7 @@ mod merch {
             };
 
             let (signed_merch_close_tx, txid, hash_prevout) =
-                completely_sign_multi_sig_transaction::<Testnet>(&tx_params, &cust_sig_and_len_byte, &merch_sk);
+                completely_sign_multi_sig_transaction::<Testnet>(&tx_params, &cust_sig_and_len_byte, false, None, &merch_sk);
             let signed_merch_tx = hex::encode(signed_merch_close_tx.to_transaction_bytes().unwrap());
 
             // let's update the funding tx object

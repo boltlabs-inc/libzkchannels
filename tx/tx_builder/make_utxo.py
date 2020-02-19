@@ -139,4 +139,11 @@ def main():
     mined_txid = block["tx"][0]
     print("new utxo txid (little Endian) => " + mined_txid)
 
+    f = open("run_gotest.sh", "w")
+    f.write("#!/bin/bash\n\n")
+    f.write("export UTXO_TXID={txid}\n".format(txid=mined_txid))
+    f.write("cd ../..\n")
+    f.write("make mpcgotest\n")
+    f.close()
+
 main()

@@ -74,10 +74,12 @@ output_value = output_value_sat.to_bytes(8, byteorder="little", signed=True)
 merch_privkey_hex = args.merch_privkey
 merch_privkey = bytes.fromhex(merch_privkey_hex)
 merch_pubkey = privkey_to_pubkey(merch_privkey)
+if verbose: print("merch pk: ", merch_pubkey.hex())
 
 cust_privkey_hex = args.cust_privkey
 cust_privkey = bytes.fromhex(cust_privkey_hex)
 cust_pubkey = privkey_to_pubkey(cust_privkey)
+if verbose: print("cust pk: ", cust_pubkey.hex())
 
 # merch_close_pubkey for the to_self_delay output
 merch_close_pubkey_hex = args.merch_close_pubkey
@@ -195,12 +197,15 @@ if verbose:
     print("<============Tx Details============>\n")
 
 hashed_bip_143 = dSHA256(bip_143)
+if verbose: print("\nTx hash: ", hashed_bip_143.hex())
 
 signing_key_merch = ecdsa.SigningKey.from_string(merch_privkey, curve=ecdsa.SECP256k1) # Don't forget to specify the curve
 signature_merch = signing_key_merch.sign_digest(hashed_bip_143, sigencode=ecdsa.util.sigencode_der_canonize)
+if verbose: print("Merch signature: ", signature_merch.hex())
 
 signing_key_cust = ecdsa.SigningKey.from_string(cust_privkey, curve=ecdsa.SECP256k1) # Don't forget to specify the curve
 signature_cust = signing_key_cust.sign_digest(hashed_bip_143, sigencode=ecdsa.util.sigencode_der_canonize)
+if verbose: print("Cust signature: ", signature_cust.hex())
 
 witness = (
     # indicate the number of stack items for the txin
