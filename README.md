@@ -155,11 +155,11 @@ To spend on the channel, execute the pay protocol API (can be executed as many t
 
 ### Channel Closure
 
-To close a channel, the customer must execute the `zkproofs::customer_refund()` routine as follows:
+To close a channel, the customer must execute the `zkproofs::customer_close()` routine as follows:
 
 	let cust_close_msg = zkproofs::customer_close(&channel_state, &cust_state);
 
-If the customer broadcasts an outdated version of his state, then the merchant can dispute this claim by executing the `zkproofs::merchant_retute()` routine as follows:
+If the customer broadcasts an outdated version of his state, then the merchant can dispute this claim by executing the `zkproofs::merchant_close()` routine as follows:
 
 	let merch_close = zkproofs::merchant_close(&channel_state, &channel_token, &cust_close_msg, &merch_state);
 
