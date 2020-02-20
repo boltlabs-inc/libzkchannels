@@ -50,8 +50,8 @@ pub struct ClosePublicKeys {
     pub rev_lock: FixedSizeArray32
 }
 
+/* Bitcoin transactions */
 pub mod btc {
-
     use super::*;
 
     pub fn serialize_p2wsh_escrow_redeem_script(cust_pubkey: &Vec<u8>, merch_pubkey: &Vec<u8>) -> Vec<u8> {
@@ -194,8 +194,8 @@ pub mod btc {
         let mut ret_val: Vec<u8> = Vec::new();
         let len = (rev_lock.len() + cust_close_pubkey.len()) as u8;
         ret_val.extend(vec![0x6a, len as u8]); // # OP_RETURN + OP_DATA
-        ret_val.extend(rev_lock.iter());
-        ret_val.extend(cust_close_pubkey.iter());
+        ret_val.extend(rev_lock.iter()); // 32 bytes
+        ret_val.extend(cust_close_pubkey.iter()); // 33 bytes
         return ret_val;
     }
 
@@ -545,6 +545,11 @@ pub mod btc {
         return (hash_preimage, transaction_parameters, transaction);
     }
 }
+
+/* Zcash transactions - shielded and transparent */
+pub mod zec {
+}
+
 
 #[cfg(test)]
 mod tests {

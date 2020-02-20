@@ -1615,7 +1615,7 @@ mod tests {
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
         let (new_state, revoked_state) = mpc::pay_prepare_customer(&mut rng, &channel, 10, &mut cust_state).unwrap();
-        let rev_lock_com = revoked_state.rev_lock_com.0;
+        let rev_lock_com = revoked_state.get_rev_lock_com();
 
         let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, s0.get_nonce(), &mut merch_state);
 

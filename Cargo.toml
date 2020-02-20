@@ -34,6 +34,7 @@ structopt = "0.3.7"
 bufstream = "0.1"
 wagyu-model = { git = "https://github.com/boltlabs-inc/wagyu", branch = "feature/transactions" }
 wagyu-bitcoin = { git = "https://github.com/boltlabs-inc/wagyu", branch = "feature/transactions" }
+# TODO: add wagyu-zcash
 
 [build-dependencies]
 bindgen="*"

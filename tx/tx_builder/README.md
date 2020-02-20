@@ -2,6 +2,7 @@
 
 - Bitcoin
 - Zcash
+- TBD: add others
 
 bitcoin
 - No tx fees
