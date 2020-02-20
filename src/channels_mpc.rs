@@ -7,7 +7,7 @@ use rand::Rng;
 use wallet::{State, NONCE_LEN};
 use mpcwrapper::{mpc_build_masked_tokens_cust, mpc_build_masked_tokens_merch};
 use transactions::ClosePublicKeys;
-use bindings::ConnType;
+use bindings::{ConnType, cb_receive, cb_send};
 use wagyu_model::Transaction;
 use transactions::btc::{create_input, get_var_length_int, create_cust_close_transaction,
                         generate_signature_for_multi_sig_transaction, completely_sign_multi_sig_transaction};
@@ -15,6 +15,7 @@ use bitcoin::{BitcoinTransactionParameters, BitcoinNetwork, BitcoinPrivateKey};
 use sha2::{Sha256, Digest};
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::os::raw::c_void;
 
 #[cfg(feature = "mpc-bitcoin")]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -445,7 +446,7 @@ impl CustomerMPCState {
     }
 
     // customer side of mpc
-    pub fn execute_mpc_context(&mut self, peer: usize, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken,
+    pub fn execute_mpc_context(&mut self, peer: *mut c_void, cb_r: cb_receive, cb_s: cb_send, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken,
                                old_state: State, new_state: State, paytoken_mask_com: [u8; 32], rev_lock_com: [u8;32], amount: i64) -> Result<bool, String> {
         //assert!(self.channel_initialized);
         // load the key_com from channel state
@@ -467,7 +468,7 @@ impl CustomerMPCState {
         };
 
         let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) =
-            mpc_build_masked_tokens_cust(peer, self.conn_type, amount, &paytoken_mask_com, &rev_lock_com, &self.t.0, &key_com,
+            mpc_build_masked_tokens_cust(peer, cb_r, cb_s, self.conn_type, amount, &paytoken_mask_com, &rev_lock_com, &self.t.0, &key_com,
                                      merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key,
                                      new_state, old_state,&old_paytoken.0, cust_escrow_pub_key, cust_payout_pub_key);
 
@@ -991,7 +992,8 @@ impl MerchantMPCState {
     }
 
     // for merchant side
-    pub fn execute_mpc_context<R: Rng>(&mut self, csprng: &mut R, peer: usize, channel_state: &ChannelMPCState, nonce: [u8; NONCE_LEN],
+    pub fn execute_mpc_context<R: Rng>(&mut self, csprng: &mut R, peer: *mut c_void, cb_r:cb_receive, cb_s:cb_send,
+                                       channel_state: &ChannelMPCState, nonce: [u8; NONCE_LEN],
                                rev_lock_com: [u8; 32], paytoken_mask_com: [u8; 32], amount: i64) -> Result<bool, String> {
         // if epsilon > 0, check if acceptable (above dust limit).
         if amount > 0 && amount < channel_state.get_dust_limit() {
@@ -1035,7 +1037,7 @@ impl MerchantMPCState {
         let pk_input_buf = self.payout_pk.serialize();
         let merch_public_key_hash= compute_hash160(&pk_input_buf.to_vec());
 
-        let (r_merch, r_esc) = mpc_build_masked_tokens_merch(csprng, peer, self.conn_type, amount, &paytoken_mask_com, &rev_lock_com, &hmac_key_com, &self.hmac_key_r.0,
+        let (r_merch, r_esc) = mpc_build_masked_tokens_merch(csprng, peer, cb_r, cb_s, self.conn_type, amount, &paytoken_mask_com, &rev_lock_com, &hmac_key_com, &self.hmac_key_r.0,
                                                   merch_escrow_pub_key, self.dispute_pk, merch_public_key_hash, self.payout_pk, nonce,
                                                   &hmac_key, self.sk_m.clone(), &merch_mask_bytes,
                                                   &pay_mask_bytes, &pay_mask_r, &escrow_mask_bytes);
@@ -1105,7 +1107,7 @@ mod tests {
     use super::*;
     use rand_xorshift::XorShiftRng;
     use channels_mpc::{ChannelMPCState, MerchantMPCState, CustomerMPCState};
-    use std::thread;
+    use std::{thread, ptr};
     use std::time::Duration;
     use sha2::Digest;
     use sha2::Sha256;
@@ -1350,7 +1352,7 @@ rusty_fork_test!
         let nonce = s_0.get_nonce().clone();
 
         println!("hello, merchant!");
-        let res = merch_state.execute_mpc_context(&mut rng, &channel, nonce, rev_lock_com, pay_token_mask_com, amount).unwrap();
+        let res = merch_state.execute_mpc_context(&mut rng, ptr::null(), &channel, nonce, rev_lock_com, pay_token_mask_com, amount).unwrap();
 
         println!("completed mpc execution!");
 

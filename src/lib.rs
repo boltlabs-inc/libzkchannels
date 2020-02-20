@@ -71,6 +71,7 @@ pub mod test_e2e;
 
 use std::fmt;
 use std::str;
+use std::ptr;
 use std::collections::HashMap;
 use ff::{Rand, Field};
 pub use fixed_size_array::{FixedSizeArray32, FixedSizeArray64};
@@ -693,9 +694,11 @@ pub mod mpc {
     use secp256k1::PublicKey;
     use wallet::{State, NONCE_LEN};
     use channels_mpc::{MaskedTxMPCInputs, InitCustState};
-    use bindings::{ConnType_NETIO, ConnType_LNDNETIO};
+    use bindings::{ConnType_NETIO, ConnType_LNDNETIO, cb_receive, cb_send};
     use bitcoin::Testnet;
     use fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
+    use std::os::raw::c_void;
+    use std::ptr;
 
     ///
     /// init_merchant() - takes as input the public params, merchant balance and keypair.
@@ -829,15 +832,15 @@ pub mod mpc {
     /// Start the MPC for a payment for the Customer
     /// output: a success boolean, or error
     ///
-    pub fn pay_customer(peer: usize, channel_state: &mut ChannelMPCState, channel_token: &ChannelMPCToken, s0: State, s1: State, pay_token_mask_com: [u8; 32],
+    pub fn pay_customer(peer: *mut c_void, cb_r: cb_receive, cb_s: cb_send, channel_state: &mut ChannelMPCState, channel_token: &ChannelMPCToken, s0: State, s1: State, pay_token_mask_com: [u8; 32],
                         rev_lock_com: [u8; 32], amount: i64, cust_state: &mut CustomerMPCState) -> Result<bool, String> {
         cust_state.update_pay_com(pay_token_mask_com);
-        if peer != 0 {
+        if !peer.is_null() {
             cust_state.set_mpc_connect_type(ConnType_LNDNETIO);
         } else {
             cust_state.set_mpc_connect_type(ConnType_NETIO);
         }
-        cust_state.execute_mpc_context(peer, &channel_state, &channel_token, s0, s1,
+        cust_state.execute_mpc_context(peer, cb_r, cb_s, &channel_state, &channel_token, s0, s1,
                                        pay_token_mask_com, rev_lock_com, amount)
     }
 
@@ -847,14 +850,14 @@ pub mod mpc {
     /// Start the MPC for a payment for the Merchant
     /// output: the transaction masks (escrow and merch tx), or error
     ///
-    pub fn pay_merchant<R: Rng>(csprng: &mut R, peer: usize, channel: &mut ChannelMPCState, nonce: [u8; NONCE_LEN], pay_token_mask_com: [u8; 32],
+    pub fn pay_merchant<R: Rng>(csprng: &mut R, peer: *mut c_void, cb_r: cb_receive, cb_s: cb_send, channel: &mut ChannelMPCState, nonce: [u8; NONCE_LEN], pay_token_mask_com: [u8; 32],
                                 rev_lock_com: [u8; 32], amount: i64, merch_state: &mut MerchantMPCState) -> Result<MaskedTxMPCInputs, String> {
-        if peer != 0 {
+        if !peer.is_null() {
             merch_state.set_mpc_connect_type(ConnType_LNDNETIO);
         } else {
             merch_state.set_mpc_connect_type(ConnType_NETIO);
         }
-        let result = merch_state.execute_mpc_context(csprng, peer, &channel, nonce, rev_lock_com, pay_token_mask_com, amount);
+        let result = merch_state.execute_mpc_context(csprng, peer, cb_r, cb_s, &channel, nonce, rev_lock_com, pay_token_mask_com, amount);
         match result.is_err() {
             false => {
                 let rev_lock_com_hex = hex::encode(rev_lock_com);

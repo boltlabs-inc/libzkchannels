@@ -1,14 +1,53 @@
 package libzkchannels
 
-// #cgo CFLAGS: -I${SRCDIR}/include -DDEFINE_MPC_BITCOIN=1 -Wno-macro-redefined
-// #cgo LDFLAGS: -lzkchannels
-// #include <cbindings.h>
+/*
+	#cgo CFLAGS: -I${SRCDIR}/include -DDEFINE_MPC_BITCOIN=1 -Wno-macro-redefined
+	#cgo LDFLAGS: -lzkchannels
+	#include <cbindings.h>
+	//#include "deps/root/include/emp-tool/io/libgo_io_channel.c"
+	//#include "deps/mpc-connection/go_io_channel.h"
+		//
+		//struct Receive_return {
+		//	char* r0;
+		//	int r1;
+		//	char* r2;
+		//};
+		//char* Send(char* p0, int p1, void* p2);
+		//struct Receive_return Receive(void* p0);
+	//char* _Send(char* p0, int p1, void* p2);
+	//struct Receive_return _Receive(void* p0);
+*/
 import "C"
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/lightningnetwork/lnd"
 	"strings"
+	"unsafe"
 )
+
+//export Send
+func Send(msg *C.char, length C.int, peer unsafe.Pointer) (errStr *C.char) {
+	fmt.Println("send msg: ", msg)
+	fmt.Println("send peer: ", peer)
+	fmt.Printf("send: %T\n", lnd.Send)
+	err := lnd.Send(C.GoBytes(unsafe.Pointer(msg), length), peer)
+	if err != nil {
+		fmt.Println("send err: ", err)
+		return C.CString(err.Error())
+	}
+	return nil
+}
+
+//export Receive
+func Receive(peer unsafe.Pointer) (msg unsafe.Pointer, length C.int, errStr *C.char) {
+	recvMsg := lnd.Receive(peer)
+	fmt.Println("received: ", recvMsg)
+	return C.CBytes(recvMsg), C.int(len(recvMsg)), nil
+}
+
+func main() {}
 
 type setupResp struct {
 	ChannelState    string `json:"channel_state"`
@@ -434,7 +473,7 @@ func PreparePaymentMerchant(nonce string, merchState MerchState) (string, MerchS
 	return r.PayTokenMaskCom, merchState, err
 }
 
-func PayCustomer(peer uintptr, channelState ChannelState, channelToken ChannelToken, startState State, endState State, payTokenMaskCom string, revLockCom string, amount int64, custState CustState) (bool, CustState, error) {
+func PayCustomer(peer unsafe.Pointer, channelState ChannelState, channelToken ChannelToken, startState State, endState State, payTokenMaskCom string, revLockCom string, amount int64, custState CustState) (bool, CustState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
 		return false, CustState{}, err
@@ -456,7 +495,8 @@ func PayCustomer(peer uintptr, channelState ChannelState, channelToken ChannelTo
 		return false, CustState{}, err
 	}
 
-	resp := C.GoString(C.mpc_pay_customer(C.uintptr_t(peer), C.CString(string(serChannelState)), C.CString(string(serChannelToken)), C.CString(string(serStartState)),
+	resp := C.GoString(C.mpc_pay_customer(peer, C.cb_send(C._Send), C.cb_receive(C._Receive), C.CString(string(serChannelState)), C.CString(string(serChannelToken)), C.CString(string(serStartState)),
+	//resp := C.GoString(C.mpc_pay_customer(peer, nil, nil, C.CString(string(serChannelState)), C.CString(string(serChannelToken)), C.CString(string(serStartState)),
 		C.CString(string(serEndState)), C.CString(payTokenMaskCom), C.CString(revLockCom), C.longlong(amount), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
@@ -467,7 +507,7 @@ func PayCustomer(peer uintptr, channelState ChannelState, channelToken ChannelTo
 	return r.IsOk, custState, err
 }
 
-func PayMerchant(peer uintptr, channelState ChannelState, nonce string, payTokenMaskCom string, revLockCom string, amount int64, merchState MerchState) (MaskedTxInputs, MerchState, error) {
+func PayMerchant(peer unsafe.Pointer, channelState ChannelState, nonce string, payTokenMaskCom string, revLockCom string, amount int64, merchState MerchState) (MaskedTxInputs, MerchState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
 		return MaskedTxInputs{}, MerchState{}, err
@@ -478,7 +518,8 @@ func PayMerchant(peer uintptr, channelState ChannelState, nonce string, payToken
 		return MaskedTxInputs{}, MerchState{}, err
 	}
 
-	resp := C.GoString(C.mpc_pay_merchant(C.uintptr_t(peer), C.CString(string(serChannelState)), C.CString(nonce), C.CString(payTokenMaskCom), C.CString(revLockCom), C.longlong(amount), C.CString(string(serMerchState))))
+	//resp := C.GoString(C.mpc_pay_merchant(peer, nil, nil, C.CString(string(serChannelState)), C.CString(nonce), C.CString(payTokenMaskCom), C.CString(revLockCom), C.longlong(amount), C.CString(string(serMerchState))))
+	resp := C.GoString(C.mpc_pay_merchant(peer, C.cb_send(C._Send), C.cb_receive(C._Receive), C.CString(string(serChannelState)), C.CString(nonce), C.CString(payTokenMaskCom), C.CString(revLockCom), C.longlong(amount), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return MaskedTxInputs{}, MerchState{}, err

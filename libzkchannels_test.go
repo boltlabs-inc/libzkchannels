@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -221,7 +222,7 @@ func Test_fullProtocol(t *testing.T) {
 	assert.Nil(t, err)
 
 	go runPayCust(channelState, channelToken, state, newState, payTokenMaskCom, revState.RevLockCom, custState)
-	maskedTxInputs, merchState, err := PayMerchant(0, channelState, state.Nonce, payTokenMaskCom, revState.RevLockCom, 10, merchState)
+	maskedTxInputs, merchState, err := PayMerchant(unsafe.Pointer(nil), channelState, state.Nonce, payTokenMaskCom, revState.RevLockCom, 10, merchState)
 	assert.Nil(t, err)
 	time.Sleep(time.Second * 5)
 
@@ -290,7 +291,7 @@ func TestPayCustomer(t *testing.T) {
 	err = json.Unmarshal([]byte(os.Getenv("custState")), &custState)
 	assert.Nil(t, err)
 
-	isOk, custState, err := PayCustomer(0, channelState, channelToken, state, newState, payTokenMaskCom, revLockCom, 10, custState)
+	isOk, custState, err := PayCustomer(unsafe.Pointer(nil), channelState, channelToken, state, newState, payTokenMaskCom, revLockCom, 10, custState)
 	serCustState, err := json.Marshal(custState)
 	t.Log("\n|||", string(serCustState), "|||\n")
 	assert.True(t, isOk)

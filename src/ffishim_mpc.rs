@@ -6,7 +6,7 @@ pub mod ffishim_mpc {
     use mpc;
     use txutil;
     use serde::Deserialize;
-    use libc::c_char;
+    use libc::{c_char,c_void};
     use std::ffi::{CStr, CString};
     use std::str;
     use channels_mpc::{CustomerMPCState, MerchantMPCState, ChannelMPCToken, InitCustState,
@@ -16,6 +16,7 @@ pub mod ffishim_mpc {
     use mpc::RevokedState;
     use FundingTxInfo;
     use bitcoin::Testnet;
+    use bindings::{Receive_return, cb_send, cb_receive};
 
     fn error_message(s: String) -> *mut c_char {
         let ser = ["{\'error\':\'", &s, "\'}"].concat();
@@ -252,7 +253,7 @@ pub mod ffishim_mpc {
     }
 
     #[no_mangle]
-    pub extern fn mpc_pay_customer(peer: usize, ser_channel_state: *mut c_char, ser_channel_token: *mut c_char, ser_start_state: *mut c_char, ser_end_state: *mut c_char, ser_pay_token_mask_com: *mut c_char, ser_rev_lock_com: *mut c_char, amount: i64, ser_cust_state: *mut c_char) -> *mut c_char {
+    pub extern fn mpc_pay_customer(peer: *mut c_void, callback_send: cb_send, callback_recv: cb_receive, ser_channel_state: *mut c_char, ser_channel_token: *mut c_char, ser_start_state: *mut c_char, ser_end_state: *mut c_char, ser_pay_token_mask_com: *mut c_char, ser_rev_lock_com: *mut c_char, amount: i64, ser_cust_state: *mut c_char) -> *mut c_char {
         // Deserialize the channel_state
         let channel_state_result: ResultSerdeType<ChannelMPCState> = deserialize_result_object(ser_channel_state);
         let mut channel_state = handle_errors!(channel_state_result);
@@ -286,7 +287,7 @@ pub mod ffishim_mpc {
         let mut cust_state = handle_errors!(cust_state_result);
 
         // We change the channel state
-        let result = mpc::pay_customer(peer, &mut channel_state, &channel_token, start_state, end_state, pay_token_mask_com_ar, rev_lock_com_ar, amount, &mut cust_state);
+        let result = mpc::pay_customer(peer, callback_recv, callback_send,  &mut channel_state, &channel_token, start_state, end_state, pay_token_mask_com_ar, rev_lock_com_ar, amount, &mut cust_state);
         let is_ok: bool = handle_errors!(result);
         let ser = ["{\'is_ok\':", &is_ok.to_string(), ", \'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
@@ -294,7 +295,7 @@ pub mod ffishim_mpc {
     }
 
     #[no_mangle]
-    pub extern fn mpc_pay_merchant(peer: usize, ser_channel_state: *mut c_char, ser_nonce: *mut c_char, ser_pay_token_mask_com: *mut c_char, ser_rev_lock_com: *mut c_char, amount: i64, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern fn mpc_pay_merchant(peer: *mut c_void, callback_send: cb_send, callback_recv: cb_receive, ser_channel_state: *mut c_char, ser_nonce: *mut c_char, ser_pay_token_mask_com: *mut c_char, ser_rev_lock_com: *mut c_char, amount: i64, ser_merch_state: *mut c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
 
         // Deserialize the channel_state
@@ -324,7 +325,7 @@ pub mod ffishim_mpc {
         let mut merch_state = handle_errors!(merch_state_result);
 
         // We change the channel state
-        let result = mpc::pay_merchant(rng, peer, &mut channel_state, nonce_ar, pay_token_mask_com_ar, rev_lock_com_ar, amount, &mut merch_state);
+        let result = mpc::pay_merchant(rng, peer, callback_recv, callback_send, &mut channel_state, nonce_ar, pay_token_mask_com_ar, rev_lock_com_ar, amount, &mut merch_state);
         let masked_tx_inputs = handle_errors!(result);
         let ser = ["{\'masked_tx_inputs\':\'", serde_json::to_string(&masked_tx_inputs).unwrap().as_str(), "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();

@@ -16,6 +16,7 @@ use serde::Deserialize;
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::thread::sleep;
 use std::time;
+use std::ptr;
 use bufstream::BufStream;
 use std::io::{BufRead, Write, Read};
 use std::path::PathBuf;
@@ -372,6 +373,7 @@ mod cust {
     use zkchannels::channels_mpc::{ChannelMPCToken, ChannelMPCState, CustomerMPCState, MaskedTxMPCInputs};
     use zkchannels::txutil::{customer_sign_escrow_transaction, merchant_form_close_transaction, customer_sign_merch_close_transaction};
     use zkchannels::FixedSizeArray32;
+    use std::ptr;
 
     pub fn open(conn: &mut Conn, b0_cust: i64, b0_merch: i64) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
@@ -553,7 +555,7 @@ mod cust {
         pay_token_mask_com.copy_from_slice(pay_token_mask_com_vec.as_slice());
 
         // execute the mpc phase
-        let result = mpc::pay_customer(0, &mut channel_state, &mut channel_token, old_state, new_state, pay_token_mask_com, rev_state.rev_lock_com.0, amount, &mut cust_state);
+        let result = mpc::pay_customer(ptr::null_mut(), None, None, &mut channel_state, &mut channel_token, old_state, new_state, pay_token_mask_com, rev_state.rev_lock_com.0, amount, &mut cust_state);
         let mut is_ok = result.is_ok() && result.unwrap();
 
         let msg2 = conn.wait_for(None, false);
@@ -750,7 +752,7 @@ mod merch {
         let msg1 = [hex::encode(&pay_token_mask_com)];
         conn.send(&msg1);
 
-        let masked_inputs = handle_error_result!(mpc::pay_merchant(rng, 0, &mut channel_state, nonce, pay_token_mask_com, rev_lock_com, amount, &mut merch_state));
+        let masked_inputs = handle_error_result!(mpc::pay_merchant(rng, ptr::null_mut(), None, None, &mut channel_state, nonce, pay_token_mask_com, rev_lock_com, amount, &mut merch_state));
         let msg3 = [handle_error_result!(serde_json::to_string(&masked_inputs))];
         let msg4 = conn.send_and_wait(&msg3, Some(String::from("Received revoked state")), true);
         let rev_state = serde_json::from_str(msg4.get(0).unwrap()).unwrap();

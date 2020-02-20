@@ -2,7 +2,7 @@ use libc::{c_int, c_uint, c_void};
 use secp256k1;
 use std::ffi::CString;
 use rand::Rng;
-use bindings::{get_netio_ptr, get_unixnetio_ptr, build_masked_tokens_cust, build_masked_tokens_merch, State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l, CommitmentRandomness_l, PayToken_l, Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l, BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l, ConnType_NETIO, ConnType_UNIXNETIO, ConnType_TORNETIO, ConnType_LNDNETIO, get_lndnetio_ptr};
+use bindings::{get_netio_ptr, get_unixnetio_ptr, build_masked_tokens_cust, build_masked_tokens_merch, State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l, CommitmentRandomness_l, PayToken_l, Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l, BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l, ConnType_NETIO, ConnType_UNIXNETIO, ConnType_TORNETIO, ConnType_LNDNETIO, get_lndnetio_ptr, cb_receive, cb_send};
 use wallet::State;
 use ecdsa_partial::EcdsaPartialSig;
 
@@ -31,7 +31,7 @@ extern "C" fn io_callback(conn_type: c_uint, party: c_int) -> *mut c_void {
     }
 }
 
-pub fn mpc_build_masked_tokens_cust(peer:usize, conn_type: u32, amount: i64, pay_mask_com: &[u8], rev_lock_com: &[u8], rl_rand: &[u8; 16], hmac_key_com: &[u8],
+pub fn mpc_build_masked_tokens_cust(peer:*mut c_void, cb_r: cb_receive, cb_s: cb_send, conn_type: u32, amount: i64, pay_mask_com: &[u8], rev_lock_com: &[u8], rl_rand: &[u8; 16], hmac_key_com: &[u8],
                                     merch_escrow_pub_key: secp256k1::PublicKey, merch_dispute_key: secp256k1::PublicKey,
                                     merch_pub_key_hash: [u8; 20], merch_payout_pub_key: secp256k1::PublicKey,
                                     new_state: State, old_state: State, pt_old: &[u8],
@@ -78,7 +78,7 @@ pub fn mpc_build_masked_tokens_cust(peer:usize, conn_type: u32, amount: i64, pay
     let mut ct_merch = EcdsaSig_l { sig: sig2_ar };
 
     unsafe {
-        build_masked_tokens_cust(Some(io_callback), conn_type, peer as u64, translate_balance(amount),
+        build_masked_tokens_cust(Some(io_callback), conn_type, peer, cb_r, cb_s,translate_balance(amount),
                                  rl_c, rl_rand_c, paymask_com, key_com,
                                  merch_escrow_pub_key_c, merch_dispute_key_c,
                                  merch_public_key_hash_c, merch_payout_pub_key_c,
@@ -216,7 +216,7 @@ fn u32_to_bytes(input: &[u32]) -> Vec<u8> {
     out
 }
 
-pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, peer: usize, conn_type: u32, amount: i64, com_new: &[u8], rev_lock_com: &[u8],
+pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, peer: *mut c_void, cb_r: cb_receive, cb_s: cb_send, conn_type: u32, amount: i64, com_new: &[u8], rev_lock_com: &[u8],
                                              key_com: &[u8], key_com_r: &[u8; 16],
                                              merch_escrow_pub_key: secp256k1::PublicKey, merch_dispute_key: secp256k1::PublicKey,
                                              merch_pub_key_hash: [u8; 20], merch_payout_pub_key: secp256k1::PublicKey,
@@ -269,7 +269,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, peer: usize, conn_type
 
 
     unsafe {
-        build_masked_tokens_merch(Some(io_callback), conn_type, peer as u64, translate_balance(amount), rl_c,
+        build_masked_tokens_merch(Some(io_callback), conn_type, peer, cb_r, cb_s, translate_balance(amount), rl_c,
                                   paymask_com, key_com,
                                   merch_escrow_pub_key_c, merch_dispute_key_c,
                                   merch_public_key_hash_c, merch_payout_pub_key_c,

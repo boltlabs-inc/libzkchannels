@@ -3,6 +3,14 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+typedef char *(*cb_send)(char *arg1, int arg2, void *arg3);
+
+typedef struct {
+  uint8_t _unused[0];
+} Receive_return;
+
+typedef Receive_return (*cb_receive)(void *arg1);
+
 typedef struct {
   char r[256];
   char k_inv[256];
@@ -260,7 +268,9 @@ char *mpc_init_merchant(char *ser_channel_state, const char *name_ptr);
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)
-char *mpc_pay_customer(uintptr_t peer,
+char *mpc_pay_customer(void *peer,
+                       cb_send callback_send,
+                       cb_receive callback_recv,
                        char *ser_channel_state,
                        char *ser_channel_token,
                        char *ser_start_state,
@@ -272,7 +282,9 @@ char *mpc_pay_customer(uintptr_t peer,
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)
-char *mpc_pay_merchant(uintptr_t peer,
+char *mpc_pay_merchant(void *peer,
+                       cb_send callback_send,
+                       cb_receive callback_recv,
                        char *ser_channel_state,
                        char *ser_nonce,
                        char *ser_pay_token_mask_com,
