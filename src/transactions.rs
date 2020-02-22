@@ -462,8 +462,7 @@ pub mod btc {
         return (hash_preimage, transaction);
     }
 
-    pub fn create_cust_close_transaction<N: BitcoinNetwork>(input: &Input, pubkeys: &ClosePublicKeys, self_delay: &[u8; 2],
-                                                            cust_bal: i64, merch_bal: i64, from_escrow: bool) -> (Vec<u8>, BitcoinTransactionParameters<N>, BitcoinTransaction<N>) {
+    pub fn create_cust_close_transaction<N: BitcoinNetwork>(input: &Input, pubkeys: &ClosePublicKeys, self_delay: &[u8; 2], cust_bal: i64, merch_bal: i64, from_escrow: bool) -> (Vec<u8>, BitcoinTransactionParameters<N>, BitcoinTransaction<N>) {
 
         let config = BitcoinTxConfig {
             version: 2,
@@ -544,6 +543,64 @@ pub mod btc {
 
         return (hash_preimage, transaction_parameters, transaction);
     }
+
+    // transaction for customer to claim their output from cust-close-from-*-tx after timelock
+    pub fn sign_cust_close_claim_transaction<N: BitcoinNetwork>(cust_close_pk: Vec<u8>, private_key: BitcoinPrivateKey<N>) -> Vec<u8> {
+        Vec::new()
+    }
+
+    // justice transaction for merchant to dispute the cust-close-from-tx via revoked rev-lock
+//    pub fn sign_merch_dispute_transaction<N: BitcoinNetwork>(txid: [u8; 32], rev_lock: [u8; 32], cust_close_pk: Vec<u8>, private_key: BitcoinPrivateKey<N>) -> Vec<u8> {
+//        let version = 2;
+//        let lock_time = 0;
+//        let address_format = BitcoinFormat::P2WSH;
+//        let redeem_script = serialize_p2wsh_escrow_redeem_script(cust_pubkey, merch_pubkey);
+//        // println!("redeem_script: {}", hex::encode(&redeem_script));
+//
+//        let address = BitcoinAddress::<N>::p2wsh(redeem_script.as_ref().unwrap()).unwrap();
+//        // println!("address: {}", address);
+//
+//        // println!("redeem_script: {}", hex::encode(redeem_script.as_ref().unwrap()));
+//        let transaction_id = txid.to_vec();
+//        let index = 0;
+//
+//        let cust_close_tx_input = BitcoinTransactionInput::<N>::new(
+//            transaction_id,
+//            index,
+//            Some(address),
+//            Some(BitcoinAmount::from_satoshi(input.utxo_amount.unwrap()).unwrap()),
+//            Some(redeem_script),
+//            None,
+//            None,
+//            SIGHASH_ALL,
+//        ).unwrap();
+//
+//        let mut input_vec = vec![];
+//        input_vec.push(cust_close_tx_input);
+//
+//        // let musig_script_pubkey = get_merch_close_timelocked_p2wsh_address(cust_pubkey, merch_pubkey, merch_close_pubkey, self_delay);
+//        // let musig_output = BitcoinTransactionOutput { amount: BitcoinAmount::from_satoshi(input.utxo_amount.unwrap()).unwrap(), script_pub_key: musig_script_pubkey };
+//        // println!("Multi-sig output script pubkey: {}", hex::encode(musig_output.serialize().unwrap()));
+//
+//        let mut output_vec = vec![];
+//        // output_vec.push(musig_output);
+//
+//        let transaction_parameters = BitcoinTransactionParameters::<N> {
+//            version: version,
+//            inputs: input_vec,
+//            outputs: output_vec,
+//            lock_time: lock_time,
+//            segwit_flag: true,
+//        };
+//
+//        return Vec::new();
+//    }
+
+//    pub fn sign_merch_claim_transaction<N: BitcoinNetwork>() {
+//
+//    }
+
+
 }
 
 /* Zcash transactions - shielded and transparent */
@@ -561,8 +618,8 @@ mod tests {
     #[test]
     fn test_bitcoin_p2sh_address() {
         let expected_scriptpubkey = hex::decode("0020c015c4a6be010e21657068fc2e6a9d02b27ebe4d490a25846f7237f104d1a3cd").unwrap();
-        let pubkey1 = hex::decode("023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb").unwrap();
-        let pubkey2 = hex::decode("030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c1").unwrap();
+        let pubkey1 = hex::decode("030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c1").unwrap();
+        let pubkey2 = hex::decode("023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb").unwrap();
         let output_scriptpubkey = transactions::btc::create_p2wsh_scriptpubkey::<Testnet>(&pubkey1, &pubkey2);
 
         println!("expected script_pubkey: {}", hex::encode(&output_scriptpubkey));
@@ -588,8 +645,8 @@ mod tests {
         };
 
         let musig_output = MultiSigOutput {
-            cust_pubkey: hex::decode("027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb").unwrap(),
-            merch_pubkey: hex::decode("037bed6ab680a171ef2ab564af25eff15c0659313df0bbfb96414da7c7d1e65882").unwrap(),
+            merch_pubkey: hex::decode("027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb").unwrap(),
+            cust_pubkey: hex::decode("037bed6ab680a171ef2ab564af25eff15c0659313df0bbfb96414da7c7d1e65882").unwrap(),
             address_format: "p2wsh",
             amount: 39 * SATOSHI
         };

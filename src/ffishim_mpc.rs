@@ -149,6 +149,18 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
+    #[no_mangle]
+    pub extern fn mpc_get_channel_id(ser_channel_token: *mut c_char) -> *mut c_char {
+        // Deserialize the ChannelToken
+        let channel_token_result: ResultSerdeType<ChannelMPCToken> = deserialize_result_object(ser_channel_token);
+        let channel_token = handle_errors!(channel_token_result);
+
+        let channel_id = handle_errors!(channel_token.compute_channel_id());
+        let ser = ["{\'channel_id\':\'", &hex::encode(channel_id), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
     // ACTIVATE
 
     #[no_mangle]

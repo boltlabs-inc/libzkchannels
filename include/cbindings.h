@@ -260,6 +260,10 @@ void mpc_free_string(char *pointer);
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)
+char *mpc_get_channel_id(char *ser_channel_token);
+#endif
+
+#if defined(DEFINE_MPC_BITCOIN)
 char *mpc_get_initial_state(char *ser_cust_state);
 #endif
 
