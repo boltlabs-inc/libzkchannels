@@ -107,6 +107,9 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	/////////////////////////////////////////////////////////
 	fmt.Println("Proceed with channel activation...")
 
+	channelId, err := GetChannelId(channelToken)
+	fmt.Println("Channel ID: ", channelId)
+
 	state, custState, err := ActivateCustomer(custState)
 	assert.Nil(t, err)
 

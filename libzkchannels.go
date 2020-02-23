@@ -13,6 +13,7 @@ import (
 type setupResp struct {
 	ChannelState    string `json:"channel_state"`
 	ChannelToken    string `json:"channel_token"`
+	ChannelId       string `json:"channel_id"`
 	CustState       string `json:"cust_state"`
 	MerchState      string `json:"merch_state"`
 	PayToken        string `json:"pay_token"`
@@ -324,6 +325,21 @@ func MerchantValidateInitialState(channelToken ChannelToken, initCustState InitC
 
 	err = json.Unmarshal([]byte(r.MerchState), &merchState)
 	return r.IsOk, merchState, err
+}
+
+func GetChannelId(channelToken ChannelToken) (string, error) {
+	serChannelToken, err := json.Marshal(channelToken)
+	if err != nil {
+		return "", err
+	}
+
+	resp := C.GoString(C.mpc_get_channel_id(C.CString(string(serChannelToken))))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return "", err
+	}
+
+	return r.ChannelId, err
 }
 
 func ActivateCustomer(custState CustState) (State, CustState, error) {
