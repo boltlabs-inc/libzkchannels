@@ -23,6 +23,7 @@ pub struct Input {
     pub sequence: Option<[u8; 4]>
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct Output {
     pub pubkey: Vec<u8>,
     pub amount: i64
@@ -296,8 +297,7 @@ pub mod btc {
             script_pub_key,
             sequence,
             SIGHASH_ALL,
-        )
-            .unwrap();
+        ).unwrap();
 
         let mut input_vec = vec![];
         input_vec.push(transaction_input);
@@ -577,28 +577,82 @@ pub mod btc {
     }
 
     // transaction for customer to claim their output from cust-close-from-*-tx after timelock
-    pub fn sign_cust_close_claim_transaction<N: BitcoinNetwork>(cust_close_pk: Vec<u8>, private_key: BitcoinPrivateKey<N>) -> Vec<u8> {
-        Vec::new()
-    }
-
-    // justice transaction for merchant to dispute the cust-close-from-tx via revoked rev-lock/rev-secret
-    pub fn sign_merch_dispute_transaction<N: BitcoinNetwork>(txid_le: Vec<u8>, index: u32, utxo_amount: i64, self_delay: [u8; 2], rev_lock: Vec<u8>, rev_secret: Vec<u8>, merch_disp_pk: Vec<u8>, cust_close_pk: Vec<u8>, output_pk: Vec<u8>, private_key: BitcoinPrivateKey<N>) -> Result<Vec<u8>, String> {
+    pub fn sign_cust_close_claim_transaction<N: BitcoinNetwork>(txid_le: Vec<u8>, index: u32, output: Output, self_delay: [u8; 2], rev_lock: Vec<u8>, merch_disp_pk: Vec<u8>, cust_close_pk: Vec<u8>, private_key: BitcoinPrivateKey<N>) -> Result<(Vec<u8>, Vec<u8>), String> {
         let version = 2;
         let lock_time = 0;
         let address_format = BitcoinFormat::P2WSH;
         let redeem_script = serialize_p2wsh_cust_close_redeem_script(&rev_lock, &merch_disp_pk, &cust_close_pk, &self_delay);
         let address = BitcoinAddress::<N>::p2wsh(&redeem_script).unwrap();
         let transaction_id = txid_le.clone();
-        let index = 0;
+        let sequence: Vec<u8> = vec![0xff, 0xff, 0xff, 0xff].to_vec();
 
         let mut cust_close_tx_input = BitcoinTransactionInput::<N>::new(
             transaction_id,
             index,
             Some(address),
-            Some(BitcoinAmount(utxo_amount)),
+            Some(BitcoinAmount::from_satoshi(output.amount).unwrap()),
             Some(redeem_script),
             None,
+            Some(sequence),
+            SIGHASH_ALL,
+        ).unwrap();
+
+        // "00" so we enter OP_ELSE in the script
+        let script_data: Vec<u8> = vec![0x00];
+        // false so that script_data should be appended after signature on stack
+        cust_close_tx_input.additional_witness = Some((script_data, false));
+        // cust_close_tx_input.witness_script_data = None;
+
+        let mut input_vec = vec![];
+        input_vec.push(cust_close_tx_input);
+
+        // add P2WPKH output
+        let output_script_pk = create_p2wpkh_scriptpubkey::<N>(&output.pubkey);
+        let p2wpkh_output = BitcoinTransactionOutput { amount: BitcoinAmount::from_satoshi(output.amount).unwrap(), script_pub_key: output_script_pk };
+
+        let mut output_vec = vec![];
+        output_vec.push(p2wpkh_output);
+
+        let transaction_parameters = BitcoinTransactionParameters::<N> {
+            version: version,
+            inputs: input_vec,
+            outputs: output_vec,
+            lock_time: lock_time,
+            segwit_flag: true,
+        };
+
+        let transaction = BitcoinTransaction::<N>::new(&transaction_parameters).unwrap();
+        let hash_preimage = transaction.segwit_hash_preimage(0, SIGHASH_ALL).unwrap();
+
+        let signed_tx = match transaction.sign(&private_key) {
+            Ok(s) => s,
+            Err(e) => return Err(format!("Failed to sign transaction: {:?}", e))
+        };
+
+        let signed_tx_vec = signed_tx.to_transaction_bytes().unwrap();
+        Ok((signed_tx_vec, hash_preimage))
+    }
+
+    // justice transaction for merchant to dispute the cust-close-from-tx via revoked rev-lock/rev-secret
+    pub fn sign_merch_dispute_transaction<N: BitcoinNetwork>(txid_le: Vec<u8>, index: u32, output: Output, self_delay: [u8; 2],
+                                                             rev_lock: Vec<u8>, rev_secret: Vec<u8>, merch_disp_pk: Vec<u8>, cust_close_pk: Vec<u8>,
+                                                             private_key: BitcoinPrivateKey<N>) -> Result<(Vec<u8>, Vec<u8>), String> {
+        let version = 2;
+        let lock_time = 0;
+        let address_format = BitcoinFormat::P2WSH;
+        let redeem_script = serialize_p2wsh_cust_close_redeem_script(&rev_lock, &merch_disp_pk, &cust_close_pk, &self_delay);
+        let address = BitcoinAddress::<N>::p2wsh(&redeem_script).unwrap();
+        let transaction_id = txid_le.clone();
+        let sequence: Vec<u8> = vec![0xff, 0xff, 0xff, 0xff].to_vec();
+
+        let mut cust_close_tx_input = BitcoinTransactionInput::<N>::new(
+            transaction_id,
+            index,
+            Some(address),
+            Some(BitcoinAmount::from_satoshi(output.amount).unwrap()),
+            Some(redeem_script),
             None,
+            Some(sequence),
             SIGHASH_ALL,
         ).unwrap();
 
@@ -614,8 +668,8 @@ pub mod btc {
         input_vec.push(cust_close_tx_input);
 
         // add P2WPKH output
-        let output_script_pk = create_p2wpkh_scriptpubkey::<N>(&output_pk);
-        let p2wpkh_output = BitcoinTransactionOutput { amount: BitcoinAmount(utxo_amount), script_pub_key: output_script_pk };
+        let output_script_pk = create_p2wpkh_scriptpubkey::<N>(&output.pubkey);
+        let p2wpkh_output = BitcoinTransactionOutput { amount: BitcoinAmount::from_satoshi(output.amount).unwrap(), script_pub_key: output_script_pk };
 
         let mut output_vec = vec![];
         output_vec.push(p2wpkh_output);
@@ -629,17 +683,85 @@ pub mod btc {
         };
 
         let transaction = BitcoinTransaction::<N>::new(&transaction_parameters).unwrap();
+        let hash_preimage = transaction.segwit_hash_preimage(0, SIGHASH_ALL).unwrap();
+
         let signed_tx = match transaction.sign(&private_key) {
             Ok(s) => s,
             Err(e) => return Err(format!("Failed to sign transaction: {:?}", e))
         };
 
         let signed_tx_vec = signed_tx.to_transaction_bytes().unwrap();
-        Ok(signed_tx_vec)
+        Ok((signed_tx_vec, hash_preimage))
     }
 
-    pub fn sign_merch_claim_transaction<N: BitcoinNetwork>() {
+    // merchant claiming the `to_merchant` output in the cust-close-*-tx (spendable immediately)
+    pub fn sign_merch_claim_transaction<N: BitcoinNetwork>(input: Input, output: Output, private_key: BitcoinPrivateKey<N>) -> Result<(Vec<u8>, Vec<u8>), String> {
+        let version = 2;
+        let lock_time = 0;
+        let address_format = match input.address_format {
+            "p2wpkh" => BitcoinFormat::P2PKH, // output of cust-close-*-tx
+            "p2wsh" => BitcoinFormat::P2WSH, // output of merch-close-tx
+            _ => return Err(format!("do not currently support specified address format: {}", input.address_format))
+        };
+        let redeem_script = match (input.redeem_script.as_ref(), address_format.clone()) {
+            (Some(script), BitcoinFormat::P2WSH) => Some(script.clone()),
+            (_, _) => None,
+        };
+        let script_pub_key = input.script_pub_key.map(|script| hex::decode(script).unwrap());
+        let sequence = input.sequence.map(|seq| seq.to_vec());
 
+        let address = match address_format {
+            BitcoinFormat::P2WSH => BitcoinAddress::<N>::p2wsh(redeem_script.as_ref().unwrap()).unwrap(),
+            BitcoinFormat::P2PKH => private_key.to_address(&address_format).unwrap(),
+            _ => return Err(format!("address format {} not supported right now", address_format))
+        };
+
+        let mut tx_input = BitcoinTransactionInput::<N>::new(
+            input.transaction_id.clone(),
+            input.index,
+            Some(address),
+            Some(BitcoinAmount::from_satoshi(input.utxo_amount.unwrap()).unwrap()),
+            redeem_script,
+            script_pub_key,
+            sequence,
+            SIGHASH_ALL,
+        ).unwrap();
+
+        if address_format == BitcoinFormat::P2WSH {
+            // "00" so we enter OP_ELSE in the script
+            let script_data: Vec<u8> = vec![0x00];
+            // false so that script_data should be appended after signature on stack
+            tx_input.additional_witness = Some((script_data, false));
+        }
+
+        let mut input_vec = vec![];
+        input_vec.push(tx_input);
+
+        // add P2WPKH output
+        let output_script_pubkey = create_p2wpkh_scriptpubkey::<N>(&output.pubkey);
+        let p2wpkh_output = BitcoinTransactionOutput { amount: BitcoinAmount(output.amount), script_pub_key: output_script_pubkey };
+
+        let mut output_vec = vec![];
+        output_vec.push(p2wpkh_output);
+
+        let transaction_parameters = BitcoinTransactionParameters::<N> {
+            version: version,
+            inputs: input_vec,
+            outputs: output_vec,
+            lock_time: lock_time,
+            segwit_flag: true,
+        };
+
+        let transaction = BitcoinTransaction::<N>::new(&transaction_parameters).unwrap();
+        // let hash_preimage = transaction.segwit_hash_preimage(0, SIGHASH_ALL).unwrap();
+
+        let signed_tx = match transaction.sign(&private_key) {
+            Ok(s) => s,
+            Err(e) => return Err(format!("Failed to sign transaction: {:?}", e))
+        };
+
+        let signed_tx_vec = signed_tx.to_transaction_bytes().unwrap();
+        Ok((signed_tx_vec, Vec::new()))
     }
 
 
@@ -858,6 +980,7 @@ mod tests {
 
     #[test]
     fn test_sign_merch_dispute_transaction() {
+        // testing merchant dispute the `to_customer` output in the cust-close-*-tx during dispute period (via timelock)
         let txid_le = hex::decode("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1").unwrap();
         let index = 0;
         let utxo_amount = 1 * SATOSHI;
@@ -865,13 +988,90 @@ mod tests {
         let rev_lock = hash_to_slice(&rev_secret).to_vec();
         let merch_disp_pk = hex::decode("021882b66a9c4ec1b8fc29ac37fbf4607b8c4f1bfe2cc9a49bc1048eb57bcebe67").unwrap();
         let cust_close_pk = hex::decode("027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb").unwrap();
-        let output_pk = hex::decode("027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb").unwrap();
-        let self_delay_le: [u8; 2] = [0xcf, 0x05]; // little-endian format
+        let self_delay_le: [u8; 2] = [0xcf, 0x05];
+        let output = Output {
+            amount: utxo_amount,
+            pubkey: hex::decode("027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb").unwrap()
+        };
 
         let m_private_key = BitcoinPrivateKey::<Testnet>::from_str("cNTSD7W8URSCmfPTvNf2B5gyKe2wwyNomkCikVhuHPCsFgBUKrAV").unwrap();
 
-        let signed_tx = transactions::btc::sign_merch_dispute_transaction(txid_le, index, utxo_amount, self_delay_le, rev_lock, rev_secret, merch_disp_pk, cust_close_pk, output_pk, m_private_key).unwrap();
+        let (signed_tx, tx_preimage) = transactions::btc::sign_merch_dispute_transaction(txid_le, index, output, self_delay_le, rev_lock, rev_secret, merch_disp_pk, cust_close_pk, m_private_key).unwrap();
 
-        println!("signed merch_dispue tx: {}", hex::encode(&signed_tx));
+        println!("preimage merch_dispue tx: {}", hex::encode(&tx_preimage));
+        println!("signed merch_dispute tx: {}", hex::encode(&signed_tx));
+        let expected_tx_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000007063a820192353284afd64b5a40e0cf61e81a914eb0fe441867bbb4f255095e1c14bd3f58821021882b66a9c4ec1b8fc29ac37fbf4607b8c4f1bfe2cc9a49bc1048eb57bcebe676702cf05b27521027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb68ac00e1f50500000000fffffffff80c36c55d65a6c94b50753f32e6d75cfc64d03f96d52d1b882bd1492d7a46180000000001000000").unwrap();
+        assert_eq!(tx_preimage, expected_tx_preimage);
+    }
+
+    #[test]
+    fn test_sign_cust_claim_transaction() {
+        // testing customer claiming the `to_customer` output in the cust-close-*tx after timelock
+        let txid_le = hex::decode("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1").unwrap();
+        let index = 0;
+        let utxo_amount = 1 * SATOSHI;
+        let rev_lock = hex::decode("3111111111111111111111111111111111111111111111111111111111111111").unwrap();
+        let merch_disp_pk = hex::decode("021882b66a9c4ec1b8fc29ac37fbf4607b8c4f1bfe2cc9a49bc1048eb57bcebe67").unwrap();
+        let cust_close_pk = hex::decode("027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb").unwrap();
+        let self_delay_le: [u8; 2] = [0xcf, 0x05];
+
+        let output = Output {
+            amount: utxo_amount,
+            pubkey: hex::decode("027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb").unwrap()
+        };
+
+        let c_private_key = BitcoinPrivateKey::<Testnet>::from_str("cPmiXrwUfViwwkvZ5NXySiHEudJdJ5aeXU4nx4vZuKWTUibpJdrn").unwrap();
+        let (signed_tx, tx_preimage) =
+            transactions::btc::sign_cust_close_claim_transaction(txid_le, index, output, self_delay_le,
+                                                                 rev_lock, merch_disp_pk, cust_close_pk, c_private_key).unwrap();
+        println!("preimage for cust_claim tx (from cust-close-tx): {}", hex::encode(&tx_preimage));
+        let expected_tx_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000007063a82031111111111111111111111111111111111111111111111111111111111111118821021882b66a9c4ec1b8fc29ac37fbf4607b8c4f1bfe2cc9a49bc1048eb57bcebe676702cf05b27521027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb68ac00e1f50500000000fffffffff80c36c55d65a6c94b50753f32e6d75cfc64d03f96d52d1b882bd1492d7a46180000000001000000").unwrap();
+        assert_eq!(tx_preimage, expected_tx_preimage);
+    }
+
+    #[test]
+    fn test_sign_merch_claim_transactions() {
+        // case 1 - testing merchant claiming the `to_merchant` output in the cust-close-*-tx (spendable immediately)
+        let utxo_amount = 1 * SATOSHI;
+        let input1 = Input {
+            address_format: "p2wpkh",
+            // outpoint + txid
+            transaction_id: hex::decode("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1").unwrap(),
+            index: 1,
+            redeem_script: None,
+            script_pub_key: None,
+            utxo_amount: Some(utxo_amount),
+            sequence: Some([0xff, 0xff, 0xff, 0xff]) // 4294967295
+        };
+
+        let output = Output {
+            amount: utxo_amount,
+            pubkey: hex::decode("027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb").unwrap()
+        };
+
+        let m_private_key = BitcoinPrivateKey::<Testnet>::from_str("cNTSD7W8URSCmfPTvNf2B5gyKe2wwyNomkCikVhuHPCsFgBUKrAV").unwrap();
+        let (signed_tx1, tx_preimage1) = transactions::btc::sign_merch_claim_transaction(input1, output.clone(), m_private_key.clone()).unwrap();
+
+        // case 2 - testing merchant claiming the `merch-close-tx` output after timelock
+        let cust_pk = hex::decode("027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb").unwrap();
+        let merch_pk = hex::decode("024596d7b33733c28101dbc6c85901dffaed0cdac63ab0b2ea141217d1990ad4b1").unwrap();
+        let merch_close_pk = hex::decode("02ab573100532827bd0e44b4353e4eaa9c79afbc93f69454a4a44d9fea8c45b5af").unwrap();
+        let self_delay_le: [u8; 2] = [0xcf, 0x05];
+
+        let redeem_script = transactions::btc::serialize_p2wsh_merch_close_redeem_script(&cust_pk, &merch_pk, &merch_close_pk, &self_delay_le);
+
+        let input2 = Input {
+            address_format: "p2wsh",
+            // outpoint + txid
+            transaction_id: hex::decode("f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1").unwrap(),
+            index: 0,
+            redeem_script: Some(redeem_script),
+            script_pub_key: None,
+            utxo_amount: Some(utxo_amount),
+            sequence: Some([0xff, 0xff, 0xff, 0xff]) // 4294967295
+        };
+
+        let (signed_tx2, tx_preimage2) = transactions::btc::sign_merch_claim_transaction(input2, output, m_private_key).unwrap();
+        // TODO: verify preimages
     }
 }

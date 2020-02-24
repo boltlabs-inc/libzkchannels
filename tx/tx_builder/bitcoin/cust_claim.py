@@ -105,9 +105,8 @@ nSequence_as_blocks = int(args.to_self_delay, 16)
 l = int(len(args.to_self_delay)/2)
 short_sequence = nSequence_as_blocks.to_bytes(l, byteorder="little", signed=False)
 
-
 cust_close_script = (
-    bytes.fromhex("63 a9 14")
+    bytes.fromhex("63 a8 20")
     + revocation_lock
     + bytes.fromhex("88 21")
     + merch_disp_pubkey
@@ -191,7 +190,7 @@ witness = (
     + bytes.fromhex("00")
 
     # witnessScript
-    # This is the script that the creator of this transaction needs to privide, and
+    # This is the script that the creator of this transaction needs to provide, and
     # solve, in order to redeem the UTXO listed in the input
     + (len(cust_close_script)).to_bytes(1, byteorder="little", signed=False)
     + cust_close_script
