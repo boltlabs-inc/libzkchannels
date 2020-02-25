@@ -219,8 +219,10 @@ pub struct CustomerMPCState {
     payout_sk: secp256k1::SecretKey,
     payout_pk: secp256k1::PublicKey,
     pub conn_type: u32,
-    cust_close_escrow_tx: String,
-    cust_close_merch_tx: String,
+    close_escrow_txid: String,
+    close_escrow_tx: String,
+    close_merch_txid: String,
+    close_merch_tx: String,
     channel_initialized: bool,
     net_config: Option<NetworkConfig>
 }
@@ -295,8 +297,10 @@ impl CustomerMPCState {
             payout_sk: payout_sk,
             payout_pk: payout_pk,
             conn_type: 0,
-            cust_close_escrow_tx: String::new(),
-            cust_close_merch_tx: String::new(),
+            close_escrow_txid: String::new(),
+            close_escrow_tx: String::new(),
+            close_merch_txid: String::new(),
+            close_merch_tx: String::new(),
             channel_initialized: false,
             net_config: None
         };
@@ -566,15 +570,17 @@ impl CustomerMPCState {
             // customer sign the transactions to complete multi-sig and store CT bytes locally
             let private_key = BitcoinPrivateKey::<N>::from_secp256k1_secret_key(self.sk_c.clone(), false);
             // sign the cust-close-from-escrow-tx
-            let (signed_cust_close_escrow_tx, _, _) =
+            let (signed_cust_close_escrow_tx, close_escrow_txid, _) =
                 completely_sign_multi_sig_transaction::<N>(&escrow_tx_params, &orig_escrow_sig, true, None, &private_key);
-            self.cust_close_escrow_tx = hex::encode(&signed_cust_close_escrow_tx.to_transaction_bytes().unwrap());
+            self.close_escrow_txid = hex::encode(&close_escrow_txid);
+            self.close_escrow_tx = hex::encode(&signed_cust_close_escrow_tx.to_transaction_bytes().unwrap());
 
             // sign the cust-close-from-merch-tx
             let script_data: Vec<u8> = vec![0x01];
-            let (signed_cust_close_merch_tx, _, _) =
+            let (signed_cust_close_merch_tx, close_merch_txid, _) =
                 completely_sign_multi_sig_transaction::<N>(&merch_tx_params, &orig_merch_sig, true, Some(script_data), &private_key);
-            self.cust_close_merch_tx = hex::encode(&signed_cust_close_merch_tx.to_transaction_bytes().unwrap());
+            self.close_merch_txid = hex::encode(&close_merch_txid);
+            self.close_merch_tx = hex::encode(&signed_cust_close_merch_tx.to_transaction_bytes().unwrap());
 
             self.channel_initialized = true;
             Ok(true)
@@ -638,15 +644,17 @@ impl CustomerMPCState {
         let enc_merch_signature = [get_var_length_int(merch_signature.len() as u64).unwrap(), merch_signature].concat();
 
         // sign the cust-close-from-escrow-tx
-        let (signed_cust_close_escrow_tx, _, _) =
+        let (signed_cust_close_escrow_tx, close_escrow_txid, _) =
             completely_sign_multi_sig_transaction::<N>(&escrow_tx_params, &enc_escrow_signature, true, None, &private_key);
-        self.cust_close_escrow_tx = hex::encode(&signed_cust_close_escrow_tx.to_transaction_bytes().unwrap());
+        self.close_escrow_txid = hex::encode(&close_escrow_txid);
+        self.close_escrow_tx = hex::encode(&signed_cust_close_escrow_tx.to_transaction_bytes().unwrap());
 
         // sign the cust-close-from-merch-tx
         let script_data: Vec<u8> = vec![0x01];
-        let (signed_cust_close_merch_tx, _, _) =
+        let (signed_cust_close_merch_tx, close_merch_txid, _) =
             completely_sign_multi_sig_transaction::<N>(&merch_tx_params, &enc_merch_signature, true, Some(script_data), &private_key);
-        self.cust_close_merch_tx = hex::encode(&signed_cust_close_merch_tx.to_transaction_bytes().unwrap());
+        self.close_merch_txid = hex::encode(&close_merch_txid);
+        self.close_merch_tx = hex::encode(&signed_cust_close_merch_tx.to_transaction_bytes().unwrap());
 
         return escrow_sig_valid && merch_sig_valid;
     }
@@ -678,11 +686,11 @@ impl CustomerMPCState {
     }
 
     pub fn get_cust_close_escrow_tx(&self) -> String {
-        return self.cust_close_escrow_tx.clone();
+        return self.close_escrow_tx.clone();
     }
 
     pub fn get_cust_close_merch_tx(&self) -> String {
-        return self.cust_close_merch_tx.clone();
+        return self.close_merch_tx.clone();
     }
 }
 

@@ -83,8 +83,10 @@ type CustState struct {
 	PayoutSk           string                  `json:"payout_sk"`
 	PayoutPk           string                  `json:"payout_pk"`
 	ConnType           int                     `json:"conn_type"`
-	CloseEscrowTx      string                  `json:"cust_close_escrow_tx"`
-	CloseMerchTx       string                  `json:"cust_close_merch_tx"`
+	CloseEscrowTxId    string                  `json:"close_escrow_txid"`
+	CloseEscrowTx      string                  `json:"close_escrow_tx"`
+	CloseMerchTxId     string                  `json:"close_merch_txid"`
+	CloseMerchTx       string                  `json:"close_merch_tx"`
 	ChannelInitialized bool                    `json:"channel_initialized"`
 	NetConfig          *map[string]interface{} `json:"net_config"`
 }
