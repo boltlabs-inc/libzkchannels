@@ -1120,7 +1120,6 @@ impl MerchantMPCState {
             self.spent_lock_map.insert(nonce_hex, None);
         }
 
-
         return (pt_mask, pt_mask_r);
     }
 

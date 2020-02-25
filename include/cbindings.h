@@ -331,6 +331,18 @@ char *mpc_validate_initial_state(char *ser_channel_token,
                                  char *ser_merch_state);
 #endif
 
+#if defined(DEFINE_MPC_BITCOIN)
+char *sign_merch_dispute_tx(char *ser_tx_index,
+                            uint32_t index,
+                            int64_t amount,
+                            char *ser_self_delay,
+                            char *ser_output_pk,
+                            char *ser_rev_lock,
+                            char *ser_rev_secret,
+                            char *ser_cust_close_pk,
+                            char *ser_merch_state);
+#endif
+
 extern void test_ecdsa_e2e(EcdsaPartialSig_l partial,
                            const char *hashedmsg,
                            uint32_t party,

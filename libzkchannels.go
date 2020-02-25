@@ -581,6 +581,26 @@ func PayUnmaskPayTokenCustomer(ptMask string, ptMaskR string, custState CustStat
 	return r.IsOk, custState, err
 }
 
+func MerchantSignDisputeTx(txid string, index uint32, amount int64, selfDelay string, outputPk string,
+	revLock string, revSecret string, custClosePk string, merchState MerchState) (string, error) {
+
+	serMerchState, err := json.Marshal(merchState)
+	if err != nil {
+		return "", err
+	}
+
+	resp := C.GoString(C.sign_merch_dispute_tx(C.CString(txid), C.uint(index), C.longlong(amount),
+		C.CString(selfDelay), C.CString(outputPk), C.CString(revLock), C.CString(revSecret),
+		C.CString(custClosePk), C.CString(string(serMerchState))))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return "", err
+	}
+
+	return r.SignedTx, err
+
+}
+
 func processCResponse(resp string) (*setupResp, error) {
 	resp = cleanJson(resp)
 	r := &setupResp{}

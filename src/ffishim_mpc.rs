@@ -603,29 +603,45 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
-    // #[no_mangle]
-    // pub extern fn merch_sign_merch_dispute_tx(ser_input: *mut c_char, ser_rev_lock: *mut c_char, ser_cust_close_pk: *mut c_char, ser_self_delay: *mut c_char, ser_merch_state: *mut c_char) {
-    //
-    //     let rev_lock_result = deserialize_hex_string(ser_rev_lock);
-    //     let _rev_lock = handle_errors!(rev_lock_result);
-    //     let mut rl = [0u8; 32];
-    //     rl.copy_from_slice(_rev_lock.as_slice());
-    //
-    //     let cust_close_pk_result = deserialize_hex_string(ser_cust_close_pk);
-    //     let cust_close_pk = handle_errors!(cust_close_pk_result);
-    //
-    //     let self_delay_result = deserialize_hex_string(ser_self_delay);
-    //     let self_delay = handle_errors!(self_delay_result);
-    //     let mut to_self_delay = [0u8; 2];
-    //     to_self_delay.copy_from_slice(&self_delay);
-    //
-    //     // Deserialize the merch_state
-    //     let merch_state_result: ResultSerdeType<MerchantMPCState> = deserialize_result_object(ser_merch_state);
-    //     let merch_state = handle_errors!(merch_state_result);
-    //
-    //
-    //     // merchant_sign_merch_dispute_transaction(txid_le: Vec<u8>, index: u32, input_sats: i64, self_delay_le: [u8; 2], output_pk: Vec<u8>, rev_lock: Vec<u8>, rev_secret: Vec<u8>, cust_close_pk: Vec<u8>, merch_disp_pk: Vec<u8>, merch_sk: secp256k1::SecretKey)
-    // }
+    #[no_mangle]
+    pub extern fn sign_merch_dispute_tx(ser_tx_index: *mut c_char, index: u32, amount: i64, ser_self_delay: *mut c_char, ser_output_pk: *mut c_char, ser_rev_lock: *mut c_char, ser_rev_secret: *mut c_char, ser_cust_close_pk: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
 
+        let txid_result = deserialize_hex_string(ser_tx_index);
+        let txid_le = handle_errors!(txid_result);
+
+        let rev_lock_result = deserialize_hex_string(ser_rev_lock);
+        let rev_lock = handle_errors!(rev_lock_result);
+
+        let rev_secret_result = deserialize_hex_string(ser_rev_secret);
+        let rev_secret = handle_errors!(rev_secret_result);
+
+        let cust_close_pk_result = deserialize_hex_string(ser_cust_close_pk);
+        let cust_close_pk = handle_errors!(cust_close_pk_result);
+
+        let output_pk_result = deserialize_hex_string(ser_output_pk);
+        let output_pk = handle_errors!(output_pk_result);
+
+        let self_delay_result = deserialize_hex_string(ser_self_delay);
+        let self_delay = handle_errors!(self_delay_result);
+        let mut self_delay_le = [0u8; 2];
+        self_delay_le.copy_from_slice(&self_delay);
+
+        // Deserialize the merch_state
+        let merch_state_result: ResultSerdeType<MerchantMPCState> = deserialize_result_object(ser_merch_state);
+        let merch_state = handle_errors!(merch_state_result);
+
+        let merch_disp_pk = merch_state.payout_pk.serialize().to_vec();
+        let merch_sk = merch_state.get_secret_key();
+
+        let signed_tx = handle_errors!(txutil::merchant_sign_merch_dispute_transaction(txid_le, index, amount, self_delay_le, output_pk, rev_lock, rev_secret, cust_close_pk, merch_disp_pk, merch_sk));
+        let ser = ["{\'signed_tx\': \'", &hex::encode(signed_tx), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern fn sign_cust_claim_tx() -> *mut c_char {
+        txutil
+    }
 
 }
