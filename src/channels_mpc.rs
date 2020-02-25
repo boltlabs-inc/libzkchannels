@@ -572,14 +572,18 @@ impl CustomerMPCState {
             // sign the cust-close-from-escrow-tx
             let (signed_cust_close_escrow_tx, close_escrow_txid, _) =
                 completely_sign_multi_sig_transaction::<N>(&escrow_tx_params, &orig_escrow_sig, true, None, &private_key);
-            self.close_escrow_txid = hex::encode(&close_escrow_txid);
+            let mut close_escrow_txid_le = close_escrow_txid.to_vec();
+            close_escrow_txid_le.reverse();
+            self.close_escrow_txid = hex::encode(&close_escrow_txid_le);
             self.close_escrow_tx = hex::encode(&signed_cust_close_escrow_tx.to_transaction_bytes().unwrap());
 
             // sign the cust-close-from-merch-tx
             let script_data: Vec<u8> = vec![0x01];
             let (signed_cust_close_merch_tx, close_merch_txid, _) =
                 completely_sign_multi_sig_transaction::<N>(&merch_tx_params, &orig_merch_sig, true, Some(script_data), &private_key);
-            self.close_merch_txid = hex::encode(&close_merch_txid);
+            let mut close_merch_txid_le = close_merch_txid.to_vec();
+            close_merch_txid_le.reverse();
+            self.close_merch_txid = hex::encode(&close_merch_txid_le);
             self.close_merch_tx = hex::encode(&signed_cust_close_merch_tx.to_transaction_bytes().unwrap());
 
             self.channel_initialized = true;
@@ -646,14 +650,18 @@ impl CustomerMPCState {
         // sign the cust-close-from-escrow-tx
         let (signed_cust_close_escrow_tx, close_escrow_txid, _) =
             completely_sign_multi_sig_transaction::<N>(&escrow_tx_params, &enc_escrow_signature, true, None, &private_key);
-        self.close_escrow_txid = hex::encode(&close_escrow_txid);
+        let mut close_escrow_txid_le = close_escrow_txid.to_vec();
+        close_escrow_txid_le.reverse();
+        self.close_escrow_txid = hex::encode(&close_escrow_txid_le);
         self.close_escrow_tx = hex::encode(&signed_cust_close_escrow_tx.to_transaction_bytes().unwrap());
 
         // sign the cust-close-from-merch-tx
         let script_data: Vec<u8> = vec![0x01];
         let (signed_cust_close_merch_tx, close_merch_txid, _) =
             completely_sign_multi_sig_transaction::<N>(&merch_tx_params, &enc_merch_signature, true, Some(script_data), &private_key);
-        self.close_merch_txid = hex::encode(&close_merch_txid);
+        let mut close_merch_txid_le = close_merch_txid.to_vec();
+        close_merch_txid_le.reverse();
+        self.close_merch_txid = hex::encode(&close_merch_txid_le);
         self.close_merch_tx = hex::encode(&signed_cust_close_merch_tx.to_transaction_bytes().unwrap());
 
         return escrow_sig_valid && merch_sig_valid;
