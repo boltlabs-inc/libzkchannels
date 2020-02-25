@@ -598,7 +598,27 @@ func MerchantSignDisputeTx(txid string, index uint32, amount int64, selfDelay st
 	}
 
 	return r.SignedTx, err
+}
 
+func CustomerSignClaimTx(channelState ChannelState, txid string, index uint32, amount int64, selfDelay string, outputPk string, revLock string, custClosePk string, custState CustState) (string, error) {
+	serChannelState, err := json.Marshal(channelState)
+	if err != nil {
+		return "", err
+	}
+
+	serCustState, err := json.Marshal(custState)
+	if err != nil {
+		return "", err
+	}
+
+	resp := C.GoString(C.sign_cust_claim_tx(C.CString(string(serChannelState)), C.CString(txid), C.uint(index), C.longlong(amount),
+		C.CString(selfDelay), C.CString(outputPk), C.CString(revLock), C.CString(custClosePk), C.CString(string(serCustState))))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return "", err
+	}
+
+	return r.SignedTx, err
 }
 
 func processCResponse(resp string) (*setupResp, error) {

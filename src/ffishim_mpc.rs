@@ -639,9 +639,44 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
-    // #[no_mangle]
-    // pub extern fn sign_cust_claim_tx() -> *mut c_char {
-    //
-    // }
+    #[no_mangle]
+    pub extern fn sign_cust_claim_tx(ser_channel_state: *mut c_char, ser_tx_index: *mut c_char, index: u32, amount: i64, ser_self_delay: *mut c_char, ser_output_pk: *mut c_char, ser_rev_lock: *mut c_char, ser_cust_close_pk: *mut c_char, ser_cust_state: *mut c_char) -> *mut c_char {
+
+        // Deserialize the channel_state
+        let channel_state_result: ResultSerdeType<ChannelMPCState> = deserialize_result_object(ser_channel_state);
+        let channel_state = handle_errors!(channel_state_result);
+
+        let txid_result = deserialize_hex_string(ser_tx_index);
+        let txid_le = handle_errors!(txid_result);
+
+        let rev_lock_result = deserialize_hex_string(ser_rev_lock);
+        let rev_lock = handle_errors!(rev_lock_result);
+
+        let cust_close_pk_result = deserialize_hex_string(ser_cust_close_pk);
+        let cust_close_pk = handle_errors!(cust_close_pk_result);
+
+        let output_pk_result = deserialize_hex_string(ser_output_pk);
+        let output_pk = handle_errors!(output_pk_result);
+
+        let self_delay_result = deserialize_hex_string(ser_self_delay);
+        let self_delay = handle_errors!(self_delay_result);
+        let mut self_delay_le = [0u8; 2];
+        self_delay_le.copy_from_slice(&self_delay);
+
+        // Deserialize the cust_state
+        let cust_state_result: ResultSerdeType<CustomerMPCState> = deserialize_result_object(ser_cust_state);
+        let cust_state = handle_errors!(cust_state_result);
+
+        let merch_disp_pk = match channel_state.merch_dispute_pk {
+            Some(n) => n.serialize().to_vec(),
+            None => return error_message(String::from("channel state does not have merch_disp_pk set"))
+        };
+        let cust_sk = cust_state.get_secret_key();
+
+        let signed_tx = handle_errors!(txutil::customer_sign_cust_close_claim_transaction(txid_le, index, amount, self_delay_le, output_pk, rev_lock, cust_close_pk, merch_disp_pk, cust_sk));
+        let ser = ["{\'signed_tx\': \'", &hex::encode(signed_tx), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
 
 }

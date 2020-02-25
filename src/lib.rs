@@ -908,7 +908,8 @@ pub mod txutil {
     use super::*;
     use transactions::{Input, BitcoinTxConfig, MultiSigOutput, Output};
     use transactions::btc::{create_escrow_transaction, sign_escrow_transaction, serialize_p2wsh_escrow_redeem_script,
-                            create_merch_close_transaction_params, create_merch_close_transaction_preimage, sign_merch_dispute_transaction,
+                            create_merch_close_transaction_params, create_merch_close_transaction_preimage,
+                            sign_merch_dispute_transaction, sign_cust_close_claim_transaction,
                             get_private_key, generate_signature_for_multi_sig_transaction, completely_sign_multi_sig_transaction};
     use bitcoin::{Testnet, BitcoinTransactionParameters};
     use bitcoin::{BitcoinPrivateKey};
@@ -1025,7 +1026,9 @@ pub mod txutil {
         Ok((signed_merch_close_tx, txid, hash_prevout))
     }
 
-    pub fn merchant_sign_merch_dispute_transaction(txid_le: Vec<u8>, index: u32, input_sats: i64, self_delay_le: [u8; 2], output_pk: Vec<u8>, rev_lock: Vec<u8>, rev_secret: Vec<u8>, cust_close_pk: Vec<u8>, merch_disp_pk: Vec<u8>, merch_sk: secp256k1::SecretKey) -> Result<Vec<u8>, String> {
+    pub fn merchant_sign_merch_dispute_transaction(txid_le: Vec<u8>, index: u32, input_sats: i64, self_delay_le: [u8; 2],
+                                                   output_pk: Vec<u8>, rev_lock: Vec<u8>, rev_secret: Vec<u8>,
+                                                   cust_close_pk: Vec<u8>, merch_disp_pk: Vec<u8>, merch_sk: secp256k1::SecretKey) -> Result<Vec<u8>, String> {
 
         let sk = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(merch_sk, false);
         let output =  Output {
@@ -1036,6 +1039,20 @@ pub mod txutil {
         let signed_tx = match sign_merch_dispute_transaction::<Testnet>(txid_le, index, output, self_delay_le, rev_lock, rev_secret, merch_disp_pk, cust_close_pk, sk) {
             Ok(s) => s.0,
             Err(e) =>  return Err(e.to_string())
+        };
+        Ok(signed_tx)
+    }
+
+    pub fn customer_sign_cust_close_claim_transaction(txid_le: Vec<u8>, index: u32, input_sats: i64, self_delay_le: [u8; 2], output_pk: Vec<u8>, rev_lock: Vec<u8>, cust_close_pk: Vec<u8>, merch_disp_pk: Vec<u8>, cust_sk: secp256k1::SecretKey) -> Result<Vec<u8>, String> {
+        let sk = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(cust_sk, false);
+        let output =  Output {
+            amount: input_sats,
+            pubkey: output_pk
+        };
+
+        let signed_tx = match sign_cust_close_claim_transaction::<Testnet>(txid_le, index, output, self_delay_le, rev_lock, merch_disp_pk, cust_close_pk, sk) {
+            Ok(s) => s.0,
+            Err(e) => return Err(e.to_string())
         };
         Ok(signed_tx)
     }
