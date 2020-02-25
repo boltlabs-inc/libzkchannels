@@ -639,9 +639,9 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
-    #[no_mangle]
-    pub extern fn sign_cust_claim_tx() -> *mut c_char {
-        txutil
-    }
+    // #[no_mangle]
+    // pub extern fn sign_cust_claim_tx() -> *mut c_char {
+    //
+    // }
 
 }
