@@ -583,7 +583,7 @@ func PayUnmaskPayTokenCustomer(ptMask string, ptMaskR string, custState CustStat
 	return r.IsOk, custState, err
 }
 
-func MerchantSignDisputeTx(txid string, index uint32, amount int64, selfDelay string, outputPk string,
+func MerchantSignDisputeTx(txid string, index uint32, amount int64, toSelfDelay string, outputPk string,
 	revLock string, revSecret string, custClosePk string, merchState MerchState) (string, error) {
 
 	serMerchState, err := json.Marshal(merchState)
@@ -592,7 +592,7 @@ func MerchantSignDisputeTx(txid string, index uint32, amount int64, selfDelay st
 	}
 
 	resp := C.GoString(C.sign_merch_dispute_tx(C.CString(txid), C.uint(index), C.longlong(amount),
-		C.CString(selfDelay), C.CString(outputPk), C.CString(revLock), C.CString(revSecret),
+		C.CString(toSelfDelay), C.CString(outputPk), C.CString(revLock), C.CString(revSecret),
 		C.CString(custClosePk), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
@@ -602,7 +602,7 @@ func MerchantSignDisputeTx(txid string, index uint32, amount int64, selfDelay st
 	return r.SignedTx, err
 }
 
-func CustomerSignClaimTx(channelState ChannelState, txid string, index uint32, amount int64, selfDelay string, outputPk string, revLock string, custClosePk string, custState CustState) (string, error) {
+func CustomerSignClaimTx(channelState ChannelState, txid string, index uint32, amount int64, toSelfDelay string, outputPk string, revLock string, custClosePk string, custState CustState) (string, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
 		return "", err
@@ -614,7 +614,7 @@ func CustomerSignClaimTx(channelState ChannelState, txid string, index uint32, a
 	}
 
 	resp := C.GoString(C.sign_cust_claim_tx(C.CString(string(serChannelState)), C.CString(txid), C.uint(index), C.longlong(amount),
-		C.CString(selfDelay), C.CString(outputPk), C.CString(revLock), C.CString(custClosePk), C.CString(string(serCustState))))
+		C.CString(toSelfDelay), C.CString(outputPk), C.CString(revLock), C.CString(custClosePk), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", err
