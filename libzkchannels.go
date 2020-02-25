@@ -59,7 +59,8 @@ type MerchState struct {
 	DisputePk    *string                 `json:"dispute_pk"`
 	NonceMaskMap *map[string]interface{} `json:"nonce_mask_map"`
 	ActivateMap  *map[string]interface{} `json:"activate_map"`
-	LockMapState *map[string]interface{} `json:"lock_map_state"`
+	UnlinkMap    *map[string]interface{} `json:"unlink_map"`
+	LockMapState *map[string]interface{} `json:"spent_lock_map"`
 	MaskMpcBytes *map[string]interface{} `json:"mask_mpc_bytes"`
 	ConnType     int                     `json:"conn_type"`
 	NetConfig    *map[string]interface{} `json:"net_config"`
@@ -434,13 +435,18 @@ func PreparePaymentCustomer(channelState ChannelState, amount int64, custState C
 	return revState, state, newCustState, err
 }
 
-func PreparePaymentMerchant(nonce string, merchState MerchState) (string, MerchState, error) {
+func PreparePaymentMerchant(channelState ChannelState, nonce string, revLockCom string, amount int64, merchState MerchState) (string, MerchState, error) {
+	serChannelState, err := json.Marshal(channelState)
+	if err != nil {
+		return "", MerchState{}, err
+	}
+
 	serMerchState, err := json.Marshal(merchState)
 	if err != nil {
 		return "", MerchState{}, err
 	}
 	//serNonce := strings.ReplaceAll(nonce, " ", ",")
-	resp := C.GoString(C.mpc_prepare_payment_merchant(C.CString(nonce), C.CString(string(serMerchState))))
+	resp := C.GoString(C.mpc_prepare_payment_merchant(C.CString(string(serChannelState)), C.CString(nonce), C.CString(revLockCom), C.longlong(amount), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", MerchState{}, err

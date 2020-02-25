@@ -770,7 +770,8 @@ pub struct MerchantMPCState {
     pub dispute_pk: secp256k1::PublicKey,
     pub nonce_mask_map: HashMap<String, PayMaskMap>,
     pub activate_map: HashMap<String, State>,
-    pub lock_map_state: HashMap<String, Option<LockMap>>,
+    pub unlink_map: HashSet<String>,
+    pub spent_lock_map: HashMap<String, Option<LockMap>>,
     pub mask_mpc_bytes: HashMap<String, MaskedMPCInputs>,
     pub conn_type: u32,
     net_config: Option<NetworkConfig>
@@ -823,7 +824,8 @@ impl MerchantMPCState {
             dispute_pk: dispute_pub_key,
             nonce_mask_map: HashMap::new(),
             activate_map: HashMap::new(),
-            lock_map_state: HashMap::new(),
+            unlink_map: HashSet::new(),
+            spent_lock_map: HashMap::new(),
             mask_mpc_bytes: HashMap::new(),
             conn_type: 0,
             net_config: None
@@ -843,11 +845,11 @@ impl MerchantMPCState {
         let s0_hash = s0.compute_hash();
         let init_state_hash = match self.activate_map.get(&channel_id_str) {
             Some(n) => n.compute_hash(),
-            None => return Err(String::from("activate_channel: Could not find initial state given channel token"))
+            None => return Err(String::from("activate_channel: could not find initial state given channel token"))
         };
 
         if s0_hash != init_state_hash {
-            return Err(String::from("activate_channel: Initial state on activation does not match stored state"))
+            return Err(String::from("activate_channel: initial state on activation does not match stored state"))
         }
 
         // proceed to sign the initial state
@@ -865,15 +867,15 @@ impl MerchantMPCState {
         // check if pk_c
         let pk_c = match channel_token.pk_c {
             Some(pk) => pk,
-            None => return Err(String::from("Cannot validate channel token: pk_c not set"))
+            None => return Err(String::from("cannot validate channel token: pk_c not set"))
         };
 
         if pk_c != init_state.pk_c {
-            return Err(String::from("Init state pk_c does not match channel token pk_c"));
+            return Err(String::from("init state pk_c does not match channel token pk_c"));
         }
 
         if channel_token.pk_m != self.pk_m {
-            return Err(String::from("Channel token pk_m does not match merch state pk_m"));
+            return Err(String::from("channel token pk_m does not match merch state pk_m"));
         }
 
         // cache prevout from escrow_txid and escrow_prevout
@@ -908,19 +910,35 @@ impl MerchantMPCState {
 
         if init_state_hash != s0.compute_hash() {
             println!("state: {}", s0);
-            return Err(String::from("Initial state not well-formed"));
+            return Err(String::from("initial state not well-formed"));
         }
 
+        let nonce_hex_str = hex::encode(s0.get_nonce());
+
         self.activate_map.insert(channel_id_str, s0);
+        self.unlink_map.insert(nonce_hex_str);
 
         Ok(true)
     }
 
-    pub fn generate_pay_mask_commitment<R: Rng>(&mut self, csprng: &mut R, nonce: [u8; NONCE_LEN]) -> Result<[u8; 32], String> {
-        // check if n_i not in S
+    pub fn generate_pay_mask_commitment<R: Rng>(&mut self, csprng: &mut R, channel_state: &ChannelMPCState, rev_lock_com: [u8; 32], nonce: [u8; NONCE_LEN], amount: i64) -> Result<[u8; 32], String> {
+
         let nonce_hex = hex::encode(nonce);
-        if self.lock_map_state.get(&nonce_hex).is_some() {
-            return Err(format!("nonce {} has been used already.", &nonce_hex));
+
+        // check if n_i in S_unlink and amount == 0. if so, proceed since this is the unlink protocol
+        if amount == 0 && !self.unlink_map.contains(&nonce_hex) {
+            return Err(String::from("can only run unlink with previously known nonce"));
+        }
+
+        // if epsilon > 0, check if acceptable (above dust limit).
+        if amount > 0 && amount < channel_state.get_dust_limit() {
+            // if check fails, abort and output an error
+            return Err(String::from("epsilon below dust limit!"));
+        }
+
+        // check if n_i not in S_spent
+        if self.spent_lock_map.get(&nonce_hex).is_some() {
+            return Err(format!("nonce {} has been spent already.", &nonce_hex));
         }
 
         // pick mask_pay and form commitment to it
@@ -1002,10 +1020,10 @@ impl MerchantMPCState {
             return Err(String::from("epsilon below dust limit!"));
         }
 
-        // check if n_i not in S
+        // check if n_i not in S_spent
         let nonce_hex = hex::encode(nonce);
-        if self.lock_map_state.get(&nonce_hex).is_some() {
-            return Err(format!("nonce {} has been used already.", &nonce_hex));
+        if self.spent_lock_map.get(&nonce_hex).is_some() {
+            return Err(format!("nonce {} has been spent already.", &nonce_hex));
         }
 
         // check the nonce & paytoken_mask (based on the nonce)
@@ -1073,7 +1091,7 @@ impl MerchantMPCState {
         if compute_rev_lock_commitment(&rev_lock, &t) != rev_lock_com ||
             hash_to_slice(&rev_sec.to_vec()) != rev_lock {
             let nonce_hex = hex::encode(nonce);
-            self.lock_map_state.insert(nonce_hex, None);
+            self.spent_lock_map.insert(nonce_hex, None);
             return (None, None);
         }
 
@@ -1092,9 +1110,9 @@ impl MerchantMPCState {
                 lock: FixedSizeArray32(rev_lock),
                 secret: FixedSizeArray32(rev_sec)
             };
-            self.lock_map_state.insert(nonce_hex, Some(revoked_lock_pair));
+            self.spent_lock_map.insert(nonce_hex, Some(revoked_lock_pair));
         } else {
-            self.lock_map_state.insert(nonce_hex, None);
+            self.spent_lock_map.insert(nonce_hex, None);
         }
 
         return (pt_mask, pt_mask_r);
@@ -1210,7 +1228,7 @@ rusty_fork_test!
         let s_1 = cust_state.get_current_state();
         println!("Updated state: {}", s_1);
 
-        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, s_0.get_nonce()).unwrap();
+        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, &channel_state, r_com.clone(), s_0.get_nonce(), amount).unwrap();
         cust_state.update_pay_com(pay_token_mask_com);
 
         cust_state.set_mpc_connect_type(2);
@@ -1342,8 +1360,7 @@ rusty_fork_test!
         cust_state.generate_new_state(&mut rng, amount);
         let s_1 = cust_state.get_current_state();
         println!("Updated state: {}", s_1);
-
-        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, s_0.get_nonce()).unwrap();
+        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, &channel, r_com.clone(), s_0.get_nonce(), amount).unwrap();
         cust_state.update_pay_com(pay_token_mask_com);
 
         merch_state.set_mpc_connect_type(2);

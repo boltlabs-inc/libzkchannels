@@ -71,7 +71,7 @@ pub mod test_e2e;
 
 use std::fmt;
 use std::str;
-use std::collections::HashMap;
+use std::collections::{HashSet, HashMap};
 use ff::{Rand, Field};
 pub use fixed_size_array::{FixedSizeArray32, FixedSizeArray64};
 
@@ -819,8 +819,8 @@ pub mod mpc {
     /// Prepare payment for merchant
     /// output: commitment of the payment token mask
     ///
-    pub fn pay_prepare_merchant<R: Rng>(csprng: &mut R, nonce: [u8; NONCE_LEN], merch_state: &mut MerchantMPCState) -> [u8; 32] {
-        merch_state.generate_pay_mask_commitment(csprng, nonce).unwrap()
+    pub fn pay_prepare_merchant<R: Rng>(csprng: &mut R, channel_state: &ChannelMPCState, rev_lock_com: [u8; 32], nonce: [u8; NONCE_LEN], amount: i64, merch_state: &mut MerchantMPCState) -> Result<[u8; 32], String> {
+        merch_state.generate_pay_mask_commitment(csprng, channel_state, rev_lock_com, nonce, amount)
     }
 
     ///
@@ -908,7 +908,7 @@ pub mod txutil {
     use super::*;
     use transactions::{Input, BitcoinTxConfig, MultiSigOutput, Output};
     use transactions::btc::{create_escrow_transaction, sign_escrow_transaction, serialize_p2wsh_escrow_redeem_script,
-                            create_merch_close_transaction_params, create_merch_close_transaction_preimage,
+                            create_merch_close_transaction_params, create_merch_close_transaction_preimage, sign_merch_dispute_transaction,
                             get_private_key, generate_signature_for_multi_sig_transaction, completely_sign_multi_sig_transaction};
     use bitcoin::{Testnet, BitcoinTransactionParameters};
     use bitcoin::{BitcoinPrivateKey};
@@ -1023,6 +1023,21 @@ pub mod txutil {
         let signed_merch_close_tx = signed_merch_close_tx.to_transaction_bytes().unwrap();
 
         Ok((signed_merch_close_tx, txid, hash_prevout))
+    }
+
+    pub fn merchant_sign_merch_dispute_transaction(txid_le: Vec<u8>, index: u32, input_sats: i64, self_delay_le: [u8; 2], output_pk: Vec<u8>, rev_lock: Vec<u8>, rev_secret: Vec<u8>, cust_close_pk: Vec<u8>, merch_disp_pk: Vec<u8>, merch_sk: secp256k1::SecretKey) -> Result<Vec<u8>, String> {
+
+        let sk = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(merch_sk, false);
+        let output =  Output {
+            amount: input_sats,
+            pubkey: output_pk
+        };
+
+        let signed_tx = match sign_merch_dispute_transaction::<Testnet>(txid_le, index, output, self_delay_le, rev_lock, rev_secret, merch_disp_pk, cust_close_pk, sk) {
+            Ok(s) => s.0,
+            Err(e) =>  return Err(e.to_string())
+        };
+        Ok(signed_tx)
     }
 
 }
@@ -1617,7 +1632,7 @@ mod tests {
         let (new_state, revoked_state) = mpc::pay_prepare_customer(&mut rng, &channel, 10, &mut cust_state).unwrap();
         let rev_lock_com = revoked_state.get_rev_lock_com();
 
-        let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, s0.get_nonce(), &mut merch_state);
+        let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &channel, rev_lock_com.clone(), s0.get_nonce(), 10, &mut merch_state).unwrap();
 
         let res_merch = mpc::pay_merchant(&mut rng, &mut channel, s0.get_nonce(), pay_mask_com, rev_lock_com, 10, &mut merch_state);
         assert!(res_merch.is_ok());
@@ -1671,7 +1686,7 @@ rusty_fork_test! {
         let (state, rev_state) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, 10, &mut cust_state).unwrap();
         let rev_lock_com = rev_state.rev_lock_com.0;
 
-        let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, state.get_nonce(), &mut merch_state);
+        let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &channel_state, rev_lock_com.clone(), state.get_nonce(), 10, &mut merch_state).unwrap();
 
         let res_cust = mpc::pay_customer(&mut channel_state, &channel_token, s0, state, pay_mask_com, rev_lock_com, 10, &mut cust_state);
         assert!(res_cust.is_ok() && res_cust.unwrap());

@@ -243,8 +243,18 @@ pub mod ffishim_mpc {
     }
 
     #[no_mangle]
-    pub extern fn mpc_prepare_payment_merchant(ser_nonce: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern fn mpc_prepare_payment_merchant(ser_channel_state: *mut c_char, ser_rev_lock_com: *mut c_char, ser_nonce: *mut c_char, amount: i64, ser_merch_state: *mut c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
+
+        // Deserialize the channel_state
+        let channel_state_result: ResultSerdeType<ChannelMPCState> = deserialize_result_object(ser_channel_state);
+        let mut channel_state = handle_errors!(channel_state_result);
+
+        // Deserialize rev_lock_com
+        let rev_lock_com_result = deserialize_hex_string(ser_rev_lock_com);
+        let rev_lock_com = handle_errors!(rev_lock_com_result);
+        let mut rev_lock_com_ar = [0u8; 32];
+        rev_lock_com_ar.copy_from_slice(rev_lock_com.as_slice());
 
         // Deserialize nonce
         let nonce_result = deserialize_hex_string(ser_nonce);
@@ -257,7 +267,7 @@ pub mod ffishim_mpc {
         let mut merch_state = handle_errors!(merch_state_result);
 
         // We change the channel state
-        let pay_token_mask_com = mpc::pay_prepare_merchant(rng, nonce_ar, &mut merch_state);
+        let pay_token_mask_com = handle_errors!(mpc::pay_prepare_merchant(rng, &channel_state, rev_lock_com_ar, nonce_ar, amount, &mut merch_state));
         let ser = ["{\'pay_token_mask_com\':\'", &hex::encode(pay_token_mask_com), "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
@@ -592,6 +602,30 @@ pub mod ffishim_mpc {
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
+
+    // #[no_mangle]
+    // pub extern fn merch_sign_merch_dispute_tx(ser_input: *mut c_char, ser_rev_lock: *mut c_char, ser_cust_close_pk: *mut c_char, ser_self_delay: *mut c_char, ser_merch_state: *mut c_char) {
+    //
+    //     let rev_lock_result = deserialize_hex_string(ser_rev_lock);
+    //     let _rev_lock = handle_errors!(rev_lock_result);
+    //     let mut rl = [0u8; 32];
+    //     rl.copy_from_slice(_rev_lock.as_slice());
+    //
+    //     let cust_close_pk_result = deserialize_hex_string(ser_cust_close_pk);
+    //     let cust_close_pk = handle_errors!(cust_close_pk_result);
+    //
+    //     let self_delay_result = deserialize_hex_string(ser_self_delay);
+    //     let self_delay = handle_errors!(self_delay_result);
+    //     let mut to_self_delay = [0u8; 2];
+    //     to_self_delay.copy_from_slice(&self_delay);
+    //
+    //     // Deserialize the merch_state
+    //     let merch_state_result: ResultSerdeType<MerchantMPCState> = deserialize_result_object(ser_merch_state);
+    //     let merch_state = handle_errors!(merch_state_result);
+    //
+    //
+    //     // merchant_sign_merch_dispute_transaction(txid_le: Vec<u8>, index: u32, input_sats: i64, self_delay_le: [u8; 2], output_pk: Vec<u8>, rev_lock: Vec<u8>, rev_secret: Vec<u8>, cust_close_pk: Vec<u8>, merch_disp_pk: Vec<u8>, merch_sk: secp256k1::SecretKey)
+    // }
 
 
 }

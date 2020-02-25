@@ -247,7 +247,10 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	fmt.Println("initial close transactions validated: ", isOk)
 
 	fmt.Println("can now broadcast <signed-escrow-tx>...")
-	fmt.Println("proceed with channel activation...")
+
+	fmt.Println("Proceed with channel activation...")
+	channelId, err := GetChannelId(channelToken)
+	fmt.Println("Channel ID: ", channelId)
 
 	state, custState, err := ActivateCustomer(custState)
 	assert.Nil(t, err)

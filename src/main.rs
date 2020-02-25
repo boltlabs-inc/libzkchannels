@@ -745,7 +745,7 @@ mod merch {
         let mut rev_lock_com = [0u8; 32];
         rev_lock_com.copy_from_slice(rev_lock_com_vec.as_slice());
 
-        let pay_token_mask_com = mpc::pay_prepare_merchant(rng, nonce, &mut merch_state);
+        let pay_token_mask_com = handle_error_result!(mpc::pay_prepare_merchant(rng, &channel_state, rev_lock_com.clone(), nonce, amount, &mut merch_state));
 
         let msg1 = [hex::encode(&pay_token_mask_com)];
         conn.send(&msg1);
