@@ -59,7 +59,7 @@ type MerchState struct {
 	DisputePk    *string                 `json:"dispute_pk"`
 	NonceMaskMap *map[string]interface{} `json:"nonce_mask_map"`
 	ActivateMap  *map[string]interface{} `json:"activate_map"`
-	UnlinkMap    *map[string]interface{} `json:"unlink_map"`
+	UnlinkMap    *[]string               `json:"unlink_map"`
 	LockMapState *map[string]interface{} `json:"spent_lock_map"`
 	MaskMpcBytes *map[string]interface{} `json:"mask_mpc_bytes"`
 	ConnType     int                     `json:"conn_type"`

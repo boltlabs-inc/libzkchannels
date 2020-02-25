@@ -243,7 +243,7 @@ pub mod ffishim_mpc {
     }
 
     #[no_mangle]
-    pub extern fn mpc_prepare_payment_merchant(ser_channel_state: *mut c_char, ser_rev_lock_com: *mut c_char, ser_nonce: *mut c_char, amount: i64, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern fn mpc_prepare_payment_merchant(ser_channel_state: *mut c_char, ser_nonce: *mut c_char, ser_rev_lock_com: *mut c_char, amount: i64, ser_merch_state: *mut c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
 
         // Deserialize the channel_state
@@ -267,7 +267,7 @@ pub mod ffishim_mpc {
         let mut merch_state = handle_errors!(merch_state_result);
 
         // We change the channel state
-        let pay_token_mask_com = handle_errors!(mpc::pay_prepare_merchant(rng, &channel_state, rev_lock_com_ar, nonce_ar, amount, &mut merch_state));
+        let pay_token_mask_com = handle_errors!(mpc::pay_prepare_merchant(rng, &channel_state, nonce_ar, rev_lock_com_ar, amount, &mut merch_state));
         let ser = ["{\'pay_token_mask_com\':\'", &hex::encode(pay_token_mask_com), "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()

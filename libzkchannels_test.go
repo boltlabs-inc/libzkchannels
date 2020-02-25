@@ -133,7 +133,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 
 	fmt.Println("Nonce: ", state.Nonce)
 
-	payTokenMaskCom, merchState, err := PreparePaymentMerchant(state.Nonce, merchState)
+	payTokenMaskCom, merchState, err := PreparePaymentMerchant(channelState, state.Nonce, revState.RevLockCom, 10, merchState)
 	assert.Nil(t, err)
 
 	go runPayCust(channelState, channelToken, state, newState, payTokenMaskCom, revState.RevLockCom, custState)
@@ -275,8 +275,10 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 
 	fmt.Println("Nonce: ", state.Nonce)
 
-	payTokenMaskCom, merchState, err := PreparePaymentMerchant(state.Nonce, merchState)
+	payTokenMaskCom, merchState, err := PreparePaymentMerchant(channelState, state.Nonce, revState.RevLockCom, 10, merchState)
 	assert.Nil(t, err)
+
+	fmt.Println("Merch State (unlink map): ", *merchState.UnlinkMap)
 
 	go runPayCust(channelState, channelToken, state, newState, payTokenMaskCom, revState.RevLockCom, custState)
 	maskedTxInputs, merchState, err := PayMerchant(channelState, state.Nonce, payTokenMaskCom, revState.RevLockCom, 10, merchState)

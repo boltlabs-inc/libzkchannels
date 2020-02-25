@@ -815,12 +815,12 @@ pub mod mpc {
     }
 
     ///
-    /// pay_prepare_merchant() - takes as input an rng, the channel state, the nonce of the old state, and the merchant state.
+    /// pay_prepare_merchant() - takes as input an rng, the channel state, the nonce of the old state, rev lock commitment, amount and the merchant state.
     /// Prepare payment for merchant
     /// output: commitment of the payment token mask
     ///
-    pub fn pay_prepare_merchant<R: Rng>(csprng: &mut R, channel_state: &ChannelMPCState, rev_lock_com: [u8; 32], nonce: [u8; NONCE_LEN], amount: i64, merch_state: &mut MerchantMPCState) -> Result<[u8; 32], String> {
-        merch_state.generate_pay_mask_commitment(csprng, channel_state, rev_lock_com, nonce, amount)
+    pub fn pay_prepare_merchant<R: Rng>(csprng: &mut R, channel_state: &ChannelMPCState, nonce: [u8; NONCE_LEN], rev_lock_com: [u8; 32], amount: i64, merch_state: &mut MerchantMPCState) -> Result<[u8; 32], String> {
+        merch_state.generate_pay_mask_commitment(csprng, channel_state, nonce, rev_lock_com, amount)
     }
 
     ///
@@ -1632,7 +1632,7 @@ mod tests {
         let (new_state, revoked_state) = mpc::pay_prepare_customer(&mut rng, &channel, 10, &mut cust_state).unwrap();
         let rev_lock_com = revoked_state.get_rev_lock_com();
 
-        let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &channel, rev_lock_com.clone(), s0.get_nonce(), 10, &mut merch_state).unwrap();
+        let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &channel,s0.get_nonce(), rev_lock_com.clone(), 10, &mut merch_state).unwrap();
 
         let res_merch = mpc::pay_merchant(&mut rng, &mut channel, s0.get_nonce(), pay_mask_com, rev_lock_com, 10, &mut merch_state);
         assert!(res_merch.is_ok());
@@ -1686,7 +1686,7 @@ rusty_fork_test! {
         let (state, rev_state) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, 10, &mut cust_state).unwrap();
         let rev_lock_com = rev_state.rev_lock_com.0;
 
-        let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &channel_state, rev_lock_com.clone(), state.get_nonce(), 10, &mut merch_state).unwrap();
+        let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &channel_state, state.get_nonce(), rev_lock_com.clone(), 10, &mut merch_state).unwrap();
 
         let res_cust = mpc::pay_customer(&mut channel_state, &channel_token, s0, state, pay_mask_com, rev_lock_com, 10, &mut cust_state);
         assert!(res_cust.is_ok() && res_cust.unwrap());

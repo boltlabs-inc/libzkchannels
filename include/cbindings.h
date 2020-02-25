@@ -317,7 +317,11 @@ char *mpc_prepare_payment_customer(char *ser_channel_state, int64_t amount, char
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)
-char *mpc_prepare_payment_merchant(char *ser_nonce, char *ser_merch_state);
+char *mpc_prepare_payment_merchant(char *ser_channel_state,
+                                   char *ser_nonce,
+                                   char *ser_rev_lock_com,
+                                   int64_t amount,
+                                   char *ser_merch_state);
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)

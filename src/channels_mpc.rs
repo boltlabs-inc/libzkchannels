@@ -921,7 +921,7 @@ impl MerchantMPCState {
         Ok(true)
     }
 
-    pub fn generate_pay_mask_commitment<R: Rng>(&mut self, csprng: &mut R, channel_state: &ChannelMPCState, rev_lock_com: [u8; 32], nonce: [u8; NONCE_LEN], amount: i64) -> Result<[u8; 32], String> {
+    pub fn generate_pay_mask_commitment<R: Rng>(&mut self, csprng: &mut R, channel_state: &ChannelMPCState, nonce: [u8; NONCE_LEN], rev_lock_com: [u8; 32], amount: i64) -> Result<[u8; 32], String> {
 
         let nonce_hex = hex::encode(nonce);
 
@@ -1105,15 +1105,21 @@ impl MerchantMPCState {
 
         let nonce_hex = hex::encode(nonce);
         if is_ok {
-            // add (n_i, RS_i, RL_i) to state
+            // add (n_i, RS_i, RL_i) to S_spent map
             let revoked_lock_pair = LockMap {
                 lock: FixedSizeArray32(rev_lock),
                 secret: FixedSizeArray32(rev_sec)
             };
-            self.spent_lock_map.insert(nonce_hex, Some(revoked_lock_pair));
+            self.spent_lock_map.insert(nonce_hex.clone(), Some(revoked_lock_pair));
+            // check if n_i in the unlink map. if so, remove it
+            if self.unlink_map.contains(&nonce_hex) {
+                self.unlink_map.remove(&nonce_hex);
+            }
+
         } else {
             self.spent_lock_map.insert(nonce_hex, None);
         }
+
 
         return (pt_mask, pt_mask_r);
     }
@@ -1228,7 +1234,7 @@ rusty_fork_test!
         let s_1 = cust_state.get_current_state();
         println!("Updated state: {}", s_1);
 
-        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, &channel_state, r_com.clone(), s_0.get_nonce(), amount).unwrap();
+        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, &channel_state, s_0.get_nonce(), r_com.clone(), amount).unwrap();
         cust_state.update_pay_com(pay_token_mask_com);
 
         cust_state.set_mpc_connect_type(2);
@@ -1360,7 +1366,7 @@ rusty_fork_test!
         cust_state.generate_new_state(&mut rng, amount);
         let s_1 = cust_state.get_current_state();
         println!("Updated state: {}", s_1);
-        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, &channel, r_com.clone(), s_0.get_nonce(), amount).unwrap();
+        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, &channel, s_0.get_nonce(), r_com.clone(), amount).unwrap();
         cust_state.update_pay_com(pay_token_mask_com);
 
         merch_state.set_mpc_connect_type(2);
