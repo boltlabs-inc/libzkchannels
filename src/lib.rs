@@ -981,7 +981,7 @@ pub mod txutil {
         Ok((signed_tx, txid, hash_prevout))
     }
 
-    pub fn merchant_form_close_transaction(escrow_txid_be: Vec<u8>, cust_pk: Vec<u8>, merch_pk: Vec<u8>, merch_close_pk: Vec<u8>, cust_bal_sats: i64, merch_bal_sats: i64, to_self_delay: [u8; 2]) -> Result<(Vec<u8>, BitcoinTransactionParameters<Testnet>), String> {
+    pub fn merchant_form_close_transaction(escrow_txid_be: Vec<u8>, cust_pk: Vec<u8>, merch_pk: Vec<u8>, merch_close_pk: Vec<u8>, cust_bal_sats: i64, merch_bal_sats: i64, to_self_delay_be: [u8; 2]) -> Result<(Vec<u8>, BitcoinTransactionParameters<Testnet>), String> {
 
         check_pk_length!(cust_pk);
         check_pk_length!(merch_pk);
@@ -1002,7 +1002,7 @@ pub mod txutil {
             utxo_amount: Some(cust_bal_sats + merch_bal_sats),
             sequence: Some([0xff, 0xff, 0xff, 0xff]) // 4294967295
         };
-        let tx_params = handle_tx_error!(create_merch_close_transaction_params::<Testnet>(&input, &cust_pk, &merch_pk, &merch_close_pk, &to_self_delay));
+        let tx_params = handle_tx_error!(create_merch_close_transaction_params::<Testnet>(&input, &cust_pk, &merch_pk, &merch_close_pk, &to_self_delay_be));
 
         let (merch_tx_preimage, _) = create_merch_close_transaction_preimage::<Testnet>(&tx_params);
 
@@ -1026,7 +1026,7 @@ pub mod txutil {
         Ok((signed_merch_close_tx, txid, hash_prevout))
     }
 
-    pub fn merchant_sign_merch_dispute_transaction(txid_le: Vec<u8>, index: u32, input_sats: i64, self_delay_le: [u8; 2],
+    pub fn merchant_sign_merch_dispute_transaction(txid_le: Vec<u8>, index: u32, input_sats: i64, self_delay_be: [u8; 2],
                                                    output_pk: Vec<u8>, rev_lock: Vec<u8>, rev_secret: Vec<u8>,
                                                    cust_close_pk: Vec<u8>, merch_disp_pk: Vec<u8>, merch_sk: secp256k1::SecretKey) -> Result<Vec<u8>, String> {
 
@@ -1036,21 +1036,21 @@ pub mod txutil {
             pubkey: output_pk
         };
 
-        let signed_tx = match sign_merch_dispute_transaction::<Testnet>(txid_le, index, output, self_delay_le, rev_lock, rev_secret, merch_disp_pk, cust_close_pk, sk) {
+        let signed_tx = match sign_merch_dispute_transaction::<Testnet>(txid_le, index, output, self_delay_be, rev_lock, rev_secret, merch_disp_pk, cust_close_pk, sk) {
             Ok(s) => s.0,
             Err(e) =>  return Err(e.to_string())
         };
         Ok(signed_tx)
     }
 
-    pub fn customer_sign_cust_close_claim_transaction(txid_le: Vec<u8>, index: u32, input_sats: i64, self_delay_le: [u8; 2], output_pk: Vec<u8>, rev_lock: Vec<u8>, cust_close_pk: Vec<u8>, merch_disp_pk: Vec<u8>, cust_sk: secp256k1::SecretKey) -> Result<Vec<u8>, String> {
+    pub fn customer_sign_cust_close_claim_transaction(txid_le: Vec<u8>, index: u32, input_sats: i64, self_delay_be: [u8; 2], output_pk: Vec<u8>, rev_lock: Vec<u8>, cust_close_pk: Vec<u8>, merch_disp_pk: Vec<u8>, cust_sk: secp256k1::SecretKey) -> Result<Vec<u8>, String> {
         let sk = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(cust_sk, false);
         let output =  Output {
             amount: input_sats,
             pubkey: output_pk
         };
 
-        let signed_tx = match sign_cust_close_claim_transaction::<Testnet>(txid_le, index, output, self_delay_le, rev_lock, merch_disp_pk, cust_close_pk, sk) {
+        let signed_tx = match sign_cust_close_claim_transaction::<Testnet>(txid_le, index, output, self_delay_be, rev_lock, merch_disp_pk, cust_close_pk, sk) {
             Ok(s) => s.0,
             Err(e) => return Err(e.to_string())
         };
@@ -1569,8 +1569,8 @@ mod tests {
         let pubkeys = cust_state.get_pubkeys(&channel_state, &channel_token);
 
         // merchant signs the customer's closing transactions and sends signatures back to customer
-        let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
-        let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(funding_tx_info.clone(), pubkeys.rev_lock.0, pubkeys.cust_pk, pubkeys.cust_close_pk, to_self_delay);
+        let to_self_delay_be: [u8; 2] = [0x05, 0xcf]; // big-endian format
+        let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(funding_tx_info.clone(), pubkeys.rev_lock.0, pubkeys.cust_pk, pubkeys.cust_close_pk, to_self_delay_be);
 
         let got_close_tx = cust_state.sign_initial_closing_transaction::<Testnet>(&channel_state, &channel_token, &escrow_sig, &merch_sig);
         assert!(got_close_tx.is_ok());

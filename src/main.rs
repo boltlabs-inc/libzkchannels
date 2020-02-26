@@ -404,7 +404,8 @@ mod cust {
         let ser_channel_token = handle_error_result!(read_file("cust_channel_token.json"));
         let mut channel_token: ChannelMPCToken = handle_error_result!(serde_json::from_str(&ser_channel_token));
 
-        let to_self_delay: [u8; 2] = [0xcf, 0x05];
+        let to_self_delay_be: [u8; 2] = [0x05, 0xcf]; // big-endian format
+
         let cust_sk = cust_state.get_secret_key();
         let cust_pk = cust_state.pk_c.serialize().to_vec();
         let merch_pk = channel_token.pk_m.serialize().to_vec();
@@ -426,7 +427,7 @@ mod cust {
         let cust_bal = cust_state.cust_balance;
         let merch_bal = cust_state.merch_balance;
         let merch_close_pk = channel_state.merch_payout_pk.unwrap().serialize().to_vec();
-        let (merch_tx_preimage, _) = handle_error_result!(merchant_form_close_transaction(escrow_txid.to_vec(), cust_pk, merch_pk, merch_close_pk, cust_bal, merch_bal, to_self_delay));
+        let (merch_tx_preimage, _) = handle_error_result!(merchant_form_close_transaction(escrow_txid.to_vec(), cust_pk, merch_pk, merch_close_pk, cust_bal, merch_bal, to_self_delay_be));
 
         // get the cust-sig on the merch-close-tx
         let cust_sig = handle_error_result!(customer_sign_merch_close_transaction(cust_sk, merch_tx_preimage));
@@ -649,7 +650,7 @@ mod merch {
         let escrow_txid: [u8; 32] = serde_json::from_str(&msg0.get(1).unwrap()).unwrap();
         let escrow_prevout: [u8; 32] = serde_json::from_str(&msg0.get(2).unwrap()).unwrap();
         let init_cust_state: InitCustState = serde_json::from_str(&msg0.get(3).unwrap()).unwrap();
-        let to_self_delay: [u8; 2] = [0xcf, 0x05];
+        let to_self_delay_be: [u8; 2] = [0x05, 0xcf]; // big-endian format
 
         let cust_pk = init_cust_state.pk_c.serialize().to_vec();
         let cust_close_pk = init_cust_state.close_pk.serialize().to_vec();
@@ -663,7 +664,7 @@ mod merch {
         let merch_bal = init_cust_state.merch_bal;
 
         // form the merch-close-tx
-        let (_, tx_params) = handle_error_result!(merchant_form_close_transaction(escrow_txid.to_vec(), cust_pk.clone(), merch_pk, merch_close_pk, cust_bal, merch_bal, to_self_delay));
+        let (_, tx_params) = handle_error_result!(merchant_form_close_transaction(escrow_txid.to_vec(), cust_pk.clone(), merch_pk, merch_close_pk, cust_bal, merch_bal, to_self_delay_be));
 
         // sign the merch-close-tx given cust-sig
         let merch_private_key = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(merch_sk, false);
@@ -686,7 +687,7 @@ mod merch {
 
         // now proceed to sign the cust-close transactions (escrow + merch-close-tx)
         println!("Signing customer's initial closing tx...");
-        let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(funding_tx, rev_lock, cust_pk, cust_close_pk, to_self_delay);
+        let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(funding_tx, rev_lock, cust_pk, cust_close_pk, to_self_delay_be);
 
         let msg3 = [handle_error_result!(serde_json::to_string(&merch_txid)), handle_error_result!(serde_json::to_string(&merch_prevout)),
                                handle_error_result!(serde_json::to_string(&escrow_sig)), handle_error_result!(serde_json::to_string(&merch_sig))];

@@ -519,8 +519,8 @@ mod tests {
             rev_lock: FixedSizeArray32([0u8; 32])
         };
         pubkeys.rev_lock.0.copy_from_slice(&new_state.get_rev_lock());
-        let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
-        let (tx_preimage, _, _) = create_cust_close_transaction::<Testnet>(&input1, &pubkeys, &to_self_delay, new_state.bc, new_state.bm, true);
+        let to_self_delay_be: [u8; 2] = [0x05, 0xcf]; // big-endian format
+        let (tx_preimage, _, _) = create_cust_close_transaction::<Testnet>(&input1, &pubkeys, &to_self_delay_be, new_state.bc, new_state.bm, true);
         println!("TX BUILDER: generated escrow tx preimage: {}", hex::encode(&tx_preimage));
         assert_eq!(tx_preimage, escrow_preimage);
 
@@ -533,7 +533,7 @@ mod tests {
 
         // automatically generate the escrow_preimage
         let input2 = create_reverse_input(&tx_id_merch, 0, 128);
-        let (m_tx_preimage, _, _) = create_cust_close_transaction::<Testnet>(&input2, &pubkeys, &to_self_delay, new_state.bc, new_state.bm, false);
+        let (m_tx_preimage, _, _) = create_cust_close_transaction::<Testnet>(&input2, &pubkeys, &to_self_delay_be, new_state.bc, new_state.bm, false);
         println!("TX BUILDER: generated merch tx preimage: {}", hex::encode(&m_tx_preimage));
         assert_eq!(m_tx_preimage, merch_preimage);
 

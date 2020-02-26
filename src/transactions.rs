@@ -66,7 +66,7 @@ pub mod btc {
         return script;
     }
 
-    pub fn serialize_p2wsh_merch_close_redeem_script(cust_pubkey: &Vec<u8>, merch_pubkey: &Vec<u8>, merch_close_pubkey: &Vec<u8>, to_self_delay: &[u8; 2]) -> Vec<u8> {
+    pub fn serialize_p2wsh_merch_close_redeem_script(cust_pubkey: &Vec<u8>, merch_pubkey: &Vec<u8>, merch_close_pubkey: &Vec<u8>, self_delay_le: &Vec<u8>) -> Vec<u8> {
         //# P2WSH merch-close scriptPubKey
         //# 0x63      OP_IF
         //# 0x52      OP_2
@@ -92,7 +92,7 @@ pub mod btc {
         script.extend(cust_pubkey.iter());
         script.extend(vec![0x52, 0xae, 0x67]); // OP_2 OP_CHECKMULTISIG
         script.push(0x02); // len for sequence
-        script.extend(to_self_delay.iter()); // short sequence
+        script.extend(self_delay_le.iter()); // short sequence
         script.extend(vec![0xb2, 0x75, 0x21]);
         script.extend(merch_close_pubkey.iter());
         script.extend(vec![0xac, 0x68]);
@@ -137,9 +137,9 @@ pub mod btc {
         Ok(private_key)
     }
 
-    pub fn get_merch_close_timelocked_p2wsh_address(cust_pubkey: &Vec<u8>, merch_pubkey: &Vec<u8>, merch_close_pubkey: &Vec<u8>, to_self_delay: &[u8; 2]) -> Vec<u8> {
+    pub fn get_merch_close_timelocked_p2wsh_address(cust_pubkey: &Vec<u8>, merch_pubkey: &Vec<u8>, merch_close_pubkey: &Vec<u8>, self_delay_le: &Vec<u8>) -> Vec<u8> {
         // get the script
-        let script = serialize_p2wsh_merch_close_redeem_script(cust_pubkey, merch_pubkey, merch_close_pubkey, to_self_delay);
+        let script = serialize_p2wsh_merch_close_redeem_script(cust_pubkey, merch_pubkey, merch_close_pubkey, self_delay_le);
         // compute SHA256 hash of script
         let script_hash = hash_to_slice(&script);
         let mut script_pubkey = Vec::new();
@@ -149,7 +149,7 @@ pub mod btc {
         return script_pubkey;
     }
 
-    pub fn serialize_p2wsh_cust_close_redeem_script(rev_lock: &Vec<u8>, merch_disp_pubkey: &Vec<u8>, cust_close_pubkey: &Vec<u8>,  to_self_delay: &[u8; 2]) -> Vec<u8> {
+    pub fn serialize_p2wsh_cust_close_redeem_script(rev_lock: &Vec<u8>, merch_disp_pubkey: &Vec<u8>, cust_close_pubkey: &Vec<u8>,  self_delay_le: &Vec<u8>) -> Vec<u8> {
         // P2WSH cust-close script
         //# 0x63      OP_IF
         //# 0xa8      OP_SHA256
@@ -174,7 +174,7 @@ pub mod btc {
         script.extend(merch_disp_pubkey.iter());
         script.push(0x67);
         script.push(0x02); // len for sequence
-        script.extend(to_self_delay.iter()); // short sequence
+        script.extend(self_delay_le.iter()); // short sequence
         script.extend(vec![0xb2, 0x75, 0x21]);
         script.extend(cust_close_pubkey.iter());
         script.extend(vec![0x68, 0xac]);
@@ -182,7 +182,7 @@ pub mod btc {
         return script;
     }
 
-    pub fn get_cust_close_timelocked_p2wsh_address(rev_lock: &[u8; 32], merch_disp_pubkey: &Vec<u8>, cust_close_pubkey: &Vec<u8>, to_self_delay: &[u8; 2]) -> Vec<u8> {
+    pub fn get_cust_close_timelocked_p2wsh_address(rev_lock: &[u8; 32], merch_disp_pubkey: &Vec<u8>, cust_close_pubkey: &Vec<u8>, self_delay_le: &Vec<u8>) -> Vec<u8> {
 //        //# P2WSH cust-close scriptPubKey
 //        //# 0x63      OP_IF
 //        //# 0xa8      OP_SHA256
@@ -213,7 +213,7 @@ pub mod btc {
 //        script.extend(vec![0x68, 0xac]);
 
         // println!("get_cust_close_timelocked_p2wsh_address script: {}", hex::encode(&script));
-        let script = serialize_p2wsh_cust_close_redeem_script(&rev_lock.to_vec(), merch_disp_pubkey, cust_close_pubkey, to_self_delay);
+        let script = serialize_p2wsh_cust_close_redeem_script(&rev_lock.to_vec(), merch_disp_pubkey, cust_close_pubkey, self_delay_le);
         // compute SHA256 hash of script
         let script_hash = hash_to_slice(&script);
         let mut script_pubkey = Vec::new();
@@ -427,9 +427,11 @@ pub mod btc {
     }
 
     // creates a merch-close-tx that spends from a P2WSH to another
-    pub fn create_merch_close_transaction_params<N: BitcoinNetwork>(input: &Input, cust_pubkey: &Vec<u8>, merch_pubkey: &Vec<u8>, merch_close_pubkey: &Vec<u8>, self_delay: &[u8; 2]) -> Result<BitcoinTransactionParameters<N>, String> {
+    pub fn create_merch_close_transaction_params<N: BitcoinNetwork>(input: &Input, cust_pubkey: &Vec<u8>, merch_pubkey: &Vec<u8>, merch_close_pubkey: &Vec<u8>, self_delay_be: &[u8; 2]) -> Result<BitcoinTransactionParameters<N>, String> {
         let version = 2;
         let lock_time = 0;
+        let mut self_delay_le = self_delay_be.to_vec();
+        self_delay_le.reverse();
         let address_format = match input.address_format {
             "p2pkh" => BitcoinFormat::P2PKH,
             "p2sh_p2wpkh" => BitcoinFormat::P2SH_P2WPKH,
@@ -469,7 +471,7 @@ pub mod btc {
         let mut input_vec = vec![];
         input_vec.push(escrow_tx_input);
 
-        let musig_script_pubkey = get_merch_close_timelocked_p2wsh_address(cust_pubkey, merch_pubkey, merch_close_pubkey, self_delay);
+        let musig_script_pubkey = get_merch_close_timelocked_p2wsh_address(cust_pubkey, merch_pubkey, merch_close_pubkey, &self_delay_le);
         let musig_output = BitcoinTransactionOutput { amount: BitcoinAmount::from_satoshi(input.utxo_amount.unwrap()).unwrap(), script_pub_key: musig_script_pubkey };
         // println!("Multi-sig output script pubkey: {}", hex::encode(musig_output.serialize().unwrap()));
 
@@ -494,12 +496,12 @@ pub mod btc {
         return (hash_preimage, transaction);
     }
 
-    pub fn create_cust_close_transaction<N: BitcoinNetwork>(input: &Input, pubkeys: &ClosePublicKeys, self_delay: &[u8; 2], cust_bal: i64, merch_bal: i64, from_escrow: bool) -> (Vec<u8>, BitcoinTransactionParameters<N>, BitcoinTransaction<N>) {
+    pub fn create_cust_close_transaction<N: BitcoinNetwork>(input: &Input, pubkeys: &ClosePublicKeys, self_delay_be: &[u8; 2], cust_bal: i64, merch_bal: i64, from_escrow: bool) -> (Vec<u8>, BitcoinTransactionParameters<N>, BitcoinTransaction<N>) {
 
-        let config = BitcoinTxConfig {
-            version: 2,
-            lock_time: 0
-        };
+        let version = 2;
+        let lock_time = 0;
+        let mut self_delay_le = self_delay_be.to_vec();
+        self_delay_le.reverse();
         let address_format = match input.address_format {
             "p2wsh" => BitcoinFormat::P2WSH,
             _ => panic!("do not currently support specified address format: {}", input.address_format)
@@ -512,7 +514,7 @@ pub mod btc {
                 Some(redeem_script)
             },
             false => {
-                let redeem_script = serialize_p2wsh_merch_close_redeem_script(&pubkeys.cust_pk, &pubkeys.merch_pk, &pubkeys.merch_close_pk, self_delay);
+                let redeem_script = serialize_p2wsh_merch_close_redeem_script(&pubkeys.cust_pk, &pubkeys.merch_pk, &pubkeys.merch_close_pk, &self_delay_le);
                 // println!("merch-close-tx redeem_script: {}", hex::encode(&redeem_script));
                 Some(redeem_script)
             }
@@ -540,7 +542,7 @@ pub mod btc {
         input_vec.push(escrow_tx_input);
 
         // output 1: P2WSH output to customer (handles spending from escrow-tx or merch-close-tx
-        let output1_script_pubkey = get_cust_close_timelocked_p2wsh_address(&pubkeys.rev_lock.0, &pubkeys.merch_disp_pk, &pubkeys.cust_close_pk, self_delay);
+        let output1_script_pubkey = get_cust_close_timelocked_p2wsh_address(&pubkeys.rev_lock.0, &pubkeys.merch_disp_pk, &pubkeys.cust_close_pk, &self_delay_le);
         // println!("(1) to_customer: {}", hex::encode(&output1_script_pubkey));
         let to_customer = BitcoinTransactionOutput { amount: BitcoinAmount::from_satoshi(cust_bal).unwrap(), script_pub_key: output1_script_pubkey };
         // println!("to_customer: {}", hex::encode(to_customer.serialize().unwrap()));
@@ -563,10 +565,10 @@ pub mod btc {
         output_vec.push(op_return_out);
 
         let transaction_parameters = BitcoinTransactionParameters::<N> {
-            version: config.version,
+            version: version,
             inputs: input_vec,
             outputs: output_vec,
-            lock_time: config.lock_time,
+            lock_time: lock_time,
             segwit_flag: true,
         };
 
@@ -577,15 +579,18 @@ pub mod btc {
     }
 
     // transaction for customer to claim their output from cust-close-from-*-tx after timelock
-    pub fn sign_cust_close_claim_transaction<N: BitcoinNetwork>(txid_le: Vec<u8>, index: u32, output: Output, self_delay: [u8; 2], rev_lock: Vec<u8>, merch_disp_pk: Vec<u8>, cust_close_pk: Vec<u8>, private_key: BitcoinPrivateKey<N>) -> Result<(Vec<u8>, Vec<u8>), String> {
+    pub fn sign_cust_close_claim_transaction<N: BitcoinNetwork>(txid_le: Vec<u8>, index: u32, output: Output, self_delay_be: [u8; 2], rev_lock: Vec<u8>, merch_disp_pk: Vec<u8>, cust_close_pk: Vec<u8>, private_key: BitcoinPrivateKey<N>) -> Result<(Vec<u8>, Vec<u8>), String> {
         let version = 2;
         let lock_time = 0;
         let address_format = BitcoinFormat::P2WSH;
-        let redeem_script = serialize_p2wsh_cust_close_redeem_script(&rev_lock, &merch_disp_pk, &cust_close_pk, &self_delay);
+        let mut self_delay_le= self_delay_be.to_vec();
+        self_delay_le.reverse();
+        let redeem_script = serialize_p2wsh_cust_close_redeem_script(&rev_lock, &merch_disp_pk, &cust_close_pk, &self_delay_le);
         let address = BitcoinAddress::<N>::p2wsh(&redeem_script).unwrap();
         let transaction_id = txid_le.clone();
         let mut sequence: Vec<u8> = vec![0x00, 0x00].to_vec();
-        sequence.append(&mut self_delay.to_vec());
+        sequence.append(&mut self_delay_be.to_vec());
+        sequence.reverse();
 
         let mut cust_close_tx_input = BitcoinTransactionInput::<N>::new(
             transaction_id,
@@ -635,13 +640,15 @@ pub mod btc {
     }
 
     // justice transaction for merchant to dispute the cust-close-from-tx via revoked rev-lock/rev-secret
-    pub fn sign_merch_dispute_transaction<N: BitcoinNetwork>(txid_le: Vec<u8>, index: u32, output: Output, self_delay: [u8; 2],
+    pub fn sign_merch_dispute_transaction<N: BitcoinNetwork>(txid_le: Vec<u8>, index: u32, output: Output, self_delay_be: [u8; 2],
                                                              rev_lock: Vec<u8>, rev_secret: Vec<u8>, merch_disp_pk: Vec<u8>, cust_close_pk: Vec<u8>,
                                                              private_key: BitcoinPrivateKey<N>) -> Result<(Vec<u8>, Vec<u8>), String> {
         let version = 2;
         let lock_time = 0;
+        let mut self_delay_le = self_delay_be.to_vec();
+        self_delay_le.reverse();
         let address_format = BitcoinFormat::P2WSH;
-        let redeem_script = serialize_p2wsh_cust_close_redeem_script(&rev_lock, &merch_disp_pk, &cust_close_pk, &self_delay);
+        let redeem_script = serialize_p2wsh_cust_close_redeem_script(&rev_lock, &merch_disp_pk, &cust_close_pk, &self_delay_le);
         let address = BitcoinAddress::<N>::p2wsh(&redeem_script).unwrap();
         let transaction_id = txid_le.clone();
         let sequence: Vec<u8> = vec![0xff, 0xff, 0xff, 0xff].to_vec();
@@ -867,7 +874,7 @@ mod tests {
             lock_time: 0
         };
 
-        let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
+        let to_self_delay: [u8; 2] = [0x05, 0xcf]; // big-endian format
 
         let c_private_key = BitcoinPrivateKey::<Testnet>::from_str(cust_private_key).unwrap();
         let m_private_key = BitcoinPrivateKey::<Testnet>::from_str(merch_private_key).unwrap();
@@ -920,7 +927,7 @@ mod tests {
 
         let cust_bal = 8 * SATOSHI;
         let merch_bal = 2 * SATOSHI;
-        let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
+        let to_self_delay: [u8; 2] = [0x05, 0xcf]; // big-endian format
         let (tx_preimage, tx_params, _) =
             transactions::btc::create_cust_close_transaction::<Testnet>(&input, &pubkeys, &to_self_delay, cust_bal, merch_bal, spend_from_escrow);
         println!("cust-close from escrow tx raw preimage: {}", hex::encode(&tx_preimage));
@@ -971,9 +978,9 @@ mod tests {
 
         let cust_bal = 8 * SATOSHI;
         let merch_bal = 2 * SATOSHI;
-        let to_self_delay_le: [u8; 2] = [0xcf, 0x05]; // little-endian format
+        let to_self_delay_be: [u8; 2] = [0x05, 0xcf]; // big-endian format
         let (tx_preimage, _, _) =
-            transactions::btc::create_cust_close_transaction::<Testnet>(&input, &pubkeys, &to_self_delay_le, cust_bal, merch_bal, spend_from_escrow);
+            transactions::btc::create_cust_close_transaction::<Testnet>(&input, &pubkeys, &to_self_delay_be, cust_bal, merch_bal, spend_from_escrow);
         println!("cust-close from merch tx raw preimage: {}", hex::encode(&tx_preimage));
         let expected_tx_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff40000000072635221024596d7b33733c28101dbc6c85901dffaed0cdac63ab0b2ea141217d1990ad4b121027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb52ae6702cf05b2752102ab573100532827bd0e44b4353e4eaa9c79afbc93f69454a4a44d9fea8c45b5afac6800ca9a3b00000000ffffffff73bca1a59fcb04fe71d242be5d73021d02bbc6cdec66e9cb963060ff5028928e0000000001000000").unwrap();
         assert_eq!(tx_preimage, expected_tx_preimage);
@@ -989,7 +996,7 @@ mod tests {
         let rev_lock = hash_to_slice(&rev_secret).to_vec();
         let merch_disp_pk = hex::decode("021882b66a9c4ec1b8fc29ac37fbf4607b8c4f1bfe2cc9a49bc1048eb57bcebe67").unwrap();
         let cust_close_pk = hex::decode("027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb").unwrap();
-        let self_delay_le: [u8; 2] = [0xcf, 0x05];
+        let to_self_delay_be: [u8; 2] = [0x05, 0xcf]; // big-endian format
         let output = Output {
             amount: utxo_amount,
             pubkey: hex::decode("027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb").unwrap()
@@ -997,7 +1004,7 @@ mod tests {
 
         let m_private_key = BitcoinPrivateKey::<Testnet>::from_str("cNTSD7W8URSCmfPTvNf2B5gyKe2wwyNomkCikVhuHPCsFgBUKrAV").unwrap();
 
-        let (signed_tx, tx_preimage) = transactions::btc::sign_merch_dispute_transaction(txid_le, index, output, self_delay_le, rev_lock, rev_secret, merch_disp_pk, cust_close_pk, m_private_key).unwrap();
+        let (signed_tx, tx_preimage) = transactions::btc::sign_merch_dispute_transaction(txid_le, index, output, to_self_delay_be, rev_lock, rev_secret, merch_disp_pk, cust_close_pk, m_private_key).unwrap();
 
         println!("preimage merch_dispue tx: {}", hex::encode(&tx_preimage));
         println!("signed merch_dispute tx: {}", hex::encode(&signed_tx));
@@ -1014,7 +1021,7 @@ mod tests {
         let rev_lock = hex::decode("3111111111111111111111111111111111111111111111111111111111111111").unwrap();
         let merch_disp_pk = hex::decode("021882b66a9c4ec1b8fc29ac37fbf4607b8c4f1bfe2cc9a49bc1048eb57bcebe67").unwrap();
         let cust_close_pk = hex::decode("027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb").unwrap();
-        let self_delay_le: [u8; 2] = [0xcf, 0x05];
+        let to_self_delay_be: [u8; 2] = [0x05, 0xcf]; // big-endian format
 
         let output = Output {
             amount: utxo_amount,
@@ -1023,7 +1030,7 @@ mod tests {
 
         let c_private_key = BitcoinPrivateKey::<Testnet>::from_str("cPmiXrwUfViwwkvZ5NXySiHEudJdJ5aeXU4nx4vZuKWTUibpJdrn").unwrap();
         let (signed_tx, tx_preimage) =
-            transactions::btc::sign_cust_close_claim_transaction(txid_le, index, output, self_delay_le,
+            transactions::btc::sign_cust_close_claim_transaction(txid_le, index, output, to_self_delay_be,
                                                                  rev_lock, merch_disp_pk, cust_close_pk, c_private_key).unwrap();
         println!("preimage for cust_claim tx (from cust-close-tx): {}", hex::encode(&tx_preimage));
         let expected_tx_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000007063a82031111111111111111111111111111111111111111111111111111111111111118821021882b66a9c4ec1b8fc29ac37fbf4607b8c4f1bfe2cc9a49bc1048eb57bcebe676702cf05b27521027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb68ac00e1f50500000000fffffffff80c36c55d65a6c94b50753f32e6d75cfc64d03f96d52d1b882bd1492d7a46180000000001000000").unwrap();
@@ -1057,9 +1064,9 @@ mod tests {
         let cust_pk = hex::decode("027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb").unwrap();
         let merch_pk = hex::decode("024596d7b33733c28101dbc6c85901dffaed0cdac63ab0b2ea141217d1990ad4b1").unwrap();
         let merch_close_pk = hex::decode("02ab573100532827bd0e44b4353e4eaa9c79afbc93f69454a4a44d9fea8c45b5af").unwrap();
-        let self_delay_le: [u8; 2] = [0xcf, 0x05];
+        let to_self_delay_be: [u8; 2] = [0x05, 0xcf]; // big-endian format
 
-        let redeem_script = transactions::btc::serialize_p2wsh_merch_close_redeem_script(&cust_pk, &merch_pk, &merch_close_pk, &self_delay_le);
+        let redeem_script = transactions::btc::serialize_p2wsh_merch_close_redeem_script(&cust_pk, &merch_pk, &merch_close_pk, &to_self_delay_be.to_vec());
 
         let input2 = Input {
             address_format: "p2wsh",

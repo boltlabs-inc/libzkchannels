@@ -512,17 +512,17 @@ impl CustomerMPCState {
         // TODO: should be configurable via a tx_config
         let escrow_index = 0;
         let merch_index = 0;
-        let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
+        let to_self_delay_be: [u8; 2] = [0x05, 0xcf]; // big-endian format
 
         let pubkeys = self.get_pubkeys(channel_state, channel_token);
         let escrow_input = create_reverse_input(&channel_token.escrow_txid.0, escrow_index, init_balance);
         let merch_input = create_reverse_input(&channel_token.merch_txid.0, merch_index, init_balance);
 
         let (escrow_tx_preimage, escrow_tx_params, _) =
-            create_cust_close_transaction::<N>(&escrow_input, &pubkeys, &to_self_delay,self.cust_balance,self.merch_balance, true);
+            create_cust_close_transaction::<N>(&escrow_input, &pubkeys, &to_self_delay_be,self.cust_balance,self.merch_balance, true);
 
         let (merch_tx_preimage, merch_tx_params, _) =
-            create_cust_close_transaction::<N>(&merch_input, &pubkeys, &to_self_delay, self.cust_balance, self.merch_balance, false);
+            create_cust_close_transaction::<N>(&merch_input, &pubkeys, &to_self_delay_be, self.cust_balance, self.merch_balance, false);
 
         return (escrow_tx_preimage, merch_tx_preimage, escrow_tx_params, merch_tx_params);
     }
@@ -990,7 +990,7 @@ impl MerchantMPCState {
     }
 
     // Merchant sign's the initial closing transaction (in the clear)
-    pub fn sign_initial_closing_transaction<N: BitcoinNetwork>(&self, funding_tx: FundingTxInfo, rev_lock: [u8; 32], cust_pk: Vec<u8>, cust_close_pk: Vec<u8>, to_self_delay: [u8; 2]) -> (Vec<u8>, Vec<u8>) {
+    pub fn sign_initial_closing_transaction<N: BitcoinNetwork>(&self, funding_tx: FundingTxInfo, rev_lock: [u8; 32], cust_pk: Vec<u8>, cust_close_pk: Vec<u8>, to_self_delay_be: [u8; 2]) -> (Vec<u8>, Vec<u8>) {
         let init_balance = funding_tx.init_cust_bal + funding_tx.init_merch_bal;
         let escrow_index = 0;
         let merch_index = 0;
@@ -1008,10 +1008,10 @@ impl MerchantMPCState {
         };
 
         let (escrow_tx_preimage, _, _) =
-            create_cust_close_transaction::<N>(&escrow_input, &pubkeys, &to_self_delay, funding_tx.init_cust_bal, funding_tx.init_merch_bal, true);
+            create_cust_close_transaction::<N>(&escrow_input, &pubkeys, &to_self_delay_be, funding_tx.init_cust_bal, funding_tx.init_merch_bal, true);
 
         let (merch_tx_preimage, _, _) =
-            create_cust_close_transaction::<N>(&merch_input, &pubkeys, &to_self_delay, funding_tx.init_cust_bal, funding_tx.init_merch_bal, false);
+            create_cust_close_transaction::<N>(&merch_input, &pubkeys, &to_self_delay_be, funding_tx.init_cust_bal, funding_tx.init_merch_bal, false);
 
         // merchant generates signatures
         let m_private_key = BitcoinPrivateKey::<N>::from_secp256k1_secret_key(self.sk_m.clone(), false);

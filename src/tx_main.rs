@@ -271,7 +271,7 @@ mod merch {
         let cust_pk = hex::decode(merch_close.cust_pubkey).unwrap();
         let merch_close_pk = hex::decode(merch_close.merch_close_pubkey).unwrap();
         // hard code self delay (for now)
-        let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
+        let to_self_delay_be: [u8; 2] = [0x05, 0xcf]; // big-endian format
 
         let redeem_script = serialize_p2wsh_escrow_redeem_script(&cust_pk, &merch_pk);
 
@@ -287,7 +287,7 @@ mod merch {
         };
 
         let tx_params =
-            create_merch_close_transaction_params::<Testnet>(&input, &cust_pk, &merch_pk, &merch_close_pk, &to_self_delay)?;
+            create_merch_close_transaction_params::<Testnet>(&input, &cust_pk, &merch_pk, &merch_close_pk, &to_self_delay_be)?;
 
         let (merch_tx_preimage, _) = create_merch_close_transaction_preimage::<Testnet>(&tx_params);
 

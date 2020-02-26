@@ -40,7 +40,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	// changeSk := "4157697b6428532758a9d0f9a73ce58befe3fd665797427d1c5bb3d33f6a132e"
 	changePk := "037bed6ab680a171ef2ab564af25eff15c0659313df0bbfb96414da7c7d1e65882"
 	merchClosePk := fmt.Sprintf("%v", *merchState.PayoutPk)
-	toSelfDelay := "cf05"
+	toSelfDelay := "05cf" // 1487 blocks
 	fmt.Println("custSk :=> ", custSk)
 	fmt.Println("custPk :=> ", custPk)
 	fmt.Println("merchSk :=> ", merchSk)
@@ -186,7 +186,7 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	// changeSk := "4157697b6428532758a9d0f9a73ce58befe3fd665797427d1c5bb3d33f6a132e"
 	changePk := "037bed6ab680a171ef2ab564af25eff15c0659313df0bbfb96414da7c7d1e65882"
 	merchClosePk := fmt.Sprintf("%v", *merchState.PayoutPk)
-	toSelfDelay := "cf05"
+	toSelfDelay := "05cf"
 	// fmt.Println("custSk :=> ", custSk)
 	// fmt.Println("custPk :=> ", custPk)
 	// fmt.Println("merchSk :=> ", merchSk)
