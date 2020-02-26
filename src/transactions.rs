@@ -584,7 +584,8 @@ pub mod btc {
         let redeem_script = serialize_p2wsh_cust_close_redeem_script(&rev_lock, &merch_disp_pk, &cust_close_pk, &self_delay);
         let address = BitcoinAddress::<N>::p2wsh(&redeem_script).unwrap();
         let transaction_id = txid_le.clone();
-        let sequence: Vec<u8> = vec![0xff, 0xff, 0xff, 0xff].to_vec();
+        let mut sequence: Vec<u8> = vec![0x00, 0x00].to_vec();
+        sequence.append(&mut self_delay.to_vec());
 
         let mut cust_close_tx_input = BitcoinTransactionInput::<N>::new(
             transaction_id,
@@ -970,9 +971,9 @@ mod tests {
 
         let cust_bal = 8 * SATOSHI;
         let merch_bal = 2 * SATOSHI;
-        let to_self_delay: [u8; 2] = [0xcf, 0x05]; // little-endian format
+        let to_self_delay_le: [u8; 2] = [0xcf, 0x05]; // little-endian format
         let (tx_preimage, _, _) =
-            transactions::btc::create_cust_close_transaction::<Testnet>(&input, &pubkeys, &to_self_delay, cust_bal, merch_bal, spend_from_escrow);
+            transactions::btc::create_cust_close_transaction::<Testnet>(&input, &pubkeys, &to_self_delay_le, cust_bal, merch_bal, spend_from_escrow);
         println!("cust-close from merch tx raw preimage: {}", hex::encode(&tx_preimage));
         let expected_tx_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff40000000072635221024596d7b33733c28101dbc6c85901dffaed0cdac63ab0b2ea141217d1990ad4b121027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb52ae6702cf05b2752102ab573100532827bd0e44b4353e4eaa9c79afbc93f69454a4a44d9fea8c45b5afac6800ca9a3b00000000ffffffff73bca1a59fcb04fe71d242be5d73021d02bbc6cdec66e9cb963060ff5028928e0000000001000000").unwrap();
         assert_eq!(tx_preimage, expected_tx_preimage);
