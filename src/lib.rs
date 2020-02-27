@@ -879,18 +879,11 @@ pub mod mpc {
     /// output: the pay token mask and randomness
     ///
     pub fn pay_validate_rev_lock_merchant(rev_state: RevokedState, merch_state: &mut MerchantMPCState) -> Result<([u8; 32], [u8; 16]), String> {
-        let (pt_mask_option, pt_mask_r_option) = merch_state.verify_revoked_state(rev_state.get_nonce(), rev_state.get_rev_lock_com(),
-                                                              rev_state.get_rev_lock(), rev_state.get_rev_secret(), rev_state.get_randomness());
-        let pt_mask = match pt_mask_option {
-            Some(n) => n,
-            _ => return Err(String::from("Pay token mask not found"))
+        let (pt_mask, pt_mask_r) = match merch_state.verify_revoked_state(rev_state.get_nonce(), rev_state.get_rev_lock_com(),
+                                                              rev_state.get_rev_lock(), rev_state.get_rev_secret(), rev_state.get_randomness()) {
+            Ok(n) => (n.0, n.1),
+            Err(e) => return Err(e.to_string())
         };
-
-        let pt_mask_r = match pt_mask_r_option {
-            Some(n) => n,
-            _ => return Err(String::from("Pay token mask not found"))
-        };
-
         Ok((pt_mask, pt_mask_r))
     }
 

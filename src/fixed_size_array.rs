@@ -1,7 +1,7 @@
 use super::*;
 use serde::de::{self, Deserialize, Deserializer, Visitor};
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq)]
 pub struct FixedSizeArray16(pub [u8; 16]);
 
 impl ::serde::Serialize for FixedSizeArray16 {
@@ -44,7 +44,7 @@ impl<'de> Deserialize<'de> for FixedSizeArray16 {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
 pub struct FixedSizeArray32(pub [u8; 32]);
 
 impl ::serde::Serialize for FixedSizeArray32 {
@@ -87,7 +87,7 @@ impl<'de> Deserialize<'de> for FixedSizeArray32 {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
 pub struct FixedSizeArray64(pub [u8; 32], pub [u8; 32]);
 
 impl FixedSizeArray64 {

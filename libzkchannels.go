@@ -65,6 +65,7 @@ type MerchState struct {
 	ActivateMap  *map[string]interface{} `json:"activate_map"`
 	UnlinkMap    *[]string               `json:"unlink_map"`
 	LockMapState *map[string]interface{} `json:"spent_lock_map"`
+	RevLockMap   *map[string]interface{} `json:"rev_lock_map"`
 	MaskMpcBytes *map[string]interface{} `json:"mask_mpc_bytes"`
 	ConnType     int                     `json:"conn_type"`
 	NetConfig    *map[string]interface{} `json:"net_config"`

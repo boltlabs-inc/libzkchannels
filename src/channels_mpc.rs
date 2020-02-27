@@ -785,12 +785,6 @@ impl RevokedState {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct LockMap {
-    pub lock: FixedSizeArray32,
-    pub secret: FixedSizeArray32,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PayMaskMap {
     pub mask: FixedSizeArray32,
     pub r: FixedSizeArray16
@@ -811,7 +805,8 @@ pub struct MerchantMPCState {
     pub nonce_mask_map: HashMap<String, PayMaskMap>,
     pub activate_map: HashMap<String, State>,
     pub unlink_map: HashSet<String>,
-    pub spent_lock_map: HashMap<String, Option<LockMap>>,
+    pub spent_lock_map: HashMap<String, Option<FixedSizeArray32>>,
+    pub rev_lock_map: HashMap<FixedSizeArray32, FixedSizeArray32>,
     pub mask_mpc_bytes: HashMap<String, MaskedMPCInputs>,
     pub conn_type: u32,
     net_config: Option<NetworkConfig>
@@ -866,6 +861,7 @@ impl MerchantMPCState {
             activate_map: HashMap::new(),
             unlink_map: HashSet::new(),
             spent_lock_map: HashMap::new(),
+            rev_lock_map: HashMap::new(),
             mask_mpc_bytes: HashMap::new(),
             conn_type: 0,
             net_config: None
@@ -1125,42 +1121,44 @@ impl MerchantMPCState {
         Ok(true)
     }
 
-    pub fn verify_revoked_state(&mut self, nonce: [u8; NONCE_LEN], rev_lock_com: [u8; 32], rev_lock: [u8; 32], rev_sec: [u8; 32], t: [u8; 16]) -> (Option<[u8; 32]>, Option<[u8; 16]>) {
+    pub fn verify_revoked_state(&mut self, nonce: [u8; NONCE_LEN], rev_lock_com: [u8; 32], rev_lock: [u8; 32], rev_sec: [u8; 32], t: [u8; 16]) -> Result<([u8; 32], [u8; 16]), String> {
         // check rev_lock_com opens to RL_i / t_i
         // check that RL_i is derived from RS_i
         if compute_rev_lock_commitment(&rev_lock, &t) != rev_lock_com ||
             hash_to_slice(&rev_sec.to_vec()) != rev_lock {
             let nonce_hex = hex::encode(nonce);
             self.spent_lock_map.insert(nonce_hex, None);
-            return (None, None);
+            return Err(String::from("rev_lock_com commitment did not open to specified rev_lock"));
         }
 
         // retrieve masked bytes from rev_lock_com (output error, if not)
         let rev_lock_com_hex = hex::encode(rev_lock_com);
         let (is_ok, pt_mask, pt_mask_r) = match self.mask_mpc_bytes.get(&rev_lock_com_hex) {
-            Some(&n) => (true, Some(n.pt_mask.0), Some(n.pt_mask_r.0)),
-            _ => (false, None, None)
+            Some(&n) => (true, n.pt_mask.0, n.pt_mask_r.0),
+            _ => return Err(String::from("could not retrieve pt_mask for specified rev_lock_com commitment"))
         };
 
+        // verify that RL_i not in the S_spent
+        let rl = FixedSizeArray32(rev_lock.clone());
+        if self.rev_lock_map.get(&rl).is_some() {
+            return Err(String::from("attempting to revoke with a rev_lock that is already revoked"));
+        }
 
         let nonce_hex = hex::encode(nonce);
         if is_ok {
-            // add (n_i, RS_i, RL_i) to S_spent map
-            let revoked_lock_pair = LockMap {
-                lock: FixedSizeArray32(rev_lock),
-                secret: FixedSizeArray32(rev_sec)
-            };
-            self.spent_lock_map.insert(nonce_hex.clone(), Some(revoked_lock_pair));
+            // add (n_i, RL_i) to S_spent map
+            self.spent_lock_map.insert(nonce_hex.clone(), Some(FixedSizeArray32(rev_lock)));
+            // add (RL_i, RS_i) to RL map
+            self.rev_lock_map.insert(FixedSizeArray32(rev_lock), FixedSizeArray32(rev_sec));
             // check if n_i in the unlink map. if so, remove it
             if self.unlink_map.contains(&nonce_hex) {
                 self.unlink_map.remove(&nonce_hex);
             }
-
         } else {
             self.spent_lock_map.insert(nonce_hex, None);
         }
 
-        return (pt_mask, pt_mask_r);
+        Ok((pt_mask, pt_mask_r))
     }
 
 }
@@ -1291,7 +1289,10 @@ rusty_fork_test!
         let rev_lock_com = r_com.clone();
         let nonce = s_0.get_nonce().clone();
 
-        let mask_bytes = merch_state.verify_revoked_state(nonce, rev_lock_com, rev_lock, rev_secret, t);
+        let _mask_bytes = match merch_state.verify_revoked_state(nonce, rev_lock_com, rev_lock, rev_secret, t) {
+            Ok(n) => Some(n),
+            Err(e) => None
+        };
         //assert!(!mask_bytes.is_none());
 
         let mut pt_mask = [0u8; 32];
@@ -1418,19 +1419,9 @@ rusty_fork_test!
 
         println!("completed mpc execution!");
 
-        let (pt_mask_bytes, pt_mask_r) = merch_state.verify_revoked_state(nonce, rev_lock_com, rev_lock, rev_secret, t);
-        assert!(!pt_mask_bytes.is_none());
-        assert!(!pt_mask_r.is_none());
-
-        if pt_mask_bytes.is_some() {
-            let pt_mask = pt_mask_bytes.unwrap();
-            println!("pt_masked: {:?}", hex::encode(&pt_mask));
-        }
-
-        if pt_mask_r.is_some() {
-            let pt_mask_r = pt_mask_r.unwrap();
-            println!("pt_mask_r: {:?}", hex::encode(&pt_mask_r));
-        }
+        let (pt_mask, pt_mask_r) = merch_state.verify_revoked_state(nonce, rev_lock_com, rev_lock, rev_secret, t).unwrap();
+        println!("pt_masked: {:?}", hex::encode(&pt_mask));
+        println!("pt_mask_r: {:?}", hex::encode(&pt_mask_r));
 
     }
 
