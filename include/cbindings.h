@@ -41,6 +41,10 @@ char *cust_sign_init_cust_close_txs(char *ser_funding_tx,
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)
+char *customer_close_tx(char *ser_channel_state, char *ser_channel_token, char *ser_cust_state);
+#endif
+
+#if defined(DEFINE_MPC_BITCOIN)
 char *customer_sign_merch_close_tx(char *ser_cust_sk, char *ser_merch_tx_preimage);
 #endif
 
@@ -276,36 +280,36 @@ char *mpc_init_merchant(char *ser_channel_state, const char *name_ptr);
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)
-char *mpc_pay_customer(char *ser_channel_state,
-                       char *ser_channel_token,
-                       char *ser_start_state,
-                       char *ser_end_state,
-                       char *ser_pay_token_mask_com,
-                       char *ser_rev_lock_com,
-                       int64_t amount,
-                       char *ser_cust_state);
-#endif
-
-#if defined(DEFINE_MPC_BITCOIN)
-char *mpc_pay_merchant(char *ser_channel_state,
-                       char *ser_nonce,
-                       char *ser_pay_token_mask_com,
-                       char *ser_rev_lock_com,
-                       int64_t amount,
-                       char *ser_merch_state);
-#endif
-
-#if defined(DEFINE_MPC_BITCOIN)
 char *mpc_pay_unmask_pay_token_customer(char *ser_pt_mask_bytes,
                                         char *ser_pt_mask_r,
                                         char *ser_cust_state);
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)
-char *mpc_pay_unmask_tx_customer(char *ser_channel_state,
-                                 char *ser_channel_token,
-                                 char *ser_masked_tx_inputs,
-                                 char *ser_cust_state);
+char *mpc_pay_unmask_sigs_customer(char *ser_channel_state,
+                                   char *ser_channel_token,
+                                   char *ser_masked_tx_inputs,
+                                   char *ser_cust_state);
+#endif
+
+#if defined(DEFINE_MPC_BITCOIN)
+char *mpc_pay_update_customer(char *ser_channel_state,
+                              char *ser_channel_token,
+                              char *ser_start_state,
+                              char *ser_end_state,
+                              char *ser_pay_token_mask_com,
+                              char *ser_rev_lock_com,
+                              int64_t amount,
+                              char *ser_cust_state);
+#endif
+
+#if defined(DEFINE_MPC_BITCOIN)
+char *mpc_pay_update_merchant(char *ser_channel_state,
+                              char *ser_nonce,
+                              char *ser_pay_token_mask_com,
+                              char *ser_rev_lock_com,
+                              int64_t amount,
+                              char *ser_merch_state);
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)

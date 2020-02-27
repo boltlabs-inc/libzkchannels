@@ -824,12 +824,12 @@ pub mod mpc {
     }
 
     ///
-    /// pay_customer() - takes as input the channel state, the channel token, the intial state, the final state, a commitment for the mask for the pay token,
+    /// pay_update_customer() - takes as input the channel state, the channel token, the intial state, the final state, a commitment for the mask for the pay token,
     /// the revocation lock commitment, the payment amount, and the customer state.
     /// Start the MPC for a payment for the Customer
     /// output: a success boolean, or error
     ///
-    pub fn pay_customer(channel_state: &mut ChannelMPCState, channel_token: &ChannelMPCToken, s0: State, s1: State, pay_token_mask_com: [u8; 32],
+    pub fn pay_update_customer(channel_state: &mut ChannelMPCState, channel_token: &ChannelMPCToken, s0: State, s1: State, pay_token_mask_com: [u8; 32],
                         rev_lock_com: [u8; 32], amount: i64, cust_state: &mut CustomerMPCState) -> Result<bool, String> {
         cust_state.update_pay_com(pay_token_mask_com);
         cust_state.set_mpc_connect_type(ConnType_NETIO);
@@ -838,12 +838,12 @@ pub mod mpc {
     }
 
     ///
-    /// pay_merchant() - takes as input an rng, the channel state, the intial state, a commitment for the mask for the pay token,
+    /// pay_update_merchant() - takes as input an rng, the channel state, the intial state, a commitment for the mask for the pay token,
     /// the revocation lock commitment, the payment amount, and the merchant state.
     /// Start the MPC for a payment for the Merchant
     /// output: the transaction masks (escrow and merch tx), or error
     ///
-    pub fn pay_merchant<R: Rng>(csprng: &mut R, channel: &mut ChannelMPCState, nonce: [u8; NONCE_LEN], pay_token_mask_com: [u8; 32],
+    pub fn pay_update_merchant<R: Rng>(csprng: &mut R, channel: &mut ChannelMPCState, nonce: [u8; NONCE_LEN], pay_token_mask_com: [u8; 32],
                                 rev_lock_com: [u8; 32], amount: i64, merch_state: &mut MerchantMPCState) -> Result<MaskedTxMPCInputs, String> {
         merch_state.set_mpc_connect_type(ConnType_NETIO);
         let result = merch_state.execute_mpc_context(csprng, &channel, nonce, rev_lock_com, pay_token_mask_com, amount);
@@ -864,11 +864,11 @@ pub mod mpc {
     }
 
     ///
-    /// pay_unmask_tx_customer() - takes as input the transaction masks and the customer state.
+    /// pay_unmask_sigs_customer() - takes as input the transaction masks and the customer state.
     /// Unmask the transactions received from the MPC
     /// output: a success boolean
     ///
-    pub fn pay_unmask_tx_customer(channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken, mask_bytes: MaskedTxMPCInputs, cust_state: &mut CustomerMPCState) -> bool {
+    pub fn pay_unmask_sigs_customer(channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken, mask_bytes: MaskedTxMPCInputs, cust_state: &mut CustomerMPCState) -> Result<bool, String> {
         cust_state.unmask_and_verify_transactions::<Testnet>(channel_state, channel_token, mask_bytes)
     }
 
@@ -901,6 +901,16 @@ pub mod mpc {
     ///
     pub fn pay_unmask_pay_token_customer(pt_mask_bytes: [u8; 32], pt_mask_r: [u8; 16], cust_state: &mut CustomerMPCState) -> bool {
         cust_state.unmask_and_verify_pay_token(pt_mask_bytes, pt_mask_r)
+    }
+
+    ///
+    /// customer_close() - takes as input the channel_state, channel_token and customer state then computes the signature
+    /// on the current state of the channel
+    /// output: (close_escrow_tx, close_escrow_txid, close_merch_tx, close_merch_txid)
+    ///
+    pub fn customer_close(channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken, cust_state: &CustomerMPCState) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>), String> {
+        // (close_escrow_tx, close_escrow_txid, close_merch_tx, close_merch_txid)
+        cust_state.customer_close::<Testnet>(&channel_state, &channel_token)
     }
 }
 
@@ -1651,7 +1661,7 @@ mod tests {
 
         let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &channel,s0.get_nonce(), rev_lock_com.clone(), 10, &mut merch_state).unwrap();
 
-        let res_merch = mpc::pay_merchant(&mut rng, &mut channel, s0.get_nonce(), pay_mask_com, rev_lock_com, 10, &mut merch_state);
+        let res_merch = mpc::pay_update_merchant(&mut rng, &mut channel, s0.get_nonce(), pay_mask_com, rev_lock_com, 10, &mut merch_state);
         assert!(res_merch.is_ok());
         let _inputs = res_merch.unwrap();
 
@@ -1705,7 +1715,7 @@ rusty_fork_test! {
 
         let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &channel_state, state.get_nonce(), rev_lock_com.clone(), 10, &mut merch_state).unwrap();
 
-        let res_cust = mpc::pay_customer(&mut channel_state, &channel_token, s0, state, pay_mask_com, rev_lock_com, 10, &mut cust_state);
+        let res_cust = mpc::pay_update_customer(&mut channel_state, &channel_token, s0, state, pay_mask_com, rev_lock_com, 10, &mut cust_state);
         assert!(res_cust.is_ok() && res_cust.unwrap());
 
         let mut pt_mask = [0u8; 32];
@@ -1726,7 +1736,7 @@ rusty_fork_test! {
             r_merch_sig
         );
 
-        let is_ok = mpc::pay_unmask_tx_customer(&channel_state, &channel_token, masks, &mut cust_state);
+        let is_ok = mpc::pay_unmask_sigs_customer(&channel_state, &channel_token, masks, &mut cust_state).unwrap();
         assert!(is_ok);
 
         let mut pt_mask = [0u8; 32];
@@ -1736,6 +1746,8 @@ rusty_fork_test! {
 
         let is_ok = mpc::pay_unmask_pay_token_customer(pt_mask, pt_mask_r, &mut cust_state);
         assert!(is_ok);
+
+
     }
 }
 

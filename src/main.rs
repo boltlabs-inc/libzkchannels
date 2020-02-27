@@ -554,14 +554,14 @@ mod cust {
         pay_token_mask_com.copy_from_slice(pay_token_mask_com_vec.as_slice());
 
         // execute the mpc phase
-        let result = mpc::pay_customer(&mut channel_state, &mut channel_token, old_state, new_state, pay_token_mask_com, rev_state.rev_lock_com.0, amount, &mut cust_state);
+        let result = mpc::pay_update_customer(&mut channel_state, &mut channel_token, old_state, new_state, pay_token_mask_com, rev_state.rev_lock_com.0, amount, &mut cust_state);
         let mut is_ok = result.is_ok() && result.unwrap();
 
         let msg2 = conn.wait_for(None, false);
         let mask_bytes: MaskedTxMPCInputs = serde_json::from_str(msg2.get(0).unwrap()).unwrap();
 
         // unmask the closing tx
-        is_ok = is_ok && mpc::pay_unmask_tx_customer(&mut channel_state, &mut channel_token, mask_bytes, &mut cust_state);
+        is_ok = is_ok && mpc::pay_unmask_sigs_customer(&mut channel_state, &mut channel_token, mask_bytes, &mut cust_state).unwrap();
 
         let msg3 = [serde_json::to_string(&rev_state).unwrap()];
 
@@ -588,14 +588,26 @@ mod cust {
     }
 
     pub fn close(out_file: PathBuf, from_escrow: bool) -> Result<(), String> {
+        let ser_channel_state = handle_error_result!(read_file("cust_channel_state.json"));
+        let channel_state: ChannelMPCState = handle_error_result!(serde_json::from_str(&ser_channel_state));
+
+        let ser_channel_token = handle_error_result!(read_file("cust_channel_token.json"));
+        let channel_token: ChannelMPCToken = handle_error_result!(serde_json::from_str(&ser_channel_token));
+
         let ser_cust_state = handle_error_result!(read_file("cust_state.json"));
         let cust_state: CustomerMPCState = serde_json::from_str(&ser_cust_state).unwrap();
 
+        let (close_escrow_tx, close_escrow_txid, close_merch_tx, close_merch_txid) = handle_error_result!(cust_state.customer_close::<Testnet>(&channel_state, &channel_token));
+
         let closing_tx = match from_escrow {
-            true => cust_state.get_cust_close_escrow_tx(),
-            false => cust_state.get_cust_close_merch_tx()
+            true => hex::encode(close_escrow_tx),
+            false => hex::encode(close_merch_tx)
         };
 
+        match from_escrow {
+            true => println!("cust-close from escrow txid: {}", hex::encode(close_escrow_txid)),
+            false => println!("cust-close from merch txid: {}", hex::encode(close_merch_txid)),
+        };
         // write out to a file
         write_pathfile(out_file, closing_tx)?;
         Ok(())
@@ -751,7 +763,7 @@ mod merch {
         let msg1 = [hex::encode(&pay_token_mask_com)];
         conn.send(&msg1);
 
-        let masked_inputs = handle_error_result!(mpc::pay_merchant(rng, &mut channel_state, nonce, pay_token_mask_com, rev_lock_com, amount, &mut merch_state));
+        let masked_inputs = handle_error_result!(mpc::pay_update_merchant(rng, &mut channel_state, nonce, pay_token_mask_com, rev_lock_com, amount, &mut merch_state));
         let msg3 = [handle_error_result!(serde_json::to_string(&masked_inputs))];
         let msg4 = conn.send_and_wait(&msg3, Some(String::from("Received revoked state")), true);
         let rev_state = serde_json::from_str(msg4.get(0).unwrap()).unwrap();

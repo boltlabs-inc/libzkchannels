@@ -101,8 +101,11 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("initial close transactions validated: ", isOk)
 
 	fmt.Println("Output initial closing transactions")
-	fmt.Println("TX3: Close from EscrowTx => ", string(custState.CloseEscrowTx))
-	fmt.Println("TX4: Close from MerchCloseTx => ", string(custState.CloseMerchTx))
+	CloseEscrowTx, CloseEscrowTxId, CloseMerchTx, CloseMerchTxId, err := CustomerCloseTx(channelState, channelToken, custState)
+	fmt.Println("TX3: Close EscrowTx ID: ", CloseEscrowTxId)
+	fmt.Println("TX3: Close from EscrowTx => ", string(CloseEscrowTx))
+	fmt.Println("TX4: Close MerchTx ID: ", CloseMerchTxId)
+	fmt.Println("TX4: Close from MerchCloseTx => ", string(CloseMerchTx))
 
 	/////////////////////////////////////////////////////////
 	fmt.Println("Proceed with channel activation...")
@@ -137,14 +140,14 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	assert.Nil(t, err)
 
 	go runPayCust(channelState, channelToken, state, newState, payTokenMaskCom, revState.RevLockCom, custState)
-	maskedTxInputs, merchState, err := PayMerchant(channelState, state.Nonce, payTokenMaskCom, revState.RevLockCom, 10, merchState)
+	maskedTxInputs, merchState, err := PayUpdateMerchant(channelState, state.Nonce, payTokenMaskCom, revState.RevLockCom, 10, merchState)
 	assert.Nil(t, err)
 	time.Sleep(time.Second * 5)
 
 	serCustState := os.Getenv("custStateRet")
 	err = json.Unmarshal([]byte(serCustState), &custState)
 	assert.Nil(t, err)
-	isOk, custState, err = PayUnmaskTxCustomer(channelState, channelToken, maskedTxInputs, custState)
+	isOk, custState, err = PayUnmaskSigsCustomer(channelState, channelToken, maskedTxInputs, custState)
 	assert.Nil(t, err)
 	assert.True(t, isOk)
 
@@ -156,8 +159,11 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	assert.True(t, isOk)
 
 	fmt.Println("Get new signed close transactions...")
-	fmt.Println("TX5: CloseEscrowTx => ", string(custState.CloseEscrowTx))
-	fmt.Println("TX6: CloseMerchTx => ", string(custState.CloseMerchTx))
+	CloseEscrowTx, CloseEscrowTxId, CloseMerchTx, CloseMerchTxId, err = CustomerCloseTx(channelState, channelToken, custState)
+	fmt.Println("TX5: Close EscrowTx ID: ", CloseEscrowTxId)
+	fmt.Println("TX5: Close from EscrowTx => ", string(CloseEscrowTx))
+	fmt.Println("TX6: Close MerchTx ID: ", CloseMerchTxId)
+	fmt.Println("TX6: Close from MerchCloseTx => ", string(CloseMerchTx))
 
 	return
 }
@@ -231,11 +237,15 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 
 	fmt.Println("escrow sig: ", escrowSig)
 	fmt.Println("merch sig: ", merchSig)
+	fmt.Println("ERROR: ", err)
 
 	isOk, channelToken, custState, err := CustomerSignInitCustCloseTx(txInfo, channelState, channelToken, escrowSig, merchSig, custState)
 	assert.Nil(t, err)
+	fmt.Println("ERROR: ", err)
 
 	initCustState, initHash, err := CustomerGetInitialState(custState)
+	assert.Nil(t, err)
+	fmt.Println("ERROR: ", err)
 
 	fmt.Println("initial cust state: ", initCustState)
 	fmt.Println("initial hash: ", initHash)
@@ -281,14 +291,14 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	fmt.Println("Merch State (unlink map): ", *merchState.UnlinkMap)
 
 	go runPayCust(channelState, channelToken, state, newState, payTokenMaskCom, revState.RevLockCom, custState)
-	maskedTxInputs, merchState, err := PayMerchant(channelState, state.Nonce, payTokenMaskCom, revState.RevLockCom, 10, merchState)
+	maskedTxInputs, merchState, err := PayUpdateMerchant(channelState, state.Nonce, payTokenMaskCom, revState.RevLockCom, 10, merchState)
 	assert.Nil(t, err)
 	time.Sleep(time.Second * 5)
 
 	serCustState := os.Getenv("custStateRet")
 	err = json.Unmarshal([]byte(serCustState), &custState)
 	assert.Nil(t, err)
-	isOk, custState, err = PayUnmaskTxCustomer(channelState, channelToken, maskedTxInputs, custState)
+	isOk, custState, err = PayUnmaskSigsCustomer(channelState, channelToken, maskedTxInputs, custState)
 	assert.Nil(t, err)
 	assert.True(t, isOk)
 
@@ -300,8 +310,11 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	assert.True(t, isOk)
 
 	fmt.Println("Get new signed close transactions...")
-	fmt.Println("CloseEscrowTx: ", string(custState.CloseEscrowTx))
-	fmt.Println("CloseMerchTx: ", string(custState.CloseMerchTx))
+	CloseEscrowTx, CloseEscrowTxId, CloseMerchTx, CloseMerchTxId, err := CustomerCloseTx(channelState, channelToken, custState)
+	fmt.Println("TX3: Close EscrowTx ID: ", CloseEscrowTxId)
+	fmt.Println("TX3: Close from EscrowTx => ", string(CloseEscrowTx))
+	fmt.Println("TX4: Close MerchTx ID: ", CloseMerchTxId)
+	fmt.Println("TX4: Close from MerchCloseTx => ", string(CloseMerchTx))
 }
 
 func runPayCust(channelState ChannelState, channelToken ChannelToken, state State, newState State, payTokenMaskCom string, revLockCom string, custState CustState) {
@@ -320,14 +333,14 @@ func runPayCust(channelState ChannelState, channelToken ChannelToken, state Stat
 
 	os.Setenv("runTest", "true")
 
-	c := exec.Command("go", "test", "-v", "libzkchannels.go", "libzkchannels_test.go", "-run", "TestPayCustomer")
+	c := exec.Command("go", "test", "-v", "libzkchannels.go", "libzkchannels_test.go", "-run", "TestPayUpdateCustomer")
 	c.Env = os.Environ()
 	out, _ := c.Output()
 	os.Setenv("custStateRet", strings.Split(string(out), "|||")[1])
 	os.Setenv("runTest", "")
 }
 
-func TestPayCustomer(t *testing.T) {
+func TestPayUpdateCustomer(t *testing.T) {
 	if os.Getenv("runTest") == "" {
 		t.Skip("Skip test when not called from other test")
 	}
@@ -350,7 +363,7 @@ func TestPayCustomer(t *testing.T) {
 	err = json.Unmarshal([]byte(os.Getenv("custState")), &custState)
 	assert.Nil(t, err)
 
-	isOk, custState, err := PayCustomer(channelState, channelToken, state, newState, payTokenMaskCom, revLockCom, 10, custState)
+	isOk, custState, err := PayUpdateCustomer(channelState, channelToken, state, newState, payTokenMaskCom, revLockCom, 10, custState)
 	serCustState, err := json.Marshal(custState)
 	t.Log("\n|||", string(serCustState), "|||\n")
 	assert.True(t, isOk)

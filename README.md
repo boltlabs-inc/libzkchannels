@@ -270,7 +270,7 @@ See the `intermediary_payment_basics_works()` unit test in `src/lib.rs` for more
 
 ### Pay Protocol
 
-Prepare/Execute MPC phase
+Prepare/Update State phase
 	
 	// customer prepares payment by generating a new state, new revocation lock and secret, and 
 	let (state, revoked_state) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, 10, &mut cust_state).unwrap();
@@ -282,25 +282,30 @@ Prepare/Execute MPC phase
 Now proceed with executing the MPC if successful
 
 	// customer executes mpc protocol with old/new state, pay mask commitment, rev lock commitment and payment amount
-	let ok_cust = mpc::pay_customer(&mut channel_state, &channel_token, old_state, new_state, pay_mask_com, rev_lock_com, 10, &mut cust_state);
+	let ok_cust = mpc::pay_update_customer(&mut channel_state, &channel_token, old_state, new_state, pay_mask_com, rev_lock_com, 10, &mut cust_state);
 	
 	// merchant executes mpc protocol with customer nonce, pay mask commitment, rev lock commitment and payment amount
-	let ok_merch = mpc::pay_merchant(&mut rng, &mut channel_state, old_state.get_nonce(), pay_mask_com, rev_lock_com, 10, &mut merch_state);
+	let ok_merch = mpc::pay_update_merchant(&mut rng, &mut channel_state, old_state.get_nonce(), pay_mask_com, rev_lock_com, 10, &mut merch_state);
 	
 	// customer sends success/error back to merchant if the customer obtains 3 masked outputs for both closing transactions and pay token
 
 Unmask/Revoke phase
 
-	// unmask the closing transactions received from the MPC to close the channel and 
-	// customer forms and sends the revoked state message
-	let is_ok = mpc::pay_unmask_tx_customer(masks, &mut cust_state);
+	// unmask the closing signatures on the current state (from MPC output)
+	// and if signatures are valid, the customer sends the revoked state message
+	let is_ok = mpc::pay_unmask_sigs_customer(masks, &mut cust_state);
 
-	// customer revokes the previous state if the unmasking was successful
+	// merchant verifies that revoked message on the previous state if unmasking was successful
 	let (pt_mask, pt_mask_r) = mpc::pay_validate_rev_lock_merchant(revoked_state, &mut merch_state).unwrap();
 	
 	// customer unmasks the pay token and checks validity of pay-token mask commitment opening 
 	let is_ok = mpc::pay_unmask_pay_token_customer(pt_mask, pt_mask_r, &mut cust_state);
 
+### Close
+
+To close the channel, the customer does the following:
+
+    cust_state.customer_close_tx()
 
 # Documentation 
 
