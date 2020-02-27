@@ -690,35 +690,39 @@ impl CustomerMPCState {
         let escrow_sig_valid = secp.verify(&msg1, &escrow_signature, &channel_token.pk_m).is_ok();
         let merch_sig_valid = secp.verify(&msg2, &merch_signature, &channel_token.pk_m).is_ok();
 
-        // customer sign the transactions to complete multi-sig and store CT bytes locally
-        let private_key = BitcoinPrivateKey::<N>::from_secp256k1_secret_key(self.sk_c.clone(), false);
-        let sighash_code = SIGHASH_ALL as u32;
-        let mut escrow_signature = escrow_signature.serialize_der().to_vec();
-        escrow_signature.push(sighash_code.to_le_bytes()[0]);
-        let enc_escrow_signature = [get_var_length_int(escrow_signature.len() as u64).unwrap(), escrow_signature].concat();
+        if escrow_sig_valid && merch_sig_valid {
+            // customer sign the transactions to complete multi-sig and store CT bytes locally
+            let private_key = BitcoinPrivateKey::<N>::from_secp256k1_secret_key(self.sk_c.clone(), false);
+            let sighash_code = SIGHASH_ALL as u32;
+            let mut escrow_signature = escrow_signature.serialize_der().to_vec();
+            escrow_signature.push(sighash_code.to_le_bytes()[0]);
+            let enc_escrow_signature = [get_var_length_int(escrow_signature.len() as u64).unwrap(), escrow_signature].concat();
 
-        let mut merch_signature = merch_signature.serialize_der().to_vec();
-        merch_signature.push(sighash_code.to_le_bytes()[0]);
-        let enc_merch_signature = [get_var_length_int(merch_signature.len() as u64).unwrap(), merch_signature].concat();
+            let mut merch_signature = merch_signature.serialize_der().to_vec();
+            merch_signature.push(sighash_code.to_le_bytes()[0]);
+            let enc_merch_signature = [get_var_length_int(merch_signature.len() as u64).unwrap(), merch_signature].concat();
 
-        // sign the cust-close-from-escrow-tx
-        let (signed_cust_close_escrow_tx, close_escrow_txid, _) =
-            completely_sign_multi_sig_transaction::<N>(&escrow_tx_params, &enc_escrow_signature, true, None, &private_key);
-        let mut close_escrow_txid_le = close_escrow_txid.to_vec();
-        close_escrow_txid_le.reverse();
-        let close_escrow_txid = close_escrow_txid_le;
-        let close_escrow_tx = signed_cust_close_escrow_tx.to_transaction_bytes().unwrap();
+            // sign the cust-close-from-escrow-tx
+            let (signed_cust_close_escrow_tx, close_escrow_txid, _) =
+                completely_sign_multi_sig_transaction::<N>(&escrow_tx_params, &enc_escrow_signature, true, None, &private_key);
+            let mut close_escrow_txid_le = close_escrow_txid.to_vec();
+            close_escrow_txid_le.reverse();
+            let close_escrow_txid = close_escrow_txid_le;
+            let close_escrow_tx = signed_cust_close_escrow_tx.to_transaction_bytes().unwrap();
 
-        // sign the cust-close-from-merch-tx
-        let script_data: Vec<u8> = vec![0x01];
-        let (signed_cust_close_merch_tx, close_merch_txid, _) =
-            completely_sign_multi_sig_transaction::<N>(&merch_tx_params, &enc_merch_signature, true, Some(script_data), &private_key);
-        let mut close_merch_txid_le = close_merch_txid.to_vec();
-        close_merch_txid_le.reverse();
-        let close_merch_txid = close_merch_txid_le;
-        let close_merch_tx = signed_cust_close_merch_tx.to_transaction_bytes().unwrap();
+            // sign the cust-close-from-merch-tx
+            let script_data: Vec<u8> = vec![0x01];
+            let (signed_cust_close_merch_tx, close_merch_txid, _) =
+                completely_sign_multi_sig_transaction::<N>(&merch_tx_params, &enc_merch_signature, true, Some(script_data), &private_key);
+            let mut close_merch_txid_le = close_merch_txid.to_vec();
+            close_merch_txid_le.reverse();
+            let close_merch_txid = close_merch_txid_le;
+            let close_merch_tx = signed_cust_close_merch_tx.to_transaction_bytes().unwrap();
 
-        Ok((close_escrow_tx, close_escrow_txid, close_merch_tx, close_merch_txid))
+            Ok((close_escrow_tx, close_escrow_txid, close_merch_tx, close_merch_txid))
+        } else {
+            Err(String::from("merchant signatures are out of sync with current customer state"))
+        }
     }
 }
 

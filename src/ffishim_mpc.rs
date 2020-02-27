@@ -438,7 +438,7 @@ pub mod ffishim_mpc {
         let cust_state_result: ResultSerdeType<CustomerMPCState> = deserialize_result_object(ser_cust_state);
         let cust_state = handle_errors!(cust_state_result);
 
-        let (close_escrow_tx, close_escrow_txid, close_merch_tx, close_merch_txid) = handle_errors!(cust_state.customer_close::<Testnet>(&channel_state, &channel_token));
+        let (close_escrow_tx, close_escrow_txid, close_merch_tx, close_merch_txid) = handle_errors!(mpc::customer_close(&channel_state, &channel_token, &cust_state));
         let ser = ["{\'close_escrow_tx\':\'", &hex::encode(close_escrow_tx),
                     "\', \'close_escrow_txid\':\'", &hex::encode(close_escrow_txid),
                     "\', \'close_merch_tx\':\'", &hex::encode(close_merch_tx),

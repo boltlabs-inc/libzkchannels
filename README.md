@@ -303,9 +303,10 @@ Unmask/Revoke phase
 
 ### Close
 
-To close the channel, the customer does the following:
+To force close the channel, the customer executes the following:
 
-    cust_state.customer_close_tx()
+	// customer signs the current state of channel and combines with merchant signatures
+	let (close_escrow_tx, _, close_merch_tx, _) = mpc::customer_close(&channel_state, &channel_token, &cust_state).unwrap();
 
 # Documentation 
 
