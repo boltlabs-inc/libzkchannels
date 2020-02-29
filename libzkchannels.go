@@ -251,6 +251,16 @@ func CustomerCloseTx(channelState ChannelState, channelToken ChannelToken, custS
 	return r.CloseEscrowTx, r.CloseEscrowTxId, r.CloseMerchTx, r.CloseMerchTxId, err
 }
 
+func MerchantVerifyMerchCloseTx(escrowTxId string, custPk string, merchPk string, merchClosePk string, custBal int64, merchBal int64, toSelfDelay string, custSig string) (bool, string, string, error) {
+	resp := C.GoString(C.merchant_verify_merch_close_tx(C.CString(escrowTxId), C.CString(custPk), C.CString(merchPk),
+		C.CString(merchClosePk), C.longlong(custBal), C.longlong(merchBal), C.CString(toSelfDelay), C.CString(custSig)))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return false, "", "", err
+	}
+	return r.IsOk, r.TxId, r.HashPrevOut, err
+}
+
 func MerchantSignMerchCloseTx(escrowTxId string, custPk string, merchPk string, merchClosePk string, custBal int64, merchBal int64, toSelfDelay string, custSig string, merchSk string) (string, string, string, error) {
 	resp := C.GoString(C.merchant_sign_merch_close_tx(C.CString(escrowTxId), C.CString(custPk), C.CString(merchPk),
 		C.CString(merchClosePk), C.longlong(custBal), C.longlong(merchBal), C.CString(toSelfDelay), C.CString(custSig), C.CString(merchSk)))
@@ -282,7 +292,7 @@ func MerchantSignInitCustCloseTx(tx FundingTxInfo, revLock string, custPk string
 	return r.EscrowSig, r.MerchSig, err
 }
 
-func CustomerSignInitCustCloseTx(tx FundingTxInfo, channelState ChannelState, channelToken ChannelToken, escrowSig string, merchSig string, custState CustState) (bool, ChannelToken, CustState, error) {
+func CustomerVerifyInitCustCloseTx(tx FundingTxInfo, channelState ChannelState, channelToken ChannelToken, escrowSig string, merchSig string, custState CustState) (bool, ChannelToken, CustState, error) {
 	serFundingTx, err := json.Marshal(tx)
 	if err != nil {
 		return false, ChannelToken{}, CustState{}, err
@@ -303,7 +313,7 @@ func CustomerSignInitCustCloseTx(tx FundingTxInfo, channelState ChannelState, ch
 		return false, ChannelToken{}, CustState{}, err
 	}
 
-	resp := C.GoString(C.cust_sign_init_cust_close_txs(C.CString(string(serFundingTx)), C.CString(string(serChannelState)), C.CString(string(serChannelToken)),
+	resp := C.GoString(C.cust_verify_init_cust_close_txs(C.CString(string(serFundingTx)), C.CString(string(serChannelState)), C.CString(string(serChannelToken)),
 		C.CString(escrowSig), C.CString(merchSig), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {

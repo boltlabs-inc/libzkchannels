@@ -518,6 +518,41 @@ pub mod ffishim_mpc {
     }
 
     #[no_mangle]
+    pub extern fn merchant_verify_merch_close_tx(ser_escrow_txid: *mut c_char, ser_cust_pk: *mut c_char, ser_merch_pk: *mut c_char, ser_merch_close_pk: *mut c_char, cust_bal_sats: i64, merch_bal_sats: i64, ser_self_delay: *mut c_char, ser_cust_sig: *mut c_char) -> *mut c_char {
+
+        let escrow_txid_result = deserialize_hex_string(ser_escrow_txid);
+        let escrow_txid = handle_errors!(escrow_txid_result);
+
+        let cust_pk_result = deserialize_hex_string(ser_cust_pk);
+        let cust_pk = handle_errors!(cust_pk_result);
+
+        let merch_pk_result = deserialize_hex_string(ser_merch_pk);
+        let merch_pk = handle_errors!(merch_pk_result);
+
+        let merch_close_pk_result = deserialize_hex_string(ser_merch_close_pk);
+        let merch_close_pk = handle_errors!(merch_close_pk_result);
+
+        let self_delay_result = deserialize_hex_string(ser_self_delay);
+        let self_delay = handle_errors!(self_delay_result);
+        let mut self_delay_be = [0u8; 2];
+        self_delay_be.copy_from_slice(&self_delay);
+
+        let cust_sig_result = deserialize_hex_string(ser_cust_sig);
+        let cust_sig = handle_errors!(cust_sig_result);
+
+        let (merch_tx_preimage, tx_params) = handle_errors!(txutil::merchant_form_close_transaction(escrow_txid, cust_pk.clone(), merch_pk, merch_close_pk, cust_bal_sats, merch_bal_sats, self_delay_be));
+
+        let is_ok = handle_errors!(txutil::merchant_verify_merch_close_transaction(merch_tx_preimage, cust_sig, cust_pk));
+
+        let (txid, prevout) = handle_errors!(txutil::merchant_generate_transaction_id(tx_params));
+
+        let ser = ["{\'is_ok\':", serde_json::to_string(&is_ok).unwrap().as_str(), ", \'txid\':\'", &hex::encode(txid),
+                          "\', \'hash_prevout\':\'", &hex::encode(prevout), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
     pub extern fn merchant_sign_merch_close_tx(ser_escrow_txid: *mut c_char, ser_cust_pk: *mut c_char, ser_merch_pk: *mut c_char, ser_merch_close_pk: *mut c_char, cust_bal_sats: i64, merch_bal_sats: i64, ser_self_delay: *mut c_char, ser_cust_sig: *mut c_char, ser_merch_sk: *mut c_char) -> *mut c_char {
 
         let escrow_txid_result = deserialize_hex_string(ser_escrow_txid);
@@ -589,7 +624,7 @@ pub mod ffishim_mpc {
     }
 
     #[no_mangle]
-    pub extern fn cust_sign_init_cust_close_txs(ser_funding_tx: *mut c_char, ser_channel_state: *mut c_char, ser_channel_token: *mut c_char, ser_escrow_sig: *mut c_char, ser_merch_sig: *mut c_char, ser_cust_state: *mut c_char) -> *mut c_char {
+    pub extern fn cust_verify_init_cust_close_txs(ser_funding_tx: *mut c_char, ser_channel_state: *mut c_char, ser_channel_token: *mut c_char, ser_escrow_sig: *mut c_char, ser_merch_sig: *mut c_char, ser_cust_state: *mut c_char) -> *mut c_char {
         // Deserialize the tx
         let tx_result: ResultSerdeType<FundingTxInfo> = deserialize_result_object(ser_funding_tx);
         let funding_tx = handle_errors!(tx_result);

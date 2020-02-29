@@ -371,6 +371,27 @@ pub mod btc {
         }
     }
 
+    pub fn merch_generate_transaction_id<N: BitcoinNetwork>(tx_params: BitcoinTransactionParameters<N>) -> Result<([u8; 32], [u8; 32]), String> {
+        let transaction = BitcoinTransaction::<N>::new(&tx_params).unwrap();
+        let tx_id_hex = transaction.to_transaction_id().unwrap();
+        let txid = hex::decode(tx_id_hex.to_string()).unwrap();
+
+        let mut txid_buf = [0u8; 32];
+        let mut hash_prevout = [0u8; 32];
+        txid_buf.copy_from_slice(txid.as_slice());
+        let mut txid_buf_be = txid_buf.clone();
+        txid_buf_be.reverse();
+
+        // get the txid and prevout
+        let mut prevout_preimage: Vec<u8> = Vec::new();
+        prevout_preimage.extend(txid_buf_be.iter()); // txid
+        prevout_preimage.extend(vec![0x00, 0x00, 0x00, 0x00]); // index
+        let result = Sha256::digest(&Sha256::digest(&prevout_preimage));
+        hash_prevout.copy_from_slice(&result);
+
+        Ok((txid_buf_be, hash_prevout))
+    }
+
     pub fn completely_sign_multi_sig_transaction<N: BitcoinNetwork>(tx_params: &BitcoinTransactionParameters<N>, signature: &Vec<u8>, prepend_signature: bool, script_data: Option<Vec<u8>>, private_key: &BitcoinPrivateKey<N>) -> (BitcoinTransaction<N>, [u8; 32], [u8; 32]) {
         let mut tx_params2 = tx_params.clone();
         let checksig_bug = vec![0x00]; // OP_CHECKSIG bug
@@ -629,6 +650,7 @@ pub mod btc {
 
         let transaction = BitcoinTransaction::<N>::new(&transaction_parameters).unwrap();
         let hash_preimage = transaction.segwit_hash_preimage(0, SIGHASH_ALL).unwrap();
+
 
         let signed_tx = match transaction.sign(&private_key) {
             Ok(s) => s,

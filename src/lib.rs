@@ -912,12 +912,13 @@ pub mod txutil {
     use transactions::{Input, BitcoinTxConfig, MultiSigOutput, Output};
     use transactions::btc::{create_escrow_transaction, sign_escrow_transaction, serialize_p2wsh_escrow_redeem_script,
                             create_merch_close_transaction_params, create_merch_close_transaction_preimage,
-                            sign_merch_dispute_transaction, sign_cust_close_claim_transaction,
+                            sign_merch_dispute_transaction, sign_cust_close_claim_transaction, merch_generate_transaction_id,
                             get_private_key, generate_signature_for_multi_sig_transaction, completely_sign_multi_sig_transaction};
     use bitcoin::{Testnet, BitcoinTransactionParameters};
     use bitcoin::{BitcoinPrivateKey};
     use wagyu_model::Transaction;
     use bitcoin::Denomination::Bitcoin;
+    use sha2::{Sha256, Digest};
 
     macro_rules! check_pk_length {
         ($x: expr) => (
@@ -1017,6 +1018,34 @@ pub mod txutil {
         let sk = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(cust_sk, false);
         let cust_sig = generate_signature_for_multi_sig_transaction::<Testnet>(&merch_tx_preimage, &sk)?;
         Ok(cust_sig)
+    }
+
+    pub fn merchant_verify_merch_close_transaction(merch_tx_preimage: Vec<u8>, cust_sig_and_len_byte: Vec<u8>, cust_pk: Vec<u8>) -> Result<bool, String> {
+        let pk = match secp256k1::PublicKey::from_slice(&cust_pk) {
+            Ok(n) => n,
+            Err(e) => return Err(e.to_string())
+        };
+        let merch_tx_hash = Sha256::digest(&Sha256::digest(&merch_tx_preimage));
+        let sig_len = cust_sig_and_len_byte[0] as usize;
+        let mut new_cust_sig = cust_sig_and_len_byte[1..].to_vec();
+        if sig_len != new_cust_sig.len() {
+            return Err(String::from("Invalid escrow_sig len!"));
+        }
+        new_cust_sig.pop(); // remove last byte for sighash flag
+        // now we can check the signature
+        let cust_sig = match secp256k1::Signature::from_der(&new_cust_sig.as_slice()) {
+            Ok(n) => n,
+            Err(e) => return Err(e.to_string())
+        };
+        let msg = secp256k1::Message::from_slice(&merch_tx_hash).unwrap();
+        let secp = secp256k1::Secp256k1::verification_only();
+        let cust_sig_valid = secp.verify(&msg, &cust_sig, &pk).is_ok();
+
+        Ok(cust_sig_valid)
+    }
+
+    pub fn merchant_generate_transaction_id(tx_params: BitcoinTransactionParameters<Testnet>) -> Result<([u8; 32], [u8; 32]), String> {
+        merch_generate_transaction_id::<Testnet>(tx_params)
     }
 
     pub fn merchant_sign_merch_close_transaction(tx_params: BitcoinTransactionParameters<Testnet>, cust_sig_and_len_byte: Vec<u8>, merch_sk: secp256k1::SecretKey) -> Result<(Vec<u8>, [u8; 32], [u8; 32]), String> {
