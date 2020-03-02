@@ -183,35 +183,6 @@ pub mod btc {
     }
 
     pub fn get_cust_close_timelocked_p2wsh_address(rev_lock: &[u8; 32], merch_disp_pubkey: &Vec<u8>, cust_close_pubkey: &Vec<u8>, self_delay_le: &Vec<u8>) -> Vec<u8> {
-//        //# P2WSH cust-close scriptPubKey
-//        //# 0x63      OP_IF
-//        //# 0xa8      OP_SHA256
-//        //# 0x20      OP_DATA - len(revocation_lock {sha256[revocation-secret]})
-//        //# revocation_lock
-//        //# 0x88      OP_EQUALVERIFY
-//        //# 0x21      OP_DATA - len(merch_disp_pubkey)
-//        //# merch_disp_pubkey
-//        //# 0x67      OP_ELSE
-//        //# 0x__      OP_DATA - len(to_self_delay) (probably ~0x02)
-//        //# to_self_delay
-//        //# 0xb2      OP_CHECKSEQUENCEVERIFY
-//        //# 0x75      OP_DROP
-//        //# 0x21      OP_DATA - len(cust_close_pubkey)
-//        //# cust_close_pk
-//        //# 0x68      OP_ENDIF
-//        //# 0xac      OP_CHECKSIG
-//        let mut script: Vec<u8> = Vec::new();
-//        script.extend(vec![0x63, 0xa8, 0x20]);
-//        script.extend(rev_lock.iter());
-//        script.extend(vec![0x88, 0x21]);
-//        script.extend(merch_disp_pubkey.iter());
-//        script.push(0x67);
-//        script.push(0x02); // len for sequence
-//        script.extend(to_self_delay.iter()); // short sequence
-//        script.extend(vec![0xb2, 0x75, 0x21]);
-//        script.extend(cust_close_pubkey.iter());
-//        script.extend(vec![0x68, 0xac]);
-
         // println!("get_cust_close_timelocked_p2wsh_address script: {}", hex::encode(&script));
         let script = serialize_p2wsh_cust_close_redeem_script(&rev_lock.to_vec(), merch_disp_pubkey, cust_close_pubkey, self_delay_le);
         // compute SHA256 hash of script
@@ -515,6 +486,36 @@ pub mod btc {
         let hash_preimage = transaction.segwit_hash_preimage(0, SIGHASH_ALL).unwrap();
 
         return (hash_preimage, transaction);
+    }
+
+    pub fn merchant_form_close_transaction<N: BitcoinNetwork>(escrow_txid_be: Vec<u8>, cust_pk: Vec<u8>, merch_pk: Vec<u8>, merch_close_pk: Vec<u8>, cust_bal_sats: i64, merch_bal_sats: i64, to_self_delay_be: [u8; 2]) -> Result<(Vec<u8>, BitcoinTransactionParameters<N>), String> {
+        // check_pk_length!(cust_pk);
+        // check_pk_length!(merch_pk);
+        // check_pk_length!(merch_close_pk);
+
+        let redeem_script = serialize_p2wsh_escrow_redeem_script(&cust_pk, &merch_pk);
+        let escrow_index = 0;
+        let mut escrow_txid_le = escrow_txid_be.clone();
+        escrow_txid_le.reverse();
+
+        let input = Input {
+            address_format: "p2wsh",
+            // outpoint of escrow
+            transaction_id: escrow_txid_le,
+            index: escrow_index,
+            redeem_script: Some(redeem_script),
+            script_pub_key: None,
+            utxo_amount: Some(cust_bal_sats + merch_bal_sats),
+            sequence: Some([0xff, 0xff, 0xff, 0xff]) // 4294967295
+        };
+        let tx_params = match create_merch_close_transaction_params::<N>(&input, &cust_pk, &merch_pk, &merch_close_pk, &to_self_delay_be) {
+            Ok(t) => t,
+            Err(e) => return Err(e.to_string())
+        };
+
+        let (merch_tx_preimage, _) = create_merch_close_transaction_preimage::<N>(&tx_params);
+
+        Ok((merch_tx_preimage, tx_params))
     }
 
     pub fn create_cust_close_transaction<N: BitcoinNetwork>(input: &Input, pubkeys: &ClosePublicKeys, self_delay_be: &[u8; 2], cust_bal: i64, merch_bal: i64, from_escrow: bool) -> (Vec<u8>, BitcoinTransactionParameters<N>, BitcoinTransaction<N>) {

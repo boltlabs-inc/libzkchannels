@@ -7,6 +7,15 @@ use hmac::{Hmac, Mac};
 
 type HmacSha256 = Hmac<Sha256>;
 
+#[macro_export]
+macro_rules! handle_error_util {
+    ($e:expr) => (match $e {
+        Ok(v) => v,
+        Err(err) => return Err(err.to_string()),
+    });
+}
+
+
 pub fn is_vec_fr_equal<E: Engine>(a: &Vec<E::Fr>, b: &Vec<E::Fr>) -> bool {
     (a.len() == b.len()) &&
         a.iter()

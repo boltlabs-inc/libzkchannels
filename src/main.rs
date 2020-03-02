@@ -370,8 +370,9 @@ fn main() {
 mod cust {
     use super::*;
     use zkchannels::channels_mpc::{ChannelMPCToken, ChannelMPCState, CustomerMPCState, MaskedTxMPCInputs};
-    use zkchannels::txutil::{customer_sign_escrow_transaction, merchant_form_close_transaction, customer_sign_merch_close_transaction};
+    use zkchannels::txutil::{customer_sign_escrow_transaction, customer_sign_merch_close_transaction};
     use zkchannels::FixedSizeArray32;
+    use zkchannels::transactions::btc::merchant_form_close_transaction;
 
     pub fn open(conn: &mut Conn, b0_cust: i64, b0_merch: i64) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
@@ -427,7 +428,7 @@ mod cust {
         let cust_bal = cust_state.cust_balance;
         let merch_bal = cust_state.merch_balance;
         let merch_close_pk = channel_state.merch_payout_pk.unwrap().serialize().to_vec();
-        let (merch_tx_preimage, _) = handle_error_result!(merchant_form_close_transaction(escrow_txid.to_vec(), cust_pk, merch_pk, merch_close_pk, cust_bal, merch_bal, to_self_delay_be));
+        let (merch_tx_preimage, _) = handle_error_result!(merchant_form_close_transaction::<Testnet>(escrow_txid.to_vec(), cust_pk, merch_pk, merch_close_pk, cust_bal, merch_bal, to_self_delay_be));
 
         // get the cust-sig on the merch-close-tx
         let cust_sig = handle_error_result!(customer_sign_merch_close_transaction(cust_sk, merch_tx_preimage));
@@ -597,16 +598,16 @@ mod cust {
         let ser_cust_state = handle_error_result!(read_file("cust_state.json"));
         let cust_state: CustomerMPCState = serde_json::from_str(&ser_cust_state).unwrap();
 
-        let (close_escrow_tx, close_escrow_txid, close_merch_tx, close_merch_txid) = handle_error_result!(cust_state.customer_close::<Testnet>(&channel_state, &channel_token));
+        let (signed_tx, txid) = handle_error_result!(mpc::customer_close(&channel_state, &channel_token, from_escrow, &cust_state));
 
         let closing_tx = match from_escrow {
-            true => hex::encode(close_escrow_tx),
-            false => hex::encode(close_merch_tx)
+            true => hex::encode(signed_tx),
+            false => hex::encode(signed_tx)
         };
 
         match from_escrow {
-            true => println!("cust-close from escrow txid: {}", hex::encode(close_escrow_txid)),
-            false => println!("cust-close from merch txid: {}", hex::encode(close_merch_txid)),
+            true => println!("cust-close from escrow txid: {}", hex::encode(txid)),
+            false => println!("cust-close from merch txid: {}", hex::encode(txid)),
         };
         // write out to a file
         write_pathfile(out_file, closing_tx)?;
@@ -627,8 +628,7 @@ mod merch {
     use super::*;
     use zkchannels::channels_mpc::{ChannelMPCState, ChannelMPCToken, MerchantMPCState, InitCustState};
     use zkchannels::wallet::State;
-    use zkchannels::transactions::btc::completely_sign_multi_sig_transaction;
-    use zkchannels::txutil::merchant_form_close_transaction;
+    use zkchannels::transactions::btc::{completely_sign_multi_sig_transaction, merchant_form_close_transaction};
     use bitcoin::BitcoinPrivateKey;
     use wagyu_model::Transaction;
     use zkchannels::fixed_size_array::FixedSizeArray32;
@@ -676,7 +676,7 @@ mod merch {
         let merch_bal = init_cust_state.merch_bal;
 
         // form the merch-close-tx
-        let (_, tx_params) = handle_error_result!(merchant_form_close_transaction(escrow_txid.to_vec(), cust_pk.clone(), merch_pk, merch_close_pk, cust_bal, merch_bal, to_self_delay_be));
+        let (_, tx_params) = handle_error_result!(merchant_form_close_transaction::<Testnet>(escrow_txid.to_vec(), cust_pk.clone(), merch_pk, merch_close_pk, cust_bal, merch_bal, to_self_delay_be));
 
         // sign the merch-close-tx given cust-sig
         let merch_private_key = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(merch_sk, false);

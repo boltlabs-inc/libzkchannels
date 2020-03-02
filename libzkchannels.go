@@ -32,10 +32,6 @@ type setupResp struct {
 	CustSig         string `json:"cust_sig"`
 	EscrowSig       string `json:"escrow_sig"`
 	MerchSig        string `json:"merch_sig"`
-	CloseEscrowTxId string `json:"close_escrow_txid"`
-	CloseEscrowTx   string `json:"close_escrow_tx"`
-	CloseMerchTxId  string `json:"close_merch_txid"`
-	CloseMerchTx    string `json:"close_merch_tx"`
 	InitCustState   string `json:"init_state"`
 	InitHash        string `json:"init_hash"`
 	Error           string `json:"error"`
@@ -67,6 +63,7 @@ type MerchState struct {
 	LockMapState *map[string]interface{} `json:"spent_lock_map"`
 	RevLockMap   *map[string]interface{} `json:"rev_lock_map"`
 	MaskMpcBytes *map[string]interface{} `json:"mask_mpc_bytes"`
+	CloseTxMap   *map[string]interface{} `json:"close_tx"`
 	ConnType     int                     `json:"conn_type"`
 	NetConfig    *map[string]interface{} `json:"net_config"`
 }
@@ -194,6 +191,14 @@ func InitCustomer(pkM string, custBal int64, merchBal int64, name string) (Chann
 	return channelToken, custState, err
 }
 
+func ValidateOpenZkChannel(txid string, prevout string, nonce string, revLock string, custPk string, custBal int64, merchBal int64, channelState ChannelState) (bool, error) {
+	// check the txid/prevout is consistent
+	// check nonce/revLock is right length
+	// check custPk is valid
+	// check custBal/merchBal
+	return true, nil
+}
+
 func FormEscrowTx(txid string, index uint32, inputAmt int64, outputAmt int64, custSk string, custPk string, merchPk string, changePk string) (string, string, string, error) {
 
 	resp := C.GoString(C.cust_form_escrow_transaction(C.CString(txid), C.uint(index), C.longlong(inputAmt),
@@ -226,49 +231,59 @@ func CustomerSignMerchCloseTx(custSk string, merchTxPreimage string) (string, er
 	return r.CustSig, err
 }
 
-func CustomerCloseTx(channelState ChannelState, channelToken ChannelToken, custState CustState) (string, string, string, string, error) {
+func CustomerCloseTx(channelState ChannelState, channelToken ChannelToken, fromEscrow bool, custState CustState) (string, string, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
-		return "", "", "", "", err
+		return "", "", err
 	}
 
 	serChannelToken, err := json.Marshal(channelToken)
 	if err != nil {
-		return "", "", "", "", err
+		return "", "", err
 	}
 
 	serCustState, err := json.Marshal(custState)
 	if err != nil {
-		return "", "", "", "", err
+		return "", "", err
 	}
 
-	resp := C.GoString(C.customer_close_tx(C.CString(string(serChannelState)), C.CString(string(serChannelToken)), C.CString(string(serCustState))))
+	resp := C.GoString(C.customer_close_tx(C.CString(string(serChannelState)), C.CString(string(serChannelToken)), C.uint(btoi(fromEscrow)), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
-		return "", "", "", "", err
+		return "", "", err
 	}
-
-	return r.CloseEscrowTx, r.CloseEscrowTxId, r.CloseMerchTx, r.CloseMerchTxId, err
+	return r.SignedTx, r.TxId, err
 }
 
-func MerchantVerifyMerchCloseTx(escrowTxId string, custPk string, merchPk string, merchClosePk string, custBal int64, merchBal int64, toSelfDelay string, custSig string) (bool, string, string, error) {
-	resp := C.GoString(C.merchant_verify_merch_close_tx(C.CString(escrowTxId), C.CString(custPk), C.CString(merchPk),
-		C.CString(merchClosePk), C.longlong(custBal), C.longlong(merchBal), C.CString(toSelfDelay), C.CString(custSig)))
+func MerchantVerifyMerchCloseTx(escrowTxId string, custPk string, custBal int64, merchBal int64, toSelfDelay string, custSig string, merchState MerchState) (bool, string, string, MerchState, error) {
+	serMerchState, err := json.Marshal(merchState)
+	if err != nil {
+		return false, "", "", MerchState{}, err
+	}
+
+	resp := C.GoString(C.merchant_verify_merch_close_tx(C.CString(escrowTxId), C.CString(custPk), C.longlong(custBal), C.longlong(merchBal),
+		C.CString(toSelfDelay), C.CString(custSig), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
-		return false, "", "", err
+		return false, "", "", MerchState{}, err
 	}
-	return r.IsOk, r.TxId, r.HashPrevOut, err
+	err = json.Unmarshal([]byte(r.MerchState), &merchState)
+	return r.IsOk, r.TxId, r.HashPrevOut, merchState, err
 }
 
-func MerchantSignMerchCloseTx(escrowTxId string, custPk string, merchPk string, merchClosePk string, custBal int64, merchBal int64, toSelfDelay string, custSig string, merchSk string) (string, string, string, error) {
-	resp := C.GoString(C.merchant_sign_merch_close_tx(C.CString(escrowTxId), C.CString(custPk), C.CString(merchPk),
-		C.CString(merchClosePk), C.longlong(custBal), C.longlong(merchBal), C.CString(toSelfDelay), C.CString(custSig), C.CString(merchSk)))
+func MerchantCloseTx(escrowTxId string, merchState MerchState) (string, string, error) {
+	serMerchState, err := json.Marshal(merchState)
+	if err != nil {
+		return "", "", err
+	}
+
+	resp := C.GoString(C.merchant_close_tx(C.CString(escrowTxId), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
-		return "", "", "", err
+		return "", "", err
 	}
-	return r.SignedTx, r.TxId, r.HashPrevOut, err
+
+	return r.SignedTx, r.TxId, err
 }
 
 func MerchantSignInitCustCloseTx(tx FundingTxInfo, revLock string, custPk string, custClosePk string, toSelfDelay string, merchState MerchState) (string, string, error) {

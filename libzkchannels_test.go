@@ -62,18 +62,17 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	custSig, err := CustomerSignMerchCloseTx(custSk, merchTxPreimage)
 	fmt.Println("cust sig for merchCloseTx => ", custSig)
 
-	isOk, merchTxid, merchPrevout, err := MerchantVerifyMerchCloseTx(escrowTxid, custPk, merchPk, merchClosePk, custBal, merchBal, toSelfDelay, custSig)
+	isOk, merchTxid, merchPrevout, merchState, err := MerchantVerifyMerchCloseTx(escrowTxid, custPk, custBal, merchBal, toSelfDelay, custSig, merchState)
 	fmt.Println("orig merch txid = ", merchTxid)
 	fmt.Println("orig merch prevout = ", merchPrevout)
 
 	if isOk {
-		// call this during close
-		signedMerchCloseTx, merchTxid2, merchPrevout2, err := MerchantSignMerchCloseTx(escrowTxid, custPk, merchPk, merchClosePk, custBal, merchBal, toSelfDelay, custSig, merchSk)
+		// initiate merch-close-tx
+		signedMerchCloseTx, merchTxid2, err := MerchantCloseTx(escrowTxid, merchState)
 		assert.Nil(t, err)
 
 		fmt.Println("TX2: Merchant has signed merch close tx => ", signedMerchCloseTx)
 		fmt.Println("merch txid = ", merchTxid2)
-		fmt.Println("merch prevout = ", merchPrevout2)
 	}
 
 	txInfo := FundingTxInfo{
@@ -109,9 +108,11 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("initial close transactions validated: ", isOk)
 
 	fmt.Println("Output initial closing transactions")
-	CloseEscrowTx, CloseEscrowTxId, CloseMerchTx, CloseMerchTxId, err := CustomerCloseTx(channelState, channelToken, custState)
+	CloseEscrowTx, CloseEscrowTxId, err := CustomerCloseTx(channelState, channelToken, true, custState)
 	fmt.Println("TX3: Close EscrowTx ID: ", CloseEscrowTxId)
 	fmt.Println("TX3: Close from EscrowTx => ", string(CloseEscrowTx))
+
+	CloseMerchTx, CloseMerchTxId, err := CustomerCloseTx(channelState, channelToken, false, custState)
 	fmt.Println("TX4: Close MerchTx ID: ", CloseMerchTxId)
 	fmt.Println("TX4: Close from MerchCloseTx => ", string(CloseMerchTx))
 
@@ -167,9 +168,11 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	assert.True(t, isOk)
 
 	fmt.Println("Get new signed close transactions...")
-	CloseEscrowTx, CloseEscrowTxId, CloseMerchTx, CloseMerchTxId, err = CustomerCloseTx(channelState, channelToken, custState)
+	CloseEscrowTx, CloseEscrowTxId, err = CustomerCloseTx(channelState, channelToken, true, custState)
 	fmt.Println("TX5: Close EscrowTx ID: ", CloseEscrowTxId)
 	fmt.Println("TX5: Close from EscrowTx => ", string(CloseEscrowTx))
+
+	CloseMerchTx, CloseMerchTxId, err = CustomerCloseTx(channelState, channelToken, false, custState)
 	fmt.Println("TX6: Close MerchTx ID: ", CloseMerchTxId)
 	fmt.Println("TX6: Close from MerchCloseTx => ", string(CloseMerchTx))
 
@@ -195,7 +198,7 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 
 	custSk := fmt.Sprintf("\"%v\"", custState.SkC)
 	custPk := fmt.Sprintf("%v", custState.PkC)
-	merchSk := fmt.Sprintf("\"%v\"", *merchState.SkM)
+	// merchSk := fmt.Sprintf("\"%v\"", *merchState.SkM)
 	merchPk := fmt.Sprintf("%v", *merchState.PkM)
 	// changeSk := "4157697b6428532758a9d0f9a73ce58befe3fd665797427d1c5bb3d33f6a132e"
 	changePk := "037bed6ab680a171ef2ab564af25eff15c0659313df0bbfb96414da7c7d1e65882"
@@ -222,18 +225,18 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	custSig, err := CustomerSignMerchCloseTx(custSk, merchTxPreimage)
 	fmt.Println("cust sig for merchCloseTx => ", custSig)
 
-	isOk, merchTxid, merchPrevout, err := MerchantVerifyMerchCloseTx(escrowTxid, custPk, merchPk, merchClosePk, custBal, merchBal, toSelfDelay, custSig)
+	isOk, merchTxid, merchPrevout, merchState, err := MerchantVerifyMerchCloseTx(escrowTxid, custPk, custBal, merchBal, toSelfDelay, custSig, merchState)
 	fmt.Println("orig merch txid = ", merchTxid)
 	fmt.Println("orig merch prevout = ", merchPrevout)
 
 	if isOk {
-		// call this during close
-		signedMerchCloseTx, merchTxid2, merchPrevout2, err := MerchantSignMerchCloseTx(escrowTxid, custPk, merchPk, merchClosePk, custBal, merchBal, toSelfDelay, custSig, merchSk)
+		// initiate merch-close-tx
+		signedMerchCloseTx, merchTxid2, err := MerchantCloseTx(escrowTxid, merchState)
 		assert.Nil(t, err)
 
 		fmt.Println("TX2: Merchant has signed merch close tx => ", signedMerchCloseTx)
 		fmt.Println("merch txid = ", merchTxid2)
-		fmt.Println("merch prevout = ", merchPrevout2)
+
 	}
 
 	txInfo := FundingTxInfo{
@@ -323,9 +326,10 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	assert.True(t, isOk)
 
 	fmt.Println("Get new signed close transactions...")
-	CloseEscrowTx, CloseEscrowTxId, CloseMerchTx, CloseMerchTxId, err := CustomerCloseTx(channelState, channelToken, custState)
+	CloseEscrowTx, CloseEscrowTxId, err := CustomerCloseTx(channelState, channelToken, true, custState)
 	fmt.Println("TX3: Close EscrowTx ID: ", CloseEscrowTxId)
 	fmt.Println("TX3: Close from EscrowTx => ", string(CloseEscrowTx))
+	CloseMerchTx, CloseMerchTxId, err := CustomerCloseTx(channelState, channelToken, false, custState)
 	fmt.Println("TX4: Close MerchTx ID: ", CloseMerchTxId)
 	fmt.Println("TX4: Close from MerchCloseTx => ", string(CloseMerchTx))
 }

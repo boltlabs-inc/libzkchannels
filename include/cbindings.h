@@ -41,7 +41,10 @@ char *cust_verify_init_cust_close_txs(char *ser_funding_tx,
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)
-char *customer_close_tx(char *ser_channel_state, char *ser_channel_token, char *ser_cust_state);
+char *customer_close_tx(char *ser_channel_state,
+                        char *ser_channel_token,
+                        uint32_t ser_from_escrow,
+                        char *ser_cust_state);
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)
@@ -232,26 +235,17 @@ char *merch_sign_init_cust_close_txs(char *ser_funding_tx,
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)
-char *merchant_sign_merch_close_tx(char *ser_escrow_txid,
-                                   char *ser_cust_pk,
-                                   char *ser_merch_pk,
-                                   char *ser_merch_close_pk,
-                                   int64_t cust_bal_sats,
-                                   int64_t merch_bal_sats,
-                                   char *ser_self_delay,
-                                   char *ser_cust_sig,
-                                   char *ser_merch_sk);
+char *merchant_close_tx(char *ser_escrow_txid, char *ser_merch_state);
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)
 char *merchant_verify_merch_close_tx(char *ser_escrow_txid,
                                      char *ser_cust_pk,
-                                     char *ser_merch_pk,
-                                     char *ser_merch_close_pk,
                                      int64_t cust_bal_sats,
                                      int64_t merch_bal_sats,
                                      char *ser_self_delay,
-                                     char *ser_cust_sig);
+                                     char *ser_cust_sig,
+                                     char *ser_merch_state);
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)

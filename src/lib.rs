@@ -899,11 +899,17 @@ pub mod mpc {
     ///
     /// customer_close() - takes as input the channel_state, channel_token and customer state then computes the signature
     /// on the current state of the channel
-    /// output: (close_escrow_tx, close_escrow_txid, close_merch_tx, close_merch_txid)
+    /// output: cust-close-(signed_tx, txid) from escrow-tx or merch-close-tx
     ///
-    pub fn customer_close(channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken, cust_state: &CustomerMPCState) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>), String> {
-        // (close_escrow_tx, close_escrow_txid, close_merch_tx, close_merch_txid)
-        cust_state.customer_close::<Testnet>(&channel_state, &channel_token)
+    pub fn customer_close(channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken, from_escrow: bool, cust_state: &CustomerMPCState) -> Result<(Vec<u8>, Vec<u8>), String> {
+        // (close_tx, close_txid) that spends
+        cust_state.customer_close::<Testnet>(&channel_state, &channel_token, from_escrow)
+    }
+
+    pub fn merchant_close(escrow_txid: &Vec<u8>, merch_state: &MerchantMPCState) -> Result<(Vec<u8>, Vec<u8>), String> {
+        let mut txid = [0u8; 32];
+        txid.copy_from_slice(escrow_txid.as_slice());
+        merch_state.get_closing_tx::<Testnet>(txid)
     }
 }
 
@@ -985,33 +991,33 @@ pub mod txutil {
         Ok((signed_tx, txid, hash_prevout))
     }
 
-    pub fn merchant_form_close_transaction(escrow_txid_be: Vec<u8>, cust_pk: Vec<u8>, merch_pk: Vec<u8>, merch_close_pk: Vec<u8>, cust_bal_sats: i64, merch_bal_sats: i64, to_self_delay_be: [u8; 2]) -> Result<(Vec<u8>, BitcoinTransactionParameters<Testnet>), String> {
-
-        check_pk_length!(cust_pk);
-        check_pk_length!(merch_pk);
-        check_pk_length!(merch_close_pk);
-
-        let redeem_script = serialize_p2wsh_escrow_redeem_script(&cust_pk, &merch_pk);
-        let escrow_index = 0;
-        let mut escrow_txid_le = escrow_txid_be.clone();
-        escrow_txid_le.reverse();
-
-        let input = Input {
-            address_format: "p2wsh",
-            // outpoint of escrow
-            transaction_id: escrow_txid_le,
-            index: escrow_index,
-            redeem_script: Some(redeem_script),
-            script_pub_key: None,
-            utxo_amount: Some(cust_bal_sats + merch_bal_sats),
-            sequence: Some([0xff, 0xff, 0xff, 0xff]) // 4294967295
-        };
-        let tx_params = handle_tx_error!(create_merch_close_transaction_params::<Testnet>(&input, &cust_pk, &merch_pk, &merch_close_pk, &to_self_delay_be));
-
-        let (merch_tx_preimage, _) = create_merch_close_transaction_preimage::<Testnet>(&tx_params);
-
-        Ok((merch_tx_preimage, tx_params))
-    }
+    // pub fn merchant_form_close_transaction(escrow_txid_be: Vec<u8>, cust_pk: Vec<u8>, merch_pk: Vec<u8>, merch_close_pk: Vec<u8>, cust_bal_sats: i64, merch_bal_sats: i64, to_self_delay_be: [u8; 2]) -> Result<(Vec<u8>, BitcoinTransactionParameters<Testnet>), String> {
+    //
+    //     check_pk_length!(cust_pk);
+    //     check_pk_length!(merch_pk);
+    //     check_pk_length!(merch_close_pk);
+    //
+    //     let redeem_script = serialize_p2wsh_escrow_redeem_script(&cust_pk, &merch_pk);
+    //     let escrow_index = 0;
+    //     let mut escrow_txid_le = escrow_txid_be.clone();
+    //     escrow_txid_le.reverse();
+    //
+    //     let input = Input {
+    //         address_format: "p2wsh",
+    //         // outpoint of escrow
+    //         transaction_id: escrow_txid_le,
+    //         index: escrow_index,
+    //         redeem_script: Some(redeem_script),
+    //         script_pub_key: None,
+    //         utxo_amount: Some(cust_bal_sats + merch_bal_sats),
+    //         sequence: Some([0xff, 0xff, 0xff, 0xff]) // 4294967295
+    //     };
+    //     let tx_params = handle_tx_error!(create_merch_close_transaction_params::<Testnet>(&input, &cust_pk, &merch_pk, &merch_close_pk, &to_self_delay_be));
+    //
+    //     let (merch_tx_preimage, _) = create_merch_close_transaction_preimage::<Testnet>(&tx_params);
+    //
+    //     Ok((merch_tx_preimage, tx_params))
+    // }
 
     pub fn customer_sign_merch_close_transaction(cust_sk: secp256k1::SecretKey, merch_tx_preimage: Vec<u8>) -> Result<Vec<u8>, String> {
         // customer signs the preimage and sends signature to merchant
@@ -1020,7 +1026,7 @@ pub mod txutil {
         Ok(cust_sig)
     }
 
-    pub fn merchant_verify_merch_close_transaction(merch_tx_preimage: Vec<u8>, cust_sig_and_len_byte: Vec<u8>, cust_pk: Vec<u8>) -> Result<bool, String> {
+    pub fn merchant_verify_merch_close_transaction(merch_tx_preimage: &Vec<u8>, cust_sig_and_len_byte: &Vec<u8>, cust_pk: &Vec<u8>) -> Result<bool, String> {
         let pk = match secp256k1::PublicKey::from_slice(&cust_pk) {
             Ok(n) => n,
             Err(e) => return Err(e.to_string())

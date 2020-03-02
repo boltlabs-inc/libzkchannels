@@ -303,10 +303,16 @@ Unmask/Revoke phase
 
 ### Close
 
-To force close the channel, the customer executes the following:
+Merchant can initiate channel closing with a signed merch-close-tx that pays full channel balance to a timelocked multi-sig:
+
+	// merchant signs the merch-close-tx for the channel and combines with customer signature
+	let (merch_signed_tx, txid) = mpc::merchant_close(&escrow_txid, &merch_state).unwrap();
+
+Customer can similarly initiate channel closing with a signed cust-close-tx of current balances spending from escrow-tx (or merch-close-tx):
 
 	// customer signs the current state of channel and combines with merchant signatures
-	let (close_escrow_tx, _, close_merch_tx, _) = mpc::customer_close(&channel_state, &channel_token, &cust_state).unwrap();
+	let (cust_signed_tx, txid) = mpc::customer_close(&channel_state, &channel_token, &cust_state).unwrap();
+
 
 # Documentation 
 
