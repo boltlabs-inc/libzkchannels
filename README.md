@@ -310,8 +310,9 @@ Merchant can initiate channel closing with a signed merch-close-tx that pays ful
 
 Customer can similarly initiate channel closing with a signed cust-close-tx of current balances spending from escrow-tx (or merch-close-tx):
 
-	// customer signs the current state of channel and combines with merchant signatures
-	let (cust_signed_tx, txid) = mpc::customer_close(&channel_state, &channel_token, &cust_state).unwrap();
+	// customer signs the current state of channel and combines with escrow signature (if spending from <escrow-tx>)
+	let from_escrow = true;
+	let (cust_signed_tx, txid) = mpc::customer_close(&channel_state, &channel_token, from_escrow, &cust_state).unwrap();
 
 
 # Documentation 

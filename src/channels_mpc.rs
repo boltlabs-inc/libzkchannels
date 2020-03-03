@@ -16,13 +16,13 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use bitcoin::SignatureHash::SIGHASH_ALL;
 
-#[cfg(feature = "mpc-bitcoin")]
+#[repr(C)]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct NetworkConfig {
     pub conn_type: ConnType,
+    pub path: String,
     pub dest_ip: String,
-    pub dest_port: u32,
-    pub path: String
+    pub dest_port: i32,
 }
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -217,11 +217,11 @@ pub struct CustomerMPCState {
     pay_token_mask_com: FixedSizeArray32,
     payout_sk: secp256k1::SecretKey,
     payout_pk: secp256k1::PublicKey,
-    pub conn_type: u32,
+    // pub conn_type: u32,
     close_escrow_signature: Option<String>,
     close_merch_signature: Option<String>,
     channel_initialized: bool,
-    net_config: Option<NetworkConfig>
+    pub net_config: Option<NetworkConfig>
 }
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -293,7 +293,7 @@ impl CustomerMPCState {
             pay_token_mask_com: FixedSizeArray32(pay_mask_com),
             payout_sk: payout_sk,
             payout_pk: payout_pk,
-            conn_type: 0,
+            // conn_type: 0,
             close_escrow_signature: None,
             close_merch_signature: None,
             channel_initialized: false,
@@ -305,9 +305,9 @@ impl CustomerMPCState {
         return self.sk_c.clone();
     }
 
-    pub fn set_mpc_connect_type(&mut self, conn_type: u32) {
-        self.conn_type = conn_type;
-    }
+    // pub fn set_mpc_connect_type(&mut self, conn_type: u32) {
+    //     self.conn_type = conn_type;
+    // }
 
     pub fn update_pay_com(&mut self, pay_token_mask_com: [u8; 32]) {
         self.pay_token_mask_com.0.copy_from_slice(&pay_token_mask_com);
@@ -466,8 +466,14 @@ impl CustomerMPCState {
             false => return Err(String::from("you do not have a pay token for previous state"))
         };
 
+        // retrieve network config details
+        let net_conn = match self.net_config.clone() {
+            Some(nc) => nc,
+            None => return Err(String::from("customer::execute_mpc_context - net config not specified"))
+        };
+
         let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) =
-            mpc_build_masked_tokens_cust(self.conn_type, amount, &paytoken_mask_com, &rev_lock_com, &self.t.0, &key_com,
+            mpc_build_masked_tokens_cust(net_conn, amount, &paytoken_mask_com, &rev_lock_com, &self.t.0, &key_com,
                                      merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key,
                                      new_state, old_state,&old_paytoken.0, cust_escrow_pub_key, cust_payout_pub_key);
 
@@ -830,8 +836,7 @@ pub struct MerchantMPCState {
     pub rev_lock_map: HashMap<FixedSizeArray32, FixedSizeArray32>,
     pub mask_mpc_bytes: HashMap<String, MaskedMPCInputs>,
     pub close_tx: HashMap<FixedSizeArray32, MerchCloseTx>,
-    pub conn_type: u32,
-    net_config: Option<NetworkConfig>
+    pub net_config: Option<NetworkConfig>
 }
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -886,7 +891,6 @@ impl MerchantMPCState {
             rev_lock_map: HashMap::new(),
             mask_mpc_bytes: HashMap::new(),
             close_tx: HashMap::new(),
-            conn_type: 0,
             net_config: None
         }
     }
@@ -1016,10 +1020,6 @@ impl MerchantMPCState {
         self.nonce_mask_map.insert(nonce_hex, pay_mask_map);
 
         Ok(paytoken_mask_com)
-    }
-
-    pub fn set_mpc_connect_type(&mut self, conn_type: u32) {
-        self.conn_type = conn_type;
     }
 
     pub fn set_network_config(&mut self, net_config: NetworkConfig) {
@@ -1153,7 +1153,13 @@ impl MerchantMPCState {
         let pk_input_buf = self.payout_pk.serialize();
         let merch_public_key_hash= compute_hash160(&pk_input_buf.to_vec());
 
-        let (r_merch, r_esc) = mpc_build_masked_tokens_merch(csprng, self.conn_type, amount, &paytoken_mask_com, &rev_lock_com, &hmac_key_com, &self.hmac_key_r.0,
+        // retrieve network config details
+        let net_conn = match self.net_config.clone() {
+            Some(nc) => nc,
+            None => return Err(String::from("merchant::execute_mpc_context - net config not specified"))
+        };
+
+        let (r_merch, r_esc) = mpc_build_masked_tokens_merch(csprng, net_conn, amount, &paytoken_mask_com, &rev_lock_com, &hmac_key_com, &self.hmac_key_r.0,
                                                   merch_escrow_pub_key, self.dispute_pk, merch_public_key_hash, self.payout_pk, nonce,
                                                   &hmac_key, self.sk_m.clone(), &merch_mask_bytes,
                                                   &pay_mask_bytes, &pay_mask_r, &escrow_mask_bytes);
@@ -1335,8 +1341,8 @@ rusty_fork_test!
         let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, &channel_state, s_0.get_nonce(), r_com.clone(), amount).unwrap();
         cust_state.update_pay_com(pay_token_mask_com);
 
-        cust_state.set_mpc_connect_type(2);
-
+        // cust_state.set_mpc_connect_type(2);
+        cust_state.set_network_config(NetworkConfig { conn_type: 2, dest_ip: String::new(), dest_port: 123456, path: String::from("foobar") });
         // prepare the customer inputs
         let s0 = s_0.clone();
         let s1 = s_1.clone();
@@ -1470,7 +1476,8 @@ rusty_fork_test!
         let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, &channel, s_0.get_nonce(), r_com.clone(), amount).unwrap();
         cust_state.update_pay_com(pay_token_mask_com);
 
-        merch_state.set_mpc_connect_type(2);
+        // merch_state.set_mpc_connect_type(2);
+        merch_state.set_network_config(NetworkConfig { conn_type: 2, dest_ip: String::new(), dest_port: 123456, path: String::from("foobar") });
 
         // prepare the merchant inputs
         let rev_lock_com = r_com.clone();

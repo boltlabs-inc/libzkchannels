@@ -1,30 +1,38 @@
-use libc::{c_int, c_uint, c_void};
+use libc::{c_int, c_uint, c_char, c_void};
 use secp256k1;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
+use std::str;
 use rand::Rng;
 use bindings::{get_netio_ptr, get_unixnetio_ptr, build_masked_tokens_cust, build_masked_tokens_merch,
                State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l, CommitmentRandomness_l,
                PayToken_l, Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l,
-               BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l,
+               BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l, Conn_l,
                ConnType_NETIO, ConnType_UNIXNETIO, ConnType_TORNETIO};
 use wallet::State;
 use ecdsa_partial::EcdsaPartialSig;
+use channels_mpc::NetworkConfig;
 
-pub type IOCallback = fn(c_uint, c_int);
-
-// , net_config: *mut c_char
-extern "C" fn io_callback(conn_type: c_uint, party: c_int) -> *mut c_void {
-    let conn_debug = match conn_type {
+// pub type IOCallback = fn(c_void, c_int);
+extern "C" fn io_callback(net_config: *mut c_void, party: c_int) -> *mut c_void {
+    // unsafe is needed because we dereference a raw pointer to network config
+    let nc: &mut Conn_l = unsafe { &mut *(net_config as *mut Conn_l) };
+    let conn_debug = match nc.conn_type {
         ConnType_UNIXNETIO => "Unix domain socket connection",
         ConnType_NETIO => "TCP socket connection",
         ConnType_TORNETIO => "Tor connection",
         _ => "Unsupported connection type"
     };
     println!("IO callback: {}", conn_debug);
-    if (conn_type == ConnType_UNIXNETIO) {
+    if (nc.conn_type == ConnType_UNIXNETIO) {
         let io_ptr = unsafe {
-            get_unixnetio_ptr(CString::new("newtmpcon").unwrap().into_raw(), party)
+            get_unixnetio_ptr(nc.path, party)
         };
+        return io_ptr;
+    } else if (nc.conn_type == ConnType_NETIO) {
+        let bytes = unsafe { CStr::from_ptr(nc.dest_ip).to_bytes() };
+        let ip: &str = str::from_utf8(bytes).unwrap();
+        println!("Opening a connection: {}:{}", ip, nc.dest_port);
+        let io_ptr = unsafe { get_netio_ptr(nc.dest_ip, nc.dest_port as i32, party) };
         return io_ptr;
     } else {
         /* use regular tcp conn */
@@ -35,7 +43,7 @@ extern "C" fn io_callback(conn_type: c_uint, party: c_int) -> *mut c_void {
     }
 }
 
-pub fn mpc_build_masked_tokens_cust(conn_type: u32, amount: i64, pay_mask_com: &[u8], rev_lock_com: &[u8], rl_rand: &[u8; 16], hmac_key_com: &[u8],
+pub fn mpc_build_masked_tokens_cust(net_conn: NetworkConfig, amount: i64, pay_mask_com: &[u8], rev_lock_com: &[u8], rl_rand: &[u8; 16], hmac_key_com: &[u8],
                                     merch_escrow_pub_key: secp256k1::PublicKey, merch_dispute_key: secp256k1::PublicKey,
                                     merch_pub_key_hash: [u8; 20], merch_payout_pub_key: secp256k1::PublicKey,
                                     new_state: State, old_state: State, pt_old: &[u8],
@@ -81,8 +89,13 @@ pub fn mpc_build_masked_tokens_cust(conn_type: u32, amount: i64, pay_mask_com: &
     let sig2_ar = [0u32; 8];
     let mut ct_merch = EcdsaSig_l { sig: sig2_ar };
 
+    // set the network config
+    let mut path_ar = CString::new(net_conn.path).unwrap().into_raw();
+    let mut ip_ar = CString::new(net_conn.dest_ip).unwrap().into_raw();
+    let conn = Conn_l { conn_type: net_conn.conn_type, path: path_ar, dest_port: net_conn.dest_port as u16, dest_ip: ip_ar };
+
     unsafe {
-        build_masked_tokens_cust(Some(io_callback), conn_type, translate_balance(amount),
+        build_masked_tokens_cust(Some(io_callback), conn, translate_balance(amount),
                                  rl_c, paymask_com, key_com,
                                  merch_escrow_pub_key_c, merch_dispute_key_c,
                                  merch_public_key_hash_c, merch_payout_pub_key_c,
@@ -220,7 +233,7 @@ fn u32_to_bytes(input: &[u32]) -> Vec<u8> {
     out
 }
 
-pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, conn_type: u32, amount: i64, com_new: &[u8], rev_lock_com: &[u8],
+pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, net_conn: NetworkConfig, amount: i64, com_new: &[u8], rev_lock_com: &[u8],
                                              key_com: &[u8], key_com_r: &[u8; 16],
                                              merch_escrow_pub_key: secp256k1::PublicKey, merch_dispute_key: secp256k1::PublicKey,
                                              merch_pub_key_hash: [u8; 20], merch_payout_pub_key: secp256k1::PublicKey,
@@ -271,9 +284,13 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, conn_type: u32, amount
         key: translate_512_string(hmac_key),
     };
 
+    // set the network config
+    let mut path_ar = CString::new(net_conn.path).unwrap().into_raw();
+    let mut ip_ar = CString::new(net_conn.dest_ip).unwrap().into_raw();
+    let conn = Conn_l { conn_type: net_conn.conn_type, path: path_ar, dest_port: net_conn.dest_port as u16, dest_ip: ip_ar };
 
     unsafe {
-        build_masked_tokens_merch(Some(io_callback), conn_type, translate_balance(amount), rl_c,
+        build_masked_tokens_merch(Some(io_callback), conn, translate_balance(amount), rl_c,
                                   paymask_com, key_com,
                                   merch_escrow_pub_key_c, merch_dispute_key_c,
                                   merch_public_key_hash_c, merch_payout_pub_key_c,
@@ -358,7 +375,9 @@ mod tests {
         merch_public_key_hash.copy_from_slice(hex::decode("43e9e81bc632ad9cad48fc23f800021c5769a063").unwrap().as_slice());
         let merch_payout_pub_key = secp256k1::PublicKey::from_slice(hex::decode("02f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90").unwrap().as_slice()).unwrap();
 
-        let (r1, r2) = mpc_build_masked_tokens_merch(&mut csprng, ConnType_UNIXNETIO, amount, &paytoken_mask_com, &rev_lock_com,
+        let nc = NetworkConfig { conn_type: ConnType_UNIXNETIO, path: String::from("mpconn"), dest_ip: String::from(""), dest_port: 0 };
+
+        let (r1, r2) = mpc_build_masked_tokens_merch(&mut csprng, nc, amount, &paytoken_mask_com, &rev_lock_com,
                                       &key_com, &key_com_r, merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key, nonce, &hmac_key,
                                       merch_escrow_secret_key, &merch_mask_bytes, &paytoken_mask_bytes, &paytoken_mask_r, &escrow_mask_bytes);
 
@@ -487,8 +506,10 @@ mod tests {
         merch_public_key_hash.copy_from_slice(hex::decode("43e9e81bc632ad9cad48fc23f800021c5769a063").unwrap().as_slice());
         let merch_payout_pub_key = secp256k1::PublicKey::from_slice(hex::decode("02f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90").unwrap().as_slice()).unwrap();
 
+        let nc = NetworkConfig { conn_type: ConnType_UNIXNETIO, path: String::from("mpconn"), dest_ip: String::from(""), dest_port: 0 };
+
         let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) =
-            mpc_build_masked_tokens_cust(ConnType_UNIXNETIO, amount, &paytoken_mask_com, &rev_lock_com, &rev_lock_r, &key_com,
+            mpc_build_masked_tokens_cust(nc, amount, &paytoken_mask_com, &rev_lock_com, &rev_lock_r, &key_com,
                                          merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key,
                                          new_state, old_state,
                                          &old_paytoken, cust_escrow_pub_key, cust_payout_pub_key);
