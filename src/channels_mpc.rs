@@ -15,6 +15,7 @@ use sha2::{Sha256, Digest};
 use std::fmt::Debug;
 use std::hash::Hash;
 use bitcoin::SignatureHash::SIGHASH_ALL;
+use std::os::unix::io::RawFd;
 
 #[repr(C)]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -23,6 +24,7 @@ pub struct NetworkConfig {
     pub path: String,
     pub dest_ip: String,
     pub dest_port: i32,
+    pub peer_raw_fd: RawFd
 }
 
 #[cfg(feature = "mpc-bitcoin")]
@@ -71,7 +73,6 @@ impl fmt::Display for ChannelMPCToken {
                pkc_hex, pkm_hex, escrow_txid_hex, merch_txid_hex)
     }
 }
-
 
 #[cfg(feature = "mpc-bitcoin")]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

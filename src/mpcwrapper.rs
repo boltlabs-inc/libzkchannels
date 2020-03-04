@@ -2,17 +2,31 @@ use libc::{c_int, c_uint, c_char, c_void};
 use secp256k1;
 use std::ffi::{CStr, CString};
 use std::str;
+use std::ptr;
 use rand::Rng;
-use bindings::{get_netio_ptr, get_unixnetio_ptr, build_masked_tokens_cust, build_masked_tokens_merch,
-               State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l, CommitmentRandomness_l,
-               PayToken_l, Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l,
-               BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l, Conn_l,
-               ConnType_NETIO, ConnType_UNIXNETIO, ConnType_TORNETIO};
+use bindings::{get_netio_ptr, get_unixnetio_ptr, build_masked_tokens_cust, build_masked_tokens_merch, State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l, CommitmentRandomness_l, PayToken_l, Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l, BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l, Conn_l, ConnType_NETIO, ConnType_UNIXNETIO, ConnType_TORNETIO, ConnType_CUSTOM, get_gonetio_ptr};
 use wallet::State;
 use ecdsa_partial::EcdsaPartialSig;
 use channels_mpc::NetworkConfig;
 
 // pub type IOCallback = fn(c_void, c_int);
+// pub type net_send = fn(*mut c_void, i32, *mut c_void) -> *mut i8;
+// pub type net_receive = fn(*mut c_void) -> Receive_l;
+
+// extern "C" fn cb_send(data: *mut c_void, len: c_int, peer: *mut c_void) -> *mut i8 {
+//     println!("Sending some data ...");
+//     return ptr::null_mut();
+// }
+//
+// unsafe extern "C" fn cb_receive(peer: *mut c_void) -> Receive_l {
+//     println!("Receiving some data..");
+//     let data_str = String::from("some data");
+//     let mut data = CString::new("some data").unwrap().into_raw();
+//     let mut err = CString::new("none").unwrap().into_raw();
+//     let r = Receive_l { r0: data, r1: data_str.len() as i32, r2: err };
+//     return r;
+// }
+
 extern "C" fn io_callback(net_config: *mut c_void, party: c_int) -> *mut c_void {
     // unsafe is needed because we dereference a raw pointer to network config
     let nc: &mut Conn_l = unsafe { &mut *(net_config as *mut Conn_l) };
@@ -92,7 +106,7 @@ pub fn mpc_build_masked_tokens_cust(net_conn: NetworkConfig, amount: i64, pay_ma
     // set the network config
     let mut path_ar = CString::new(net_conn.path).unwrap().into_raw();
     let mut ip_ar = CString::new(net_conn.dest_ip).unwrap().into_raw();
-    let conn = Conn_l { conn_type: net_conn.conn_type, path: path_ar, dest_port: net_conn.dest_port as u16, dest_ip: ip_ar };
+    let conn = Conn_l { conn_type: net_conn.conn_type, path: path_ar, dest_port: net_conn.dest_port as u16, dest_ip: ip_ar, peer_raw_fd: ptr::null_mut() };
 
     unsafe {
         build_masked_tokens_cust(Some(io_callback), conn, translate_balance(amount),
@@ -287,7 +301,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, net_conn: NetworkConfi
     // set the network config
     let mut path_ar = CString::new(net_conn.path).unwrap().into_raw();
     let mut ip_ar = CString::new(net_conn.dest_ip).unwrap().into_raw();
-    let conn = Conn_l { conn_type: net_conn.conn_type, path: path_ar, dest_port: net_conn.dest_port as u16, dest_ip: ip_ar };
+    let conn = Conn_l { conn_type: net_conn.conn_type, path: path_ar, dest_port: net_conn.dest_port as u16, dest_ip: ip_ar, peer_raw_fd: ptr::null_mut() };
 
     unsafe {
         build_masked_tokens_merch(Some(io_callback), conn, translate_balance(amount), rl_c,

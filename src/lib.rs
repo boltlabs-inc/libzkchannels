@@ -43,6 +43,7 @@ extern crate ripemd160;
 
 extern crate wagyu_bitcoin as bitcoin;
 extern crate wagyu_model;
+extern crate sys;
 
 #[cfg(test)]
 #[macro_use]
@@ -834,7 +835,7 @@ pub mod mpc {
         cust_state.update_pay_com(pay_token_mask_com);
         if cust_state.net_config.is_none() {
             // use default
-            cust_state.set_network_config(NetworkConfig { conn_type: ConnType_NETIO, dest_ip: String::from("127.0.0.1"), dest_port: 2424, path: String::new() });
+            cust_state.set_network_config(NetworkConfig { conn_type: ConnType_NETIO, dest_ip: String::from("127.0.0.1"), dest_port: 2424, path: String::new(), peer_raw_fd: 0 });
         }
         cust_state.execute_mpc_context(&channel_state, &channel_token, s0, s1,
                                        pay_token_mask_com, rev_lock_com, amount)
@@ -850,7 +851,7 @@ pub mod mpc {
                                 rev_lock_com: [u8; 32], amount: i64, merch_state: &mut MerchantMPCState) -> Result<MaskedTxMPCInputs, String> {
         if merch_state.net_config.is_none() {
             // use default ip/port
-            merch_state.set_network_config(NetworkConfig { conn_type: ConnType_NETIO, dest_ip: String::from("127.0.0.1"), dest_port: 2424, path: String::new() });
+            merch_state.set_network_config(NetworkConfig { conn_type: ConnType_NETIO, dest_ip: String::from("127.0.0.1"), dest_port: 2424, path: String::new(), peer_raw_fd: 0 });
         }
 
         let result = merch_state.execute_mpc_context(csprng, &channel, nonce, rev_lock_com, pay_token_mask_com, amount);
