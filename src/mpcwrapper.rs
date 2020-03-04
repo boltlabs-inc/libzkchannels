@@ -9,24 +9,6 @@ use wallet::State;
 use ecdsa_partial::EcdsaPartialSig;
 use channels_mpc::NetworkConfig;
 
-// pub type IOCallback = fn(c_void, c_int);
-// pub type net_send = fn(*mut c_void, i32, *mut c_void) -> *mut i8;
-// pub type net_receive = fn(*mut c_void) -> Receive_l;
-
-// extern "C" fn cb_send(data: *mut c_void, len: c_int, peer: *mut c_void) -> *mut i8 {
-//     println!("Sending some data ...");
-//     return ptr::null_mut();
-// }
-//
-// unsafe extern "C" fn cb_receive(peer: *mut c_void) -> Receive_l {
-//     println!("Receiving some data..");
-//     let data_str = String::from("some data");
-//     let mut data = CString::new("some data").unwrap().into_raw();
-//     let mut err = CString::new("none").unwrap().into_raw();
-//     let r = Receive_l { r0: data, r1: data_str.len() as i32, r2: err };
-//     return r;
-// }
-
 extern "C" fn io_callback(net_config: *mut c_void, party: c_int) -> *mut c_void {
     // unsafe is needed because we dereference a raw pointer to network config
     let nc: &mut Conn_l = unsafe { &mut *(net_config as *mut Conn_l) };
@@ -389,7 +371,7 @@ mod tests {
         merch_public_key_hash.copy_from_slice(hex::decode("43e9e81bc632ad9cad48fc23f800021c5769a063").unwrap().as_slice());
         let merch_payout_pub_key = secp256k1::PublicKey::from_slice(hex::decode("02f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90").unwrap().as_slice()).unwrap();
 
-        let nc = NetworkConfig { conn_type: ConnType_UNIXNETIO, path: String::from("mpconn"), dest_ip: String::from(""), dest_port: 0 };
+        let nc = NetworkConfig { conn_type: ConnType_UNIXNETIO, path: String::from("mpconn"), dest_ip: String::from(""), dest_port: 0, peer_raw_fd: 0 };
 
         let (r1, r2) = mpc_build_masked_tokens_merch(&mut csprng, nc, amount, &paytoken_mask_com, &rev_lock_com,
                                       &key_com, &key_com_r, merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key, nonce, &hmac_key,
@@ -520,7 +502,7 @@ mod tests {
         merch_public_key_hash.copy_from_slice(hex::decode("43e9e81bc632ad9cad48fc23f800021c5769a063").unwrap().as_slice());
         let merch_payout_pub_key = secp256k1::PublicKey::from_slice(hex::decode("02f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90").unwrap().as_slice()).unwrap();
 
-        let nc = NetworkConfig { conn_type: ConnType_UNIXNETIO, path: String::from("mpconn"), dest_ip: String::from(""), dest_port: 0 };
+        let nc = NetworkConfig { conn_type: ConnType_UNIXNETIO, path: String::from("mpconn"), dest_ip: String::from(""), dest_port: 0, peer_raw_fd: 0 };
 
         let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) =
             mpc_build_masked_tokens_cust(nc, amount, &paytoken_mask_com, &rev_lock_com, &rev_lock_r, &key_com,
