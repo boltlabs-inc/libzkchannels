@@ -17,7 +17,6 @@ use std::hash::Hash;
 use bitcoin::SignatureHash::SIGHASH_ALL;
 use std::os::unix::io::RawFd;
 
-#[repr(C)]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct NetworkConfig {
     pub conn_type: ConnType,
@@ -836,6 +835,7 @@ pub struct MerchantMPCState {
     pub spent_lock_map: HashMap<String, Option<FixedSizeArray32>>,
     pub rev_lock_map: HashMap<FixedSizeArray32, FixedSizeArray32>,
     pub mask_mpc_bytes: HashMap<String, MaskedMPCInputs>,
+    
     pub close_tx: HashMap<FixedSizeArray32, MerchCloseTx>,
     pub net_config: Option<NetworkConfig>
 }

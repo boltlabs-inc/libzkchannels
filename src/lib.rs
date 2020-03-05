@@ -43,6 +43,7 @@ extern crate ripemd160;
 
 extern crate wagyu_bitcoin as bitcoin;
 extern crate wagyu_model;
+extern crate redis;
 
 #[cfg(test)]
 #[macro_use]
@@ -922,7 +923,7 @@ pub mod mpc {
 
 pub mod txutil {
     use super::*;
-    use transactions::{Input, BitcoinTxConfig, MultiSigOutput, Output};
+    use transactions::{Input, BitcoinTxConfig, MultiSigOutput, ChangeOutput, Output};
     use transactions::btc::{create_escrow_transaction, sign_escrow_transaction, serialize_p2wsh_escrow_redeem_script,
                             create_merch_close_transaction_params, create_merch_close_transaction_preimage,
                             sign_merch_dispute_transaction, sign_cust_close_claim_transaction, merch_generate_transaction_id,
@@ -948,14 +949,18 @@ pub mod txutil {
         });
     }
 
-    pub fn customer_sign_escrow_transaction(txid: Vec<u8>, index: u32, input_sats: i64, output_sats: i64, cust_sk: secp256k1::SecretKey, cust_pk: Vec<u8>, merch_pk: Vec<u8>, change_pk: Option<Vec<u8>>) -> Result<(Vec<u8>, [u8; 32], [u8; 32]), String> {
+    pub fn customer_sign_escrow_transaction(txid: Vec<u8>, index: u32, input_sats: i64, output_sats: i64, cust_sk: secp256k1::SecretKey,
+                                            cust_pk: Vec<u8>, merch_pk: Vec<u8>, change_pk: Option<Vec<u8>>, change_pk_is_hash: bool) -> Result<(Vec<u8>, [u8; 32], [u8; 32]), String> {
         check_pk_length!(cust_pk);
         check_pk_length!(merch_pk);
         let change_pubkey = match change_pk {
-            Some(pk) => {
-                check_pk_length!(pk);
-                pk
-            },
+            Some(pk) => match change_pk_is_hash {
+                true => pk,
+                false => {
+                    check_pk_length!(pk);
+                    pk
+                }
+            }
             None => Vec::new()
         };
 
@@ -984,9 +989,11 @@ pub mod txutil {
         // test if we need a change output pubkey
         let change_sats = input_sats - output_sats;
         let change_output = match change_sats > 0 && change_pubkey.len() > 0 {
-            true => Output {
+            true => ChangeOutput {
                 pubkey: change_pubkey,
-                amount: change_sats
+                amount: change_sats,
+                is_hash: change_pk_is_hash
+
             },
             false => return Err(String::from("Require a change pubkey to generate a valid escrow transaction"))
         };

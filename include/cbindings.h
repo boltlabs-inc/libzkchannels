@@ -28,7 +28,8 @@ char *cust_form_escrow_transaction(char *ser_txid,
                                    char *ser_cust_sk,
                                    char *ser_cust_pk,
                                    char *ser_merch_pk,
-                                   char *ser_change_pk);
+                                   char *ser_change_pk,
+                                   uint32_t ser_change_pk_is_hash);
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)
@@ -224,6 +225,8 @@ char *form_merch_close_transaction(char *ser_escrow_txid,
                                    int64_t merch_bal_sats,
                                    char *ser_self_delay);
 #endif
+
+extern void *get_gonetio_ptr(void *raw_stream_fd, int party);
 
 #if defined(DEFINE_MPC_BITCOIN)
 char *merch_sign_init_cust_close_txs(char *ser_funding_tx,

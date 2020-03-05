@@ -473,7 +473,8 @@ pub mod ffishim_mpc {
 
     #[no_mangle]
     pub extern fn cust_form_escrow_transaction(ser_txid: *mut c_char, index: u32, input_sats: i64, output_sats: i64,
-                                               ser_cust_sk: *mut c_char, ser_cust_pk: *mut c_char, ser_merch_pk: *mut c_char, ser_change_pk: *mut c_char) -> *mut c_char {
+                                               ser_cust_sk: *mut c_char, ser_cust_pk: *mut c_char, ser_merch_pk: *mut c_char,
+                                               ser_change_pk: *mut c_char, ser_change_pk_is_hash: u32) -> *mut c_char {
         let txid_result = deserialize_hex_string(ser_txid);
         let txid = handle_errors!(txid_result);
 
@@ -490,12 +491,17 @@ pub mod ffishim_mpc {
         let change_pk_result = deserialize_hex_string(ser_change_pk);
         let change_pk = handle_errors!(change_pk_result);
 
-        let (signed_tx, txid, prevout) = handle_errors!(txutil::customer_sign_escrow_transaction(txid, index, input_sats, output_sats, cust_sk, cust_pk, merch_pk, Some(change_pk)));
+        let mut change_pk_is_hash = false;
+        // deserialize ser_from_escrow accordingly
+        if ser_change_pk_is_hash >= 1 {
+            change_pk_is_hash = true;
+        }
+
+        let (signed_tx, txid, prevout) = handle_errors!(txutil::customer_sign_escrow_transaction(txid, index, input_sats, output_sats, cust_sk, cust_pk, merch_pk, Some(change_pk), change_pk_is_hash));
         let ser = ["{\'signed_tx\':\'", &hex::encode(signed_tx), "\', \'txid\':\'", &hex::encode(txid),
                           "\', \'hash_prevout\':\'", &hex::encode(prevout), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
-
     }
 
     #[no_mangle]

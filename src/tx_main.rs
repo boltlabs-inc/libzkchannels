@@ -17,7 +17,7 @@ use std::path::PathBuf;
 use std::io::prelude::*;
 use std::fs::File;
 use zkchannels::fixed_size_array::FixedSizeArray32;
-use zkchannels::transactions::{Input, BitcoinTxConfig, MultiSigOutput, Output};
+use zkchannels::transactions::{Input, BitcoinTxConfig, MultiSigOutput, ChangeOutput};
 use zkchannels::transactions::btc::{create_escrow_transaction, sign_escrow_transaction, serialize_p2wsh_escrow_redeem_script,
                                     create_merch_close_transaction_params, create_merch_close_transaction_preimage, get_private_key,
                                     generate_signature_for_multi_sig_transaction, completely_sign_multi_sig_transaction};
@@ -187,9 +187,10 @@ mod cust {
         // test if we need a change output pubkey
         let change_sats = escrow.input_sats - escrow.output_sats;
         let change_output = match change_sats > 0 && escrow.change_pubkey.is_some() {
-            true => Some(Output {
+            true => Some(ChangeOutput {
                 pubkey: hex::decode(escrow.change_pubkey.unwrap()).unwrap(),
-                amount: change_sats
+                amount: change_sats,
+                is_hash: false
             }),
             false => return Err(String::from("Require a change pubkey to generate a valid escrow transaction!"))
         };

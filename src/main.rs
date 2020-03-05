@@ -440,7 +440,7 @@ mod cust {
 
         // form the escrow transaction
         let (signed_tx, escrow_txid, escrow_prevout) =
-            handle_error_result!(customer_sign_escrow_transaction(input_txid, index, input_sats, output_sats, cust_sk.clone(), cust_pk.clone(), merch_pk.clone(), Some(change_pk_vec)));
+            handle_error_result!(customer_sign_escrow_transaction(input_txid, index, input_sats, output_sats, cust_sk.clone(), cust_pk.clone(), merch_pk.clone(), Some(change_pk_vec), false));
 
         // form the merch-close-tx
         let cust_bal = cust_state.cust_balance;

@@ -199,11 +199,11 @@ func ValidateOpenZkChannel(txid string, prevout string, nonce string, revLock st
 	return true, nil
 }
 
-func FormEscrowTx(txid string, index uint32, inputAmt int64, outputAmt int64, custSk string, custPk string, merchPk string, changePk string) (string, string, string, error) {
+func FormEscrowTx(txid string, index uint32, inputAmt int64, outputAmt int64, custSk string, custPk string, merchPk string, changePk string, changePkIsHash bool) (string, string, string, error) {
 
 	resp := C.GoString(C.cust_form_escrow_transaction(C.CString(txid), C.uint(index), C.longlong(inputAmt),
 		C.longlong(outputAmt), C.CString(custSk), C.CString(custPk),
-		C.CString(merchPk), C.CString(changePk)))
+		C.CString(merchPk), C.CString(changePk), C.uint(btoi(changePkIsHash))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", "", "", err

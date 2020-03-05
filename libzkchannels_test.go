@@ -48,7 +48,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("merchClosePk :=> ", merchClosePk)
 
 	outputSats := custBal + merchBal
-	signedEscrowTx, escrowTxid, escrowPrevout, err := FormEscrowTx(cust_utxo_txid, 0, inputSats, outputSats, custInputSk, custPk, merchPk, changePk)
+	signedEscrowTx, escrowTxid, escrowPrevout, err := FormEscrowTx(cust_utxo_txid, 0, inputSats, outputSats, custInputSk, custPk, merchPk, changePk, false)
 	assert.Nil(t, err)
 
 	fmt.Println("escrow txid => ", escrowTxid)
@@ -211,7 +211,7 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	// fmt.Println("merchClosePk :=> ", merchClosePk)
 
 	outputSats := custBal + merchBal
-	signedEscrowTx, escrowTxid, escrowPrevout, err := FormEscrowTx(cust_utxo_txid, 0, inputSats, outputSats, custInputSk, custPk, merchPk, changePk)
+	signedEscrowTx, escrowTxid, escrowPrevout, err := FormEscrowTx(cust_utxo_txid, 0, inputSats, outputSats, custInputSk, custPk, merchPk, changePk, false)
 	assert.Nil(t, err)
 
 	// fmt.Println("escrow txid => ", escrowTxid)
