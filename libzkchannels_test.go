@@ -201,7 +201,11 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	// merchSk := fmt.Sprintf("\"%v\"", *merchState.SkM)
 	merchPk := fmt.Sprintf("%v", *merchState.PkM)
 	// changeSk := "4157697b6428532758a9d0f9a73ce58befe3fd665797427d1c5bb3d33f6a132e"
-	changePk := "037bed6ab680a171ef2ab564af25eff15c0659313df0bbfb96414da7c7d1e65882"
+
+	// changePk := "037bed6ab680a171ef2ab564af25eff15c0659313df0bbfb96414da7c7d1e65882" // false
+	changePk := "0014578dd1183845e18d42f90b1a9f3a464675ad2440" // true
+	isChangePkHash := true
+
 	merchClosePk := fmt.Sprintf("%v", *merchState.PayoutPk)
 	toSelfDelay := "05cf"
 	// fmt.Println("custSk :=> ", custSk)
@@ -211,7 +215,7 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	// fmt.Println("merchClosePk :=> ", merchClosePk)
 
 	outputSats := custBal + merchBal
-	signedEscrowTx, escrowTxid, escrowPrevout, err := FormEscrowTx(cust_utxo_txid, 0, inputSats, outputSats, custInputSk, custPk, merchPk, changePk, false)
+	signedEscrowTx, escrowTxid, escrowPrevout, err := FormEscrowTx(cust_utxo_txid, 0, inputSats, outputSats, custInputSk, custPk, merchPk, changePk, isChangePkHash)
 	assert.Nil(t, err)
 
 	// fmt.Println("escrow txid => ", escrowTxid)

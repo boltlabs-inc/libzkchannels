@@ -247,7 +247,9 @@ pub mod btc {
         // check that specified public keys are valid
         check_pk_valid!(output1.cust_pubkey);
         check_pk_valid!(output1.merch_pubkey);
-        check_pk_valid!(output2.pubkey);
+        if !output2.is_hash {
+            check_pk_valid!(output2.pubkey);
+        }
         // types of UTXO inputs to support
         let address_format = match input.address_format {
             "p2pkh" => BitcoinFormat::P2PKH,
