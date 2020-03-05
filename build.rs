@@ -7,13 +7,13 @@ fn main() {
     let project_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
 
     println!("cargo:rustc-link-search={}/deps/root/lib", project_dir); // the "-L" flag
-    println!("cargo:rustc-link-lib=token-utils"); // the "-l" flag
+    println!("cargo:rustc-link-lib=tokenm-utils"); // the "-l" flag
 
     // Create bindings
     let bindings = bindgen::Builder::default()
         // The input header we would like to generate
         // bindings for.
-        .header("deps/root/include/emp-sh2pc/tokens.h")
+        .header("deps/root/include/emp-ag2pc/tokens.h")
         .clang_arg("-x")
         .clang_arg("c++")
         .trust_clang_mangling(false)

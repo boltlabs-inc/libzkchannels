@@ -4,7 +4,7 @@ use std::ffi::{CStr, CString};
 use std::str;
 use std::ptr;
 use rand::Rng;
-use bindings::{get_netio_ptr, get_unixnetio_ptr, build_masked_tokens_cust, build_masked_tokens_merch, State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l, CommitmentRandomness_l, PayToken_l, Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l, BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l, Conn_l, ConnType_NETIO, ConnType_UNIXNETIO, ConnType_TORNETIO, ConnType_CUSTOM, get_gonetio_ptr};
+use bindings::{get_netio_ptr, get_unixnetio_ptr, build_masked_tokens_cust_m, build_masked_tokens_merch_m, State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l, CommitmentRandomness_l, PayToken_l, Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l, BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l, Conn_l, ConnType_NETIO, ConnType_UNIXNETIO, ConnType_TORNETIO, ConnType_CUSTOM, get_gonetio_ptr};
 use wallet::State;
 use ecdsa_partial::EcdsaPartialSig;
 use channels_mpc::NetworkConfig;
@@ -91,7 +91,7 @@ pub fn mpc_build_masked_tokens_cust(net_conn: NetworkConfig, amount: i64, pay_ma
     let conn = Conn_l { conn_type: net_conn.conn_type, path: path_ar, dest_port: net_conn.dest_port as u16, dest_ip: ip_ar, peer_raw_fd: ptr::null_mut() };
 
     unsafe {
-        build_masked_tokens_cust(Some(io_callback), conn, translate_balance(amount),
+        build_masked_tokens_cust_m(Some(io_callback), conn, translate_balance(amount),
                                  rl_c, paymask_com, key_com,
                                  merch_escrow_pub_key_c, merch_dispute_key_c,
                                  merch_public_key_hash_c, merch_payout_pub_key_c,
@@ -286,7 +286,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, net_conn: NetworkConfi
     let conn = Conn_l { conn_type: net_conn.conn_type, path: path_ar, dest_port: net_conn.dest_port as u16, dest_ip: ip_ar, peer_raw_fd: ptr::null_mut() };
 
     unsafe {
-        build_masked_tokens_merch(Some(io_callback), conn, translate_balance(amount), rl_c,
+        build_masked_tokens_merch_m(Some(io_callback), conn, translate_balance(amount), rl_c,
                                   paymask_com, key_com,
                                   merch_escrow_pub_key_c, merch_dispute_key_c,
                                   merch_public_key_hash_c, merch_payout_pub_key_c,
@@ -371,7 +371,7 @@ mod tests {
         merch_public_key_hash.copy_from_slice(hex::decode("43e9e81bc632ad9cad48fc23f800021c5769a063").unwrap().as_slice());
         let merch_payout_pub_key = secp256k1::PublicKey::from_slice(hex::decode("02f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90").unwrap().as_slice()).unwrap();
 
-        let nc = NetworkConfig { conn_type: ConnType_UNIXNETIO, path: String::from("mpconn"), dest_ip: String::from(""), dest_port: 0, peer_raw_fd: 0 };
+        let nc = NetworkConfig { conn_type: ConnType_NETIO, path: String::from("127.0.0.1"), dest_ip: String::from("127.0.0.1"), dest_port: 12345, peer_raw_fd: 0 };
 
         let (r1, r2) = mpc_build_masked_tokens_merch(&mut csprng, nc, amount, &paytoken_mask_com, &rev_lock_com,
                                       &key_com, &key_com_r, merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key, nonce, &hmac_key,
@@ -502,7 +502,7 @@ mod tests {
         merch_public_key_hash.copy_from_slice(hex::decode("43e9e81bc632ad9cad48fc23f800021c5769a063").unwrap().as_slice());
         let merch_payout_pub_key = secp256k1::PublicKey::from_slice(hex::decode("02f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90").unwrap().as_slice()).unwrap();
 
-        let nc = NetworkConfig { conn_type: ConnType_UNIXNETIO, path: String::from("mpconn"), dest_ip: String::from(""), dest_port: 0, peer_raw_fd: 0 };
+        let nc = NetworkConfig { conn_type: ConnType_NETIO, path: String::from("127.0.0.1"), dest_ip: String::from("127.0.0.1"), dest_port: 12345, peer_raw_fd: 0 };
 
         let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) =
             mpc_build_masked_tokens_cust(nc, amount, &paytoken_mask_com, &rev_lock_com, &rev_lock_r, &key_com,
