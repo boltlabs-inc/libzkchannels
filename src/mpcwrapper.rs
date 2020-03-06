@@ -4,7 +4,7 @@ use std::ffi::{CStr, CString};
 use std::str;
 use std::ptr;
 use rand::Rng;
-use bindings::{get_netio_ptr, get_unixnetio_ptr, build_masked_tokens_cust_m, build_masked_tokens_merch_m, State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l, CommitmentRandomness_l, PayToken_l, Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l, BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l, Conn_l, ConnType_NETIO, ConnType_UNIXNETIO, ConnType_TORNETIO, ConnType_CUSTOM, get_gonetio_ptr};
+use bindings::{get_netio_ptr, get_unixnetio_ptr, build_masked_tokens_cust, build_masked_tokens_merch, State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l, CommitmentRandomness_l, PayToken_l, Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l, BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l, Conn_l, ConnType_NETIO, ConnType_UNIXNETIO, ConnType_TORNETIO, ConnType_CUSTOM, get_gonetio_ptr};
 use wallet::State;
 use ecdsa_partial::EcdsaPartialSig;
 use channels_mpc::NetworkConfig;
@@ -91,7 +91,7 @@ pub fn mpc_build_masked_tokens_cust(net_conn: NetworkConfig, amount: i64, pay_ma
     let conn = Conn_l { conn_type: net_conn.conn_type, path: path_ar, dest_port: net_conn.dest_port as u16, dest_ip: ip_ar, peer_raw_fd: ptr::null_mut() };
 
     unsafe {
-        build_masked_tokens_cust_m(Some(io_callback), conn, translate_balance(amount),
+        build_masked_tokens_cust(Some(io_callback), conn, translate_balance(amount),
                                  rl_c, paymask_com, key_com,
                                  merch_escrow_pub_key_c, merch_dispute_key_c,
                                  merch_public_key_hash_c, merch_payout_pub_key_c,
@@ -286,7 +286,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, net_conn: NetworkConfi
     let conn = Conn_l { conn_type: net_conn.conn_type, path: path_ar, dest_port: net_conn.dest_port as u16, dest_ip: ip_ar, peer_raw_fd: ptr::null_mut() };
 
     unsafe {
-        build_masked_tokens_merch_m(Some(io_callback), conn, translate_balance(amount), rl_c,
+        build_masked_tokens_merch(Some(io_callback), conn, translate_balance(amount), rl_c,
                                   paymask_com, key_com,
                                   merch_escrow_pub_key_c, merch_dispute_key_c,
                                   merch_public_key_hash_c, merch_payout_pub_key_c,
