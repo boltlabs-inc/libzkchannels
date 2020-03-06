@@ -93,7 +93,7 @@ pub mod ffishim_mpc {
     }
 
     #[no_mangle]
-    pub extern fn mpc_init_customer(ser_pk_m: *mut c_char, cust_bal: i64, merch_bal: i64, name_ptr: *const c_char, ser_sk_c: *mut c_char) -> *mut c_char {
+    pub extern fn mpc_init_customer(ser_pk_m: *mut c_char, cust_bal: i64, merch_bal: i64, name_ptr: *const c_char, ser_sk_c: *mut c_char, ser_payout_sk: *mut c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
 
         // Deserialize the pk_m
@@ -114,8 +114,18 @@ pub mod ffishim_mpc {
             Err(e) => return error_message(e.to_string()),
         };
 
+        let psk = deserialize_hex_string(ser_payout_sk);
+        let payout_sk = match psk {
+            Ok(s) => {
+                let mut buf = [0u8; 32];
+                buf.copy_from_slice(&s);
+                Some(buf)
+            },
+            Err(e) => return error_message(e.to_string()),
+        };
+
         // We change the channel state
-        let (channel_token, cust_state) = mpc::init_customer(rng, &pk_m, cust_bal,merch_bal, name, sk);
+        let (channel_token, cust_state) = mpc::init_customer(rng, &pk_m, cust_bal,merch_bal, name, sk, payout_sk);
         let ser = ["{\'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\', \'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()

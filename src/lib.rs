@@ -716,12 +716,12 @@ pub mod mpc {
     /// Generate initial customer channel state and channel token.
     /// output: a channel token and customer state
     ///
-    pub fn init_customer<'a, R: Rng>(csprng: &mut R, pk_m: &PublicKey, b0_cust: i64, b0_merch: i64, name: &'a str, sk: Option<[u8; 32]>) -> (ChannelMPCToken, CustomerMPCState) {
+    pub fn init_customer<'a, R: Rng>(csprng: &mut R, pk_m: &PublicKey, b0_cust: i64, b0_merch: i64, name: &'a str, sk: Option<[u8; 32]>, payout_sk: Option<[u8; 32]>) -> (ChannelMPCToken, CustomerMPCState) {
         assert!(b0_cust > 0);
         assert!(b0_merch >= 0);
 
         let cust_name = String::from(name);
-        let mut cust_state = CustomerMPCState::new(csprng, b0_cust, b0_merch, cust_name, sk);
+        let mut cust_state = CustomerMPCState::new(csprng, b0_cust, b0_merch, cust_name, sk, payout_sk);
 
         // generate the initial channel token given the funding tx info
         let mut channel_token = cust_state.generate_init_channel_token(pk_m);
@@ -1581,7 +1581,7 @@ mod tests {
         let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
         let mut merch_state = mpc::init_merchant(rng, &mut channel_state, "Bob");
 
-        let (mut channel_token, mut cust_state) = mpc::init_customer(rng, &merch_state.pk_m, 100, 100, "Alice", None);
+        let (mut channel_token, mut cust_state) = mpc::init_customer(rng, &merch_state.pk_m, 100, 100, "Alice", None, None);
 
         // customer sends pk_c, n_0, rl_0 to the merchant
        //  let init_cust_state = cust_state.get_initial_cust_state().unwrap();
@@ -1658,7 +1658,7 @@ mod tests {
         let b0_merch = 100;
 
         let (mut channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m,
-                                                                 b0_cust, b0_merch, "Alice", None);
+                                                                 b0_cust, b0_merch, "Alice", None, None);
 
         let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch);
 
@@ -1704,7 +1704,7 @@ rusty_fork_test! {
 
         let b0_cust = 100;
         let b0_merch = 100;
-        let (mut channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, b0_cust, b0_merch, "Alice", None);
+        let (mut channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, b0_cust, b0_merch, "Alice", None, None);
 
         let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch);
 

@@ -284,7 +284,8 @@ char *mpc_init_customer(char *ser_pk_m,
                         int64_t cust_bal,
                         int64_t merch_bal,
                         const char *name_ptr,
-                        char *ser_sk_c);
+                        char *ser_sk_c,
+                        char *ser_payout_sk);
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)
