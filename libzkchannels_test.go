@@ -19,10 +19,11 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	channelState, merchState, err := InitMerchant(channelState, "merch")
 	assert.Nil(t, err)
 
+    skC := "1a1971e1379beec67178509e25b6772c66cb67bb04d70df2b4bcdb8c08a01827"
 	custBal := int64(1000000)
 	merchBal := int64(0)
 
-	channelToken, custState, err := InitCustomer(fmt.Sprintf("\"%v\"", *merchState.PkM), custBal, merchBal, "cust")
+	channelToken, custState, err := InitCustomer(fmt.Sprintf("\"%v\"", *merchState.PkM), custBal, merchBal, "cust", skC)
 	assert.Nil(t, err)
 
 	inputSats := int64(50 * 100000000)
@@ -186,10 +187,11 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	channelState, merchState, err := InitMerchant(channelState, "merch")
 	assert.Nil(t, err)
 
+    skC := "1a1971e1379beec67178509e25b6772c66cb67bb04d70df2b4bcdb8c08a01827"
 	custBal := int64(10000)
 	merchBal := int64(0)
 
-	channelToken, custState, err := InitCustomer(fmt.Sprintf("\"%v\"", *merchState.PkM), custBal, merchBal, "cust")
+	channelToken, custState, err := InitCustomer(fmt.Sprintf("\"%v\"", *merchState.PkM), custBal, merchBal, "cust", skC)
 	assert.Nil(t, err)
 
 	inputSats := int64(50 * 100000000)
@@ -201,7 +203,6 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	// merchSk := fmt.Sprintf("\"%v\"", *merchState.SkM)
 	merchPk := fmt.Sprintf("%v", *merchState.PkM)
 	// changeSk := "4157697b6428532758a9d0f9a73ce58befe3fd665797427d1c5bb3d33f6a132e"
-
 	// changePk := "037bed6ab680a171ef2ab564af25eff15c0659313df0bbfb96414da7c7d1e65882" // false
 	changePk := "0014578dd1183845e18d42f90b1a9f3a464675ad2440" // true
 	isChangePkHash := true

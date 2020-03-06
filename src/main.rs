@@ -405,7 +405,7 @@ mod cust {
         }
 
         let (channel_token, cust_state) = mpc::init_customer(rng, &pk_m,
-                                                                 b0_cust, b0_merch, "Customer");
+                                                                 b0_cust, b0_merch, "Customer", None);
 
         println!("Saving the initial customer state...");
         save_state_cust(channel_state, channel_token, cust_state)

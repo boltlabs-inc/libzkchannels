@@ -249,13 +249,15 @@ impl fmt::Display for InitCustState {
 
 #[cfg(feature = "mpc-bitcoin")]
 impl CustomerMPCState {
-    pub fn new<R: Rng>(csprng: &mut R, cust_bal: i64, merch_bal: i64, name: String) -> Self
+    pub fn new<R: Rng>(csprng: &mut R, cust_bal: i64, merch_bal: i64, name: String, sk: Option<[u8; 32]>) -> Self
     {
         let secp = secp256k1::Secp256k1::new();
 
         let mut seckey = [0u8; 32];
-        csprng.fill_bytes(&mut seckey);
-
+        match sk {
+            Some(n) => seckey.copy_from_slice(&n),
+            None => csprng.fill_bytes(&mut seckey)
+        }
         // generate the signing keypair for the channel
         let sk_c = secp256k1::SecretKey::from_slice(&seckey).unwrap();
         let pk_c = secp256k1::PublicKey::from_secret_key(&secp, &sk_c);
@@ -835,7 +837,7 @@ pub struct MerchantMPCState {
     pub spent_lock_map: HashMap<String, Option<FixedSizeArray32>>,
     pub rev_lock_map: HashMap<FixedSizeArray32, FixedSizeArray32>,
     pub mask_mpc_bytes: HashMap<String, MaskedMPCInputs>,
-    
+
     pub close_tx: HashMap<FixedSizeArray32, MerchCloseTx>,
     pub net_config: Option<NetworkConfig>
 }
@@ -1291,7 +1293,7 @@ rusty_fork_test!
         let mut merch_state = MerchantMPCState::new(&mut rng, &mut channel_state, String::from("Merchant B"));
 
         // initialize on the customer side with balance: b0_cust
-        let mut cust_state = CustomerMPCState::new(&mut rng, b0_cust, b0_merch, String::from("Customer"));
+        let mut cust_state = CustomerMPCState::new(&mut rng, b0_cust, b0_merch, String::from("Customer"), None);
 
         // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
         let funding_tx_info = generate_test_txs(&mut rng, b0_cust, b0_merch);
@@ -1427,7 +1429,7 @@ rusty_fork_test!
         let mut merch_state = MerchantMPCState::new(&mut rng, &mut channel, String::from("Merchant"));
 
         // initialize on the customer side with balance: b0_cust
-        let mut cust_state = CustomerMPCState::new(&mut rng, b0_cust, b0_merch, String::from("Customer"));
+        let mut cust_state = CustomerMPCState::new(&mut rng, b0_cust, b0_merch, String::from("Customer"), None);
 
         // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
         let funding_tx_info = generate_test_txs(&mut rng, b0_cust, b0_merch);
@@ -1517,7 +1519,7 @@ rusty_fork_test!
         assert_eq!(channel_state, orig_channel_state);
 
         // initialize on the customer side with balance: b0_cust
-        let mut cust_state = CustomerMPCState::new(&mut rng, b0_cust, b0_merch, String::from("Customer"));
+        let mut cust_state = CustomerMPCState::new(&mut rng, b0_cust, b0_merch, String::from("Customer"), None);
 
         // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
         let funding_tx_info = generate_test_txs(&mut rng, b0_cust, b0_merch);
