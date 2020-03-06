@@ -1,6 +1,6 @@
 .PHONY: all clean
 
-DIRS=time relic emp-tool emp-ot emp-sh2pc
+DIRS=time emp-tool emp-ot emp-sh2pc
 
 all: $(DIRS)
 	./install_packages.sh
