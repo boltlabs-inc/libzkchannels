@@ -67,6 +67,7 @@ function install_pkgs_ubuntu() {
         sudo apt-get install -y libboost-dev
         sudo apt-get install -y libboost-{chrono,log,program-options,date-time,thread,system,filesystem,regex,test}-dev
         sudo apt-get install -y libcrypto++ llvm-dev libclang-dev clang
+        sudo apt-get install -y redis-server
     else
         sudo apt-get install -y software-properties-common
         sudo add-apt-repository -y ppa:george-edison55/cmake-3.x
@@ -76,14 +77,16 @@ function install_pkgs_ubuntu() {
         sudo apt-get install -y libboost1.58-dev
         sudo apt-get install -y libboost-{chrono,log,program-options,date-time,thread,system,filesystem,regex,test}1.58-dev
         sudo apt-get install -y libcrypto++ llvm-dev libclang-dev clang
+        sudo apt-get install -y redis-server
     fi
 }
 
 function install_pkgs_debian() {
-    apt-get update
-    apt-get install -y cmake git build-essential libssl-dev libgmp-dev python
-    apt-get install -y libboost1.67-dev libboost-system1.67-dev
-    apt-get install -y libcrypto++ llvm-dev libclang-dev clang
+    sudo apt update
+    sudo apt install -y cmake git build-essential libssl-dev libgmp-dev python
+    sudo apt install -y libboost1.67-dev libboost-system1.67-dev
+    sudo apt install -y libcrypto++ llvm-dev libclang-dev clang
+    sudo apt install -y redis-server
 }
 
 if [[ "$(uname)" = "Darwin" ]]; then
@@ -97,6 +100,7 @@ if [[ "$(uname)" = "Darwin" ]]; then
 	brew list boost || brew install boost
 	brew list llvm || brew install llvm
 	brew list cryptopp || brew install cryptopp
+	brew list redis || brew install redis
 else
   platform OS
   distro $OS OS_VERSION
