@@ -16,6 +16,7 @@ The libzkchannels library is a proof of concept implementation that relies on ex
 * serde, serde_json
 * sha2, ripemd160, hmac, hex
 * wagyu-bitcoin and wagyu-zcash
+* redis
 
 Note that the above rust dependencies will be compiled and installed as a result of running the `make` command.
 
@@ -223,8 +224,13 @@ See the `intermediary_payment_basics_works()` unit test in `src/lib.rs` for more
 
 ## Payment Channels using MPC techniques
 
+We now describe the APIs around our support for non-anonymous currencies like Bitcoin.
+
+
 ### Channel Setup
 
+	use zkchannels::mpc;
+    
 	// create initial channel mpc state
 	let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
 
