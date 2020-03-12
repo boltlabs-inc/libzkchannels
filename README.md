@@ -18,7 +18,7 @@ The libzkchannels library is a proof of concept implementation that relies on ex
 * wagyu-bitcoin and wagyu-zcash
 * redis
 
-Note that the above rust dependencies will be compiled and installed as a result of running the `make` command.
+Note that the above rust dependencies will be compiled and installed as a result of running the `make` command. 
 
 # Rust Nightly Setup
 
@@ -38,11 +38,15 @@ We will switch to the stable release channel once libzkchannels (and dependencie
 
 # Build & Install
 
-To be able to build zkChannels for Bitcoin, you'll have to install the EMP-toolkit dependency as follows:
+To be able to build zkChannels, we require that you install the EMP-toolkit and other dependencies as follows:
 
 	. ./env
 	make deps
 	./test_emp.sh
+
+In addition, you'll need to setup & install the Redis database as follows:
+
+	./setup_redis.sh
 
 To build with ZK proofs and execute basic examples, run `make` and to build with MPC, run `make mpc`
 
