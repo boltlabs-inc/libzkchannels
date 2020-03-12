@@ -289,7 +289,7 @@ char *mpc_init_customer(char *ser_pk_m,
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)
-char *mpc_init_merchant(char *ser_channel_state, const char *name_ptr);
+char *mpc_init_merchant(char *db_url_str, char *ser_channel_state, const char *name_ptr);
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)

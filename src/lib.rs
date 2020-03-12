@@ -67,7 +67,7 @@ pub mod ffishim_bn256;
 pub mod bindings;
 pub mod transactions;
 pub mod fixed_size_array;
-
+pub mod database;
 pub mod test_e2e;
 
 use std::fmt;
@@ -693,7 +693,8 @@ pub mod mpc {
     pub use channels_mpc::{ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState, RevokedState};
     use secp256k1::PublicKey;
     use wallet::{State, NONCE_LEN};
-    use channels_mpc::{MaskedTxMPCInputs, InitCustState, NetworkConfig};
+    use database::{MaskedTxMPCInputs, StateDatabase};
+    use channels_mpc::{InitCustState, NetworkConfig};
     use bindings::ConnType_NETIO;
     use bitcoin::Testnet;
     use fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
@@ -703,10 +704,10 @@ pub mod mpc {
     /// Generates merchant data which consists of channel token and merchant state.
     /// output: merchant state
     ///
-    pub fn init_merchant<'a, R: Rng>(csprng: &mut R, channel_state: &mut ChannelMPCState, name: &'a str) -> MerchantMPCState {
+    pub fn init_merchant<'a, R: Rng>(csprng: &mut R, db_url: String, channel_state: &mut ChannelMPCState, name: &'a str) -> MerchantMPCState {
         // create new merchant state
         let merch_name = String::from(name);
-        let merch_state = MerchantMPCState::new(csprng, channel_state, merch_name);
+        let merch_state = MerchantMPCState::new(csprng, db_url, channel_state, merch_name);
 
         return merch_state;
     }
@@ -747,8 +748,8 @@ pub mod mpc {
     /// validate_initial_state() - takes as input the channel token, initial state and verifies that they are well-formed
     /// output: true or false
     ///
-    pub fn validate_initial_state(channel_token: &ChannelMPCToken, init_state: &InitCustState, init_hash: [u8; 32], merch_state: &mut MerchantMPCState) -> Result<bool, String> {
-        merch_state.validate_initial_state(channel_token, init_state, init_hash)
+    pub fn validate_initial_state(db: &mut dyn StateDatabase, channel_token: &ChannelMPCToken, init_state: &InitCustState, init_hash: [u8; 32], merch_state: &mut MerchantMPCState) -> Result<bool, String> {
+        merch_state.validate_initial_state(db, channel_token, init_state, init_hash)
     }
 
     ///
@@ -768,9 +769,9 @@ pub mod mpc {
     /// Activate the channel for the merchant
     /// output: intial pay token
     ///
-    pub fn activate_merchant(channel_token: ChannelMPCToken, s0: &State, merch_state: &mut MerchantMPCState) -> Result<[u8; 32], String> {
+    pub fn activate_merchant(db: &mut dyn StateDatabase, channel_token: ChannelMPCToken, s0: &State, merch_state: &mut MerchantMPCState) -> Result<[u8; 32], String> {
         // activate channel - generate pay_token
-        merch_state.activate_channel(&channel_token, s0)
+        merch_state.activate_channel(db, &channel_token, s0)
     }
 
     ///
@@ -820,8 +821,8 @@ pub mod mpc {
     /// Prepare payment for merchant
     /// output: commitment of the payment token mask
     ///
-    pub fn pay_prepare_merchant<R: Rng>(csprng: &mut R, channel_state: &ChannelMPCState, nonce: [u8; NONCE_LEN], rev_lock_com: [u8; 32], amount: i64, merch_state: &mut MerchantMPCState) -> Result<[u8; 32], String> {
-        merch_state.generate_pay_mask_commitment(csprng, channel_state, nonce, rev_lock_com, amount)
+    pub fn pay_prepare_merchant<R: Rng>(csprng: &mut R, db: &mut dyn StateDatabase, channel_state: &ChannelMPCState, nonce: [u8; NONCE_LEN], rev_lock_com: [u8; 32], amount: i64, merch_state: &mut MerchantMPCState) -> Result<[u8; 32], String> {
+        merch_state.generate_pay_mask_commitment(csprng, db, channel_state, nonce, rev_lock_com, amount)
     }
 
     ///
@@ -847,22 +848,22 @@ pub mod mpc {
     /// Start the MPC for a payment for the Merchant
     /// output: the transaction masks (escrow and merch tx), or error
     ///
-    pub fn pay_update_merchant<R: Rng>(csprng: &mut R, channel: &mut ChannelMPCState, nonce: [u8; NONCE_LEN], pay_token_mask_com: [u8; 32],
+    pub fn pay_update_merchant<R: Rng>(csprng: &mut R, db: &mut dyn StateDatabase, channel: &mut ChannelMPCState, nonce: [u8; NONCE_LEN], pay_token_mask_com: [u8; 32],
                                 rev_lock_com: [u8; 32], amount: i64, merch_state: &mut MerchantMPCState) -> Result<MaskedTxMPCInputs, String> {
         if merch_state.net_config.is_none() {
             // use default ip/port
             merch_state.set_network_config(NetworkConfig { conn_type: ConnType_NETIO, dest_ip: String::from("127.0.0.1"), dest_port: 2424, path: String::new(), peer_raw_fd: 0 });
         }
 
-        let result = merch_state.execute_mpc_context(csprng, &channel, nonce, rev_lock_com, pay_token_mask_com, amount);
+        let result = merch_state.execute_mpc_context(csprng, db, &channel, nonce, rev_lock_com, pay_token_mask_com, amount);
         match result.is_err() {
             false => {
-                let rev_lock_com_hex = hex::encode(rev_lock_com);
-                let mask_bytes = match merch_state.mask_mpc_bytes.get(&rev_lock_com_hex) {
-                    Some(&n) => {
+                let nonce_hex = hex::encode(nonce);
+                let mask_bytes = match db.get_masked_mpc_inputs(&nonce_hex) {
+                    Ok(n) => {
                         Some(n)
                     },
-                    _ => return Err(String::from("Couldn't find rev_lock for the commitment"))
+                    Err(e) => return Err(e.to_string()) // error case
                 };
                 let mask_bytes_unwrapped = mask_bytes.unwrap();
                 return Ok(mask_bytes_unwrapped.get_tx_masks());
@@ -886,8 +887,8 @@ pub mod mpc {
     /// Verify the revocation lock commitment
     /// output: the pay token mask and randomness
     ///
-    pub fn pay_validate_rev_lock_merchant(rev_state: RevokedState, merch_state: &mut MerchantMPCState) -> Result<([u8; 32], [u8; 16]), String> {
-        let (pt_mask, pt_mask_r) = match merch_state.verify_revoked_state(rev_state.get_nonce(), rev_state.get_rev_lock_com(),
+    pub fn pay_validate_rev_lock_merchant(db: &mut dyn StateDatabase, rev_state: RevokedState, merch_state: &mut MerchantMPCState) -> Result<([u8; 32], [u8; 16]), String> {
+        let (pt_mask, pt_mask_r) = match merch_state.verify_revoked_state(db,rev_state.get_nonce(), rev_state.get_rev_lock_com(),
                                                               rev_state.get_rev_lock(), rev_state.get_rev_secret(), rev_state.get_randomness()) {
             Ok(n) => (n.0, n.1),
             Err(e) => return Err(e.to_string())
@@ -1104,10 +1105,9 @@ mod tests {
     use rand_xorshift::XorShiftRng;
 
     #[cfg(feature = "mpc-bitcoin")]
-    use channels_mpc::MaskedTxMPCInputs;
     use fixed_size_array::FixedSizeArray32;
-    // use transactions::ClosePublicKeys;
     use bitcoin::Testnet;
+    use database::{MaskedTxMPCInputs, StateDatabase, HashMapDatabase, RedisDatabase};
 
     fn setup_new_channel_helper(channel_state: &mut zkproofs::ChannelState<Bls12>,
                                 init_cust_bal: i64, init_merch_bal: i64)
@@ -1577,9 +1577,11 @@ mod tests {
     #[cfg(feature = "mpc-bitcoin")]
     fn test_establish_mpc_channel() {
         let mut rng = &mut rand::thread_rng();
+        // let mut db = RedisDatabase::new("lib", "redis://127.0.0.1/").unwrap();
+        let mut db = HashMapDatabase::new("", "".to_string()).unwrap();
 
         let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
-        let mut merch_state = mpc::init_merchant(rng, &mut channel_state, "Bob");
+        let mut merch_state = mpc::init_merchant(rng, "".to_string(), &mut channel_state, "Bob");
 
         let (mut channel_token, mut cust_state) = mpc::init_customer(rng, &merch_state.pk_m, 100, 100, "Alice", None, None);
 
@@ -1604,11 +1606,11 @@ mod tests {
         let (init_cust_state, init_hash) = mpc::get_initial_state(&cust_state).unwrap();
 
         // at this point, the escrow-tx can be broadcast and confirmed
-        mpc::validate_initial_state(&channel_token, &init_cust_state, init_hash, &mut merch_state);
+        mpc::validate_initial_state(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, init_hash, &mut merch_state);
 
         let s0 = mpc::activate_customer(rng, &mut cust_state);
 
-        let pay_token = mpc::activate_merchant(channel_token, &s0, &mut merch_state).unwrap();
+        let pay_token = mpc::activate_merchant(&mut db as &mut dyn StateDatabase, channel_token, &s0, &mut merch_state).unwrap();
 
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
@@ -1650,9 +1652,12 @@ mod tests {
     #[cfg(feature = "mpc-bitcoin")]
     fn test_payment_mpc_channel() {
         let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d76);
+        // let mut db = RedisDatabase::new("lib", "redis://127.0.0.1/").unwrap();
+        // db.clear_state();
+        let mut db = HashMapDatabase::new("", "".to_string()).unwrap();
 
         let mut channel = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
-        let mut merch_state = mpc::init_merchant(&mut rng, &mut channel, "Bob");
+        let mut merch_state = mpc::init_merchant(&mut rng, "".to_string(), &mut channel, "Bob");
 
         let b0_cust = 100;
         let b0_merch = 100;
@@ -1666,24 +1671,24 @@ mod tests {
 
         let (init_cust_state, init_hash) = mpc::get_initial_state(&cust_state).unwrap();
 
-        mpc::validate_initial_state(&channel_token, &init_cust_state, init_hash, &mut merch_state);
+        mpc::validate_initial_state(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, init_hash, &mut merch_state);
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
 
-        let pay_token = mpc::activate_merchant(channel_token.clone(), &s0, &mut merch_state).unwrap();
+        let pay_token = mpc::activate_merchant(&mut db as &mut dyn StateDatabase, channel_token.clone(), &s0, &mut merch_state).unwrap();
 
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
         let (new_state, revoked_state) = mpc::pay_prepare_customer(&mut rng, &channel, 10, &mut cust_state).unwrap();
         let rev_lock_com = revoked_state.get_rev_lock_com();
 
-        let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &channel,s0.get_nonce(), rev_lock_com.clone(), 10, &mut merch_state).unwrap();
+        let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &mut db as &mut dyn StateDatabase, &channel,s0.get_nonce(), rev_lock_com.clone(), 10, &mut merch_state).unwrap();
 
-        let res_merch = mpc::pay_update_merchant(&mut rng, &mut channel, s0.get_nonce(), pay_mask_com, rev_lock_com, 10, &mut merch_state);
+        let res_merch = mpc::pay_update_merchant(&mut rng, &mut db as &mut dyn StateDatabase, &mut channel, s0.get_nonce(), pay_mask_com, rev_lock_com, 10, &mut merch_state);
         assert!(res_merch.is_ok());
         let _inputs = res_merch.unwrap();
 
-        let (pay_token_mask, pay_token_mask_r) = match mpc::pay_validate_rev_lock_merchant(revoked_state, &mut merch_state) {
+        let (pay_token_mask, pay_token_mask_r) = match mpc::pay_validate_rev_lock_merchant(&mut db as &mut dyn StateDatabase, revoked_state, &mut merch_state) {
             Ok(n) => (n.0, n.1),
             _ => panic!("Could not get pay token mask and randomness")
         };
@@ -1698,9 +1703,12 @@ rusty_fork_test! {
     #[cfg(feature = "mpc-bitcoin")]
     fn test_payment_mpc_channel_cust() {
         let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d76);
+        // let mut db = RedisDatabase::new("lib", "redis://127.0.0.1/").unwrap();
+        // db.clear_state();
+        let mut db = HashMapDatabase::new("", "".to_string()).unwrap();
 
         let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
-        let mut merch_state = mpc::init_merchant(&mut rng, &mut channel_state, "Bob");
+        let mut merch_state = mpc::init_merchant(&mut rng, "".to_string(), &mut channel_state, "Bob");
 
         let b0_cust = 100;
         let b0_merch = 100;
@@ -1715,11 +1723,11 @@ rusty_fork_test! {
             Err(e) => panic!(e)
         };
 
-        mpc::validate_initial_state(&channel_token, &init_cust_state, init_hash, &mut merch_state);
+        mpc::validate_initial_state(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, init_hash, &mut merch_state);
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
 
-        let pay_token = mpc::activate_merchant(channel_token.clone(), &s0, &mut merch_state).unwrap();
+        let pay_token = mpc::activate_merchant(&mut db as &mut dyn StateDatabase, channel_token.clone(), &s0, &mut merch_state).unwrap();
 
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
@@ -1731,7 +1739,7 @@ rusty_fork_test! {
         let (state, rev_state) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, 10, &mut cust_state).unwrap();
         let rev_lock_com = rev_state.rev_lock_com.0;
 
-        let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &channel_state, state.get_nonce(), rev_lock_com.clone(), 10, &mut merch_state).unwrap();
+        let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &mut db as &mut dyn StateDatabase, &channel_state, state.get_nonce(), rev_lock_com.clone(), 10, &mut merch_state).unwrap();
 
         let res_cust = mpc::pay_update_customer(&mut channel_state, &channel_token, s0, state, pay_mask_com, rev_lock_com, 10, &mut cust_state);
         assert!(res_cust.is_ok() && res_cust.unwrap());

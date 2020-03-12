@@ -1,5 +1,7 @@
 use super::*;
 use serde::de::{self, Deserialize, Deserializer, Visitor};
+use std::collections::HashSet;
+use redis::ToRedisArgs;
 
 #[derive(Copy, Clone, Debug, Hash, PartialEq)]
 pub struct FixedSizeArray16(pub [u8; 16]);

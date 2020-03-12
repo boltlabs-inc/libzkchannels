@@ -385,11 +385,12 @@ fn main() {
 #[cfg(feature = "mpc-bitcoin")]
 mod cust {
     use super::*;
-    use zkchannels::channels_mpc::{ChannelMPCToken, ChannelMPCState, CustomerMPCState, MaskedTxMPCInputs, NetworkConfig};
+    use zkchannels::channels_mpc::{ChannelMPCToken, ChannelMPCState, CustomerMPCState, NetworkConfig};
     use zkchannels::txutil::{customer_sign_escrow_transaction, customer_sign_merch_close_transaction};
     use zkchannels::FixedSizeArray32;
     use zkchannels::transactions::btc::merchant_form_close_transaction;
     use zkchannels::bindings::{ConnType_NETIO}; // ConnType_CUSTOM
+    use zkchannels::database::MaskedTxMPCInputs;
     // use std::os::unix::io::AsRawFd;
 
     pub fn open(conn: &mut Conn, b0_cust: i64, b0_merch: i64) -> Result<(), String> {
@@ -647,6 +648,7 @@ mod cust {
 #[cfg(feature = "mpc-bitcoin")]
 mod merch {
     use super::*;
+    use zkchannels::database::{StateDatabase, RedisDatabase}; // HashMapDatabase
     use zkchannels::channels_mpc::{ChannelMPCState, ChannelMPCToken, MerchantMPCState, InitCustState, NetworkConfig};
     use zkchannels::wallet::State;
     use zkchannels::transactions::btc::{completely_sign_multi_sig_transaction, merchant_form_close_transaction};
@@ -666,7 +668,8 @@ mod merch {
         }
         channel_state.set_dust_limit(dust_limit);
 
-        let merch_state = mpc::init_merchant(rng, &mut channel_state, "Merchant");
+        let db_url = "redis://127.0.0.1/".to_string();
+        let merch_state = mpc::init_merchant(rng, db_url, &mut channel_state, "Merchant");
 
         let msg1 = [handle_error_result!(serde_json::to_string(&channel_state)), handle_error_result!(serde_json::to_string(&merch_state.pk_m))];
         conn.send(&msg1);
@@ -678,6 +681,8 @@ mod merch {
         // build tx and sign it
         let ser_merch_state = read_file("merch_state.json").unwrap();
         let mut merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
+
+        let mut db = handle_error_result!(RedisDatabase::new("cli", merch_state.db_url.clone()));
 
         let msg0 = conn.wait_for(None, false);
         // wait for cust_sig, escrow_txid and escrow_prevout
@@ -732,7 +737,7 @@ mod merch {
         let init_cust_state: InitCustState = serde_json::from_str(&msg4.get(1).unwrap()).unwrap();
         let init_hash: [u8; 32] = serde_json::from_str(&msg4.get(2).unwrap()).unwrap();
 
-        let res = handle_error_result!(mpc::validate_initial_state(&channel_token, &init_cust_state, init_hash, &mut merch_state));
+        let res = handle_error_result!(mpc::validate_initial_state(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, init_hash, &mut merch_state));
         println!("Initial state for customer is correct: {}", res);
 
         let msg5 = [handle_error_result!(serde_json::to_string(&res))];
@@ -748,13 +753,14 @@ mod merch {
     pub fn activate(conn: &mut Conn) -> Result<(), String> {
         let ser_merch_state = read_file("merch_state.json").unwrap();
         let mut merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
+        let mut db = handle_error_result!(RedisDatabase::new("cli", merch_state.db_url.clone()));
 
         let msg2 = conn.wait_for(None, false);
 
         let channel_token: ChannelMPCToken = serde_json::from_str(&msg2.get(0).unwrap()).unwrap();
         let s0: State = serde_json::from_str(msg2[1].as_ref()).unwrap();
 
-        let pay_token = handle_error_result!(mpc::activate_merchant(channel_token, &s0, &mut merch_state));
+        let pay_token = handle_error_result!(mpc::activate_merchant(&mut db as &mut dyn StateDatabase, channel_token, &s0, &mut merch_state));
 
         let msg3 = [handle_error_result!(serde_json::to_string(&pay_token))];
         conn.send(&msg3);
@@ -765,9 +771,9 @@ mod merch {
 
     pub fn pay(amount: i64, conn: &mut Conn) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
-
         let ser_merch_state = read_file("merch_state.json").unwrap();
         let mut merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
+        let mut db = handle_error_result!(RedisDatabase::new("cli", merch_state.db_url.clone()));
 
         let ser_channel_state = read_file("merch_channel_state.json").unwrap();
         let mut channel_state: ChannelMPCState = serde_json::from_str(&ser_channel_state).unwrap();
@@ -781,7 +787,7 @@ mod merch {
         let mut rev_lock_com = [0u8; 32];
         rev_lock_com.copy_from_slice(rev_lock_com_vec.as_slice());
 
-        let pay_token_mask_com = handle_error_result!(mpc::pay_prepare_merchant(rng, &channel_state, nonce, rev_lock_com.clone(), amount, &mut merch_state));
+        let pay_token_mask_com = handle_error_result!(mpc::pay_prepare_merchant(rng, &mut db as &mut dyn StateDatabase, &channel_state, nonce, rev_lock_com.clone(), amount, &mut merch_state));
 
         let msg1 = [hex::encode(&pay_token_mask_com)];
         conn.send(&msg1);
@@ -790,12 +796,12 @@ mod merch {
         merch_state.set_network_config(nc);
 
         // execute mpc context
-        let masked_inputs = handle_error_result!(mpc::pay_update_merchant(rng, &mut channel_state, nonce, pay_token_mask_com, rev_lock_com, amount, &mut merch_state));
+        let masked_inputs = handle_error_result!(mpc::pay_update_merchant(rng, &mut db as &mut dyn StateDatabase, &mut channel_state, nonce, pay_token_mask_com, rev_lock_com, amount, &mut merch_state));
         let msg3 = [handle_error_result!(serde_json::to_string(&masked_inputs))];
         let msg4 = conn.send_and_wait(&msg3, Some(String::from("Received revoked state")), true);
         let rev_state = serde_json::from_str(msg4.get(0).unwrap()).unwrap();
 
-        let (pt_mask_bytes, pt_mask_r) = match mpc::pay_validate_rev_lock_merchant(rev_state, &mut merch_state) {
+        let (pt_mask_bytes, pt_mask_r) = match mpc::pay_validate_rev_lock_merchant(&mut db as &mut dyn StateDatabase, rev_state, &mut merch_state) {
             Ok(n) => (n.0, n.1),
             _ => return Err(String::from("Failed to get the pay token mask and randomness!"))
         };

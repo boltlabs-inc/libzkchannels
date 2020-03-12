@@ -13,10 +13,11 @@ import (
 )
 
 func Test_fullProtocolWithValidUTXO(t *testing.T) {
+    dbUrl := "redis://127.0.0.1/"
 	channelState, err := ChannelSetup("channel", false)
 	assert.Nil(t, err)
 
-	channelState, merchState, err := InitMerchant(channelState, "merch")
+	channelState, merchState, err := InitMerchant(dbUrl, channelState, "merch")
 	assert.Nil(t, err)
 
     skC := "1a1971e1379beec67178509e25b6772c66cb67bb04d70df2b4bcdb8c08a01827"
@@ -182,10 +183,12 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 }
 
 func Test_fullProtocolDummyUTXOs(t *testing.T) {
+    dbUrl := "redis://127.0.0.1/"
+
 	channelState, err := ChannelSetup("channel", false)
 	assert.Nil(t, err)
 
-	channelState, merchState, err := InitMerchant(channelState, "merch")
+	channelState, merchState, err := InitMerchant(dbUrl, channelState, "merch")
 	assert.Nil(t, err)
 
     skC := "1a1971e1379beec67178509e25b6772c66cb67bb04d70df2b4bcdb8c08a01827"
@@ -312,7 +315,6 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	payTokenMaskCom, merchState, err := PreparePaymentMerchant(channelState, state.Nonce, revState.RevLockCom, 10, merchState)
 	assert.Nil(t, err)
 
-	fmt.Println("Merch State (unlink map): ", *merchState.UnlinkMap)
 
 	go runPayCust(channelState, channelToken, state, newState, payTokenMaskCom, revState.RevLockCom, custState)
 	maskedTxInputs, merchState, err := PayUpdateMerchant(channelState, state.Nonce, payTokenMaskCom, revState.RevLockCom, 10, merchState)

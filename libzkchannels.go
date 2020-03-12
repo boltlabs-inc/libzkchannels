@@ -57,15 +57,10 @@ type MerchState struct {
 	PayoutPk     *string                 `json:"payout_pk"`
 	DisputeSk    *string                 `json:"dispute_sk"`
 	DisputePk    *string                 `json:"dispute_pk"`
-	NonceMaskMap *map[string]interface{} `json:"nonce_mask_map"`
 	ActivateMap  *map[string]interface{} `json:"activate_map"`
-	UnlinkMap    *[]string               `json:"unlink_map"`
-	LockMapState *map[string]interface{} `json:"spent_lock_map"`
-	RevLockMap   *map[string]interface{} `json:"rev_lock_map"`
-	MaskMpcBytes *map[string]interface{} `json:"mask_mpc_bytes"`
 	CloseTxMap   *map[string]interface{} `json:"close_tx"`
-	ConnType     int                     `json:"conn_type"`
 	NetConfig    *map[string]interface{} `json:"net_config"`
+	DbUrl        string                  `json:"db_url"`
 }
 
 type CustState struct {
@@ -84,7 +79,6 @@ type CustState struct {
 	PayTokenMaskCom    string                  `json:"pay_token_mask_com"`
 	PayoutSk           string                  `json:"payout_sk"`
 	PayoutPk           string                  `json:"payout_pk"`
-	ConnType           int                     `json:"conn_type"`
 	EscrowSignature    string                  `json:"close_escrow_signature"`
 	MerchSignature     string                  `json:"close_merch_signature"`
 	ChannelInitialized bool                    `json:"channel_initialized"`
@@ -155,12 +149,12 @@ func ChannelSetup(name string, channelSupport bool) (ChannelState, error) {
 	return channelState, err
 }
 
-func InitMerchant(channelState ChannelState, name string) (ChannelState, MerchState, error) {
+func InitMerchant(dbUrl string, channelState ChannelState, name string) (ChannelState, MerchState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
 		return ChannelState{}, MerchState{}, err
 	}
-	resp := C.GoString(C.mpc_init_merchant(C.CString(string(serChannelState)), C.CString(name)))
+	resp := C.GoString(C.mpc_init_merchant(C.CString(dbUrl), C.CString(string(serChannelState)), C.CString(name)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return ChannelState{}, MerchState{}, err
