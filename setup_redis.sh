@@ -58,8 +58,6 @@ function main() {
     set -x
     brew services start redis
     set +x
-    redis-cli ping
-    console "If you see the PONG message, then redis server is running correctly"
   elif [[ $OS = "ubuntu" ]]; then
     console "Detected Ubuntu ($OS_VERSION)"
     set -x
@@ -71,6 +69,8 @@ function main() {
     sudo systemctl restart redis
     set +x
   fi
+  redis-cli ping
+  console "If you see the PONG message, then redis server is running correctly"
 }
 
 main $1
