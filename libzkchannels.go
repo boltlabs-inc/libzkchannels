@@ -19,6 +19,7 @@ type setupResp struct {
 	PayToken        string `json:"pay_token"`
 	State           string `json:"state"`
 	RevState        string `json:"rev_state"`
+	FoundRevSecret  string `json:"found_rev_secret"`
 	PayTokenMaskCom string `json:"pay_token_mask_com"`
 	MaskedTxInputs  string `json:"masked_tx_inputs"`
 	PayTokenMask    string `json:"pay_token_mask"`
@@ -48,19 +49,19 @@ type ChannelState struct {
 }
 
 type MerchState struct {
-	Id           *string                 `json:"id"`
-	PkM          *string                 `json:"pk_m"`
-	SkM          *string                 `json:"sk_m"`
-	HmacKey      string                  `json:"hmac_key"`
-	HmacKeyR     string                  `json:"hmac_key_r"`
-	PayoutSk     *string                 `json:"payout_sk"`
-	PayoutPk     *string                 `json:"payout_pk"`
-	DisputeSk    *string                 `json:"dispute_sk"`
-	DisputePk    *string                 `json:"dispute_pk"`
-	ActivateMap  *map[string]interface{} `json:"activate_map"`
-	CloseTxMap   *map[string]interface{} `json:"close_tx"`
-	NetConfig    *map[string]interface{} `json:"net_config"`
-	DbUrl        string                  `json:"db_url"`
+	Id          *string                 `json:"id"`
+	PkM         *string                 `json:"pk_m"`
+	SkM         *string                 `json:"sk_m"`
+	HmacKey     string                  `json:"hmac_key"`
+	HmacKeyR    string                  `json:"hmac_key_r"`
+	PayoutSk    *string                 `json:"payout_sk"`
+	PayoutPk    *string                 `json:"payout_pk"`
+	DisputeSk   *string                 `json:"dispute_sk"`
+	DisputePk   *string                 `json:"dispute_pk"`
+	ActivateMap *map[string]interface{} `json:"activate_map"`
+	CloseTxMap  *map[string]interface{} `json:"close_tx"`
+	NetConfig   *map[string]interface{} `json:"net_config"`
+	DbUrl       string                  `json:"db_url"`
 }
 
 type CustState struct {
@@ -170,8 +171,8 @@ func InitMerchant(dbUrl string, channelState ChannelState, name string) (Channel
 
 func InitCustomer(pkM string, custBal int64, merchBal int64, name string, skC string, payoutSk string) (ChannelToken, CustState, error) {
 	resp := C.GoString(C.mpc_init_customer(C.CString(pkM), C.longlong(custBal),
-	                                       C.longlong(merchBal), C.CString(name),
-	                                       C.CString(skC), C.CString(payoutSk)))
+		C.longlong(merchBal), C.CString(name),
+		C.CString(skC), C.CString(payoutSk)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return ChannelToken{}, CustState{}, err
@@ -280,6 +281,21 @@ func MerchantCloseTx(escrowTxId string, merchState MerchState) (string, string, 
 	}
 
 	return r.SignedTx, r.TxId, err
+}
+
+func MerchantCheckRevLock(revLock string, merchState MerchState) (bool, string, error) {
+	serMerchState, err := json.Marshal(merchState)
+	if err != nil {
+		return false, "", err
+	}
+
+	resp := C.GoString(C.merchant_check_rev_lock(C.CString(revLock), C.CString(string(serMerchState))))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return false, "", err
+	}
+
+	return r.IsOk, r.FoundRevSecret, err
 }
 
 func MerchantSignInitCustCloseTx(tx FundingTxInfo, revLock string, custPk string, custClosePk string, toSelfDelay string, merchState MerchState) (string, string, error) {

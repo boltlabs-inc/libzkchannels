@@ -527,6 +527,30 @@ pub mod ffishim_mpc {
     }
 
     #[no_mangle]
+    pub extern fn merchant_check_rev_lock(ser_rev_lock: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
+        // Deserialize the rev_lock
+        let rev_lock_result = deserialize_hex_string(ser_rev_lock);
+        let _rev_lock = handle_errors!(rev_lock_result);
+
+        let rev_lock_hex = hex::encode(&_rev_lock);
+
+        // Deserialize the merch_state
+        let merch_state_result: ResultSerdeType<MerchantMPCState> = deserialize_result_object(ser_merch_state);
+        let merch_state = handle_errors!(merch_state_result);
+
+        // get connection to the database
+        let mut db: RedisDatabase = handle_errors!(RedisDatabase::new("mpc", merch_state.db_url.clone()));
+
+        let rs_result = db.get_rev_secret(&rev_lock_hex);
+        let is_ok = rs_result.is_ok();
+        let rev_secret = handle_errors!(rs_result);
+
+        let ser = ["{\'is_ok\':", &is_ok.to_string(), ", \'found_rev_secret\':\'", &rev_secret, "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
     pub extern fn cust_form_escrow_transaction(ser_txid: *mut c_char, index: u32, input_sats: i64, output_sats: i64,
                                                ser_cust_sk: *mut c_char, ser_cust_pk: *mut c_char, ser_merch_pk: *mut c_char,
                                                ser_change_pk: *mut c_char, ser_change_pk_is_hash: u32) -> *mut c_char {

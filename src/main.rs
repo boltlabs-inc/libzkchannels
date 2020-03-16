@@ -562,8 +562,8 @@ mod cust {
             let chan_id = channel_token.compute_channel_id().unwrap();
             println!("====================================");
             println!("Updating channel: ID={}", hex::encode(&chan_id));
-            println!("old state: {}", &old_state);
-            println!("new state: {}", &new_state);
+            println!("old state: {:#?}", &old_state);
+            println!("new state: {:#?}", &new_state);
             println!("====================================");
         }
 

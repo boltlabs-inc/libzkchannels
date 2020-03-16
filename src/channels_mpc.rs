@@ -812,7 +812,7 @@ impl MerchantMPCState {
         let dispute_pub_key = secp256k1::PublicKey::from_secret_key(&secp, &dispute_sk);
 
         channel.set_merchant_public_keys(payout_pub_key, dispute_pub_key);
-        
+
         MerchantMPCState {
             id: id.clone(),
             pk_m: pk_m,
@@ -1431,7 +1431,6 @@ rusty_fork_test!
         let (pt_mask, pt_mask_r) = merch_state.verify_revoked_state(&mut db as &mut dyn StateDatabase, nonce, rev_lock_com, rev_lock, rev_secret, t).unwrap();
         println!("pt_masked: {:?}", hex::encode(&pt_mask));
         println!("pt_mask_r: {:?}", hex::encode(&pt_mask_r));
-
     }
 
     #[test]

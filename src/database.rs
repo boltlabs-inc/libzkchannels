@@ -82,6 +82,7 @@ pub trait StateDatabase {
     fn check_spent_map(&mut self, nonce: &String) -> bool;
     fn update_rev_lock_map(&mut self, rev_lock: &String, rev_secret: &String) -> Result<bool, String>;
     fn check_rev_lock_map(&mut self, rev_lock: &String) -> bool;
+    fn get_rev_secret(&mut self, rev_lock_hex: &String) -> Result<String, String>;
     fn update_unlink_set(&mut self, nonce: &String) -> Result<bool, String>;
     fn get_unlink_set(&mut self) -> Result<HashSet<String>, String>;
     fn is_member_unlink_set(&mut self, nonce: &String) -> bool;
@@ -154,6 +155,13 @@ impl StateDatabase for RedisDatabase {
                 println!("check_rev_lock_map: {}", e.to_string());
                 false
             }
+        }
+    }
+
+    fn get_rev_secret(&mut self, rev_lock_hex: &String) -> Result<String, String> {
+        match self.conn.hget::<String, String, String>(self.rev_lock_map_key.clone(), rev_lock_hex.clone()) {
+            Ok(s) => Ok(s),
+            Err(e) => return Err(e.to_string())
         }
     }
 
@@ -286,6 +294,7 @@ impl StateDatabase for RedisDatabase {
     }
 }
 
+#[derive(Debug)]
 pub struct HashMapDatabase {
     pub nonce_mask_map: HashMap<String, PayMaskMap>,
     pub unlink_map: HashSet<String>,
@@ -325,8 +334,15 @@ impl StateDatabase for HashMapDatabase {
         Ok(true)
     }
 
-    fn check_rev_lock_map(&mut self, rev_lock: &String) -> bool {
-        return self.rev_lock_map.get(rev_lock).is_some()
+    fn check_rev_lock_map(&mut self, rev_lock_hex: &String) -> bool {
+        return self.rev_lock_map.get(rev_lock_hex).is_some()
+    }
+
+    fn get_rev_secret(&mut self, rev_lock_hex: &String) -> Result<String, String> {
+        match self.rev_lock_map.get(rev_lock_hex) {
+            Some(c) => Ok(c.clone()),
+            None => return Err(format!("could not find rev_lock: {}", rev_lock_hex))
+        }
     }
 
     fn update_unlink_set(&mut self, nonce: &String) -> Result<bool, String> {
@@ -389,7 +405,7 @@ mod tests {
 
     #[test]
     fn mpc_test_redis_database() {
-        let mut rng = XorShiftRng::seed_from_u64(0x8d863e545dbe6259);
+        // let mut rng = XorShiftRng::seed_from_u64(0x8d863e545dbe6259);
         let db_url = "redis://127.0.0.1/".to_string();
         let mut db = RedisDatabase::new("test", db_url).unwrap();
         db.clear_state();
@@ -453,30 +469,13 @@ mod tests {
         let rl_ok = db.check_rev_lock_map(&rev_lock1);
         assert!(rl_ok);
 
-        // let value1_str = serde_json::to_string(&value1).unwrap();
-        // let f = match redis::cmd("SET").arg("key2").arg(value1_str).query(&mut db.conn) {
-        //     Ok(n) => n,
-        //     Err(e) => return println!("SET ERROR: {}", e.to_string())
-        // };
-
-        // let skey = format!("hashset:{}", key2);
-        //
-        // let _ : () = match db.conn.zadd(skey.clone(), b) {
-        //     Ok(n) => n,
-        //     Err(e) => return println!("SET ERROR: {}", e.to_string())
-        // };
-        //
-        // let _ : () = db.conn.zadd(skey.clone(), c).unwrap();
-        //
-        // // let e = match db.conn.set::<String, Vec<String>, String>(key2.to_string(), value1) {
-        // //     Ok(n) => n,
-        // //     Err(e) => return println!("Set Error: {}", e.to_string())
-        // // };
-        //
-        // let some_map: HashSet<String> = match db.conn.smembers(skey) {
-        //     Ok(n) => n,
-        //     Err(e) => return println!("Get Error: {}", e.to_string())
-        // };
+        let rs_ok = db.get_rev_secret(&rev_lock1);
+        match rs_ok {
+            Ok(s) => println!("Rev secret: {}", s),
+            Err(e) => println!("ERROR get_rev_secret: {}", e.to_string())
+        };
     }
+
+
 
 }

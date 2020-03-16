@@ -238,6 +238,10 @@ char *merch_sign_init_cust_close_txs(char *ser_funding_tx,
 #endif
 
 #if defined(DEFINE_MPC_BITCOIN)
+char *merchant_check_rev_lock(char *ser_rev_lock, char *ser_merch_state);
+#endif
+
+#if defined(DEFINE_MPC_BITCOIN)
 char *merchant_close_tx(char *ser_escrow_txid, char *ser_merch_state);
 #endif
 
