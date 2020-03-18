@@ -1,7 +1,6 @@
 use super::*;
 use util::{hash_to_slice, hmac_sign, compute_hash160};
 use fixed_size_array::{FixedSizeArray16, FixedSizeArray32, FixedSizeArray64};
-use redis::{Commands, Connection};
 
 use rand::Rng;
 use wallet::{State, NONCE_LEN};
@@ -13,10 +12,8 @@ use transactions::btc::{create_reverse_input, get_var_length_int, create_cust_cl
 use bitcoin::{BitcoinTransactionParameters, BitcoinNetwork, BitcoinPrivateKey};
 use sha2::{Sha256, Digest};
 use std::fmt::Debug;
-use std::hash::Hash;
 use bitcoin::SignatureHash::SIGHASH_ALL;
 use std::os::unix::io::RawFd;
-use rand::RngCore;
 use database::{MaskedMPCInputs, MaskedTxMPCInputs, StateDatabase};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -461,7 +458,7 @@ impl CustomerMPCState {
 
     // Customer signs the initial closing transaction (in the clear)
     pub fn sign_initial_closing_transaction<N: BitcoinNetwork>(&mut self, channel_state: &ChannelMPCState, channel_token: &ChannelMPCToken, orig_escrow_sig: &Vec<u8>, orig_merch_sig: &Vec<u8>) -> Result<bool, String> {
-        let (escrow_tx_preimage, merch_tx_preimage, escrow_tx_params, merch_tx_params) =
+        let (escrow_tx_preimage, merch_tx_preimage, _, _) =
             self.construct_close_transaction_preimage::<N>(channel_state, channel_token);
 
         // now that we've got preimages
@@ -525,7 +522,7 @@ impl CustomerMPCState {
         xor_in_place(&mut merch_mask_bytes, &mpc_out.merch_masked.0[..]);
 
         // if valid, output (s_{i+1}, CT_{i+1}, pay-token-{i+1})
-        let (escrow_tx_preimage, merch_tx_preimage, escrow_tx_params, merch_tx_params) =
+        let (escrow_tx_preimage, merch_tx_preimage, _, _) =
             self.construct_close_transaction_preimage::<N>(channel_state, channel_token);
         // println!("Close-Escrow Tx preimage: {}", hex::encode(&escrow_tx_preimage));
         // println!("Close-Merch Tx preimage: {}", hex::encode(&merch_tx_preimage));
@@ -816,7 +813,7 @@ impl MerchantMPCState {
         return self.sk_m.clone();
     }
 
-    pub fn activate_channel(&self, db: &mut dyn StateDatabase, channel_token: &ChannelMPCToken, s0: &State) -> Result<[u8; 32], String> {
+    pub fn activate_channel(&self, _db: &mut dyn StateDatabase, channel_token: &ChannelMPCToken, s0: &State) -> Result<[u8; 32], String> {
         // refer to the state stored inside ActivateBucket by the channel_id
         let channel_id = channel_token.compute_channel_id().unwrap();
         let channel_id_str = hex::encode(channel_id.to_vec());
@@ -862,8 +859,8 @@ impl MerchantMPCState {
         let mut escrow_prevout = [0u8; 32];
         let mut merch_prevout = [0u8; 32];
 
-        let mut escrow_txid_be = channel_token.escrow_txid.0.clone();
-        let mut merch_txid_be = channel_token.merch_txid.0.clone();
+        let escrow_txid_be = channel_token.escrow_txid.0.clone();
+        let merch_txid_be = channel_token.merch_txid.0.clone();
 
         let mut prevout_preimage1: Vec<u8> = Vec::new();
         prevout_preimage1.extend(escrow_txid_be.iter()); // txid1
@@ -897,12 +894,12 @@ impl MerchantMPCState {
 
         self.activate_map.insert(channel_id_str, s0);
         // self.unlink_map.insert(nonce_hex_str.clone());
-        db.update_unlink_set(&nonce_hex_str);
+        db.update_unlink_set(&nonce_hex_str)?;
 
         Ok(true)
     }
 
-    pub fn generate_pay_mask_commitment<R: Rng>(&mut self, csprng: &mut R, db: &mut dyn StateDatabase, channel_state: &ChannelMPCState, nonce: [u8; NONCE_LEN], rev_lock_com: [u8; 32], amount: i64) -> Result<[u8; 32], String> {
+    pub fn generate_pay_mask_commitment<R: Rng>(&mut self, csprng: &mut R, db: &mut dyn StateDatabase, channel_state: &ChannelMPCState, nonce: [u8; NONCE_LEN], _rev_lock_com: [u8; 32], amount: i64) -> Result<[u8; 32], String> {
 
         let nonce_hex = hex::encode(nonce);
 
@@ -934,7 +931,7 @@ impl MerchantMPCState {
         let paytoken_mask_com = hash_to_slice( &pay_mask_buf);
 
         // store pay_mask for use in mpc protocol later
-        db.update_nonce_mask_map(&nonce_hex, pay_mask, pay_mask_r);
+        db.update_nonce_mask_map(&nonce_hex, pay_mask, pay_mask_r)?;
 
         Ok(paytoken_mask_com)
     }
@@ -1017,12 +1014,6 @@ impl MerchantMPCState {
         let signed_merch_close_tx = signed_merch_close_tx.to_transaction_bytes().unwrap();
 
         Ok((signed_merch_close_tx, txid_be.to_vec()))
-    }
-
-    fn print_map<K: Debug + Eq + Hash, V: Debug>(&self, map: &HashMap<K, V>) {
-        for (k, v) in map.iter() {
-            println!("{:?}: {:?}", k, v);
-        }
     }
 
     // for merchant side
@@ -1128,13 +1119,13 @@ impl MerchantMPCState {
 
         let rev_sec_r = hex::encode(&rev_sec);
         // add (n_i, RL_i) to S_spent map
-        db.update_spent_map(&nonce_hex, &rev_lock_r);
+        db.update_spent_map(&nonce_hex, &rev_lock_r)?;
         // add (RL_i, RS_i) to RL map
-        db.update_rev_lock_map(&rev_lock_r, &rev_sec_r);
+        db.update_rev_lock_map(&rev_lock_r, &rev_sec_r)?;
         // check if n_i in the unlink map. if so, remove it
         if db.is_member_unlink_set(&nonce_hex) {
             // remove from unlink set
-            db.remove_from_unlink_set(&nonce_hex);
+            db.remove_from_unlink_set(&nonce_hex)?;
         }
 
         Ok((pt_mask, pt_mask_r))
@@ -1147,19 +1138,12 @@ mod tests {
     use super::*;
     use rand_xorshift::XorShiftRng;
     use channels_mpc::{ChannelMPCState, MerchantMPCState, CustomerMPCState};
-    use std::thread;
-    use std::time::Duration;
     use sha2::Digest;
     use sha2::Sha256;
-    use serde::de::value::Error;
     use bitcoin::Testnet;
     use rand::SeedableRng;
-    use wagyu_model::AddressError::Message;
-    use bindings::ConnType;
     use wagyu_model::Transaction;
-    use std::collections::HashSet;
     use database::{MaskedMPCInputs, RedisDatabase};
-    use std::collections::hash_map::RandomState;
 
     fn generate_test_txs<R: Rng>(csprng: &mut R, b0_cust: i64, b0_merch: i64) -> FundingTxInfo {
         let mut escrow_txid = [0u8; 32];
@@ -1246,8 +1230,8 @@ rusty_fork_test!
 
         cust_state.store_initial_pay_token(pay_token_0);
 
-        let (rev_lock, rev_secret) = cust_state.get_rev_pair();
-        let t = cust_state.get_randomness();
+        // let (rev_lock, rev_secret) = cust_state.get_rev_pair();
+        // let t = cust_state.get_randomness();
 
         let amount = 10;
 
@@ -1266,12 +1250,13 @@ rusty_fork_test!
 
         println!("hello, customer!");
         let res = cust_state.execute_mpc_context(&channel_state, &channel_token, s0, s1, pay_token_mask_com, r_com, amount);
+        assert!(res.is_ok());
 
         println!("completed mpc execution!");
 
         // prepare the merchant inputs
-        let rev_lock_com = r_com.clone();
-        let nonce = s_0.get_nonce().clone();
+        // let rev_lock_com = r_com.clone();
+        // let nonce = s_0.get_nonce().clone();
 
         // let _mask_bytes = match merch_state.verify_revoked_state(&mut db as &mut dyn StateDatabase, nonce, rev_lock_com, rev_lock, rev_secret, t) {
         //     Ok(n) => Some(n),
@@ -1366,13 +1351,14 @@ rusty_fork_test!
         let init_cust_state = cust_state.get_initial_cust_state().unwrap();
 
         // validate the initial state with merchant
-        merch_state.validate_initial_state(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, s_0.compute_hash());
+        let res = merch_state.validate_initial_state(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, s_0.compute_hash());
+        println!("Validated initial state: {}", res.is_ok());
 
         println!("Begin activate phase for channel");
         println!("merchant channel token: {}", &serde_json::to_string(&channel_token).unwrap());
 
         let r_com = cust_state.generate_rev_lock_commitment(&mut rng);
-        let t_0 = cust_state.get_randomness();
+
         println!("Initial state: {}", s_0);
         println!("Init rev_lock commitment => {:?}", r_com);
 
@@ -1406,7 +1392,7 @@ rusty_fork_test!
 
         println!("hello, merchant!");
         let res = merch_state.execute_mpc_context(&mut rng, &mut db as &mut dyn StateDatabase, &channel, nonce, rev_lock_com, pay_token_mask_com, amount).unwrap();
-
+        assert!(res);
         println!("completed mpc execution!");
 
         let (pt_mask, pt_mask_r) = merch_state.verify_revoked_state(&mut db as &mut dyn StateDatabase, nonce, rev_lock_com, rev_lock, rev_secret, t).unwrap();

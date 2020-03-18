@@ -923,15 +923,12 @@ pub mod mpc {
 
 pub mod txutil {
     use super::*;
+    use bitcoin::{Testnet, BitcoinPrivateKey};
+    use bitcoin::transaction::BitcoinTransactionParameters;
     use transactions::{Input, BitcoinTxConfig, MultiSigOutput, ChangeOutput, Output};
-    use transactions::btc::{create_escrow_transaction, sign_escrow_transaction, serialize_p2wsh_escrow_redeem_script,
-                            create_merch_close_transaction_params, create_merch_close_transaction_preimage,
-                            sign_merch_dispute_transaction, sign_cust_close_claim_transaction, merch_generate_transaction_id,
-                            get_private_key, generate_signature_for_multi_sig_transaction, completely_sign_multi_sig_transaction};
-    use bitcoin::{Testnet, BitcoinTransactionParameters};
-    use bitcoin::{BitcoinPrivateKey};
+    use transactions::btc::{create_escrow_transaction, sign_escrow_transaction, sign_cust_close_claim_transaction, merch_generate_transaction_id,
+                            sign_merch_dispute_transaction, generate_signature_for_multi_sig_transaction, completely_sign_multi_sig_transaction};
     use wagyu_model::Transaction;
-    use bitcoin::Denomination::Bitcoin;
     use sha2::{Sha256, Digest};
 
     macro_rules! check_pk_length {

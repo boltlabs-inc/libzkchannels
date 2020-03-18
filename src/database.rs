@@ -1,14 +1,12 @@
 use super::*;
-use rand::Rng;
 use redis::{Commands, Connection};
-use std::hash::Hash;
 use std::collections::hash_map::RandomState;
-use util::hash_to_slice;
 use fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
+use util::hash_to_slice;
 
 fn create_db_connection(url: String) -> redis::RedisResult<Connection> {
     let client = redis::Client::open(url.as_str())?;
-    let mut con = client.get_connection()?;
+    let con: Connection = client.get_connection()?;
 
     Ok(con)
 }
@@ -210,35 +208,35 @@ impl StateDatabase for RedisDatabase {
         match self.conn.del(self.unlink_set_key.clone()) {
             Ok(c) => c,
             Err(e) => {
-                println!("could not delete: {}", self.unlink_set_key);
+                println!("could not delete: {} => {}", self.unlink_set_key, e);
                 return false;
             }
         }
         match self.conn.del(self.spent_map_key.clone()) {
             Ok(c) => c,
             Err(e) => {
-                println!("could not delete: {}", self.spent_map_key);
+                println!("could not delete: {} => {}", self.spent_map_key, e);
                 return false;
             }
         }
         match self.conn.del(self.rev_lock_map_key.clone()) {
             Ok(c) => c,
             Err(e) => {
-                println!("could not delete: {}", self.rev_lock_map_key);
+                println!("could not delete: {} => {}", self.rev_lock_map_key, e);
                 return false;
             }
         }
         match self.conn.del(self.nonce_mask_map_key.clone()) {
             Ok(c) => c,
             Err(e) => {
-                println!("could not delete: {}", self.nonce_mask_map_key);
+                println!("could not delete: {} => {}", self.nonce_mask_map_key, e);
                 return false;
             }
         }
         match self.conn.del(self.masked_bytes_key.clone()) {
             Ok(c) => c,
             Err(e) => {
-                println!("could not delete: {}", self.masked_bytes_key);
+                println!("could not delete: {} => {}", self.masked_bytes_key, e);
                 return false;
             }
         }
@@ -311,7 +309,7 @@ pub struct HashMapDatabase {
 }
 
 impl StateDatabase for HashMapDatabase {
-    fn new(prefix: &'static str, url: String) -> Result<Self, String> {
+    fn new(_prefix: &'static str, _url: String) -> Result<Self, String> {
         Ok(HashMapDatabase {
             nonce_mask_map: HashMap::new(),
             unlink_map: HashSet::new(),
@@ -390,7 +388,7 @@ impl StateDatabase for HashMapDatabase {
 
     fn update_masked_mpc_inputs(&mut self, nonce_hex: &String, mask_bytes: MaskedMPCInputs) -> bool {
         match self.mask_mpc_bytes.insert(nonce_hex.clone(), mask_bytes) {
-            Some(c) => true,
+            Some(_) => true,
             None => false
         }
     }
@@ -416,8 +414,6 @@ mod tests {
         db.clear_state();
 
         let key1 = "key1";
-        let key2 = "key3";
-
         let a = hex::encode([0u8; 32]);
         let _ = db.conn.set::<String, String, String>(key1.to_string(), a.clone());
 
@@ -425,7 +421,6 @@ mod tests {
 
         assert_eq!(a, orig_a);
 
-        let mut value1: HashSet<String> = HashSet::new();
         let b = hex::encode([1u8; 32]);
         let c = hex::encode([2u8; 32]);
         let d = hex::encode([3u8; 32]);
