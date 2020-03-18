@@ -127,10 +127,7 @@ impl StateDatabase for RedisDatabase {
     // spent map calls
     fn update_spent_map(&mut self, nonce_hex: &String, rev_lock_hex: &String) -> Result<bool, String> {
         match self.conn.hset::<String, String, String, i32>(self.spent_map_key.clone(), nonce_hex.clone(), rev_lock_hex.clone()) {
-            Ok(s) => match s >= 1 {
-                true => Ok(true),
-                false => Ok(false)
-            },
+            Ok(s) => Ok(s != 0),
             Err(e) => return Err(e.to_string())
         }
     }
@@ -172,9 +169,9 @@ impl StateDatabase for RedisDatabase {
 
     // unlink set calls
     fn update_unlink_set(&mut self, nonce: &String) -> Result<bool, String> {
-        match self.conn.sadd::<String, String, String>(self.unlink_set_key.clone(), nonce.clone()) {
+        match self.conn.sadd::<String, String, i32>(self.unlink_set_key.clone(), nonce.clone()) {
             Ok(_) => Ok(true),
-            Err(e) => Err(e.to_string())
+            Err(e) => Err(format!("ERROR: update_unlink_set => {}", e.to_string()))
         }
     }
 

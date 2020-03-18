@@ -581,7 +581,6 @@ impl CustomerMPCState {
         xor_in_place(&mut pt_mask_bytes, &mpc_out.pt_masked.0[..]);
 
         self.pay_tokens.insert(self.index, FixedSizeArray32(pt_mask_bytes));
-        // self.index += 1;
         return true;
     }
 
@@ -1125,7 +1124,7 @@ impl MerchantMPCState {
         // check if n_i in the unlink map. if so, remove it
         if db.is_member_unlink_set(&nonce_hex) {
             // remove from unlink set
-            db.remove_from_unlink_set(&nonce_hex)?;
+            db.remove_from_unlink_set(&nonce_hex);
         }
 
         Ok((pt_mask, pt_mask_r))

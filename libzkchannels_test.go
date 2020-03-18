@@ -107,6 +107,9 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	isOk, merchState, err = MerchantValidateInitialState(channelToken, initCustState, initHash, merchState)
 	assert.Nil(t, err)
 	fmt.Println("merchant validates initial state: ", isOk)
+	if !isOk {
+		fmt.Println("error: ", err)
+	}
 
 	fmt.Println("initial close transactions validated: ", isOk)
 
@@ -288,6 +291,9 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	isOk, merchState, err = MerchantValidateInitialState(channelToken, initCustState, initHash, merchState)
 	assert.Nil(t, err)
 	fmt.Println("merchant validates initial state: ", isOk)
+	if !isOk {
+		fmt.Println("error: ", err)
+	}
 
 	fmt.Println("initial close transactions validated: ", isOk)
 
@@ -337,6 +343,9 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 
 	payTokenMask, payTokenMaskR, merchState, err := PayValidateRevLockMerchant(revState, merchState)
 	assert.Nil(t, err)
+
+	fmt.Println("payToken mask: ", payTokenMask)
+	fmt.Println("payToken mask_r: ", payTokenMaskR)
 
 	isOk, custState, err = PayUnmaskPayTokenCustomer(payTokenMask, payTokenMaskR, custState)
 	assert.Nil(t, err)
