@@ -4,10 +4,6 @@ all:
 	export RUSTFLAGS=-Awarnings
 	cargo +nightly build
 	cargo +nightly test
-	cargo +nightly run --example zkchannels_zkproofs
-
-mpc:
-	cargo +nightly build --features mpc-bitcoin
 
 debug:
 	export RUST_BACKTRACE=1 
@@ -15,7 +11,7 @@ debug:
 	cargo +nightly run --example zkchannels_zkproofs
 
 release:
-	cargo +nightly build --release --features mpc-bitcoin
+	cargo +nightly build --release
 	cargo +nightly run --release --example zkchannels_zkproofs
 
 bench:
@@ -26,9 +22,10 @@ test:
 	cargo +nightly test --release 
 
 mpctest:
+	cargo +nightly build --release
 	./test_mpcwrapper.sh
 	./test_channels_mpc.sh
-	cargo test --release --features mpc-bitcoin -- --ignored --nocapture
+	cargo test --release -- --ignored --nocapture
 
 update:
 	cargo +nightly update
@@ -41,7 +38,7 @@ deps:
 	make -C deps
 
 mpcgotest:
-	cargo build --release --features mpc-bitcoin
+	cargo build --release
 	./test_gowrapper.sh
 
 clean:

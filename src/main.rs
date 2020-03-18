@@ -8,7 +8,6 @@ extern crate sha2;
 extern crate wagyu_bitcoin as bitcoin;
 extern crate wagyu_model;
 
-#[cfg(feature = "mpc-bitcoin")]
 use zkchannels::mpc;
 use structopt::StructOpt;
 use std::str::FromStr;
@@ -229,7 +228,6 @@ pub fn write_pathfile(path_buf: PathBuf, content: String) -> Result<(), String> 
     }
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 pub fn generate_keypair<R: Rng>(csprng: &mut R) -> (secp256k1::PublicKey, secp256k1::SecretKey) {
     let secp = secp256k1::Secp256k1::new();
 
@@ -327,7 +325,6 @@ impl Conn {
     }
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 fn main() {
     println!("******************************************");
 
@@ -382,7 +379,6 @@ fn main() {
     println!("******************************************");
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 mod cust {
     use super::*;
     use zkchannels::channels_mpc::{ChannelMPCToken, ChannelMPCState, CustomerMPCState, NetworkConfig};
@@ -645,7 +641,6 @@ mod cust {
     }
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 mod merch {
     use super::*;
     use zkchannels::database::{StateDatabase, RedisDatabase}; // HashMapDatabase
@@ -656,7 +651,6 @@ mod merch {
     use wagyu_model::Transaction;
     use zkchannels::fixed_size_array::FixedSizeArray32;
     use zkchannels::bindings::{ConnType_NETIO}; // ConnType_CUSTOM
-    // use std::os::unix::io::AsRawFd;
 
     pub fn open(conn: &mut Conn, dust_limit: i64) -> Result<(), String> {
         let rng = &mut rand::thread_rng();

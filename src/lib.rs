@@ -687,7 +687,6 @@ pub struct FundingTxInfo {
     pub merch_prevout: FixedSizeArray32
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 pub mod mpc {
     use rand::Rng;
     pub use channels_mpc::{ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState, RevokedState};
@@ -1104,7 +1103,6 @@ mod tests {
     use sha2::{Sha256, Digest};
     use rand_xorshift::XorShiftRng;
 
-    #[cfg(feature = "mpc-bitcoin")]
     use fixed_size_array::FixedSizeArray32;
     use bitcoin::Testnet;
     use database::{MaskedTxMPCInputs, StateDatabase, HashMapDatabase, RedisDatabase};
@@ -1574,7 +1572,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "mpc-bitcoin")]
     fn test_establish_mpc_channel() {
         let mut rng = &mut rand::thread_rng();
         // let mut db = RedisDatabase::new("lib", "redis://127.0.0.1/").unwrap();
@@ -1617,7 +1614,6 @@ mod tests {
         //TODO: test unlinking with a 0-payment of pay protocol
     }
 
-    #[cfg(feature = "mpc-bitcoin")]
     fn generate_funding_tx<R: Rng>(csprng: &mut R, b0_cust: i64, b0_merch: i64) -> FundingTxInfo {
         let mut escrow_txid = [0u8; 32];
         let mut merch_txid = [0u8; 32];
@@ -1649,7 +1645,6 @@ mod tests {
 
     #[test]
     #[ignore]
-    #[cfg(feature = "mpc-bitcoin")]
     fn test_payment_mpc_channel() {
         let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d76);
         // let mut db = RedisDatabase::new("lib", "redis://127.0.0.1/").unwrap();
@@ -1700,7 +1695,6 @@ mod tests {
 rusty_fork_test! {
     #[test]
     #[ignore]
-    #[cfg(feature = "mpc-bitcoin")]
     fn test_payment_mpc_channel_cust() {
         let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d76);
         // let mut db = RedisDatabase::new("lib", "redis://127.0.0.1/").unwrap();

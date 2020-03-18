@@ -38,7 +38,7 @@ We will switch to the stable release channel once libzkchannels (and dependencie
 
 # Build & Install
 
-To be able to build zkChannels, we require that you install the EMP-toolkit and other dependencies as follows:
+To be able to build libzkchannels, we require that you install the EMP-toolkit and other dependencies as follows:
 
 	. ./env
 	make deps
@@ -48,7 +48,7 @@ In addition, you'll need to start up the Redis database as follows:
 
 	./setup_redis.sh
 
-To build with ZK proofs and execute basic examples, run `make` and to build with MPC, run `make mpc`
+To build libzkchannels for MPC/  and execute basic examples, run `make`
 
 # Tests
 

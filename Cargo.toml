@@ -44,16 +44,12 @@ cbindgen="*"
 [dev-dependencies]
 rusty-fork = "0.2.1"
 
-[features]
-mpc-bitcoin = []
-
 [lib]
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [[bin]]
 name = "zkchannels-mpc"
 path = "src/main.rs"
-required-features = ["mpc-bitcoin"]
 
 [[bin]]
 name = "zkchannels-tx"

@@ -3,7 +3,6 @@ use util::{hash_to_slice, hmac_sign, compute_hash160};
 use fixed_size_array::{FixedSizeArray16, FixedSizeArray32, FixedSizeArray64};
 use redis::{Commands, Connection};
 
-#[cfg(feature = "mpc-bitcoin")]
 use rand::Rng;
 use wallet::{State, NONCE_LEN};
 use mpcwrapper::{mpc_build_masked_tokens_cust, mpc_build_masked_tokens_merch};
@@ -29,7 +28,6 @@ pub struct NetworkConfig {
     pub peer_raw_fd: RawFd
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ChannelMPCToken {
     pub pk_c: Option<secp256k1::PublicKey>, // pk_c
@@ -38,7 +36,6 @@ pub struct ChannelMPCToken {
     pub merch_txid: FixedSizeArray32
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 impl ChannelMPCToken {
     pub fn set_customer_pk(&mut self, pk_c: secp256k1::PublicKey) {
         self.pk_c = Some(pk_c);
@@ -60,7 +57,6 @@ impl ChannelMPCToken {
     }
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 impl fmt::Display for ChannelMPCToken {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let pkc_hex = match self.pk_c {
@@ -76,7 +72,6 @@ impl fmt::Display for ChannelMPCToken {
     }
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ChannelMPCState {
     tx_fee: i64,
@@ -88,7 +83,6 @@ pub struct ChannelMPCState {
     pub merch_dispute_pk: Option<secp256k1::PublicKey>
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 impl ChannelMPCState {
     pub fn new(name: String, third_party_support: bool) -> ChannelMPCState {
         ChannelMPCState {
@@ -133,7 +127,6 @@ impl ChannelMPCState {
     }
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MaskedMPCOutputs {
     pt_masked: FixedSizeArray32,
@@ -141,7 +134,6 @@ pub struct MaskedMPCOutputs {
     merch_masked: FixedSizeArray32
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CustomerMPCState {
     pub name: String,
@@ -165,7 +157,6 @@ pub struct CustomerMPCState {
     pub net_config: Option<NetworkConfig>
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct InitCustState {
     pub pk_c: secp256k1::PublicKey,
@@ -176,7 +167,6 @@ pub struct InitCustState {
     pub merch_bal: i64
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 impl fmt::Display for InitCustState {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let nonce_hex = hex::encode(self.nonce.0.to_vec());
@@ -188,7 +178,6 @@ impl fmt::Display for InitCustState {
 }
 
 
-#[cfg(feature = "mpc-bitcoin")]
 impl CustomerMPCState {
     pub fn new<R: Rng>(csprng: &mut R, cust_bal: i64, merch_bal: i64, name: String, sk: Option<[u8; 32]>, payout_sk: Option<[u8; 32]>) -> Self
     {
@@ -685,7 +674,6 @@ impl CustomerMPCState {
 
 
 
-#[cfg(feature = "mpc-bitcoin")]
 fn compute_rev_lock_commitment(input: &[u8; 32], r: &[u8; 16]) -> [u8; 32] {
     let mut input_buf = Vec::new();
     input_buf.extend_from_slice(input);
@@ -693,14 +681,12 @@ fn compute_rev_lock_commitment(input: &[u8; 32], r: &[u8; 16]) -> [u8; 32] {
     return hash_to_slice(&input_buf);
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 fn xor_in_place(a: &mut [u8], b: &[u8]) {
     for (b1, b2) in a.iter_mut().zip(b.iter()) {
         *b1 ^= *b2;
     }
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RevokedState {
     pub nonce: FixedSizeArray16,
@@ -710,7 +696,6 @@ pub struct RevokedState {
     pub t: FixedSizeArray16
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 impl RevokedState {
     pub fn new(nonce: [u8; NONCE_LEN], rev_lock_com: [u8; 32], rev_lock: [u8; 32], rev_secret: [u8; 32], t: [u8; 16]) -> Self {
         RevokedState {
@@ -749,7 +734,6 @@ pub struct PayMaskMap {
     pub r: FixedSizeArray16
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MerchCloseTx {
     cust_pk: String,
@@ -759,7 +743,6 @@ pub struct MerchCloseTx {
     self_delay: String
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MerchantMPCState {
     id: String,
@@ -778,7 +761,6 @@ pub struct MerchantMPCState {
     pub db_url: String
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 impl MerchantMPCState {
     pub fn new<R: Rng>(csprng: &mut R, db_url: String, channel: &mut ChannelMPCState, id: String) -> Self {
         let secp = secp256k1::Secp256k1::new();
@@ -1160,7 +1142,6 @@ impl MerchantMPCState {
 
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 #[cfg(test)]
 mod tests {
     use super::*;
