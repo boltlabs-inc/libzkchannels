@@ -89,6 +89,11 @@ function install_pkgs_debian() {
     sudo apt install -y redis-server
 }
 
+INSTALL=.installed
+if test -f "$INSTALL"; then
+    echo "Already ran the $0 script."
+fi
+
 if [[ "$(uname)" = "Darwin" ]]; then
     console "Detected Mac OS X ($(uname))"
 	brew update
@@ -115,3 +120,5 @@ else
     fail "Need install steps for your OS: ($OS_VERSION)"
   fi
 fi
+
+touch $INSTALL

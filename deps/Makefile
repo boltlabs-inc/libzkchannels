@@ -18,6 +18,7 @@ clean: $(DIRS)
 
 distclean: $(DIRS)
 	rm -rf root
+	rm .installed
 	for d in $(DIRS); do \
 		make -C $$d distclean; \
 	done
