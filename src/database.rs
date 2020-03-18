@@ -77,21 +77,28 @@ impl MaskedTxMPCInputs {
 }
 
 pub trait StateDatabase {
+    // creating a new database
     fn new(prefix: &'static str, url: String) -> Result<Self, String> where Self: Sized;
-    fn update_spent_map(&mut self, nonce: &String, rev_lock: &String) -> Result<bool, String>;
-    fn check_spent_map(&mut self, nonce: &String) -> bool;
-    fn update_rev_lock_map(&mut self, rev_lock: &String, rev_secret: &String) -> Result<bool, String>;
-    fn check_rev_lock_map(&mut self, rev_lock: &String) -> bool;
+    // spent rev_lock map methods
+    fn update_spent_map(&mut self, nonce_hex: &String, rev_lock_hex: &String) -> Result<bool, String>;
+    fn check_spent_map(&mut self, nonce_hex: &String) -> bool;
+    // rev_lock map methods
+    fn update_rev_lock_map(&mut self, rev_lock_hex: &String, rev_secret_hex: &String) -> Result<bool, String>;
+    fn check_rev_lock_map(&mut self, rev_lock_hex: &String) -> bool;
     fn get_rev_secret(&mut self, rev_lock_hex: &String) -> Result<String, String>;
+    // unlink set methods
     fn update_unlink_set(&mut self, nonce: &String) -> Result<bool, String>;
     fn get_unlink_set(&mut self) -> Result<HashSet<String>, String>;
     fn is_member_unlink_set(&mut self, nonce: &String) -> bool;
     fn remove_from_unlink_set(&mut self, nonce: &String) -> Result<(), String>;
+    // nonce to pay mask methods
+    fn update_nonce_mask_map(&mut self, nonce_hex: &String, mask: [u8; 32], mask_r: [u8; 16]) -> Result<bool, String>;
+    fn get_mask_map_from_nonce(&mut self, nonce_hex: &String) -> Result<([u8; 32], [u8; 16]), String>;
+    // masked mpc input methods
+    fn update_masked_mpc_inputs(&mut self, nonce_hex: &String, mask_bytes: MaskedMPCInputs) -> bool;
+    fn get_masked_mpc_inputs(&mut self, nonce_hex: &String) -> Result<MaskedMPCInputs, String>;
+    // helper methods
     fn clear_state(&mut self) -> bool;
-    fn update_nonce_mask_map(&mut self, nonce: &String, mask: [u8; 32], mask_r: [u8; 16]) -> Result<bool, String>;
-    fn get_mask_map_from_nonce(&mut self, nonce: &String) -> Result<([u8; 32], [u8; 16]), String>;
-    fn update_masked_mpc_inputs(&mut self, nonce: &String, mask_bytes: MaskedMPCInputs) -> bool;
-    fn get_masked_mpc_inputs(&mut self, nonce: &String) -> Result<MaskedMPCInputs, String>;
 }
 
 pub struct RedisDatabase {
@@ -239,17 +246,17 @@ impl StateDatabase for RedisDatabase {
     }
 
     // nonce -> masks calls
-    fn update_nonce_mask_map(&mut self, nonce: &String, mask: [u8; 32], mask_r: [u8; 16]) -> Result<bool, String> {
+    fn update_nonce_mask_map(&mut self, nonce_hex: &String, mask: [u8; 32], mask_r: [u8; 16]) -> Result<bool, String> {
         let mut m = mask.to_vec();
         m.extend(mask_r.to_vec());
-        match self.conn.hset::<String, String, String, i32>(self.nonce_mask_map_key.clone(), nonce.clone(), hex::encode(&m)) {
+        match self.conn.hset::<String, String, String, i32>(self.nonce_mask_map_key.clone(), nonce_hex.clone(), hex::encode(&m)) {
             Ok(s) => Ok(s != 0),
             Err(e) => return Err(e.to_string())
         }
     }
 
-    fn get_mask_map_from_nonce(&mut self, nonce: &String) -> Result<([u8; 32], [u8; 16]), String> {
-        let (mask, mask_r) = match self.conn.hget::<String, String, String>(self.nonce_mask_map_key.clone(), nonce.clone()) {
+    fn get_mask_map_from_nonce(&mut self, nonce_hex: &String) -> Result<([u8; 32], [u8; 16]), String> {
+        let (mask, mask_r) = match self.conn.hget::<String, String, String>(self.nonce_mask_map_key.clone(), nonce_hex.clone()) {
             Ok(s) => match hex::decode(s) {
                 Ok(t) => {
                     if t.len() == 48 {
@@ -264,26 +271,26 @@ impl StateDatabase for RedisDatabase {
                 },
                 Err(e) => return Err(e.to_string())
             },
-            Err(e) => return Err(format!("could not find mask for specified nonce: {}. reason: {}", nonce, e.to_string()))
+            Err(e) => return Err(format!("could not find mask for specified nonce: {}. reason: {}", nonce_hex, e.to_string()))
         };
         Ok((mask, mask_r))
     }
 
     // rev-lock -> masked inputs calls
-    fn update_masked_mpc_inputs(&mut self, nonce: &String, mask_bytes: MaskedMPCInputs) -> bool {
+    fn update_masked_mpc_inputs(&mut self, nonce_hex: &String, mask_bytes: MaskedMPCInputs) -> bool {
         let ser_mask_bytes = match serde_json::to_string(&mask_bytes) {
             Ok(s) => s,
             Err(e) => return false
         };
 
-        match self.conn.hset::<String, String, String, i32>(self.masked_bytes_key.clone(), nonce.clone(), ser_mask_bytes) {
+        match self.conn.hset::<String, String, String, i32>(self.masked_bytes_key.clone(), nonce_hex.clone(), ser_mask_bytes) {
             Ok(c) => c != 0,
             Err(e) => false
         }
     }
 
-    fn get_masked_mpc_inputs(&mut self, nonce: &String) -> Result<MaskedMPCInputs, String> {
-        let ser_masked_bytes = match self.conn.hget::<String, String, String>(self.masked_bytes_key.clone(), nonce.clone()) {
+    fn get_masked_mpc_inputs(&mut self, nonce_hex: &String) -> Result<MaskedMPCInputs, String> {
+        let ser_masked_bytes = match self.conn.hget::<String, String, String>(self.masked_bytes_key.clone(), nonce_hex.clone()) {
             Ok(s) => s,
             Err(e) => return Err(format!("get_masked_mpc_inputs: {}", e.to_string()))
         };
@@ -326,8 +333,8 @@ impl StateDatabase for HashMapDatabase {
         return self.spent_lock_map.get(nonce).is_some()
     }
 
-    fn update_rev_lock_map(&mut self, rev_lock: &String, rev_secret: &String) -> Result<bool, String> {
-        match self.spent_lock_map.insert(rev_lock.clone(), rev_secret.clone()) {
+    fn update_rev_lock_map(&mut self, rev_lock_hex: &String, rev_secret_hex: &String) -> Result<bool, String> {
+        match self.spent_lock_map.insert(rev_lock_hex.clone(), rev_secret_hex.clone()) {
             Some(c) => c,
             None => return Err(format!("could not update spent_map"))
         };
@@ -368,30 +375,30 @@ impl StateDatabase for HashMapDatabase {
         return true;
     }
 
-    fn update_nonce_mask_map(&mut self, nonce: &String, mask: [u8; 32], mask_r: [u8; 16]) -> Result<bool, String> {
+    fn update_nonce_mask_map(&mut self, nonce_hex: &String, mask: [u8; 32], mask_r: [u8; 16]) -> Result<bool, String> {
         let pay_mask_map = PayMaskMap { mask: FixedSizeArray32(mask), r: FixedSizeArray16(mask_r) };
-        self.nonce_mask_map.insert(nonce.clone(), pay_mask_map);
+        self.nonce_mask_map.insert(nonce_hex.clone(), pay_mask_map);
         Ok(true)
     }
 
-    fn get_mask_map_from_nonce(&mut self, nonce: &String) -> Result<([u8; 32], [u8; 16]), String> {
-        match self.nonce_mask_map.get(nonce) {
+    fn get_mask_map_from_nonce(&mut self, nonce_hex: &String) -> Result<([u8; 32], [u8; 16]), String> {
+        match self.nonce_mask_map.get(nonce_hex) {
             Some(p) => Ok((p.mask.0, p.r.0)),
-            None => return Err(format!("could not find pay mask for specified nonce: {}", nonce))
+            None => return Err(format!("could not find pay mask for specified nonce: {}", nonce_hex))
         }
     }
 
-    fn update_masked_mpc_inputs(&mut self, nonce: &String, mask_bytes: MaskedMPCInputs) -> bool {
-        match self.mask_mpc_bytes.insert(nonce.clone(), mask_bytes) {
+    fn update_masked_mpc_inputs(&mut self, nonce_hex: &String, mask_bytes: MaskedMPCInputs) -> bool {
+        match self.mask_mpc_bytes.insert(nonce_hex.clone(), mask_bytes) {
             Some(c) => true,
             None => false
         }
     }
 
-    fn get_masked_mpc_inputs(&mut self, nonce: &String) -> Result<MaskedMPCInputs, String> {
-        match self.mask_mpc_bytes.get(nonce) {
+    fn get_masked_mpc_inputs(&mut self, nonce_hex: &String) -> Result<MaskedMPCInputs, String> {
+        match self.mask_mpc_bytes.get(nonce_hex) {
             Some(m) => Ok(m.clone()),
-            None => return Err(format!("could not find masked mpc inputs for specified nonce: {}", nonce))
+            None => return Err(format!("could not find masked mpc inputs for specified nonce: {}", nonce_hex))
         }
     }
 
@@ -400,12 +407,10 @@ impl StateDatabase for HashMapDatabase {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand_xorshift::XorShiftRng;
-    use rand::SeedableRng;
+    use rand::RngCore;
 
     #[test]
-    fn mpc_test_redis_database() {
-        // let mut rng = XorShiftRng::seed_from_u64(0x8d863e545dbe6259);
+    fn test_redis_unlink_set() {
         let db_url = "redis://127.0.0.1/".to_string();
         let mut db = RedisDatabase::new("test", db_url).unwrap();
         db.clear_state();
@@ -439,10 +444,19 @@ mod tests {
         let f = hex::encode([4u8; 32]);
 
         let is_in_set = db.is_member_unlink_set(&e);
-        println!("In Set: {} => {}", e, is_in_set);
+        assert!(is_in_set);
+        // println!("In Set: {} => {}", e, is_in_set);
 
         let is_in_set = db.is_member_unlink_set(&f);
-        println!("In Set: {} => {}", f, is_in_set);
+        assert!(!is_in_set);
+        // println!("In Set: {} => {}", f, is_in_set);
+    }
+
+    #[test]
+    fn test_redis_spent_map() {
+        let db_url = "redis://127.0.0.1/".to_string();
+        let mut db = RedisDatabase::new("test", db_url).unwrap();
+        db.clear_state();
 
         let nonce1 = hex::encode([2u8; 16]);
         let nonce2 = hex::encode([5u8; 16]);
@@ -453,29 +467,94 @@ mod tests {
             Err(e) => println!("ERROR update_spent_map: {}", e)
         }
         let is_spent1 = db.check_spent_map(&nonce1);
+        assert!(is_spent1);
         println!("Is spent 1: {} => {}", nonce1, is_spent1);
 
         let is_spent2 = db.check_spent_map(&nonce2);
+        assert!(!is_spent2);
         println!("Is spent 2: {} => {}", nonce2, is_spent2);
-
-        let rev_sec1 = hex::encode([6u8; 32]);
-        let rev_lock1 = hex::encode(hash_to_slice(&[6u8; 32].to_vec()));
-
-        match db.update_rev_lock_map(&rev_lock1, &rev_sec1) {
-            Ok(n) => (),
-            Err(e) => println!("ERROR update_rev_lock_map: {}", e)
-        }
-
-        let rl_ok = db.check_rev_lock_map(&rev_lock1);
-        assert!(rl_ok);
-
-        let rs_ok = db.get_rev_secret(&rev_lock1);
-        match rs_ok {
-            Ok(s) => println!("Rev secret: {}", s),
-            Err(e) => println!("ERROR get_rev_secret: {}", e.to_string())
-        };
     }
 
+    #[test]
+    fn test_redis_rev_lock_map() {
+        let rng = &mut rand::thread_rng();
+        let db_url = "redis://127.0.0.1/".to_string();
+        let mut db = RedisDatabase::new("test", db_url).unwrap();
+        db.clear_state();
 
+        let mut rev_sec = [0u8; 32];
+        rng.fill_bytes(&mut rev_sec);
+        let rev_lock = hash_to_slice(&rev_sec.to_vec());
+        
+        let rev_sec_hex = hex::encode(&rev_sec.to_vec());
+        let rev_lock_hex = hex::encode(&rev_lock);
+
+        match db.update_rev_lock_map(&rev_lock_hex, &rev_sec_hex) {
+            Ok(n) => println!("rev lock map update status: {}", n),
+            Err(e) => println!("ERROR: failed to update - {}", e)
+        };
+
+        // let's check that rev_lock exists in the database
+        assert!(db.check_rev_lock_map(&rev_lock_hex));
+
+        // let's check that we can retrieve the original secret
+        let orig_rev_sec = match db.get_rev_secret(&rev_lock_hex) {
+            Ok(n) => n,
+            Err(e) => panic!("Could not retrieve rev secret from DB")
+        };
+
+        assert_eq!(orig_rev_sec, rev_sec_hex);
+        println!("Orig rev secret: {}", rev_sec_hex);
+
+        let bad_rev_lock = hex::encode([1u8; 32]);
+
+        let bad_rev_sec = db.get_rev_secret(&bad_rev_lock);
+        assert!(bad_rev_sec.is_err());
+    }
+
+    #[test]
+    fn test_redis_nonce_mask_map() {
+        let rng = &mut rand::thread_rng();
+        let db_url = "redis://127.0.0.1/".to_string();
+        let mut db = RedisDatabase::new("test", db_url).unwrap();
+        db.clear_state();
+
+        let nonce_hex = hex::encode([2u8; 16]);
+        let mask = [3u8; 32];
+        let mask_r = [4u8; 16];
+
+        let result = db.update_nonce_mask_map(&nonce_hex, mask, mask_r);
+        assert!(result.is_ok());
+
+        let (orig_mask, orig_mask_r) = db.get_mask_map_from_nonce(&nonce_hex).unwrap();
+        assert_eq!(mask, orig_mask);
+        assert_eq!(mask_r, orig_mask_r);
+    }
+
+    #[test]
+    fn test_redis_masked_mpc_input() {
+        let rng = &mut rand::thread_rng();
+        let db_url = "redis://127.0.0.1/".to_string();
+        let mut db = RedisDatabase::new("test", db_url).unwrap();
+        db.clear_state();
+
+        let nonce_hex = hex::encode([0u8; 16]);
+        let mask_bytes = MaskedMPCInputs {
+            pt_mask: FixedSizeArray32([1u8; 32]),
+            pt_mask_r: FixedSizeArray16([2u8; 16]),
+            escrow_mask: FixedSizeArray32([3u8; 32]),
+            merch_mask: FixedSizeArray32([4u8; 32]),
+            r_escrow_sig: FixedSizeArray32([5u8; 32]),
+            r_merch_sig: FixedSizeArray32([6u8; 32]),        
+        };
+        let result = db.update_masked_mpc_inputs(&nonce_hex, mask_bytes);
+        assert!(result);
+
+        let mask_bytes_result = db.get_masked_mpc_inputs(&nonce_hex);
+        assert!(mask_bytes_result.is_ok());
+
+        let rec_mask_bytes = mask_bytes_result.unwrap();
+        assert_eq!(mask_bytes, rec_mask_bytes);
+    }
 
 }
