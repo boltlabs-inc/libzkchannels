@@ -2,37 +2,36 @@
 
 all:
 	export RUSTFLAGS=-Awarnings
-	cargo +nightly build
-	cargo +nightly test
+	cargo build
+	cargo test
 
 debug:
 	export RUST_BACKTRACE=1 
-	cargo +nightly build
-	cargo +nightly run --example zkchannels_zkproofs
+	cargo build
+	cargo run --example zkchannels_zkproofs
 
 release:
-	cargo +nightly build --release
-	cargo +nightly run --release --example zkchannels_zkproofs
+	cargo build --release
+	cargo run --release --example zkchannels_zkproofs
 
 bench:
-	cargo +nightly bench
+	cargo bench
 
 test:
-	# runs the unit test suite
-	cargo +nightly test --release 
+	cargo test --release 
 
 mpctest:
-	cargo +nightly build --release
+	cargo build --release
 	./test_mpcwrapper.sh
 	./test_channels_mpc.sh
 	cargo test --release -- --ignored --nocapture
 
 update:
-	cargo +nightly update
+	cargo update
 
 doc:
 	# generates the documentation
-	cargo +nightly doc
+	cargo doc
 
 deps:
 	make -C deps
@@ -42,7 +41,7 @@ mpcgotest:
 	./test_gowrapper.sh
 
 clean:
-	cargo +nightly clean
+	cargo clean
 
 distclean:
 	make -C deps distclean

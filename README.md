@@ -48,11 +48,11 @@ In addition, you'll need to start up the Redis database as follows:
 
 	./setup_redis.sh
 
-To build libzkchannels for MPC/  and execute basic examples, run `make`
+To build libzkchannels and execute all unit tests, run `make`
 
 # Tests
 
-To run libzkchannels unit tests, run `make test` and with MPC, run `make mpctest`
+To run just the libzkchannels unit tests, run `make test` and for MPC-only tests, run `make mpctest`
 
 # Benchmarks
 

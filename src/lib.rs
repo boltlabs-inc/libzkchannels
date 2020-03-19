@@ -1642,11 +1642,10 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn test_payment_mpc_channel() {
+    fn test_payment_mpc_channel_merch() {
         let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d76);
-        // let mut db = RedisDatabase::new("lib", "redis://127.0.0.1/").unwrap();
-        // db.clear_state();
-        let mut db = HashMapDatabase::new("", "".to_string()).unwrap();
+        let mut db = RedisDatabase::new("lib", "redis://127.0.0.1/".to_string()).unwrap();
+        db.clear_state();
 
         let mut channel = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
         let mut merch_state = mpc::init_merchant(&mut rng, "".to_string(), &mut channel, "Bob");
@@ -1682,7 +1681,7 @@ mod tests {
 
         let (pay_token_mask, pay_token_mask_r) = match mpc::pay_validate_rev_lock_merchant(&mut db as &mut dyn StateDatabase, revoked_state, &mut merch_state) {
             Ok(n) => (n.0, n.1),
-            _ => panic!("Could not get pay token mask and randomness")
+            Err(e) => panic!("Could not get pay token mask and randomness: {}", e)
         };
         println!("pt_mask_r => {}", hex::encode(&pay_token_mask_r));
         assert_eq!(hex::encode(pay_token_mask), "f53a27a851a43c7843c4781962a54fa36cd32e3254e7adaf3e742870ecab92ae");
@@ -1694,9 +1693,8 @@ rusty_fork_test! {
     #[ignore]
     fn test_payment_mpc_channel_cust() {
         let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d76);
-        // let mut db = RedisDatabase::new("lib", "redis://127.0.0.1/").unwrap();
-        // db.clear_state();
-        let mut db = HashMapDatabase::new("", "".to_string()).unwrap();
+        let mut db = RedisDatabase::new("lib", "redis://127.0.0.1/".to_string()).unwrap();
+        db.clear_state();
 
         let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
         let mut merch_state = mpc::init_merchant(&mut rng, "".to_string(), &mut channel_state, "Bob");
