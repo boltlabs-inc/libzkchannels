@@ -20,21 +20,13 @@ The libzkchannels library is a proof of concept implementation that relies on ex
 
 Note that the above rust dependencies will be compiled and installed as a result of running the `make` command.
 
-# Rust Nightly Setup
+# Installing Rust
 
-Please keep in mind we are currently working with nightly Rust for now which gives access to the nightly compiler and experimental features.
+ To install Rust, we recommend using [rustup](https://www.rustup.rs/). You can install `rustup` on macOS or Linux as follows:
 
-	rustup install nightly
-
-To run a quick test of the nightly toolchain, run the following command:
-
-	rustup run nightly rustc --version
-
-Optionally, to make this the default globally, run the following command:
-
-	rustup default nightly
-
-We will switch to the stable release channel once libzkchannels (and dependencies) are ready for production use.
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   ```
 
 # Build & Install
 
