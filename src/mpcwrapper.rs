@@ -9,6 +9,8 @@ use wallet::State;
 use ecdsa_partial::EcdsaPartialSig;
 use channels_mpc::NetworkConfig;
 
+static MPC_ERROR: &str = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+
 extern "C" fn io_callback(net_config: *mut c_void, party: c_int) -> *mut c_void {
     // unsafe is needed because we dereference a raw pointer to network config
     let nc: &mut Conn_l = unsafe { &mut *(net_config as *mut Conn_l) };
@@ -44,7 +46,7 @@ pub fn mpc_build_masked_tokens_cust(net_conn: NetworkConfig, amount: i64, pay_ma
                                     merch_pub_key_hash: [u8; 20], merch_payout_pub_key: secp256k1::PublicKey,
                                     new_state: State, old_state: State, pt_old: &[u8],
                                     cust_escrow_pub_key: secp256k1::PublicKey, cust_payout_pub_key: secp256k1::PublicKey,
-) -> ([u8; 32], [u8; 32], [u8; 32]) {
+) -> Result<([u8; 32], [u8; 32], [u8; 32]), String> {
     // translate wpk
     let rl_c = translate_revlock_com(&rev_lock_com);
     // translate blinding factor
@@ -108,7 +110,15 @@ pub fn mpc_build_masked_tokens_cust(net_conn: NetworkConfig, amount: i64, pay_ma
     let mut ct_merch_masked_ar = [0u8; 32];
     ct_merch_masked_ar.copy_from_slice(u32_to_bytes(&ct_merch.sig[..]).as_slice());
 
-    (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar)
+    // handle error case: if pt_masked_ar => 0xffff..
+    let pt_masked_hex = hex::encode(&pt_masked_ar);
+    let ct_escrow_masked_hex = hex::encode(&ct_escrow_masked_ar);
+    let ct_merch_masked_hex = hex::encode(&ct_merch_masked_ar);
+    if pt_masked_hex == MPC_ERROR || ct_escrow_masked_hex == MPC_ERROR || ct_merch_masked_hex == MPC_ERROR {
+        return Err(format!("Failed to get valid output from MPC!"));
+    }
+
+    Ok((pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar))
 }
 
 fn translate_bitcoin_key(pub_key: &secp256k1::PublicKey) -> BitcoinPublicKey_l {
@@ -504,14 +514,16 @@ mod tests {
 
         let nc = NetworkConfig { conn_type: ConnType_UNIXNETIO, path: String::from("mpconn"), dest_ip: String::from(""), dest_port: 0, peer_raw_fd: 0 };
 
-        let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) =
+        let mpc_result =
             mpc_build_masked_tokens_cust(nc, amount, &paytoken_mask_com, &rev_lock_com, &rev_lock_r, &key_com,
                                          merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key,
                                          new_state, old_state,
                                          &old_paytoken, cust_escrow_pub_key, cust_payout_pub_key);
 
         // if this assert is triggered, then there was an error inside the mpc
-        assert_ne!("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", hex::encode(&pt_masked_ar));
+        assert!(mpc_result.is_ok());
+        let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) = mpc_result.unwrap();
+        // assert_ne!("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", hex::encode(&pt_masked_ar));
 
         let mut paytoken_mask_bytes = [0u8; 32];
         paytoken_mask_bytes.copy_from_slice(hex::decode("0c8dda801001c9a55f720c5f379ce09e42416780f98fef7900bd26b372b81850").unwrap().as_slice());

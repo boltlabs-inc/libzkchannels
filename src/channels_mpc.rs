@@ -401,9 +401,13 @@ impl CustomerMPCState {
         };
 
         let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) =
-            mpc_build_masked_tokens_cust(net_conn, amount, &paytoken_mask_com, &rev_lock_com, &self.t.0, &key_com,
+            match mpc_build_masked_tokens_cust(net_conn, amount, &paytoken_mask_com, &rev_lock_com, &self.t.0, &key_com,
                                      merch_escrow_pub_key, merch_dispute_key, merch_public_key_hash, merch_payout_pub_key,
-                                     new_state, old_state,&old_paytoken.0, cust_escrow_pub_key, cust_payout_pub_key);
+                                     new_state, old_state,&old_paytoken.0, cust_escrow_pub_key, cust_payout_pub_key) {
+                                         Ok(c) => (c.0, c.1, c.2),
+                                         Err(e) => return Err(e.to_string())
+                                     };
+        
 
         let masked_output = MaskedMPCOutputs {
             pt_masked: FixedSizeArray32(pt_masked_ar),
