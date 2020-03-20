@@ -155,9 +155,16 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	assert.Nil(t, err)
 
 	go runPayCust(channelState, channelToken, state, newState, payTokenMaskCom, revState.RevLockCom, custState)
-	maskedTxInputs, merchState, err := PayUpdateMerchant(channelState, state.Nonce, payTokenMaskCom, revState.RevLockCom, 10, merchState)
+	isOk, merchState, err = PayUpdateMerchant(channelState, state.Nonce, payTokenMaskCom, revState.RevLockCom, 10, merchState)
 	assert.Nil(t, err)
 	time.Sleep(time.Second * 5)
+
+	if !isOk {
+		fmt.Println("MPC execution failed for merchant!")
+	}
+	assert.True(t, isOk)
+	maskedTxInputs, err := PayConfirmMPCResult(isOk, state.Nonce, merchState)
+	assert.Nil(t, err)
 
 	serCustState := os.Getenv("custStateRet")
 	err = json.Unmarshal([]byte(serCustState), &custState)
@@ -330,9 +337,16 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	assert.Nil(t, err)
 
 	go runPayCust(channelState, channelToken, state, newState, payTokenMaskCom, revState.RevLockCom, custState)
-	maskedTxInputs, merchState, err := PayUpdateMerchant(channelState, state.Nonce, payTokenMaskCom, revState.RevLockCom, 10, merchState)
+	isOk, merchState, err = PayUpdateMerchant(channelState, state.Nonce, payTokenMaskCom, revState.RevLockCom, 10, merchState)
 	assert.Nil(t, err)
 	time.Sleep(time.Second * 5)
+
+	if !isOk {
+		fmt.Println("MPC execution failed for merchant!")
+	}
+	assert.True(t, isOk)
+	maskedTxInputs, err := PayConfirmMPCResult(isOk, state.Nonce, merchState)
+	assert.Nil(t, err)
 
 	serCustState := os.Getenv("custStateRet")
 	err = json.Unmarshal([]byte(serCustState), &custState)

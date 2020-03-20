@@ -512,7 +512,7 @@ func PreparePaymentMerchant(channelState ChannelState, nonce string, revLockCom 
 	if err != nil {
 		return "", MerchState{}, err
 	}
-	//serNonce := strings.ReplaceAll(nonce, " ", ",")
+
 	resp := C.GoString(C.mpc_prepare_payment_merchant(C.CString(string(serChannelState)), C.CString(nonce), C.CString(revLockCom), C.longlong(amount), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
@@ -556,30 +556,45 @@ func PayUpdateCustomer(channelState ChannelState, channelToken ChannelToken, sta
 	return r.IsOk, custState, err
 }
 
-func PayUpdateMerchant(channelState ChannelState, nonce string, payTokenMaskCom string, revLockCom string, amount int64, merchState MerchState) (MaskedTxInputs, MerchState, error) {
+func PayUpdateMerchant(channelState ChannelState, nonce string, payTokenMaskCom string, revLockCom string, amount int64, merchState MerchState) (bool, MerchState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
-		return MaskedTxInputs{}, MerchState{}, err
+		return false, MerchState{}, err
 	}
 
 	serMerchState, err := json.Marshal(merchState)
 	if err != nil {
-		return MaskedTxInputs{}, MerchState{}, err
+		return false, MerchState{}, err
 	}
 
 	resp := C.GoString(C.mpc_pay_update_merchant(C.CString(string(serChannelState)), C.CString(nonce), C.CString(payTokenMaskCom), C.CString(revLockCom), C.longlong(amount), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
-		return MaskedTxInputs{}, MerchState{}, err
+		return false, MerchState{}, err
+	}
+
+	err = json.Unmarshal([]byte(r.MerchState), &merchState)
+	return r.IsOk, merchState, err
+}
+
+func PayConfirmMPCResult(mpcResult bool, nonce string, merchState MerchState) (MaskedTxInputs, error) {
+	serMerchState, err := json.Marshal(merchState)
+	if err != nil {
+		return MaskedTxInputs{}, err
+	}
+
+	resp := C.GoString(C.mpc_get_masked_tx_inputs(C.uint(btoi(mpcResult)), C.CString(nonce), C.CString(string(serMerchState))))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return MaskedTxInputs{}, err
 	}
 
 	maskedTxInputs := MaskedTxInputs{}
 	err = json.Unmarshal([]byte(r.MaskedTxInputs), &maskedTxInputs)
 	if err != nil {
-		return MaskedTxInputs{}, MerchState{}, err
+		return MaskedTxInputs{}, err
 	}
-	err = json.Unmarshal([]byte(r.MerchState), &merchState)
-	return maskedTxInputs, merchState, err
+	return maskedTxInputs, err
 }
 
 func PayUnmaskSigsCustomer(channelState ChannelState, channelToken ChannelToken, maskedTxInputs MaskedTxInputs, custState CustState) (bool, CustState, error) {

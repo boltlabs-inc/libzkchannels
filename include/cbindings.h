@@ -251,6 +251,8 @@ char *mpc_get_channel_id(char *ser_channel_token);
 
 char *mpc_get_initial_state(char *ser_cust_state);
 
+char *mpc_get_masked_tx_inputs(uint32_t mpc_result, char *ser_nonce, char *ser_merch_state);
+
 char *mpc_init_customer(char *ser_pk_m,
                         int64_t cust_bal,
                         int64_t merch_bal,

@@ -848,29 +848,36 @@ pub mod mpc {
     /// output: the transaction masks (escrow and merch tx), or error
     ///
     pub fn pay_update_merchant<R: Rng>(csprng: &mut R, db: &mut dyn StateDatabase, channel: &mut ChannelMPCState, nonce: [u8; NONCE_LEN], pay_token_mask_com: [u8; 32],
-                                rev_lock_com: [u8; 32], amount: i64, merch_state: &mut MerchantMPCState) -> Result<MaskedTxMPCInputs, String> {
+                                rev_lock_com: [u8; 32], amount: i64, merch_state: &mut MerchantMPCState) -> Result<bool, String> {
         if merch_state.net_config.is_none() {
             // use default ip/port
             merch_state.set_network_config(NetworkConfig { conn_type: ConnType_NETIO, dest_ip: String::from("127.0.0.1"), dest_port: 2424, path: String::new(), peer_raw_fd: 0 });
         }
 
-        let result = merch_state.execute_mpc_context(csprng, db, &channel, nonce, rev_lock_com, pay_token_mask_com, amount);
-        match result.is_err() {
-            false => {
+        return merch_state.execute_mpc_context(csprng, db, &channel, nonce, rev_lock_com, pay_token_mask_com, amount)
+    }
+
+    ///
+    /// pay_confirm_mpc_result() - takes as input a db, 
+    /// output: masked input if the mpc result was successful and there is a masked input for a given nonce 
+    /// 
+    pub fn pay_confirm_mpc_result(db: &mut dyn StateDatabase, mpc_result: bool, nonce: [u8; NONCE_LEN], merch_state: &mut MerchantMPCState) -> Result<MaskedTxMPCInputs, String> {
+        match mpc_result {
+            true => {
                 let nonce_hex = hex::encode(nonce);
                 let mask_bytes = match db.get_masked_mpc_inputs(&nonce_hex) {
                     Ok(n) => {
                         Some(n)
                     },
-                    Err(e) => return Err(e.to_string()) // error case
+                    Err(e) => return Err(e.to_string())
                 };
                 let mask_bytes_unwrapped = mask_bytes.unwrap();
                 return Ok(mask_bytes_unwrapped.get_tx_masks());
             },
-            _ => return Err(result.err().unwrap())
-        }
+            false => return Err(format!("pay_confirm_mpc_result: will need to restart MPC session"))
+        }        
     }
-
+    
     ///
     /// pay_unmask_sigs_customer() - takes as input the transaction masks and the customer state.
     /// Unmask the transactions received from the MPC
@@ -1580,7 +1587,7 @@ mod tests {
         let (mut channel_token, mut cust_state) = mpc::init_customer(rng, &merch_state.pk_m, 100, 100, "Alice", None, None);
 
         // customer sends pk_c, n_0, rl_0 to the merchant
-       //  let init_cust_state = cust_state.get_initial_cust_state().unwrap();
+        //let init_cust_state = cust_state.get_initial_cust_state().unwrap();
 
         // form all of the escrow and merch-close-tx transactions
         let funding_tx_info = generate_funding_tx(&mut rng, 100, 100);
@@ -1677,7 +1684,11 @@ mod tests {
 
         let res_merch = mpc::pay_update_merchant(&mut rng, &mut db as &mut dyn StateDatabase, &mut channel, s0.get_nonce(), pay_mask_com, rev_lock_com, 10, &mut merch_state);
         assert!(res_merch.is_ok());
-        let _inputs = res_merch.unwrap();
+
+        let mpc_result = res_merch.unwrap();
+        let masked_inputs = mpc::pay_confirm_mpc_result(&mut db as &mut dyn StateDatabase, mpc_result, s0.get_nonce(), &mut merch_state);
+        assert!(masked_inputs.is_ok());
+        println!("Masked Tx Inputs: {:#?}", masked_inputs.unwrap());
 
         let (pay_token_mask, pay_token_mask_r) = match mpc::pay_validate_rev_lock_merchant(&mut db as &mut dyn StateDatabase, revoked_state, &mut merch_state) {
             Ok(n) => (n.0, n.1),

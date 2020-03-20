@@ -399,8 +399,35 @@ pub mod ffishim_mpc {
 
         // We change the channel state
         let result = mpc::pay_update_merchant(rng, &mut db as &mut dyn StateDatabase, &mut channel_state, nonce_ar, pay_token_mask_com_ar, rev_lock_com_ar, amount, &mut merch_state);
+        let is_ok = handle_errors!(result);
+        let ser = ["{\'is_ok\':", &is_ok.to_string(), ", \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern fn mpc_get_masked_tx_inputs(mpc_result: u32, ser_nonce: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
+        let mut mpc_success = false;
+        if mpc_result >= 1 {
+            mpc_success = true;
+        }
+
+        // Deserialize nonce
+        let nonce_result = deserialize_hex_string(ser_nonce);
+        let nonce = handle_errors!(nonce_result);
+        let mut nonce_ar = [0u8; 16];
+        nonce_ar.copy_from_slice(nonce.as_slice());
+
+        // Deserialize the merch_state
+        let merch_state_result: ResultSerdeType<MerchantMPCState> = deserialize_result_object(ser_merch_state);
+        let mut merch_state = handle_errors!(merch_state_result);
+
+        // get connection to the database
+        let mut db: RedisDatabase = handle_errors!(RedisDatabase::new("mpc", merch_state.db_url.clone()));
+        
+        let result = mpc::pay_confirm_mpc_result(&mut db as &mut dyn StateDatabase,  mpc_success, nonce_ar, &mut merch_state);
         let masked_tx_inputs = handle_errors!(result);
-        let ser = ["{\'masked_tx_inputs\':\'", serde_json::to_string(&masked_tx_inputs).unwrap().as_str(), "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
+        let ser = ["{\'masked_tx_inputs\':\'", serde_json::to_string(&masked_tx_inputs).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
