@@ -222,7 +222,7 @@ See the `intermediary_payment_basics_works()` unit test in `src/lib.rs` for more
 
 We now describe the APIs around our support for non-anonymous currencies like Bitcoin.
 
-<img src="libzkchannels-mpc-arch.png" width=600 align=center>
+<img src="libzkchannels-mpc-arch.png" width=100 align=center>
 
 ### Channel Setup
 
@@ -329,12 +329,6 @@ For the libzkchannels (or BOLT) design documentation, see the `docs/bolt.pdf` do
 To contribute code improvements, please checkout the repository, make your changes and submit a pull request.
 
 	git clone https://github.com/boltlabs-inc/libzkchannels.git
-
-# TODOs
-
-Here are some TODOs (not in any particular order):
-
-* Add more unit tests for other dispute resolution scenarios and third-party test cases
 
 # License
 
