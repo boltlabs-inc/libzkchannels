@@ -68,6 +68,8 @@ pub mod bindings;
 pub mod transactions;
 pub mod fixed_size_array;
 pub mod database;
+
+#[cfg(test)]
 pub mod test_e2e;
 
 use std::fmt;
@@ -858,9 +860,9 @@ pub mod mpc {
     }
 
     ///
-    /// pay_confirm_mpc_result() - takes as input a db, 
-    /// output: masked input if the mpc result was successful and there is a masked input for a given nonce 
-    /// 
+    /// pay_confirm_mpc_result() - takes as input a db,
+    /// output: masked input if the mpc result was successful and there is a masked input for a given nonce
+    ///
     pub fn pay_confirm_mpc_result(db: &mut dyn StateDatabase, mpc_result: bool, nonce: [u8; NONCE_LEN], _merch_state: &mut MerchantMPCState) -> Result<MaskedTxMPCInputs, String> {
         match mpc_result {
             true => {
@@ -875,9 +877,9 @@ pub mod mpc {
                 return Ok(mask_bytes_unwrapped.get_tx_masks());
             },
             false => return Err(format!("pay_confirm_mpc_result: will need to restart MPC session"))
-        }        
+        }
     }
-    
+
     ///
     /// pay_unmask_sigs_customer() - takes as input the transaction masks and the customer state.
     /// Unmask the transactions received from the MPC
