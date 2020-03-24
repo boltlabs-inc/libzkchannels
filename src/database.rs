@@ -2,7 +2,6 @@ use super::*;
 use redis::{Commands, Connection};
 use std::collections::hash_map::RandomState;
 use fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
-use util::hash_to_slice;
 
 fn create_db_connection(url: String) -> redis::RedisResult<Connection> {
     let client = redis::Client::open(url.as_str())?;
@@ -275,12 +274,12 @@ impl StateDatabase for RedisDatabase {
     fn update_masked_mpc_inputs(&mut self, nonce_hex: &String, mask_bytes: MaskedMPCInputs) -> bool {
         let ser_mask_bytes = match serde_json::to_string(&mask_bytes) {
             Ok(s) => s,
-            Err(e) => return false
+            Err(_) => return false
         };
 
         match self.conn.hset::<String, String, String, i32>(self.masked_bytes_key.clone(), nonce_hex.clone(), ser_mask_bytes) {
             Ok(c) => c != 0,
-            Err(e) => false
+            Err(_) => false
         }
     }
 
@@ -403,6 +402,7 @@ impl StateDatabase for HashMapDatabase {
 mod tests {
     use super::*;
     use rand::RngCore;
+    use util::hash_to_slice;
 
     #[test]
     fn test_redis_unlink_set() {
@@ -422,9 +422,9 @@ mod tests {
         let c = hex::encode([2u8; 32]);
         let d = hex::encode([3u8; 32]);
 
-        db.update_unlink_set(&b);
-        db.update_unlink_set(&c);
-        db.update_unlink_set(&d);
+        db.update_unlink_set(&b).unwrap();
+        db.update_unlink_set(&c).unwrap();
+        db.update_unlink_set(&d).unwrap();
 
         let hash_set1: HashSet<String> = db.get_unlink_set().unwrap();
         println!("Unlink HashSet: ");
@@ -455,7 +455,7 @@ mod tests {
         let rev_lock = hex::encode([4u8; 32]);
 
         match db.update_spent_map(&nonce1, &rev_lock) {
-            Ok(n) => (),
+            Ok(_) => (),
             Err(e) => println!("ERROR update_spent_map: {}", e)
         }
         let is_spent1 = db.check_spent_map(&nonce1);
@@ -492,7 +492,7 @@ mod tests {
         // let's check that we can retrieve the original secret
         let orig_rev_sec = match db.get_rev_secret(&rev_lock_hex) {
             Ok(n) => n,
-            Err(e) => panic!("Could not retrieve rev secret from DB")
+            Err(e) => panic!(format!("Could not retrieve rev secret from DB: {}", e))
         };
 
         assert_eq!(orig_rev_sec, rev_sec_hex);
@@ -506,7 +506,6 @@ mod tests {
 
     #[test]
     fn test_redis_nonce_mask_map() {
-        let rng = &mut rand::thread_rng();
         let db_url = "redis://127.0.0.1/".to_string();
         let mut db = RedisDatabase::new("test", db_url).unwrap();
         db.clear_state();
@@ -525,7 +524,6 @@ mod tests {
 
     #[test]
     fn test_redis_masked_mpc_input() {
-        let rng = &mut rand::thread_rng();
         let db_url = "redis://127.0.0.1/".to_string();
         let mut db = RedisDatabase::new("test", db_url).unwrap();
         db.clear_state();

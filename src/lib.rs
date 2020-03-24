@@ -861,7 +861,7 @@ pub mod mpc {
     /// pay_confirm_mpc_result() - takes as input a db, 
     /// output: masked input if the mpc result was successful and there is a masked input for a given nonce 
     /// 
-    pub fn pay_confirm_mpc_result(db: &mut dyn StateDatabase, mpc_result: bool, nonce: [u8; NONCE_LEN], merch_state: &mut MerchantMPCState) -> Result<MaskedTxMPCInputs, String> {
+    pub fn pay_confirm_mpc_result(db: &mut dyn StateDatabase, mpc_result: bool, nonce: [u8; NONCE_LEN], _merch_state: &mut MerchantMPCState) -> Result<MaskedTxMPCInputs, String> {
         match mpc_result {
             true => {
                 let nonce_hex = hex::encode(nonce);
@@ -1688,7 +1688,7 @@ mod tests {
         let mpc_result = res_merch.unwrap();
         let masked_inputs = mpc::pay_confirm_mpc_result(&mut db as &mut dyn StateDatabase, mpc_result, s0.get_nonce(), &mut merch_state);
         assert!(masked_inputs.is_ok());
-        println!("Masked Tx Inputs: {:#?}", masked_inputs.unwrap());
+        // println!("Masked Tx Inputs: {:#?}", masked_inputs.unwrap());
 
         let (pay_token_mask, pay_token_mask_r) = match mpc::pay_validate_rev_lock_merchant(&mut db as &mut dyn StateDatabase, revoked_state, &mut merch_state) {
             Ok(n) => (n.0, n.1),

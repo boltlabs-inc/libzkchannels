@@ -9,7 +9,7 @@ pub mod ffishim_mpc {
     use std::ffi::{CStr, CString};
     use std::str;
     use channels_mpc::{CustomerMPCState, MerchantMPCState, ChannelMPCToken, InitCustState, ChannelMPCState};
-    use database::{MaskedTxMPCInputs, StateDatabase, HashMapDatabase, RedisDatabase};
+    use database::{MaskedTxMPCInputs, StateDatabase, RedisDatabase};
     use wallet::State;
     use hex::FromHexError;
     use mpc::RevokedState;
@@ -21,13 +21,6 @@ pub mod ffishim_mpc {
         let ser = ["{\'error\':\'", &s, "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
-    }
-
-    macro_rules! handle_errors {
-        ($e:expr) => (match $e {
-            Ok(val) => val,
-            Err(err) => return error_message(err.to_string()),
-        });
     }
 
     macro_rules! handle_errors {
@@ -294,7 +287,7 @@ pub mod ffishim_mpc {
 
         // Deserialize the channel_state
         let channel_state_result: ResultSerdeType<ChannelMPCState> = deserialize_result_object(ser_channel_state);
-        let mut channel_state = handle_errors!(channel_state_result);
+        let channel_state = handle_errors!(channel_state_result);
 
         // Deserialize rev_lock_com
         let rev_lock_com_result = deserialize_hex_string(ser_rev_lock_com);

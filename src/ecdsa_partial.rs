@@ -4,7 +4,6 @@ use num::bigint::Sign;
 use rand::{Rng};
 use std::slice;
 use std::ffi::CString;
-use super::*;
 
 // include our libraries
 use bindings::{EcdsaPartialSig_l};

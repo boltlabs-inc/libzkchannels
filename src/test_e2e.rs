@@ -1,4 +1,3 @@
-use secp256k1;
 use bindings::{EcdsaPartialSig_l};
 use std::convert::TryInto;
 use std::ffi::CString;
@@ -34,10 +33,12 @@ fn call_ecdsa(psl: EcdsaPartialSig_l, hashedmsg: [u8; 32], party: u32) -> [u8; 3
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ecdsa_partial::{EcdsaPartialSig, translate_rx};
+    use secp256k1;
     use sha2::{Sha256, Digest};
     const NUM_TESTS: i32 = 50;
-    use ecdsa_partial::{EcdsaPartialSig, translate_rx};
     use rand::RngCore;
+
 
     // rusty fork tests call the two parties separately.
     rusty_fork_test! {

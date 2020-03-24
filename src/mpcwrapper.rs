@@ -1,10 +1,10 @@
-use libc::{c_int, c_uint, c_char, c_void};
+use libc::{c_int, c_void}; // c_uint, c_char
 use secp256k1;
 use std::ffi::{CStr, CString};
 use std::str;
 use std::ptr;
 use rand::Rng;
-use bindings::{get_netio_ptr, get_unixnetio_ptr, build_masked_tokens_cust, build_masked_tokens_merch, State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l, CommitmentRandomness_l, PayToken_l, Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l, BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l, Conn_l, ConnType_NETIO, ConnType_UNIXNETIO, ConnType_TORNETIO, ConnType_CUSTOM, get_gonetio_ptr};
+use bindings::{get_netio_ptr, get_unixnetio_ptr, build_masked_tokens_cust, build_masked_tokens_merch, State_l, RevLock_l, RevLockCommitment_l, Nonce_l, Balance_l, CommitmentRandomness_l, PayToken_l, Txid_l, Mask_l, HMACKeyCommitment_l, MaskCommitment_l, HMACKey_l, BitcoinPublicKey_l, PublicKeyHash_l, EcdsaSig_l, Conn_l, ConnType_NETIO, ConnType_UNIXNETIO, ConnType_TORNETIO}; // ConnType_CUSTOM, get_gonetio_ptr
 use wallet::State;
 use ecdsa_partial::EcdsaPartialSig;
 use channels_mpc::NetworkConfig;
@@ -88,8 +88,8 @@ pub fn mpc_build_masked_tokens_cust(net_conn: NetworkConfig, amount: i64, pay_ma
     let mut ct_merch = EcdsaSig_l { sig: sig2_ar };
 
     // set the network config
-    let mut path_ar = CString::new(net_conn.path).unwrap().into_raw();
-    let mut ip_ar = CString::new(net_conn.dest_ip).unwrap().into_raw();
+    let path_ar = CString::new(net_conn.path).unwrap().into_raw();
+    let ip_ar = CString::new(net_conn.dest_ip).unwrap().into_raw();
     let conn = Conn_l { conn_type: net_conn.conn_type, path: path_ar, dest_port: net_conn.dest_port as u16, dest_ip: ip_ar, peer_raw_fd: ptr::null_mut() };
 
     unsafe {
@@ -291,8 +291,8 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, net_conn: NetworkConfi
     };
 
     // set the network config
-    let mut path_ar = CString::new(net_conn.path).unwrap().into_raw();
-    let mut ip_ar = CString::new(net_conn.dest_ip).unwrap().into_raw();
+    let path_ar = CString::new(net_conn.path).unwrap().into_raw();
+    let ip_ar = CString::new(net_conn.dest_ip).unwrap().into_raw();
     let conn = Conn_l { conn_type: net_conn.conn_type, path: path_ar, dest_port: net_conn.dest_port as u16, dest_ip: ip_ar, peer_raw_fd: ptr::null_mut() };
 
     unsafe {
@@ -311,8 +311,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, net_conn: NetworkConfi
 #[cfg(test)]
 mod tests {
     use super::*;
-    use typenum::U32;
-    use std::{str, ptr, thread};
+    use std::{str, ptr};
     use num::BigInt;
     use num::bigint::Sign;
     use std::time::Duration;

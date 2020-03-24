@@ -1145,7 +1145,6 @@ mod tests {
     use sha2::Sha256;
     use bitcoin::Testnet;
     use rand::SeedableRng;
-    use wagyu_model::Transaction;
     use database::{MaskedMPCInputs, RedisDatabase};
 
     fn generate_test_txs<R: Rng>(csprng: &mut R, b0_cust: i64, b0_merch: i64) -> FundingTxInfo {
@@ -1213,13 +1212,13 @@ rusty_fork_test!
         let init_cust_state = cust_state.get_initial_cust_state().unwrap();
 
         // validate the initial state with merchant
-        merch_state.validate_initial_state(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, s_0.compute_hash());
+        let v = merch_state.validate_initial_state(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, s_0.compute_hash());
+        assert!(v.is_ok());
 
         println!("Begin activate phase for channel");
         println!("customer channel token: {}", &serde_json::to_string(&channel_token).unwrap());
 
         let r_com = cust_state.generate_rev_lock_commitment(&mut rng);
-        let t_0 = cust_state.get_randomness();
         println!("Initial state: {}", s_0);
         println!("Init rev_lock commitment => {:?}", r_com);
 
@@ -1308,9 +1307,11 @@ rusty_fork_test!
 
             // output most recent closing tx
             println!("------------------------------------");
+            println!("Cust-close from escrow tx ID: {}", hex::encode(close_escrow_txid));
             println!("Cust-close from escrow tx: {}", hex::encode(close_escrow_tx));
             let (close_merch_tx, close_merch_txid) = cust_state.customer_close::<Testnet>(&channel_state, &channel_token, false).unwrap();
             println!("------------------------------------");
+            println!("Cust-close from merch tx ID: {}", hex::encode(close_merch_txid));
             println!("Cust-close from merch tx: {}", hex::encode(close_merch_tx));
             println!("------------------------------------");
         }
@@ -1436,11 +1437,11 @@ rusty_fork_test!
         // initialize the channel token on with pks
         let mut channel_token = cust_state.generate_init_channel_token(&merch_state.pk_m);
 
-        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info);
-
         // generate and send initial state to the merchant
         cust_state.generate_init_state(&mut rng, &mut channel_token);
         let s_0 = cust_state.get_current_state();
+
+        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info).unwrap();
 
         let ser_state = serde_json::to_string(&s_0).unwrap();
         println!("Ser state: {}", &ser_state);
