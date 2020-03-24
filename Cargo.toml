@@ -14,6 +14,7 @@ links = "token-utils"
 [dependencies]
 rand = "0.7"
 rand_xorshift = "0.2"
+redis = "0.15.1"
 ff_bl = { git = "https://github.com/boltlabs-inc/ff", branch = "master" }
 pairing_bl = { git = "https://github.com/boltlabs-inc/pairing", branch = "master", features = ["serde"] }
 libc = "*"
@@ -43,16 +44,12 @@ cbindgen="*"
 [dev-dependencies]
 rusty-fork = "0.2.1"
 
-[features]
-mpc-bitcoin = []
-
 [lib]
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [[bin]]
 name = "zkchannels-mpc"
 path = "src/main.rs"
-required-features = ["mpc-bitcoin"]
 
 [[bin]]
 name = "zkchannels-tx"

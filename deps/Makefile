@@ -1,6 +1,6 @@
 .PHONY: all clean
 
-DIRS=time relic emp-tool emp-ot emp-sh2pc
+DIRS=time emp-tool emp-ot emp-sh2pc
 
 all: $(DIRS)
 	./install_packages.sh
@@ -18,6 +18,7 @@ clean: $(DIRS)
 
 distclean: $(DIRS)
 	rm -rf root
+	rm .installed
 	for d in $(DIRS); do \
 		make -C $$d distclean; \
 	done

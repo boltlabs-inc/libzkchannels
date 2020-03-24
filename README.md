@@ -16,38 +16,35 @@ The libzkchannels library is a proof of concept implementation that relies on ex
 * serde, serde_json
 * sha2, ripemd160, hmac, hex
 * wagyu-bitcoin and wagyu-zcash
+* redis
 
 Note that the above rust dependencies will be compiled and installed as a result of running the `make` command.
 
-# Rust Nightly Setup
+# Installing Rust
 
-Please keep in mind we are currently working with nightly Rust for now which gives access to the nightly compiler and experimental features.
+ To install Rust, we recommend using [rustup](https://www.rustup.rs/). You can install `rustup` on macOS or Linux as follows:
 
-	rustup install nightly
-
-To run a quick test of the nightly toolchain, run the following command:
-
-	rustup run nightly rustc --version
-
-Optionally, to make this the default globally, run the following command:
-
-	rustup default nightly
-
-We will switch to the stable release channel once libzkchannels (and dependencies) are ready for production use.
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   ```
 
 # Build & Install
 
-To be able to build zkChannels for Bitcoin, you'll have to install the EMP-toolkit dependency as follows:
+To be able to build libzkchannels, we require that you install the EMP-toolkit and other dependencies as follows:
 
 	. ./env
 	make deps
 	./test_emp.sh
 
-To build with ZK proofs and execute basic examples, run `make` and to build with MPC, run `make mpc`
+In addition, you'll need to start up the Redis database as follows:
+
+	./setup_redis.sh
+
+To build libzkchannels and execute all unit tests, run `make`
 
 # Tests
 
-To run libzkchannels unit tests, run `make test` and with MPC, run `make mpctest`
+To run just the libzkchannels unit tests, run `make test` and for MPC-only tests, run `make mpctest`
 
 # Benchmarks
 
@@ -137,7 +134,7 @@ When opening a payment channel, execute the establishment protocol API to escrow
 ### Pay protocol
 
 To spend on the channel, execute the pay protocol API (can be executed as many times as necessary):
-	
+
 	// phase 1 - payment proof and new cust state
 	let (payment, new_cust_state) = zkproofs::generate_payment_proof(rng, &channel_state, &cust_state, 10);
 
@@ -223,7 +220,13 @@ See the `intermediary_payment_basics_works()` unit test in `src/lib.rs` for more
 
 ## Payment Channels using MPC techniques
 
+We now describe the APIs around our support for non-anonymous currencies like Bitcoin.
+
+<img src="libzkchannels-mpc-arch.png" width=300 align=center>
+
 ### Channel Setup
+
+	use zkchannels::mpc;
 
 	// create initial channel mpc state
 	let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
@@ -262,7 +265,7 @@ See the `intermediary_payment_basics_works()` unit test in `src/lib.rs` for more
 
 	// merchant returns an initial pay token for channel
 	let pay_token = mpc::activate_merchant(channel_token, &old_state, &mut merch_state);
-	
+
 	// customer stores the initial pay token
 	mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
@@ -271,8 +274,8 @@ See the `intermediary_payment_basics_works()` unit test in `src/lib.rs` for more
 ### Pay Protocol
 
 Prepare/Update State phase
-	
-	// customer prepares payment by generating a new state, new revocation lock and secret, and 
+
+	// customer prepares payment by generating a new state, new revocation lock and secret, and
 	let (state, revoked_state) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, 10, &mut cust_state).unwrap();
 	let rev_lock_com = revoked_state.get_rev_lock_com();
 
@@ -283,10 +286,10 @@ Now proceed with executing the MPC if successful
 
 	// customer executes mpc protocol with old/new state, pay mask commitment, rev lock commitment and payment amount
 	let ok_cust = mpc::pay_update_customer(&mut channel_state, &channel_token, old_state, new_state, pay_mask_com, rev_lock_com, 10, &mut cust_state);
-	
+
 	// merchant executes mpc protocol with customer nonce, pay mask commitment, rev lock commitment and payment amount
 	let ok_merch = mpc::pay_update_merchant(&mut rng, &mut channel_state, old_state.get_nonce(), pay_mask_com, rev_lock_com, 10, &mut merch_state);
-	
+
 	// customer sends success/error back to merchant if the customer obtains 3 masked outputs for both closing transactions and pay token
 
 Unmask/Revoke phase
@@ -297,8 +300,8 @@ Unmask/Revoke phase
 
 	// merchant verifies that revoked message on the previous state if unmasking was successful
 	let (pt_mask, pt_mask_r) = mpc::pay_validate_rev_lock_merchant(revoked_state, &mut merch_state).unwrap();
-	
-	// customer unmasks the pay token and checks validity of pay-token mask commitment opening 
+
+	// customer unmasks the pay token and checks validity of pay-token mask commitment opening
 	let is_ok = mpc::pay_unmask_pay_token_customer(pt_mask, pt_mask_r, &mut cust_state);
 
 ### Close
@@ -315,7 +318,7 @@ Customer can similarly initiate channel closing with a signed cust-close-tx of c
 	let (cust_signed_tx, txid) = mpc::customer_close(&channel_state, &channel_token, from_escrow, &cust_state).unwrap();
 
 
-# Documentation 
+# Documentation
 
 Build the api documentation by simply running `make doc`. Documentation will be generated in your local `target/doc` directory.
 
@@ -327,12 +330,6 @@ To contribute code improvements, please checkout the repository, make your chang
 
 	git clone https://github.com/boltlabs-inc/libzkchannels.git
 
-# TODOs
-
-Here are some TODOs (not in any particular order):
-
-* Add more unit tests for other dispute resolution scenarios and third-party test cases
-	
 # License
 
 Licensed under MIT (LICENSE-MIT or http://opensource.org/licenses/MIT)

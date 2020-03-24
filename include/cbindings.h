@@ -20,7 +20,6 @@ typedef struct {
   char k_inv[256];
 } EcdsaPartialSig_l;
 
-#if defined(DEFINE_MPC_BITCOIN)
 char *cust_form_escrow_transaction(char *ser_txid,
                                    uint32_t index,
                                    int64_t input_sats,
@@ -28,28 +27,22 @@ char *cust_form_escrow_transaction(char *ser_txid,
                                    char *ser_cust_sk,
                                    char *ser_cust_pk,
                                    char *ser_merch_pk,
-                                   char *ser_change_pk);
-#endif
+                                   char *ser_change_pk,
+                                   uint32_t ser_change_pk_is_hash);
 
-#if defined(DEFINE_MPC_BITCOIN)
 char *cust_verify_init_cust_close_txs(char *ser_funding_tx,
                                       char *ser_channel_state,
                                       char *ser_channel_token,
                                       char *ser_escrow_sig,
                                       char *ser_merch_sig,
                                       char *ser_cust_state);
-#endif
 
-#if defined(DEFINE_MPC_BITCOIN)
 char *customer_close_tx(char *ser_channel_state,
                         char *ser_channel_token,
                         uint32_t ser_from_escrow,
                         char *ser_cust_state);
-#endif
 
-#if defined(DEFINE_MPC_BITCOIN)
 char *customer_sign_merch_close_tx(char *ser_cust_sk, char *ser_merch_tx_preimage);
-#endif
 
 char *ffishim_bls12_channel_setup(const char *channel_name, uint32_t third_party_support);
 
@@ -215,7 +208,6 @@ char *ffishim_bn256_wtp_verify_merch_close_message(char *ser_channel_token,
 
 void ffishim_free_string(char *pointer);
 
-#if defined(DEFINE_MPC_BITCOIN)
 char *form_merch_close_transaction(char *ser_escrow_txid,
                                    char *ser_cust_pk,
                                    char *ser_merch_pk,
@@ -223,22 +215,20 @@ char *form_merch_close_transaction(char *ser_escrow_txid,
                                    int64_t cust_bal_sats,
                                    int64_t merch_bal_sats,
                                    char *ser_self_delay);
-#endif
 
-#if defined(DEFINE_MPC_BITCOIN)
+extern void *get_gonetio_ptr(void *raw_stream_fd, int party);
+
 char *merch_sign_init_cust_close_txs(char *ser_funding_tx,
                                      char *ser_rev_lock,
                                      char *ser_cust_pk,
                                      char *ser_cust_close_pk,
                                      char *ser_self_delay,
                                      char *ser_merch_state);
-#endif
 
-#if defined(DEFINE_MPC_BITCOIN)
+char *merchant_check_rev_lock(char *ser_rev_lock, char *ser_merch_state);
+
 char *merchant_close_tx(char *ser_escrow_txid, char *ser_merch_state);
-#endif
 
-#if defined(DEFINE_MPC_BITCOIN)
 char *merchant_verify_merch_close_tx(char *ser_escrow_txid,
                                      char *ser_cust_pk,
                                      int64_t cust_bal_sats,
@@ -246,58 +236,41 @@ char *merchant_verify_merch_close_tx(char *ser_escrow_txid,
                                      char *ser_self_delay,
                                      char *ser_cust_sig,
                                      char *ser_merch_state);
-#endif
 
-#if defined(DEFINE_MPC_BITCOIN)
 char *mpc_activate_customer(char *ser_cust_state);
-#endif
 
-#if defined(DEFINE_MPC_BITCOIN)
 char *mpc_activate_customer_finalize(char *ser_pay_token, char *ser_cust_state);
-#endif
 
-#if defined(DEFINE_MPC_BITCOIN)
 char *mpc_activate_merchant(char *ser_channel_token, char *ser_state, char *ser_merch_state);
-#endif
 
-#if defined(DEFINE_MPC_BITCOIN)
 char *mpc_channel_setup(const char *channel_name, uint32_t third_party_support);
-#endif
 
-#if defined(DEFINE_MPC_BITCOIN)
 void mpc_free_string(char *pointer);
-#endif
 
-#if defined(DEFINE_MPC_BITCOIN)
 char *mpc_get_channel_id(char *ser_channel_token);
-#endif
 
-#if defined(DEFINE_MPC_BITCOIN)
 char *mpc_get_initial_state(char *ser_cust_state);
-#endif
 
-#if defined(DEFINE_MPC_BITCOIN)
-char *mpc_init_customer(char *ser_pk_m, int64_t cust_bal, int64_t merch_bal, const char *name_ptr);
-#endif
+char *mpc_get_masked_tx_inputs(uint32_t mpc_result, char *ser_nonce, char *ser_merch_state);
 
-#if defined(DEFINE_MPC_BITCOIN)
-char *mpc_init_merchant(char *ser_channel_state, const char *name_ptr);
-#endif
+char *mpc_init_customer(char *ser_pk_m,
+                        int64_t cust_bal,
+                        int64_t merch_bal,
+                        const char *name_ptr,
+                        char *ser_sk_c,
+                        char *ser_payout_sk);
 
-#if defined(DEFINE_MPC_BITCOIN)
+char *mpc_init_merchant(char *db_url_str, char *ser_channel_state, const char *name_ptr);
+
 char *mpc_pay_unmask_pay_token_customer(char *ser_pt_mask_bytes,
                                         char *ser_pt_mask_r,
                                         char *ser_cust_state);
-#endif
 
-#if defined(DEFINE_MPC_BITCOIN)
 char *mpc_pay_unmask_sigs_customer(char *ser_channel_state,
                                    char *ser_channel_token,
                                    char *ser_masked_tx_inputs,
                                    char *ser_cust_state);
-#endif
 
-#if defined(DEFINE_MPC_BITCOIN)
 char *mpc_pay_update_customer(char *ser_channel_state,
                               char *ser_channel_token,
                               char *ser_start_state,
@@ -306,41 +279,29 @@ char *mpc_pay_update_customer(char *ser_channel_state,
                               char *ser_rev_lock_com,
                               int64_t amount,
                               char *ser_cust_state);
-#endif
 
-#if defined(DEFINE_MPC_BITCOIN)
 char *mpc_pay_update_merchant(char *ser_channel_state,
                               char *ser_nonce,
                               char *ser_pay_token_mask_com,
                               char *ser_rev_lock_com,
                               int64_t amount,
                               char *ser_merch_state);
-#endif
 
-#if defined(DEFINE_MPC_BITCOIN)
 char *mpc_pay_validate_rev_lock_merchant(char *ser_revoked_state, char *ser_merch_state);
-#endif
 
-#if defined(DEFINE_MPC_BITCOIN)
 char *mpc_prepare_payment_customer(char *ser_channel_state, int64_t amount, char *ser_cust_state);
-#endif
 
-#if defined(DEFINE_MPC_BITCOIN)
 char *mpc_prepare_payment_merchant(char *ser_channel_state,
                                    char *ser_nonce,
                                    char *ser_rev_lock_com,
                                    int64_t amount,
                                    char *ser_merch_state);
-#endif
 
-#if defined(DEFINE_MPC_BITCOIN)
 char *mpc_validate_initial_state(char *ser_channel_token,
                                  char *ser_init_state,
                                  char *ser_init_hash,
                                  char *ser_merch_state);
-#endif
 
-#if defined(DEFINE_MPC_BITCOIN)
 char *sign_cust_claim_tx(char *ser_channel_state,
                          char *ser_tx_index,
                          uint32_t index,
@@ -350,9 +311,7 @@ char *sign_cust_claim_tx(char *ser_channel_state,
                          char *ser_rev_lock,
                          char *ser_cust_close_pk,
                          char *ser_cust_state);
-#endif
 
-#if defined(DEFINE_MPC_BITCOIN)
 char *sign_merch_dispute_tx(char *ser_tx_index,
                             uint32_t index,
                             int64_t amount,
@@ -362,7 +321,6 @@ char *sign_merch_dispute_tx(char *ser_tx_index,
                             char *ser_rev_secret,
                             char *ser_cust_close_pk,
                             char *ser_merch_state);
-#endif
 
 extern void test_ecdsa_e2e(EcdsaPartialSig_l partial,
                            const char *hashedmsg,

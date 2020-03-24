@@ -13,16 +13,19 @@ import (
 )
 
 func Test_fullProtocolWithValidUTXO(t *testing.T) {
+	dbUrl := "redis://127.0.0.1/"
 	channelState, err := ChannelSetup("channel", false)
 	assert.Nil(t, err)
 
-	channelState, merchState, err := InitMerchant(channelState, "merch")
+	channelState, merchState, err := InitMerchant(dbUrl, channelState, "merch")
 	assert.Nil(t, err)
 
+	skC := "1a1971e1379beec67178509e25b6772c66cb67bb04d70df2b4bcdb8c08a01827"
+	payoutSk := "4157697b6428532758a9d0f9a73ce58befe3fd665797427d1c5bb3d33f6a132e"
 	custBal := int64(1000000)
 	merchBal := int64(0)
 
-	channelToken, custState, err := InitCustomer(fmt.Sprintf("\"%v\"", *merchState.PkM), custBal, merchBal, "cust")
+	channelToken, custState, err := InitCustomer(fmt.Sprintf("\"%v\"", *merchState.PkM), custBal, merchBal, "cust", skC, payoutSk)
 	assert.Nil(t, err)
 
 	inputSats := int64(50 * 100000000)
@@ -48,7 +51,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("merchClosePk :=> ", merchClosePk)
 
 	outputSats := custBal + merchBal
-	signedEscrowTx, escrowTxid, escrowPrevout, err := FormEscrowTx(cust_utxo_txid, 0, inputSats, outputSats, custInputSk, custPk, merchPk, changePk)
+	signedEscrowTx, escrowTxid, escrowPrevout, err := FormEscrowTx(cust_utxo_txid, 0, inputSats, outputSats, custInputSk, custPk, merchPk, changePk, false)
 	assert.Nil(t, err)
 
 	fmt.Println("escrow txid => ", escrowTxid)
@@ -104,6 +107,9 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	isOk, merchState, err = MerchantValidateInitialState(channelToken, initCustState, initHash, merchState)
 	assert.Nil(t, err)
 	fmt.Println("merchant validates initial state: ", isOk)
+	if !isOk {
+		fmt.Println("error: ", err)
+	}
 
 	fmt.Println("initial close transactions validated: ", isOk)
 
@@ -149,9 +155,16 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	assert.Nil(t, err)
 
 	go runPayCust(channelState, channelToken, state, newState, payTokenMaskCom, revState.RevLockCom, custState)
-	maskedTxInputs, merchState, err := PayUpdateMerchant(channelState, state.Nonce, payTokenMaskCom, revState.RevLockCom, 10, merchState)
+	isOk, merchState, err = PayUpdateMerchant(channelState, state.Nonce, payTokenMaskCom, revState.RevLockCom, 10, merchState)
 	assert.Nil(t, err)
 	time.Sleep(time.Second * 5)
+
+	if !isOk {
+		fmt.Println("MPC execution failed for merchant!")
+	}
+	assert.True(t, isOk)
+	maskedTxInputs, err := PayConfirmMPCResult(isOk, state.Nonce, merchState)
+	assert.Nil(t, err)
 
 	serCustState := os.Getenv("custStateRet")
 	err = json.Unmarshal([]byte(serCustState), &custState)
@@ -176,20 +189,33 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("TX6: Close MerchTx ID: ", CloseMerchTxId)
 	fmt.Println("TX6: Close from MerchCloseTx => ", string(CloseMerchTx))
 
+	isOk, FoundRevSecret, err := MerchantCheckRevLock(revState.RevLock, merchState)
+	fmt.Println("Looking for rev lock: ", revState.RevLock)
+	if isOk {
+		fmt.Println("Found rev secret: ", FoundRevSecret)
+	} else {
+		fmt.Println("Could not find rev secret!")
+	}
+
 	return
 }
 
 func Test_fullProtocolDummyUTXOs(t *testing.T) {
+	dbUrl := "redis://127.0.0.1/"
+
 	channelState, err := ChannelSetup("channel", false)
 	assert.Nil(t, err)
 
-	channelState, merchState, err := InitMerchant(channelState, "merch")
+	channelState, merchState, err := InitMerchant(dbUrl, channelState, "merch")
 	assert.Nil(t, err)
+
+	skC := "1a1971e1379beec67178509e25b6772c66cb67bb04d70df2b4bcdb8c08a01827"
+	payoutSk := "4157697b6428532758a9d0f9a73ce58befe3fd665797427d1c5bb3d33f6a132e"
 
 	custBal := int64(10000)
 	merchBal := int64(0)
 
-	channelToken, custState, err := InitCustomer(fmt.Sprintf("\"%v\"", *merchState.PkM), custBal, merchBal, "cust")
+	channelToken, custState, err := InitCustomer(fmt.Sprintf("\"%v\"", *merchState.PkM), custBal, merchBal, "cust", skC, payoutSk)
 	assert.Nil(t, err)
 
 	inputSats := int64(50 * 100000000)
@@ -201,7 +227,10 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	// merchSk := fmt.Sprintf("\"%v\"", *merchState.SkM)
 	merchPk := fmt.Sprintf("%v", *merchState.PkM)
 	// changeSk := "4157697b6428532758a9d0f9a73ce58befe3fd665797427d1c5bb3d33f6a132e"
-	changePk := "037bed6ab680a171ef2ab564af25eff15c0659313df0bbfb96414da7c7d1e65882"
+	// changePk := "037bed6ab680a171ef2ab564af25eff15c0659313df0bbfb96414da7c7d1e65882" // false
+	changePk := "0014578dd1183845e18d42f90b1a9f3a464675ad2440" // true
+	isChangePkHash := true
+
 	merchClosePk := fmt.Sprintf("%v", *merchState.PayoutPk)
 	toSelfDelay := "05cf"
 	// fmt.Println("custSk :=> ", custSk)
@@ -211,7 +240,7 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	// fmt.Println("merchClosePk :=> ", merchClosePk)
 
 	outputSats := custBal + merchBal
-	signedEscrowTx, escrowTxid, escrowPrevout, err := FormEscrowTx(cust_utxo_txid, 0, inputSats, outputSats, custInputSk, custPk, merchPk, changePk)
+	signedEscrowTx, escrowTxid, escrowPrevout, err := FormEscrowTx(cust_utxo_txid, 0, inputSats, outputSats, custInputSk, custPk, merchPk, changePk, isChangePkHash)
 	assert.Nil(t, err)
 
 	// fmt.Println("escrow txid => ", escrowTxid)
@@ -269,6 +298,9 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	isOk, merchState, err = MerchantValidateInitialState(channelToken, initCustState, initHash, merchState)
 	assert.Nil(t, err)
 	fmt.Println("merchant validates initial state: ", isOk)
+	if !isOk {
+		fmt.Println("error: ", err)
+	}
 
 	fmt.Println("initial close transactions validated: ", isOk)
 
@@ -304,12 +336,17 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	payTokenMaskCom, merchState, err := PreparePaymentMerchant(channelState, state.Nonce, revState.RevLockCom, 10, merchState)
 	assert.Nil(t, err)
 
-	fmt.Println("Merch State (unlink map): ", *merchState.UnlinkMap)
-
 	go runPayCust(channelState, channelToken, state, newState, payTokenMaskCom, revState.RevLockCom, custState)
-	maskedTxInputs, merchState, err := PayUpdateMerchant(channelState, state.Nonce, payTokenMaskCom, revState.RevLockCom, 10, merchState)
+	isOk, merchState, err = PayUpdateMerchant(channelState, state.Nonce, payTokenMaskCom, revState.RevLockCom, 10, merchState)
 	assert.Nil(t, err)
 	time.Sleep(time.Second * 5)
+
+	if !isOk {
+		fmt.Println("MPC execution failed for merchant!")
+	}
+	assert.True(t, isOk)
+	maskedTxInputs, err := PayConfirmMPCResult(isOk, state.Nonce, merchState)
+	assert.Nil(t, err)
 
 	serCustState := os.Getenv("custStateRet")
 	err = json.Unmarshal([]byte(serCustState), &custState)
@@ -320,6 +357,9 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 
 	payTokenMask, payTokenMaskR, merchState, err := PayValidateRevLockMerchant(revState, merchState)
 	assert.Nil(t, err)
+
+	fmt.Println("payToken mask: ", payTokenMask)
+	fmt.Println("payToken mask_r: ", payTokenMaskR)
 
 	isOk, custState, err = PayUnmaskPayTokenCustomer(payTokenMask, payTokenMaskR, custState)
 	assert.Nil(t, err)
@@ -332,6 +372,19 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	CloseMerchTx, CloseMerchTxId, err := CustomerCloseTx(channelState, channelToken, false, custState)
 	fmt.Println("TX4: Close MerchTx ID: ", CloseMerchTxId)
 	fmt.Println("TX4: Close from MerchCloseTx => ", string(CloseMerchTx))
+
+	isOk, FoundRevSecret, err := MerchantCheckRevLock(revState.RevLock, merchState)
+	fmt.Println("Looking for rev lock: ", revState.RevLock)
+	if isOk {
+		fmt.Println("Found rev secret: ", FoundRevSecret)
+	} else {
+		fmt.Println("Could not find rev secret!")
+	}
+
+	isOk, FoundRevSecret, err = MerchantCheckRevLock("4157697b6428532758a9d0f9a73ce58befe3fd665797427d1c5bb3d33f6a132e", merchState)
+	if !isOk {
+		fmt.Println("Fails as expected!")
+	}
 }
 
 func runPayCust(channelState ChannelState, channelToken ChannelToken, state State, newState State, payTokenMaskCom string, revLockCom string, custState CustState) {

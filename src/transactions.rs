@@ -29,6 +29,13 @@ pub struct Output {
     pub amount: i64
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChangeOutput {
+    pub pubkey: Vec<u8>,
+    pub amount: i64,
+    pub is_hash: bool
+}
+
 pub struct MultiSigOutput {
     pub cust_pubkey: Vec<u8>,
     pub merch_pubkey: Vec<u8>,
@@ -119,10 +126,15 @@ pub mod btc {
         return script_pubkey;
     }
 
-    pub fn create_p2wpkh_scriptpubkey<N: BitcoinNetwork>(pubkey: &Vec<u8>) -> Vec<u8> {
-        let script_hash = hash160(pubkey.as_slice());
+    pub fn create_p2wpkh_scriptpubkey<N: BitcoinNetwork>(pubkey: &Vec<u8>, is_hash: bool) -> Vec<u8> {
         let mut script_pubkey = Vec::new();
-        script_pubkey.extend(vec![0x00, 0x14]); // len of hash
+        let script_hash = match is_hash {
+            true => pubkey.clone(),
+            false => {
+                script_pubkey.extend(vec![0x00, 0x14]); // len of hash
+                hash160(pubkey.as_slice())
+            }
+        };
         script_pubkey.extend_from_slice(&script_hash);
 
         return script_pubkey;
@@ -231,11 +243,13 @@ pub mod btc {
     // input => p2pkh or p2sh_p2wpkh
     // output1 => multi-sig addr via p2wsh
     // output2 => change output to p2wpkh
-    pub fn create_escrow_transaction<N: BitcoinNetwork>(config: &BitcoinTxConfig, input: &Input, output1: &MultiSigOutput, output2: &Output, private_key: BitcoinPrivateKey<N>) -> Result<(Vec<u8>, BitcoinTransaction<N>), String> {
+    pub fn create_escrow_transaction<N: BitcoinNetwork>(config: &BitcoinTxConfig, input: &Input, output1: &MultiSigOutput, output2: &ChangeOutput, private_key: BitcoinPrivateKey<N>) -> Result<(Vec<u8>, BitcoinTransaction<N>), String> {
         // check that specified public keys are valid
         check_pk_valid!(output1.cust_pubkey);
         check_pk_valid!(output1.merch_pubkey);
-        check_pk_valid!(output2.pubkey);
+        if !output2.is_hash {
+            check_pk_valid!(output2.pubkey);
+        }
         // types of UTXO inputs to support
         let address_format = match input.address_format {
             "p2pkh" => BitcoinFormat::P2PKH,
@@ -282,7 +296,7 @@ pub mod btc {
         //println!("output1 script pubkey: {}", hex::encode(out1));
 
         // add P2WPKH output
-        let output2_script_pubkey = create_p2wpkh_scriptpubkey::<N>(&output2.pubkey);
+        let output2_script_pubkey = create_p2wpkh_scriptpubkey::<N>(&output2.pubkey, output2.is_hash);
         let change_output = BitcoinTransactionOutput { amount: BitcoinAmount(output2.amount), script_pub_key: output2_script_pubkey };
         //let out2 = change_output.serialize().unwrap();
         //println!("output2 script pubkey: {}", hex::encode(out2));
@@ -570,7 +584,7 @@ pub mod btc {
         // println!("to_customer: {}", hex::encode(to_customer.serialize().unwrap()));
 
         // output 2: P2WPKH output to merchant
-        let output2_script_pubkey = create_p2wpkh_scriptpubkey::<N>(&pubkeys.merch_close_pk);
+        let output2_script_pubkey = create_p2wpkh_scriptpubkey::<N>(&pubkeys.merch_close_pk, false);
         // println!("(2) to_merchant: {}", hex::encode(&output2_script_pubkey));
         let to_merchant = BitcoinTransactionOutput { amount: BitcoinAmount::from_satoshi(merch_bal).unwrap(), script_pub_key: output2_script_pubkey };
         // println!("to_merchant: {}", hex::encode(to_merchant.serialize().unwrap()));
@@ -635,7 +649,7 @@ pub mod btc {
         input_vec.push(cust_close_tx_input);
 
         // add P2WPKH output
-        let output_script_pk = create_p2wpkh_scriptpubkey::<N>(&output.pubkey);
+        let output_script_pk = create_p2wpkh_scriptpubkey::<N>(&output.pubkey, false);
         let p2wpkh_output = BitcoinTransactionOutput { amount: BitcoinAmount::from_satoshi(output.amount).unwrap(), script_pub_key: output_script_pk };
 
         let mut output_vec = vec![];
@@ -699,7 +713,7 @@ pub mod btc {
         input_vec.push(cust_close_tx_input);
 
         // add P2WPKH output
-        let output_script_pk = create_p2wpkh_scriptpubkey::<N>(&output.pubkey);
+        let output_script_pk = create_p2wpkh_scriptpubkey::<N>(&output.pubkey, false);
         let p2wpkh_output = BitcoinTransactionOutput { amount: BitcoinAmount::from_satoshi(output.amount).unwrap(), script_pub_key: output_script_pk };
 
         let mut output_vec = vec![];
@@ -769,7 +783,7 @@ pub mod btc {
         input_vec.push(tx_input);
 
         // add P2WPKH output
-        let output_script_pubkey = create_p2wpkh_scriptpubkey::<N>(&output.pubkey);
+        let output_script_pubkey = create_p2wpkh_scriptpubkey::<N>(&output.pubkey, false);
         let p2wpkh_output = BitcoinTransactionOutput { amount: BitcoinAmount(output.amount), script_pub_key: output_script_pubkey };
 
         let mut output_vec = vec![];
@@ -848,8 +862,8 @@ mod tests {
 
         // address => "n1Z8M5eoimzqvAmufqrSXFAGzKtJ8QoDnD"
         // private_key => "cVKYvWfApKiQJjLJhHokq7eEEFcx8Y1vsJYE9tVb5ccj3ZaCY82X" // testnet
-        let change_output = Output { pubkey: hex::decode("021882b66a9c4ec1b8fc29ac37fbf4607b8c4f1bfe2cc9a49bc1048eb57bcebe67").unwrap(),
-                                     amount: (1 * SATOSHI) };
+        let change_output = ChangeOutput { pubkey: hex::decode("021882b66a9c4ec1b8fc29ac37fbf4607b8c4f1bfe2cc9a49bc1048eb57bcebe67").unwrap(),
+                                     amount: (1 * SATOSHI), is_hash: false };
 
         let private_key = BitcoinPrivateKey::<Testnet>::from_str("cPmiXrwUfViwwkvZ5NXySiHEudJdJ5aeXU4nx4vZuKWTUibpJdrn").unwrap();
         let (escrow_tx_preimage, full_escrow_tx) = transactions::btc::create_escrow_transaction::<Testnet>(&config, &input, &musig_output, &change_output, private_key.clone()).unwrap();

@@ -8,7 +8,6 @@ extern crate sha2;
 extern crate wagyu_bitcoin as bitcoin;
 extern crate wagyu_model;
 
-#[cfg(feature = "mpc-bitcoin")]
 use zkchannels::mpc;
 use structopt::StructOpt;
 use std::str::FromStr;
@@ -51,7 +50,7 @@ macro_rules! create_connection {
     ($e: expr) => (&mut Conn::new($e.own_ip, $e.own_port, $e.other_ip, $e.other_port));
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 enum Party {
     MERCH,
     CUST,
@@ -64,7 +63,7 @@ impl FromStr for Party {
     }
 }
 
-#[derive(Debug, StructOpt, Deserialize)]
+#[derive(Clone, Debug, StructOpt, Deserialize)]
 pub struct Open {
     #[structopt(long = "party")]
     party: Party,
@@ -86,7 +85,7 @@ pub struct Open {
     tx_fee: i64
 }
 
-#[derive(Debug, StructOpt, Deserialize)]
+#[derive(Clone, Debug, StructOpt, Deserialize)]
 pub struct Init {
     #[structopt(long = "party")]
     party: Party,
@@ -112,7 +111,7 @@ pub struct Init {
     tx_fee: i64
 }
 
-#[derive(Debug, StructOpt, Deserialize)]
+#[derive(Clone, Debug, StructOpt, Deserialize)]
 pub struct Activate {
     #[structopt(long = "party")]
     party: Party,
@@ -126,7 +125,7 @@ pub struct Activate {
     other_port: String
 }
 
-#[derive(Debug, StructOpt, Deserialize)]
+#[derive(Clone, Debug, StructOpt, Deserialize)]
 pub struct Pay {
     #[structopt(long = "party")]
     party: Party,
@@ -144,7 +143,7 @@ pub struct Pay {
     verbose: bool
 }
 
-#[derive(Debug, StructOpt, Deserialize)]
+#[derive(Clone, Debug, StructOpt, Deserialize)]
 pub struct Close {
     #[structopt(long = "party")]
     party: Party,
@@ -156,7 +155,7 @@ pub struct Close {
     channel_token: Option<PathBuf>
 }
 
-#[derive(Debug, StructOpt, Deserialize)]
+#[derive(Clone, Debug, StructOpt, Deserialize)]
 pub enum Command {
     #[structopt(name = "open")] // for initializing channel state and cust/merch state
     OPEN(Open),
@@ -229,7 +228,6 @@ pub fn write_pathfile(path_buf: PathBuf, content: String) -> Result<(), String> 
     }
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 pub fn generate_keypair<R: Rng>(csprng: &mut R) -> (secp256k1::PublicKey, secp256k1::SecretKey) {
     let secp = secp256k1::Secp256k1::new();
 
@@ -327,7 +325,6 @@ impl Conn {
     }
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 fn main() {
     println!("******************************************");
 
@@ -360,13 +357,15 @@ fn main() {
             Party::CUST => cust::activate(create_connection!(activate)).unwrap()
         },
         Command::UNLINK(unlink) => match unlink.party {
-            Party::MERCH => merch::pay(0, create_connection!(unlink)).unwrap(),
+            Party::MERCH => merch::pay(Some(0), create_connection!(unlink)).unwrap(),
             Party::CUST => cust::pay(0, create_connection!(unlink), unlink.verbose).unwrap(),
         },
         Command::PAY(pay) => match pay.party {
-            Party::MERCH => match merch::pay(pay.amount.unwrap(), create_connection!(pay)) {
-                Err(e) => println!("Pay phase failed with error: {}", e),
-                _ => ()
+            Party::MERCH => loop {
+                match merch::pay( pay.amount.clone(), create_connection!(pay.clone())) {
+                    Err(e) => println!("Pay phase failed with error: {}", e),
+                    _ => ()
+                }
             },
             Party::CUST => match cust::pay(pay.amount.unwrap(), create_connection!(pay), pay.verbose) {
                 Err(e) => println!("Pay protocol failed with error: {}", e),
@@ -382,14 +381,14 @@ fn main() {
     println!("******************************************");
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 mod cust {
     use super::*;
-    use zkchannels::channels_mpc::{ChannelMPCToken, ChannelMPCState, CustomerMPCState, MaskedTxMPCInputs, NetworkConfig};
+    use zkchannels::channels_mpc::{ChannelMPCToken, ChannelMPCState, CustomerMPCState, NetworkConfig};
     use zkchannels::txutil::{customer_sign_escrow_transaction, customer_sign_merch_close_transaction};
     use zkchannels::FixedSizeArray32;
     use zkchannels::transactions::btc::merchant_form_close_transaction;
     use zkchannels::bindings::{ConnType_NETIO}; // ConnType_CUSTOM
+    use zkchannels::database::MaskedTxMPCInputs;
     // use std::os::unix::io::AsRawFd;
 
     pub fn open(conn: &mut Conn, b0_cust: i64, b0_merch: i64) -> Result<(), String> {
@@ -405,7 +404,7 @@ mod cust {
         }
 
         let (channel_token, cust_state) = mpc::init_customer(rng, &pk_m,
-                                                                 b0_cust, b0_merch, "Customer");
+                                                                 b0_cust, b0_merch, "Customer", None, None);
 
         println!("Saving the initial customer state...");
         save_state_cust(channel_state, channel_token, cust_state)
@@ -440,7 +439,7 @@ mod cust {
 
         // form the escrow transaction
         let (signed_tx, escrow_txid, escrow_prevout) =
-            handle_error_result!(customer_sign_escrow_transaction(input_txid, index, input_sats, output_sats, cust_sk.clone(), cust_pk.clone(), merch_pk.clone(), Some(change_pk_vec)));
+            handle_error_result!(customer_sign_escrow_transaction(input_txid, index, input_sats, output_sats, cust_sk.clone(), cust_pk.clone(), merch_pk.clone(), Some(change_pk_vec), false));
 
         // form the merch-close-tx
         let cust_bal = cust_state.cust_balance;
@@ -565,9 +564,12 @@ mod cust {
             println!("new state: {}", &new_state);
             println!("====================================");
         }
+        let amount_str = hex::encode(amount.to_be_bytes());
+        let old_nonce_str = hex::encode(&old_state.get_nonce());
+        let rev_lock_com_str = hex::encode(&rev_state.rev_lock_com.0);
 
-        let msg = [hex::encode(&old_state.get_nonce()), hex::encode(&rev_state.rev_lock_com.0)];
-        let msg1 = conn.send_and_wait(&msg, Some(String::from("nonce and rev_lock com")), true);
+        let msg = [old_nonce_str, rev_lock_com_str, amount_str]; 
+        let msg1 = conn.send_and_wait(&msg, Some(String::from("amount, nonce and rev_lock com")), true);
         let pay_token_mask_com_vec = hex::decode(msg1.get(0).unwrap()).unwrap();
         let mut pay_token_mask_com = [0u8; 32];
         pay_token_mask_com.copy_from_slice(pay_token_mask_com_vec.as_slice());
@@ -579,7 +581,9 @@ mod cust {
         let result = mpc::pay_update_customer(&mut channel_state, &mut channel_token, old_state, new_state, pay_token_mask_com, rev_state.rev_lock_com.0, amount, &mut cust_state);
         let mut is_ok = result.is_ok() && result.unwrap();
 
-        let msg2 = conn.wait_for(None, false);
+        let msg1a = [handle_error_result!(serde_json::to_string(&is_ok))];
+        let msg2 = conn.send_and_wait(&msg1a, None, false);
+        
         let mask_bytes: MaskedTxMPCInputs = serde_json::from_str(msg2.get(0).unwrap()).unwrap();
 
         // unmask the closing tx
@@ -644,9 +648,9 @@ mod cust {
     }
 }
 
-#[cfg(feature = "mpc-bitcoin")]
 mod merch {
     use super::*;
+    use zkchannels::database::{StateDatabase, RedisDatabase}; // HashMapDatabase
     use zkchannels::channels_mpc::{ChannelMPCState, ChannelMPCToken, MerchantMPCState, InitCustState, NetworkConfig};
     use zkchannels::wallet::State;
     use zkchannels::transactions::btc::{completely_sign_multi_sig_transaction, merchant_form_close_transaction};
@@ -654,7 +658,6 @@ mod merch {
     use wagyu_model::Transaction;
     use zkchannels::fixed_size_array::FixedSizeArray32;
     use zkchannels::bindings::{ConnType_NETIO}; // ConnType_CUSTOM
-    // use std::os::unix::io::AsRawFd;
 
     pub fn open(conn: &mut Conn, dust_limit: i64) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
@@ -666,7 +669,8 @@ mod merch {
         }
         channel_state.set_dust_limit(dust_limit);
 
-        let merch_state = mpc::init_merchant(rng, &mut channel_state, "Merchant");
+        let db_url = "redis://127.0.0.1/".to_string();
+        let merch_state = mpc::init_merchant(rng, db_url, &mut channel_state, "Merchant");
 
         let msg1 = [handle_error_result!(serde_json::to_string(&channel_state)), handle_error_result!(serde_json::to_string(&merch_state.pk_m))];
         conn.send(&msg1);
@@ -678,6 +682,8 @@ mod merch {
         // build tx and sign it
         let ser_merch_state = read_file("merch_state.json").unwrap();
         let mut merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
+
+        let mut db = handle_error_result!(RedisDatabase::new("cli", merch_state.db_url.clone()));
 
         let msg0 = conn.wait_for(None, false);
         // wait for cust_sig, escrow_txid and escrow_prevout
@@ -732,7 +738,7 @@ mod merch {
         let init_cust_state: InitCustState = serde_json::from_str(&msg4.get(1).unwrap()).unwrap();
         let init_hash: [u8; 32] = serde_json::from_str(&msg4.get(2).unwrap()).unwrap();
 
-        let res = handle_error_result!(mpc::validate_initial_state(&channel_token, &init_cust_state, init_hash, &mut merch_state));
+        let res = handle_error_result!(mpc::validate_initial_state(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, init_hash, &mut merch_state));
         println!("Initial state for customer is correct: {}", res);
 
         let msg5 = [handle_error_result!(serde_json::to_string(&res))];
@@ -748,13 +754,14 @@ mod merch {
     pub fn activate(conn: &mut Conn) -> Result<(), String> {
         let ser_merch_state = read_file("merch_state.json").unwrap();
         let mut merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
+        let mut db = handle_error_result!(RedisDatabase::new("cli", merch_state.db_url.clone()));
 
         let msg2 = conn.wait_for(None, false);
 
         let channel_token: ChannelMPCToken = serde_json::from_str(&msg2.get(0).unwrap()).unwrap();
         let s0: State = serde_json::from_str(msg2[1].as_ref()).unwrap();
 
-        let pay_token = handle_error_result!(mpc::activate_merchant(channel_token, &s0, &mut merch_state));
+        let pay_token = handle_error_result!(mpc::activate_merchant(&mut db as &mut dyn StateDatabase, channel_token, &s0, &mut merch_state));
 
         let msg3 = [handle_error_result!(serde_json::to_string(&pay_token))];
         conn.send(&msg3);
@@ -763,11 +770,11 @@ mod merch {
         Ok(())
     }
 
-    pub fn pay(amount: i64, conn: &mut Conn) -> Result<(), String> {
+    pub fn pay(cmd_amount: Option<i64>, conn: &mut Conn) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
-
         let ser_merch_state = read_file("merch_state.json").unwrap();
         let mut merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
+        let mut db = handle_error_result!(RedisDatabase::new("cli", merch_state.db_url.clone()));
 
         let ser_channel_state = read_file("merch_channel_state.json").unwrap();
         let mut channel_state: ChannelMPCState = serde_json::from_str(&ser_channel_state).unwrap();
@@ -776,12 +783,24 @@ mod merch {
         let nonce_vec = hex::decode(msg0.get(0).unwrap()).unwrap();
         let mut nonce = [0u8; 16];
         nonce.copy_from_slice(nonce_vec.as_slice());
-        println!("Customer revealed a nonce: {}", hex::encode(&nonce));
+
         let rev_lock_com_vec = hex::decode(msg0.get(1).unwrap()).unwrap();
         let mut rev_lock_com = [0u8; 32];
         rev_lock_com.copy_from_slice(rev_lock_com_vec.as_slice());
 
-        let pay_token_mask_com = handle_error_result!(mpc::pay_prepare_merchant(rng, &channel_state, nonce, rev_lock_com.clone(), amount, &mut merch_state));
+        // only if amount not specified above
+        let amount = match cmd_amount {
+            Some(a) => a,
+            None => {
+                let amount_vec = hex::decode(msg0.get(2).unwrap()).unwrap();
+                let mut amount_buf = [0u8; 8];
+                amount_buf.copy_from_slice(amount_vec.as_slice());
+                i64::from_be_bytes(amount_buf)
+            }
+        };
+        println!("Payment request => nonce: {}, amount: {}", hex::encode(&nonce), amount);
+
+        let pay_token_mask_com = handle_error_result!(mpc::pay_prepare_merchant(rng, &mut db as &mut dyn StateDatabase, &channel_state, nonce, rev_lock_com.clone(), amount, &mut merch_state));
 
         let msg1 = [hex::encode(&pay_token_mask_com)];
         conn.send(&msg1);
@@ -790,12 +809,21 @@ mod merch {
         merch_state.set_network_config(nc);
 
         // execute mpc context
-        let masked_inputs = handle_error_result!(mpc::pay_update_merchant(rng, &mut channel_state, nonce, pay_token_mask_com, rev_lock_com, amount, &mut merch_state));
+        let _mpc_ok = handle_error_result!(mpc::pay_update_merchant(rng, &mut db as &mut dyn StateDatabase, &mut channel_state, nonce.clone(), pay_token_mask_com, rev_lock_com, amount, &mut merch_state));
+        
+        // confirm customer got mpc output
+        let msg1a = conn.wait_for(None, false);
+        let cust_mpc_ok: bool = serde_json::from_str(msg1a.get(0).unwrap()).unwrap();
+        if !cust_mpc_ok {
+            return Err(format!("failed to execute MPC successfully."));
+        }
+        
+        let masked_inputs = mpc::pay_confirm_mpc_result(&mut db as &mut dyn StateDatabase, cust_mpc_ok, nonce, &mut merch_state).unwrap();
         let msg3 = [handle_error_result!(serde_json::to_string(&masked_inputs))];
         let msg4 = conn.send_and_wait(&msg3, Some(String::from("Received revoked state")), true);
         let rev_state = serde_json::from_str(msg4.get(0).unwrap()).unwrap();
 
-        let (pt_mask_bytes, pt_mask_r) = match mpc::pay_validate_rev_lock_merchant(rev_state, &mut merch_state) {
+        let (pt_mask_bytes, pt_mask_r) = match mpc::pay_validate_rev_lock_merchant(&mut db as &mut dyn StateDatabase, rev_state, &mut merch_state) {
             Ok(n) => (n.0, n.1),
             _ => return Err(String::from("Failed to get the pay token mask and randomness!"))
         };
@@ -808,6 +836,7 @@ mod merch {
         } else {
             println!("Transaction failed!")
         }
+        println!("******************************************");
 
         save_state_merch(channel_state, merch_state)
     }

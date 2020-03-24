@@ -20,7 +20,7 @@ COPY ./test_mpcwrapper.sh ./test_mpcwrapper.sh
 COPY ./test_channels_mpc.sh ./test_channels_mpc.sh
 
 RUN . ./env && make deps
-RUN . ./env && cargo build --release --features mpc-bitcoin
+RUN . ./env && cargo build --release
 RUN . ./env && make mpctest
 
 # binary "/libzkchannels/target/release/zkchannels_mpc -h"

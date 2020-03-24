@@ -1,3 +1,3 @@
 #!/bin/bash
 
-cargo test --release --features mpc-bitcoin --lib mpcwrapper -- --nocapture
+cargo test --release --lib mpcwrapper -- --nocapture

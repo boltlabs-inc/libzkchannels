@@ -1,5 +1,4 @@
-use secp256k1;
-use bindings::EcdsaPartialSig_l;
+use bindings::{EcdsaPartialSig_l};
 use std::convert::TryInto;
 use std::ffi::CString;
 use std::os::raw::c_char;
@@ -7,11 +6,11 @@ use std::os::raw::c_char;
 
 extern "C" {
     pub fn test_ecdsa_e2e(
-        partial: EcdsaPartialSig_l,
+        partial: EcdsaPartialSig_l, 
         hashedmsg: *const c_char,
         party: u32,
         digest: &[u32; 8],
-    ) -> ();
+        ) -> ();
 }
 
 fn call_ecdsa(psl: EcdsaPartialSig_l, hashedmsg: [u8; 32], party: u32) -> [u8; 32] {
@@ -34,19 +33,17 @@ fn call_ecdsa(psl: EcdsaPartialSig_l, hashedmsg: [u8; 32], party: u32) -> [u8; 3
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sha2::{Sha256, Digest};
-
-    const NUM_TESTS: i32 = 1;
-
     use ecdsa_partial::{EcdsaPartialSig, translate_rx};
+    use secp256k1;
+    use sha2::{Sha256, Digest};
+    const NUM_TESTS: i32 = 50;
     use rand::RngCore;
-    use std::thread::sleep;
-    use std::time;
+
 
     // rusty fork tests call the two parties separately.
     rusty_fork_test! {
     #[test]
-
+    
     // tests MPC ecdsa implementation
     // variable ownership is not accurately reflected here
     // VARS party
@@ -58,11 +55,11 @@ mod tests {
     fn test_mpc_ecdsa_VARS() {
         let csprng = &mut rand::thread_rng();
 
-        for i in 0..NUM_TESTS {
+        for _ in 0..NUM_TESTS {
             let mut seckey = [0u8; 32];
             csprng.fill_bytes(&mut seckey);
             let sk = secp256k1::SecretKey::from_slice(&seckey).unwrap();
-            let partial = EcdsaPartialSig::New(csprng, &sk);
+            let partial = EcdsaPartialSig::New(csprng,&sk);
 
             // compute signature locally
             let mut msg = [0u8; 32];
@@ -80,21 +77,18 @@ mod tests {
             let digest = call_ecdsa(partial.getMpcRepr(), hmsg, 1);
 
             // compare
-            println!("signature {}: {}", i, hex::encode(&signature.serialize_compact()[32..]));
-            // assert_eq!(hex::encode(digest),
-            //            hex::encode(&signature.serialize_compact()[32..]));
+            assert_eq!(hex::encode(digest),
+                    hex::encode(&signature.serialize_compact()[32..]));
         }
         println!("Passed {} ECDSA end-to-end tests", NUM_TESTS);
-    }
-}
-    //234307334b069eb5773258e6dd1db691fd5776c4fcfd9245b9ee0db6b4d19384
+    }}
 
-    // rusty_fork_test! {
+    rusty_fork_test! {
     #[test]
     fn test_mpc_ecdsa_NOVARS() {
         let csprng = &mut rand::thread_rng();
 
-        for i in 0..NUM_TESTS {
+        for _ in 0..NUM_TESTS {
             /* this will all be ignored when we share the object */
             let mut seckey = [0u8; 32];
             csprng.fill_bytes(&mut seckey);
@@ -104,10 +98,8 @@ mod tests {
             let hmsg = [1u8; 32];
 
             // compute signature under mpc as cust=2
-            let digest = call_ecdsa(partial.getMpcRepr(), hmsg, 2);
-            println!("signature {}: {}", i, hex::encode(digest));
+            call_ecdsa(partial.getMpcRepr(), hmsg, 2);
         }
         println!("Passed {} ECDSA end-to-end tests", NUM_TESTS);
-    }
-// }
+    }}
 }
