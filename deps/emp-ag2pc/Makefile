@@ -12,7 +12,8 @@ emp-ag2pc-$(VERSION)/.built: emp-ag2pc-${VERSION}
 	make install && \
 	cp bin/* $(ZK_DEPS_INSTALL)/bin/ && \
 	touch ../$@ && \
-	../fix_rpath_osx.sh libtokenm-utils
+	../fix_rpath_osx.sh libtokenm-utils && \
+	../fix_rpath_osx.sh libtest-e2e
 
 emp-ag2pc-$(VERSION): emp-ag2pc-$(VERSION).tar.gz
 	tar xf $^

@@ -14,7 +14,7 @@ emp-sh2pc-$(VERSION)/.built: emp-sh2pc-${VERSION}
 	touch ../$@ && \
 	../fix_rpath_osx.sh libtoken-utils && \
 	../../root/bin/token -m && \
-	cp tokens.circuit.txt $(ZK_DEPS_INSTALL)/include/
+	cp tokens.circuit.txt $(ZK_DEPS_INSTALL)/include/emp-tool/circuits/files/
 
 emp-sh2pc-$(VERSION): emp-sh2pc-$(VERSION).tar.gz
 	tar xf $^

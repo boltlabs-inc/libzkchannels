@@ -67,7 +67,8 @@ pub mod bindings;
 pub mod transactions;
 pub mod fixed_size_array;
 
-//pub mod test_e2e;
+#[cfg(test)]
+pub mod test_e2e;
 
 use std::fmt;
 use std::str;

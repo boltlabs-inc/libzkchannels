@@ -9,12 +9,13 @@ fn main() {
     println!("cargo:rustc-link-search={}/deps/root/lib", project_dir); // the "-L" flag
     if env::var("AG2PC").is_ok() {
         println!("cargo:rustc-link-lib=tokenm-utils"); // the "-l" flag
+        println!("cargo:rustc-link-lib=test-e2e"); // the "-l" flag
     } else {
         println!("cargo:rustc-link-lib=token-utils"); // the "-l" flag
     }
 
     // Create bindings
-    let mut header_file: &str;
+    let header_file: &str;
     if env::var("AG2PC").is_ok() {
         header_file = "deps/root/include/emp-ag2pc/tokens.h";
     } else {
