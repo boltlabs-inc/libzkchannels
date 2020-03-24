@@ -222,7 +222,7 @@ See the `intermediary_payment_basics_works()` unit test in `src/lib.rs` for more
 
 We now describe the APIs around our support for non-anonymous currencies like Bitcoin.
 
-<img src="libzkchannels-mpc-arch.png" width=100 align=center>
+<img src="libzkchannels-mpc-arch.png" width=300 align=center>
 
 ### Channel Setup
 
