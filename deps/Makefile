@@ -1,6 +1,6 @@
 .PHONY: all clean
 
-DIRS=time emp-tool emp-ot emp-sh2pc
+DIRS=time emp-tool emp-ot emp-sh2pc emp-ag2pc
 
 all: $(DIRS)
 	./install_packages.sh
@@ -18,7 +18,7 @@ clean: $(DIRS)
 
 distclean: $(DIRS)
 	rm -rf root
-	rm .installed
+	rm -f .installed
 	for d in $(DIRS); do \
 		make -C $$d distclean; \
 	done
