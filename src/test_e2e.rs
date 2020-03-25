@@ -33,7 +33,7 @@ fn call_ecdsa(psl: EcdsaPartialSig_l, hashedmsg: [u8; 32], party: u32) -> [u8; 3
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ecdsa_partial::{EcdsaPartialSig, translate_rx};
+    use ecdsa_partial::EcdsaPartialSig;
     use secp256k1;
     use sha2::{Sha256, Digest};
     const NUM_TESTS: i32 = 50;

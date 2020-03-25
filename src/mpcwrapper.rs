@@ -311,21 +311,18 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(rng: &mut R, net_conn: NetworkConfi
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{str, ptr};
+    use std::str;
     use num::BigInt;
     use num::bigint::Sign;
-    use std::time::Duration;
     use sha2::{Sha256, Digest};
     use secp256k1::{Secp256k1, Signature, PublicKey, Message, PartialSignature};
-    use std::str::FromStr;
     use rand::RngCore;
     use rand::rngs::mock::StepRng;
     use fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
     use bitcoin::Testnet;
     use util::{hmac_sign, hash_to_slice};
-    use std::slice;
     use std::ffi::CStr;
-    use transactions::{ClosePublicKeys, BitcoinTxConfig, Input, SATOSHI};
+    use transactions::ClosePublicKeys;
     use transactions::btc::{create_reverse_input, create_cust_close_transaction};
 
     fn compute_commitment(buf: &Vec<u8>, r: &[u8; 16]) -> [u8; 32] {

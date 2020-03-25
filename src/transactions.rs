@@ -618,7 +618,7 @@ pub mod btc {
     pub fn sign_cust_close_claim_transaction<N: BitcoinNetwork>(txid_le: Vec<u8>, index: u32, output: Output, self_delay_be: [u8; 2], rev_lock: Vec<u8>, merch_disp_pk: Vec<u8>, cust_close_pk: Vec<u8>, private_key: BitcoinPrivateKey<N>) -> Result<(Vec<u8>, Vec<u8>), String> {
         let version = 2;
         let lock_time = 0;
-        let address_format = BitcoinFormat::P2WSH;
+
         let mut self_delay_le= self_delay_be.to_vec();
         self_delay_le.reverse();
         let redeem_script = serialize_p2wsh_cust_close_redeem_script(&rev_lock, &merch_disp_pk, &cust_close_pk, &self_delay_le);
@@ -684,7 +684,7 @@ pub mod btc {
         let lock_time = 0;
         let mut self_delay_le = self_delay_be.to_vec();
         self_delay_le.reverse();
-        let address_format = BitcoinFormat::P2WSH;
+
         let redeem_script = serialize_p2wsh_cust_close_redeem_script(&rev_lock, &merch_disp_pk, &cust_close_pk, &self_delay_le);
         let address = BitcoinAddress::<N>::p2wsh(&redeem_script).unwrap();
         let transaction_id = txid_le.clone();
@@ -906,11 +906,6 @@ mod tests {
             sequence: Some([0xff, 0xff, 0xff, 0xff]) // 4294967295
         };
 
-        let config = BitcoinTxConfig {
-            version: 2,
-            lock_time: 0
-        };
-
         let to_self_delay: [u8; 2] = [0x05, 0xcf]; // big-endian format
 
         let c_private_key = BitcoinPrivateKey::<Testnet>::from_str(cust_private_key).unwrap();
@@ -1066,7 +1061,7 @@ mod tests {
         };
 
         let c_private_key = BitcoinPrivateKey::<Testnet>::from_str("cPmiXrwUfViwwkvZ5NXySiHEudJdJ5aeXU4nx4vZuKWTUibpJdrn").unwrap();
-        let (signed_tx, tx_preimage) =
+        let (_signed_tx, tx_preimage) =
             transactions::btc::sign_cust_close_claim_transaction(txid_le, index, output, to_self_delay_be,
                                                                  rev_lock, merch_disp_pk, cust_close_pk, c_private_key).unwrap();
         println!("preimage for cust_claim tx (from cust-close-tx): {}", hex::encode(&tx_preimage));
@@ -1095,7 +1090,7 @@ mod tests {
         };
 
         let m_private_key = BitcoinPrivateKey::<Testnet>::from_str("cNTSD7W8URSCmfPTvNf2B5gyKe2wwyNomkCikVhuHPCsFgBUKrAV").unwrap();
-        let (signed_tx1, tx_preimage1) = transactions::btc::sign_merch_claim_transaction(input1, output.clone(), m_private_key.clone()).unwrap();
+        let (_signed_tx1, _tx_preimage1) = transactions::btc::sign_merch_claim_transaction(input1, output.clone(), m_private_key.clone()).unwrap();
 
         // case 2 - testing merchant claiming the `merch-close-tx` output after timelock
         let cust_pk = hex::decode("027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb").unwrap();
@@ -1116,7 +1111,7 @@ mod tests {
             sequence: Some([0xff, 0xff, 0xff, 0xff]) // 4294967295
         };
 
-        let (signed_tx2, tx_preimage2) = transactions::btc::sign_merch_claim_transaction(input2, output, m_private_key).unwrap();
+        let (_signed_tx2, _tx_preimage2) = transactions::btc::sign_merch_claim_transaction(input2, output, m_private_key).unwrap();
         // TODO: verify preimages
     }
 }

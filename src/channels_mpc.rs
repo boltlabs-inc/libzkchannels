@@ -1128,7 +1128,11 @@ impl MerchantMPCState {
         // check if n_i in the unlink map. if so, remove it
         if db.is_member_unlink_set(&nonce_hex) {
             // remove from unlink set
-            db.remove_from_unlink_set(&nonce_hex);
+            let res = db.remove_from_unlink_set(&nonce_hex);
+            match res {
+                Ok(a) => println!("Result: {}", a),
+                Err(e) => println!("remove_from_unlink_set: {}", e)
+            };
         }
 
         Ok((pt_mask, pt_mask_r))
@@ -1364,7 +1368,7 @@ rusty_fork_test!
         let r_com = cust_state.generate_rev_lock_commitment(&mut rng);
 
         println!("Initial state: {}", s_0);
-        println!("Init rev_lock commitment => {:?}", r_com);
+        println!("Init rev_lock commitment => {:?}", hex::encode(&r_com));
 
         // activate channel - generate pay_token
         let pay_token_0 = match merch_state.activate_channel(&mut db as &mut dyn StateDatabase, &channel_token, &s_0) {
@@ -1372,7 +1376,7 @@ rusty_fork_test!
             Err(e) => panic!(e)
         };
 
-        println!("Pay Token on s_0 => {:?}", pay_token_0);
+        println!("Pay Token on s_0 => {:?}", hex::encode(&pay_token_0));
 
         cust_state.store_initial_pay_token(pay_token_0);
 
@@ -1396,8 +1400,7 @@ rusty_fork_test!
 
         println!("hello, merchant!");
         let res = merch_state.execute_mpc_context(&mut rng, &mut db as &mut dyn StateDatabase, &channel, nonce, rev_lock_com, pay_token_mask_com, amount);
-        // assert!(res);
-        println!("completed mpc execution!");
+        println!("completed mpc execution: {}", res.is_ok());
 
         let (pt_mask, pt_mask_r) = merch_state.verify_revoked_state(&mut db as &mut dyn StateDatabase, nonce, rev_lock_com, rev_lock, rev_secret, t).unwrap();
         println!("pt_masked: {:?}", hex::encode(&pt_mask));

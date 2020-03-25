@@ -87,7 +87,7 @@ pub trait StateDatabase {
     fn update_unlink_set(&mut self, nonce: &String) -> Result<bool, String>;
     fn get_unlink_set(&mut self) -> Result<HashSet<String>, String>;
     fn is_member_unlink_set(&mut self, nonce: &String) -> bool;
-    fn remove_from_unlink_set(&mut self, nonce: &String) -> Result<(), String>;
+    fn remove_from_unlink_set(&mut self, nonce: &String) -> Result<bool, String>;
     // nonce to pay mask methods
     fn update_nonce_mask_map(&mut self, nonce_hex: &String, mask: [u8; 32], mask_r: [u8; 16]) -> Result<bool, String>;
     fn get_mask_map_from_nonce(&mut self, nonce_hex: &String) -> Result<([u8; 32], [u8; 16]), String>;
@@ -192,12 +192,12 @@ impl StateDatabase for RedisDatabase {
         }
     }
 
-    fn remove_from_unlink_set(&mut self, nonce: &String) -> Result<(), String> {
+    fn remove_from_unlink_set(&mut self, nonce: &String) -> Result<bool, String> {
         match self.conn.hdel(self.unlink_set_key.clone(), nonce.clone()) {
             Ok(n) => n,
             Err(e) => return Err(e.to_string())
-        };
-        Ok(())
+        }
+        Ok(true)
     }
 
     fn clear_state(&mut self) -> bool {
@@ -358,11 +358,11 @@ impl StateDatabase for HashMapDatabase {
         self.unlink_map.contains(nonce)
     }
 
-    fn remove_from_unlink_set(&mut self, nonce: &String) -> Result<(), String> {
+    fn remove_from_unlink_set(&mut self, nonce: &String) -> Result<bool, String> {
         if self.unlink_map.contains(nonce) {
             self.unlink_map.remove(nonce);
         }
-        Ok(())
+        Ok(true)
     }
 
     fn clear_state(&mut self) -> bool {

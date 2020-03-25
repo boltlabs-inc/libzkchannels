@@ -14,7 +14,6 @@
 #![allow(non_upper_case_globals)]
 #![allow(unused_results)]
 #![allow(missing_docs)]
-#![allow(unused)]  // TODO: remove to clean up warnings
 
 #![cfg_attr(all(test, feature = "unstable"), feature(test))]
 #[cfg(all(test, feature = "unstable"))]
@@ -1601,15 +1600,17 @@ mod tests {
         let to_self_delay_be: [u8; 2] = [0x05, 0xcf]; // big-endian format
         let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(funding_tx_info.clone(), pubkeys.rev_lock.0, pubkeys.cust_pk, pubkeys.cust_close_pk, to_self_delay_be);
 
-        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info);
-
+        let res1 = cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info);
+        println!("cust_state -> set_funding_tx_info: {}", res1.is_ok());
+        
         let got_close_tx = cust_state.sign_initial_closing_transaction::<Testnet>(&channel_state, &channel_token, &escrow_sig, &merch_sig);
         assert!(got_close_tx.is_ok());
         // customer can proceed to sign the escrow-tx and merch-close-tx and sends resulting signatures to merchant
         let (init_cust_state, init_hash) = mpc::get_initial_state(&cust_state).unwrap();
 
         // at this point, the escrow-tx can be broadcast and confirmed
-        mpc::validate_initial_state(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, init_hash, &mut merch_state);
+        let res2 = mpc::validate_initial_state(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, init_hash, &mut merch_state);
+        println!("mpc::validate_initial_state: {}", res2.is_ok());
 
         let s0 = mpc::activate_customer(rng, &mut cust_state);
 
@@ -1671,7 +1672,8 @@ mod tests {
 
         let (init_cust_state, init_hash) = mpc::get_initial_state(&cust_state).unwrap();
 
-        mpc::validate_initial_state(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, init_hash, &mut merch_state);
+        let res2 = mpc::validate_initial_state(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, init_hash, &mut merch_state);
+        println!("mpc::validate_initial_state: {}", res2.is_ok());
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
 
@@ -1679,7 +1681,7 @@ mod tests {
 
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
-        let (new_state, revoked_state) = mpc::pay_prepare_customer(&mut rng, &channel, 10, &mut cust_state).unwrap();
+        let (_new_state, revoked_state) = mpc::pay_prepare_customer(&mut rng, &channel, 10, &mut cust_state).unwrap();
         let rev_lock_com = revoked_state.get_rev_lock_com();
 
         let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &mut db as &mut dyn StateDatabase, &channel,s0.get_nonce(), rev_lock_com.clone(), 10, &mut merch_state).unwrap();
@@ -1725,7 +1727,8 @@ rusty_fork_test! {
             Err(e) => panic!(e)
         };
 
-        mpc::validate_initial_state(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, init_hash, &mut merch_state);
+        let res2 = mpc::validate_initial_state(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, init_hash, &mut merch_state);
+        println!("mpc::validate_initial_state: {}", res2.is_ok());
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
 
