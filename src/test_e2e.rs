@@ -1,16 +1,15 @@
-use bindings::{EcdsaPartialSig_l};
+use bindings::EcdsaPartialSig_l;
 use std::convert::TryInto;
 use std::ffi::CString;
 use std::os::raw::c_char;
 
-
 extern "C" {
     pub fn test_ecdsa_e2e(
-        partial: EcdsaPartialSig_l, 
+        partial: EcdsaPartialSig_l,
         hashedmsg: *const c_char,
         party: u32,
         digest: &[u32; 8],
-        ) -> ();
+    ) -> ();
 }
 
 fn call_ecdsa(psl: EcdsaPartialSig_l, hashedmsg: [u8; 32], party: u32) -> [u8; 32] {
@@ -33,17 +32,16 @@ fn call_ecdsa(psl: EcdsaPartialSig_l, hashedmsg: [u8; 32], party: u32) -> [u8; 3
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ecdsa_partial::{EcdsaPartialSig, translate_rx};
+    use ecdsa_partial::EcdsaPartialSig;
     use secp256k1;
-    use sha2::{Sha256, Digest};
+    use sha2::{Digest, Sha256};
     const NUM_TESTS: i32 = 50;
     use rand::RngCore;
-
 
     // rusty fork tests call the two parties separately.
     rusty_fork_test! {
     #[test]
-    
+
     // tests MPC ecdsa implementation
     // variable ownership is not accurately reflected here
     // VARS party

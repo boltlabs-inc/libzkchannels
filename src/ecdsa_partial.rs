@@ -1,39 +1,40 @@
 // include standard libraries
-use num::BigInt;
 use num::bigint::Sign;
-use rand::{Rng};
-use std::slice;
+use num::BigInt;
+use rand::Rng;
 use std::ffi::CString;
+use std::slice;
 
 // include our libraries
-use bindings::{EcdsaPartialSig_l};
+use bindings::EcdsaPartialSig_l;
 use secp256k1;
 
 #[derive(Copy, Clone)] //, Serialize, Deserialize)]
 pub struct EcdsaPartialSig {
-    pub partial: secp256k1::PartialSignature
+    pub partial: secp256k1::PartialSignature,
 }
 
 /* This module deals with ECDSA partial signatures
  * It returns different representations compatible with various libraries
- * including the bolt fork of secp256k1 and our EMP-toolkit-compatible tokenutils 
+ * including the bolt fork of secp256k1 and our EMP-toolkit-compatible tokenutils
  */
 impl EcdsaPartialSig {
-    pub fn New<R:Rng>(rng: &mut R, sk: &secp256k1::SecretKey) -> EcdsaPartialSig {
+    pub fn New<R: Rng>(rng: &mut R, sk: &secp256k1::SecretKey) -> EcdsaPartialSig {
         let secp = secp256k1::Secp256k1::new();
         // generate random nonce
         let mut nonce = [0u8; 32];
         rng.fill_bytes(&mut nonce);
         let nonce_message = secp256k1::Message::from_slice(&nonce);
- 
+
         // compute partial signature
         let partial_signature = secp.partial_sign(&nonce_message.unwrap(), &sk);
-        EcdsaPartialSig {partial: partial_signature.0 }
-
+        EcdsaPartialSig {
+            partial: partial_signature.0,
+        }
     }
 
     pub fn getSecpRepr(&self) -> secp256k1::PartialSignature {
-        return self.partial
+        return self.partial;
     }
 
     pub fn getMpcRepr(&self) -> EcdsaPartialSig_l {
@@ -46,7 +47,7 @@ impl EcdsaPartialSig {
         }
     }
 
-    pub fn getK(&self) -> [u8;32] {
+    pub fn getK(&self) -> [u8; 32] {
         let partial_compact = self.partial.serialize_compact();
         let mut k = [0u8; 32];
         k.copy_from_slice(&partial_compact[0..32]);

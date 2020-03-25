@@ -1,37 +1,40 @@
-extern crate rand;
-extern crate zkchannels;
-extern crate secp256k1_boltlabs as secp256k1;
-extern crate structopt;
-extern crate serde;
 extern crate bufstream;
+extern crate rand;
+extern crate secp256k1_boltlabs as secp256k1;
+extern crate serde;
 extern crate sha2;
+extern crate structopt;
 extern crate wagyu_bitcoin as bitcoin;
 extern crate wagyu_model;
+extern crate zkchannels;
 
-use structopt::StructOpt;
-use std::str::FromStr;
+use bitcoin::Testnet;
 use serde::Deserialize;
-use bitcoin::{Testnet};
-use wagyu_model::Transaction;
-use std::path::PathBuf;
-use std::io::prelude::*;
 use std::fs::File;
+use std::io::prelude::*;
+use std::path::PathBuf;
+use std::str::FromStr;
+use structopt::StructOpt;
+use wagyu_model::Transaction;
 use zkchannels::fixed_size_array::FixedSizeArray32;
-use zkchannels::transactions::{Input, BitcoinTxConfig, MultiSigOutput, ChangeOutput};
-use zkchannels::transactions::btc::{create_escrow_transaction, sign_escrow_transaction, serialize_p2wsh_escrow_redeem_script,
-                                    create_merch_close_transaction_params, create_merch_close_transaction_preimage, get_private_key,
-                                    generate_signature_for_multi_sig_transaction, completely_sign_multi_sig_transaction};
+use zkchannels::transactions::btc::{
+    completely_sign_multi_sig_transaction, create_escrow_transaction,
+    create_merch_close_transaction_params, create_merch_close_transaction_preimage,
+    generate_signature_for_multi_sig_transaction, get_private_key,
+    serialize_p2wsh_escrow_redeem_script, sign_escrow_transaction,
+};
+use zkchannels::transactions::{BitcoinTxConfig, ChangeOutput, Input, MultiSigOutput};
 use zkchannels::FundingTxInfo;
 
 pub fn read_pathfile(path_buf: PathBuf) -> Result<String, String> {
     let mut file = match File::open(path_buf) {
         Ok(n) => n,
-        Err(e) => return Err(e.to_string())
+        Err(e) => return Err(e.to_string()),
     };
     let mut content = String::new();
     let content_len = match file.read_to_string(&mut content) {
-      Ok(n) => n,
-        Err(e) => return Err(e.to_string())
+        Ok(n) => n,
+        Err(e) => return Err(e.to_string()),
     };
     assert!(content_len > 0);
     Ok(content)
@@ -40,19 +43,21 @@ pub fn read_pathfile(path_buf: PathBuf) -> Result<String, String> {
 pub fn write_pathfile(path_buf: PathBuf, content: String) -> Result<(), String> {
     let mut file = match File::create(path_buf) {
         Ok(n) => n,
-        Err(e) => return Err(e.to_string())
+        Err(e) => return Err(e.to_string()),
     };
     match file.write_all(content.as_ref()) {
         Ok(n) => Ok(n),
-        Err(e) => return Err(e.to_string())
+        Err(e) => return Err(e.to_string()),
     }
 }
 
 macro_rules! handle_serde_error {
-    ($e:expr) => (match $e {
-        Ok(val) => val,
-        Err(err) => return Err(err.to_string()),
-    });
+    ($e:expr) => {
+        match $e {
+            Ok(val) => val,
+            Err(err) => return Err(err.to_string()),
+        }
+    };
 }
 
 #[derive(Debug, Deserialize)]
@@ -89,7 +94,7 @@ pub struct Escrow {
     #[structopt(long = "funding-tx")]
     file: PathBuf,
     #[structopt(long = "tx-signed")]
-    tx_signed: Option<PathBuf>
+    tx_signed: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug, StructOpt, Deserialize)]
@@ -119,7 +124,7 @@ pub struct SignMerchClose {
     #[structopt(long = "cust-sk")]
     cust_privkey: String,
     #[structopt(long = "cust-sig")]
-    cust_sig: Option<PathBuf>
+    cust_sig: Option<PathBuf>,
 }
 
 #[derive(Debug, StructOpt, Deserialize)]
@@ -129,7 +134,7 @@ pub enum Command {
     #[structopt(name = "create-merch-close")]
     CreateMerchClose(CreateMerchClose),
     #[structopt(name = "sign-merch-close")]
-    SignMerchClose(SignMerchClose)
+    SignMerchClose(SignMerchClose),
 }
 
 impl FromStr for Command {
@@ -152,8 +157,12 @@ fn main() {
     let args = Cli::from_args();
     match args.command {
         Command::Escrow(escrow) => cust::generate_escrow_transaction(escrow).unwrap(),
-        Command::CreateMerchClose(merch_close) => merch::generate_merch_close_transaction(merch_close).unwrap(),
-        Command::SignMerchClose(sign_merch_close) => cust::sign_merch_close_tx_preimage(sign_merch_close).unwrap()
+        Command::CreateMerchClose(merch_close) => {
+            merch::generate_merch_close_transaction(merch_close).unwrap()
+        }
+        Command::SignMerchClose(sign_merch_close) => {
+            cust::sign_merch_close_tx_preimage(sign_merch_close).unwrap()
+        }
     }
     println!("******************************************");
 }
@@ -169,19 +178,19 @@ mod cust {
             redeem_script: None,
             script_pub_key: None,
             utxo_amount: Some(escrow.input_sats), // assumes already in sats
-            sequence: Some([0xff, 0xff, 0xff, 0xff]) // 4294967295
+            sequence: Some([0xff, 0xff, 0xff, 0xff]), // 4294967295
         };
 
         let config = BitcoinTxConfig {
             version: 2,
-            lock_time: 0
+            lock_time: 0,
         };
 
         let musig_output = MultiSigOutput {
             cust_pubkey: hex::decode(escrow.cust_pubkey).unwrap(),
             merch_pubkey: hex::decode(escrow.merch_pubkey).unwrap(),
             address_format: "p2wsh",
-            amount: escrow.output_sats // assumes already in sats
+            amount: escrow.output_sats, // assumes already in sats
         };
 
         // test if we need a change output pubkey
@@ -190,18 +199,29 @@ mod cust {
             true => Some(ChangeOutput {
                 pubkey: hex::decode(escrow.change_pubkey.unwrap()).unwrap(),
                 amount: change_sats,
-                is_hash: false
+                is_hash: false,
             }),
-            false => return Err(String::from("Require a change pubkey to generate a valid escrow transaction!"))
+            false => {
+                return Err(String::from(
+                    "Require a change pubkey to generate a valid escrow transaction!",
+                ))
+            }
         };
 
         let cust_privkey = handle_serde_error!(hex::decode(escrow.cust_privkey));
         let private_key = get_private_key::<Testnet>(cust_privkey)?;
-        let (_escrow_tx_preimage, full_escrow_tx) = match create_escrow_transaction::<Testnet>(&config, &input, &musig_output, &change_output.unwrap(), private_key.clone()) {
+        let (_escrow_tx_preimage, full_escrow_tx) = match create_escrow_transaction::<Testnet>(
+            &config,
+            &input,
+            &musig_output,
+            &change_output.unwrap(),
+            private_key.clone(),
+        ) {
             Ok(n) => n,
-            Err(e) => return Err(e.to_string())
+            Err(e) => return Err(e.to_string()),
         };
-        let (signed_tx, txid, hash_prevout) = sign_escrow_transaction::<Testnet>(full_escrow_tx, private_key);
+        let (signed_tx, txid, hash_prevout) =
+            sign_escrow_transaction::<Testnet>(full_escrow_tx, private_key);
         let signed_tx_hex = hex::encode(&signed_tx);
 
         println!("writing txid and hash_prevout to: {:?}", escrow.file);
@@ -209,8 +229,8 @@ mod cust {
             Some(n) => {
                 println!("writing signed tx: {:?}", n);
                 write_pathfile(n, signed_tx_hex)?
-            },
-            _ => println!("signed tx: {}", signed_tx_hex)
+            }
+            _ => println!("signed tx: {}", signed_tx_hex),
         }
 
         // assuming single-funded channels for now
@@ -220,10 +240,13 @@ mod cust {
             escrow_txid: FixedSizeArray32(txid),
             escrow_prevout: FixedSizeArray32(hash_prevout),
             merch_txid: FixedSizeArray32([0u8; 32]),
-            merch_prevout: FixedSizeArray32([0u8; 32])
+            merch_prevout: FixedSizeArray32([0u8; 32]),
         };
 
-        write_pathfile(escrow.file, handle_serde_error!(serde_json::to_string(&funding_tx)))?;
+        write_pathfile(
+            escrow.file,
+            handle_serde_error!(serde_json::to_string(&funding_tx)),
+        )?;
         Ok(())
     }
 
@@ -232,22 +255,26 @@ mod cust {
         let merch_tx_preimage = match read_pathfile(args.tx_preimage) {
             Ok(n) => match hex::decode(n) {
                 Ok(h) => h, // TODO: read & validate the tx matches expected amount in funding tx before signing
-                Err(e) => return Err(e.to_string())
+                Err(e) => return Err(e.to_string()),
             },
-            Err(e) => return Err(e.to_string())
+            Err(e) => return Err(e.to_string()),
         };
         // customer signs the preimage and sends signature to merchant
         let cust_privkey = handle_serde_error!(hex::decode(args.cust_privkey));
         let private_key = get_private_key::<Testnet>(cust_privkey)?;
-        let cust_sig = generate_signature_for_multi_sig_transaction::<Testnet>(&merch_tx_preimage, &private_key).unwrap();
+        let cust_sig = generate_signature_for_multi_sig_transaction::<Testnet>(
+            &merch_tx_preimage,
+            &private_key,
+        )
+        .unwrap();
         let cust_sig_hex = hex::encode(cust_sig);
         // write the signature to a file
         match args.cust_sig {
             Some(sig_file) => {
                 println!("writing the customer signature: {:?}", sig_file);
                 write_pathfile(sig_file, cust_sig_hex)?
-            },
-            None => println!("Cust signature: {}", cust_sig_hex)
+            }
+            None => println!("Cust signature: {}", cust_sig_hex),
         };
         Ok(())
     }
@@ -284,11 +311,16 @@ mod merch {
             redeem_script: Some(redeem_script),
             script_pub_key: None,
             utxo_amount: Some(funding_tx.init_cust_bal + funding_tx.init_merch_bal),
-            sequence: Some([0xff, 0xff, 0xff, 0xff]) // 4294967295
+            sequence: Some([0xff, 0xff, 0xff, 0xff]), // 4294967295
         };
 
-        let tx_params =
-            create_merch_close_transaction_params::<Testnet>(&input, &cust_pk, &merch_pk, &merch_close_pk, &to_self_delay_be)?;
+        let tx_params = create_merch_close_transaction_params::<Testnet>(
+            &input,
+            &cust_pk,
+            &merch_pk,
+            &merch_close_pk,
+            &to_self_delay_be,
+        )?;
 
         let (merch_tx_preimage, _) = create_merch_close_transaction_preimage::<Testnet>(&tx_params);
 
@@ -300,18 +332,21 @@ mod merch {
                 Some(n) => {
                     println!("writing the initial preimage for merch-close-tx: {:?}", n);
                     write_pathfile(n, hex_tx_preimage)?
-                },
-                _ => println!("Merch-close-tx preimage: {}", hex_tx_preimage)
+                }
+                _ => println!("Merch-close-tx preimage: {}", hex_tx_preimage),
             };
         } else {
-
             // check if merch-sk provided
             let merch_sk = match merch_close.merch_privkey {
                 Some(sk) => match hex::decode(sk) {
                     Ok(s) => get_private_key::<Testnet>(s)?,
-                    Err(e) => return Err(e.to_string())
+                    Err(e) => return Err(e.to_string()),
                 },
-                None => return Err(String::from("need merch private key to sign the merch-close-tx"))
+                None => {
+                    return Err(String::from(
+                        "need merch private key to sign the merch-close-tx",
+                    ))
+                }
             };
             // if cust signature provided, then merchant signs the preimage
             let cust_sig_and_len_byte = match read_pathfile(merch_close.cust_sig.unwrap()) {
@@ -323,14 +358,21 @@ mod merch {
                             return Err(String::from("invalid cust-sig!"));
                         }
                     },
-                    Err(e) => return Err(e.to_string())
+                    Err(e) => return Err(e.to_string()),
                 },
-                Err(e) => return Err(e)
+                Err(e) => return Err(e),
             };
 
             let (signed_merch_close_tx, txid, hash_prevout) =
-                completely_sign_multi_sig_transaction::<Testnet>(&tx_params, &cust_sig_and_len_byte, false, None, &merch_sk);
-            let signed_merch_tx = hex::encode(signed_merch_close_tx.to_transaction_bytes().unwrap());
+                completely_sign_multi_sig_transaction::<Testnet>(
+                    &tx_params,
+                    &cust_sig_and_len_byte,
+                    false,
+                    None,
+                    &merch_sk,
+                );
+            let signed_merch_tx =
+                hex::encode(signed_merch_close_tx.to_transaction_bytes().unwrap());
 
             // let's update the funding tx object
             funding_tx.merch_txid.0.copy_from_slice(&txid);
@@ -342,11 +384,10 @@ mod merch {
                 Some(n) => {
                     println!("writing the signed merch-close-tx: {:?}", n);
                     write_pathfile(n, signed_merch_tx)?
-                },
-                _ => println!("Merch-close-tx signed: {}", signed_merch_tx)
+                }
+                _ => println!("Merch-close-tx signed: {}", signed_merch_tx),
             }
         }
         Ok(())
     }
-
 }

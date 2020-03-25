@@ -1,14 +1,11 @@
 use super::*;
 use serde::de::{self, Deserialize, Deserializer, Visitor};
-use std::collections::HashSet;
-use redis::ToRedisArgs;
 
 #[derive(Copy, Clone, Debug, Hash, PartialEq)]
 pub struct FixedSizeArray16(pub [u8; 16]);
 
 impl ::serde::Serialize for FixedSizeArray16 {
-    fn serialize<S: ::serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error>
-    {
+    fn serialize<S: ::serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         s.collect_str(&hex::encode(&self.0))
     }
 }
@@ -28,21 +25,22 @@ impl<'de> Deserialize<'de> for FixedSizeArray16 {
 
             #[inline]
             fn visit_str<V>(self, v: &str) -> Result<FixedSizeArray16, V>
-                where V: ::serde::de::Error
+            where
+                V: ::serde::de::Error,
             {
                 let bytes = match hex::decode(&v) {
                     Ok(n) => n,
-                    Err(e) => return Err(de::Error::custom(e.to_string()))
+                    Err(e) => return Err(de::Error::custom(e.to_string())),
                 };
                 let mut fixed_bytes = [0u8; 16];
                 match bytes.len() == 16 {
                     true => fixed_bytes.copy_from_slice(&bytes),
-                    false => return Err(de::Error::custom("invalid length"))
+                    false => return Err(de::Error::custom("invalid length")),
                 }
                 Ok(FixedSizeArray16(fixed_bytes))
             }
         }
-        deserializer.deserialize_str(FixedSizeArray16Visitor { })
+        deserializer.deserialize_str(FixedSizeArray16Visitor {})
     }
 }
 
@@ -50,8 +48,7 @@ impl<'de> Deserialize<'de> for FixedSizeArray16 {
 pub struct FixedSizeArray32(pub [u8; 32]);
 
 impl ::serde::Serialize for FixedSizeArray32 {
-    fn serialize<S: ::serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error>
-    {
+    fn serialize<S: ::serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         s.collect_str(&hex::encode(&self.0))
     }
 }
@@ -71,21 +68,22 @@ impl<'de> Deserialize<'de> for FixedSizeArray32 {
 
             #[inline]
             fn visit_str<V>(self, v: &str) -> Result<FixedSizeArray32, V>
-                where V: ::serde::de::Error
+            where
+                V: ::serde::de::Error,
             {
                 let bytes = match hex::decode(&v) {
                     Ok(n) => n,
-                    Err(e) => return Err(de::Error::custom(e.to_string()))
+                    Err(e) => return Err(de::Error::custom(e.to_string())),
                 };
                 let mut fixed_bytes = [0u8; 32];
                 match bytes.len() == 32 {
                     true => fixed_bytes.copy_from_slice(&bytes),
-                    false => return Err(de::Error::custom("invalid length"))
+                    false => return Err(de::Error::custom("invalid length")),
                 }
                 Ok(FixedSizeArray32(fixed_bytes))
             }
         }
-        deserializer.deserialize_str(FixedSizeArray32Visitor { })
+        deserializer.deserialize_str(FixedSizeArray32Visitor {})
     }
 }
 
@@ -110,8 +108,7 @@ impl FixedSizeArray64 {
 }
 
 impl ::serde::Serialize for FixedSizeArray64 {
-    fn serialize<S: ::serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error>
-    {
+    fn serialize<S: ::serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         s.collect_str(&hex::encode(&self.get_bytes()))
     }
 }
@@ -131,11 +128,12 @@ impl<'de> Deserialize<'de> for FixedSizeArray64 {
 
             #[inline]
             fn visit_str<V>(self, v: &str) -> Result<FixedSizeArray64, V>
-                where V: ::serde::de::Error
+            where
+                V: ::serde::de::Error,
             {
                 let bytes = match hex::decode(&v) {
                     Ok(n) => n,
-                    Err(e) => return Err(de::Error::custom(e.to_string()))
+                    Err(e) => return Err(de::Error::custom(e.to_string())),
                 };
                 let mut fixed_bytes1 = [0u8; 32];
                 let mut fixed_bytes2 = [0u8; 32];
@@ -143,13 +141,12 @@ impl<'de> Deserialize<'de> for FixedSizeArray64 {
                     true => {
                         fixed_bytes1.copy_from_slice(&bytes[0..32]);
                         fixed_bytes2.copy_from_slice(&bytes[32..64])
-                    },
-                    false => return Err(de::Error::custom("invalid length: expected 64 bytes"))
+                    }
+                    false => return Err(de::Error::custom("invalid length: expected 64 bytes")),
                 }
                 Ok(FixedSizeArray64(fixed_bytes1, fixed_bytes2))
             }
-
         }
-        deserializer.deserialize_str(FixedSizeArray64Visitor { })
+        deserializer.deserialize_str(FixedSizeArray64Visitor {})
     }
 }
