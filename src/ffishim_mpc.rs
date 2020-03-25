@@ -2,20 +2,22 @@
 pub mod ffishim_mpc {
     extern crate libc;
 
-    use mpc;
-    use txutil;
-    use serde::Deserialize;
+    use bitcoin::Testnet;
+    use channels_mpc::{
+        ChannelMPCState, ChannelMPCToken, CustomerMPCState, InitCustState, MerchantMPCState,
+    };
+    use database::{MaskedTxMPCInputs, RedisDatabase, StateDatabase};
+    use hex::FromHexError;
     use libc::c_char;
+    use mpc;
+    use mpc::RevokedState;
+    use serde::Deserialize;
     use std::ffi::{CStr, CString};
     use std::str;
-    use channels_mpc::{CustomerMPCState, MerchantMPCState, ChannelMPCToken, InitCustState, ChannelMPCState};
-    use database::{MaskedTxMPCInputs, StateDatabase, RedisDatabase};
-    use wallet::State;
-    use hex::FromHexError;
-    use mpc::RevokedState;
-    use FundingTxInfo;
-    use bitcoin::Testnet;
     use transactions;
+    use txutil;
+    use wallet::State;
+    use FundingTxInfo;
 
     fn error_message(s: String) -> *mut c_char {
         let ser = ["{\'error\':\'", &s, "\'}"].concat();
@@ -24,51 +26,54 @@ pub mod ffishim_mpc {
     }
 
     macro_rules! handle_errors {
-        ($e:expr) => (match $e {
-            Ok(val) => val,
-            Err(err) => return error_message(err.to_string()),
-        });
+        ($e:expr) => {
+            match $e {
+                Ok(val) => val,
+                Err(err) => return error_message(err.to_string()),
+            }
+        };
     }
-
 
     pub type ResultSerdeType<T> = Result<T, serde_json::error::Error>;
 
     fn deserialize_result_object<'a, T>(serialized: *mut c_char) -> ResultSerdeType<T>
-        where
-            T: Deserialize<'a>,
+    where
+        T: Deserialize<'a>,
     {
         let bytes = unsafe { CStr::from_ptr(serialized).to_bytes() };
         let string: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
         serde_json::from_str(&string)
     }
 
-    fn deserialize_hex_string(serialized: *mut c_char) -> Result<Vec<u8>, FromHexError>
-    {
+    fn deserialize_hex_string(serialized: *mut c_char) -> Result<Vec<u8>, FromHexError> {
         let bytes = unsafe { CStr::from_ptr(serialized).to_bytes() };
         let string: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
         hex::decode(&string)
     }
 
-    fn deserialize_string(serialized: *mut c_char) -> Result<String, String>
-    {
+    fn deserialize_string(serialized: *mut c_char) -> Result<String, String> {
         let bytes = unsafe { CStr::from_ptr(serialized).to_bytes() };
         match str::from_utf8(bytes) {
             Ok(n) => Ok(String::from(n)),
-            Err(e) => Err(e.to_string())
+            Err(e) => Err(e.to_string()),
         }
     }
 
-
     #[no_mangle]
-    pub extern fn mpc_free_string(pointer: *mut c_char) {
+    pub extern "C" fn mpc_free_string(pointer: *mut c_char) {
         unsafe {
-            if pointer.is_null() { return; }
+            if pointer.is_null() {
+                return;
+            }
             CString::from_raw(pointer)
         };
     }
 
     #[no_mangle]
-    pub extern fn mpc_channel_setup(channel_name: *const c_char, third_party_support: u32) -> *mut c_char {
+    pub extern "C" fn mpc_channel_setup(
+        channel_name: *const c_char,
+        third_party_support: u32,
+    ) -> *mut c_char {
         let bytes = unsafe { CStr::from_ptr(channel_name).to_bytes() };
         let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
 
@@ -78,7 +83,12 @@ pub mod ffishim_mpc {
         }
         let channel_state = mpc::ChannelMPCState::new(name.to_string(), tps);
 
-        let ser = ["{\'channel_state\':\'", serde_json::to_string(&channel_state).unwrap().as_str(), "\'}"].concat();
+        let ser = [
+            "{\'channel_state\':\'",
+            serde_json::to_string(&channel_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -86,9 +96,14 @@ pub mod ffishim_mpc {
     // INIT
 
     #[no_mangle]
-    pub extern fn mpc_init_merchant(db_url_str: *mut c_char, ser_channel_state: *mut c_char, name_ptr: *const c_char) -> *mut c_char {
+    pub extern "C" fn mpc_init_merchant(
+        db_url_str: *mut c_char,
+        ser_channel_state: *mut c_char,
+        name_ptr: *const c_char,
+    ) -> *mut c_char {
         let rng = &mut rand::thread_rng();
-        let channel_state_result: ResultSerdeType<mpc::ChannelMPCState> = deserialize_result_object(ser_channel_state);
+        let channel_state_result: ResultSerdeType<mpc::ChannelMPCState> =
+            deserialize_result_object(ser_channel_state);
         let mut channel_state = handle_errors!(channel_state_result);
 
         let bytes = unsafe { CStr::from_ptr(name_ptr).to_bytes() };
@@ -98,18 +113,33 @@ pub mod ffishim_mpc {
 
         let merch_state = mpc::init_merchant(rng, db_url, &mut channel_state, name);
 
-        let ser = ["{\'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\', \'channel_state\':\'", serde_json::to_string(&channel_state).unwrap().as_str(), "\'}"].concat();
+        let ser = [
+            "{\'merch_state\':\'",
+            serde_json::to_string(&merch_state).unwrap().as_str(),
+            "\', \'channel_state\':\'",
+            serde_json::to_string(&channel_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
 
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn mpc_init_customer(ser_pk_m: *mut c_char, cust_bal: i64, merch_bal: i64, name_ptr: *const c_char, ser_sk_c: *mut c_char, ser_payout_sk: *mut c_char) -> *mut c_char {
+    pub extern "C" fn mpc_init_customer(
+        ser_pk_m: *mut c_char,
+        cust_bal: i64,
+        merch_bal: i64,
+        name_ptr: *const c_char,
+        ser_sk_c: *mut c_char,
+        ser_payout_sk: *mut c_char,
+    ) -> *mut c_char {
         let rng = &mut rand::thread_rng();
 
         // Deserialize the pk_m
-        let pk_m_result: ResultSerdeType<secp256k1::PublicKey> = deserialize_result_object(ser_pk_m);
+        let pk_m_result: ResultSerdeType<secp256k1::PublicKey> =
+            deserialize_result_object(ser_pk_m);
         let pk_m = handle_errors!(pk_m_result);
 
         // Deserialize the name
@@ -122,7 +152,7 @@ pub mod ffishim_mpc {
                 let mut buf = [0u8; 32];
                 buf.copy_from_slice(&s);
                 Some(buf)
-            },
+            }
             Err(e) => return error_message(e.to_string()),
         };
 
@@ -132,38 +162,61 @@ pub mod ffishim_mpc {
                 let mut buf = [0u8; 32];
                 buf.copy_from_slice(&s);
                 Some(buf)
-            },
+            }
             Err(e) => return error_message(e.to_string()),
         };
 
         // We change the channel state
-        let (channel_token, cust_state) = mpc::init_customer(rng, &pk_m, cust_bal,merch_bal, name, sk, payout_sk);
-        let ser = ["{\'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\', \'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str(), "\'}"].concat();
+        let (channel_token, cust_state) =
+            mpc::init_customer(rng, &pk_m, cust_bal, merch_bal, name, sk, payout_sk);
+        let ser = [
+            "{\'cust_state\':\'",
+            serde_json::to_string(&cust_state).unwrap().as_str(),
+            "\', \'channel_token\':\'",
+            serde_json::to_string(&channel_token).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     // VALIDATE INITIAL STATE
     #[no_mangle]
-    pub extern fn mpc_get_initial_state(ser_cust_state: *mut c_char) -> *mut c_char {
+    pub extern "C" fn mpc_get_initial_state(ser_cust_state: *mut c_char) -> *mut c_char {
         // Deserialize the cust_state
-        let cust_state_result: ResultSerdeType<CustomerMPCState> = deserialize_result_object(ser_cust_state);
+        let cust_state_result: ResultSerdeType<CustomerMPCState> =
+            deserialize_result_object(ser_cust_state);
         let cust_state = handle_errors!(cust_state_result);
 
         let (init_state, init_hash) = handle_errors!(mpc::get_initial_state(&cust_state));
-        let ser = ["{\'init_state\':\'", serde_json::to_string(&init_state).unwrap().as_str(), "\', \'init_hash\':\'", &hex::encode(init_hash), "\'}"].concat();
+        let ser = [
+            "{\'init_state\':\'",
+            serde_json::to_string(&init_state).unwrap().as_str(),
+            "\', \'init_hash\':\'",
+            &hex::encode(init_hash),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn mpc_validate_initial_state(ser_channel_token: *mut c_char, ser_init_state: *mut c_char, ser_init_hash: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern "C" fn mpc_validate_initial_state(
+        ser_channel_token: *mut c_char,
+        ser_init_state: *mut c_char,
+        ser_init_hash: *mut c_char,
+        ser_merch_state: *mut c_char,
+    ) -> *mut c_char {
         // Deserialize the ChannelToken
-        let channel_token_result: ResultSerdeType<ChannelMPCToken> = deserialize_result_object(ser_channel_token);
+        let channel_token_result: ResultSerdeType<ChannelMPCToken> =
+            deserialize_result_object(ser_channel_token);
         let channel_token = handle_errors!(channel_token_result);
 
         // Deserialize the init state
-        let init_state_result: ResultSerdeType<InitCustState> = deserialize_result_object(ser_init_state);
+        let init_state_result: ResultSerdeType<InitCustState> =
+            deserialize_result_object(ser_init_state);
         let init_state = handle_errors!(init_state_result);
 
         // Deserialize init hash
@@ -173,22 +226,38 @@ pub mod ffishim_mpc {
         init_hash.copy_from_slice(hash_buf.as_slice());
 
         // Deserialize the merch_state
-        let merch_state_result: ResultSerdeType<MerchantMPCState> = deserialize_result_object(ser_merch_state);
+        let merch_state_result: ResultSerdeType<MerchantMPCState> =
+            deserialize_result_object(ser_merch_state);
         let mut merch_state = handle_errors!(merch_state_result);
 
         // get connection to the database
-        let mut db: RedisDatabase = handle_errors!(RedisDatabase::new("mpc", merch_state.db_url.clone()));
+        let mut db: RedisDatabase =
+            handle_errors!(RedisDatabase::new("mpc", merch_state.db_url.clone()));
 
-        let is_ok = handle_errors!(mpc::validate_initial_state(&mut db as &mut dyn StateDatabase, &channel_token, &init_state, init_hash, &mut merch_state));
-        let ser = ["{\'is_ok\':", &is_ok.to_string(), ", \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
+        let is_ok = handle_errors!(mpc::validate_initial_state(
+            &mut db as &mut dyn StateDatabase,
+            &channel_token,
+            &init_state,
+            init_hash,
+            &mut merch_state
+        ));
+        let ser = [
+            "{\'is_ok\':",
+            &is_ok.to_string(),
+            ", \'merch_state\':\'",
+            serde_json::to_string(&merch_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn mpc_get_channel_id(ser_channel_token: *mut c_char) -> *mut c_char {
+    pub extern "C" fn mpc_get_channel_id(ser_channel_token: *mut c_char) -> *mut c_char {
         // Deserialize the ChannelToken
-        let channel_token_result: ResultSerdeType<ChannelMPCToken> = deserialize_result_object(ser_channel_token);
+        let channel_token_result: ResultSerdeType<ChannelMPCToken> =
+            deserialize_result_object(ser_channel_token);
         let channel_token = handle_errors!(channel_token_result);
 
         let channel_id = handle_errors!(channel_token.compute_channel_id());
@@ -200,24 +269,37 @@ pub mod ffishim_mpc {
     // ACTIVATE
 
     #[no_mangle]
-    pub extern fn mpc_activate_customer(ser_cust_state: *mut c_char) -> *mut c_char {
+    pub extern "C" fn mpc_activate_customer(ser_cust_state: *mut c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
 
         // Deserialize the cust_state
-        let cust_state_result: ResultSerdeType<CustomerMPCState> = deserialize_result_object(ser_cust_state);
+        let cust_state_result: ResultSerdeType<CustomerMPCState> =
+            deserialize_result_object(ser_cust_state);
         let mut cust_state = handle_errors!(cust_state_result);
 
         // We change the channel state
         let state = mpc::activate_customer(rng, &mut cust_state);
-        let ser = ["{\'state\':\'", serde_json::to_string(&state).unwrap().as_str(), "\', \'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\'}"].concat();
+        let ser = [
+            "{\'state\':\'",
+            serde_json::to_string(&state).unwrap().as_str(),
+            "\', \'cust_state\':\'",
+            serde_json::to_string(&cust_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn mpc_activate_merchant(ser_channel_token: *mut c_char, ser_state: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern "C" fn mpc_activate_merchant(
+        ser_channel_token: *mut c_char,
+        ser_state: *mut c_char,
+        ser_merch_state: *mut c_char,
+    ) -> *mut c_char {
         // Deserialize the ChannelToken
-        let channel_token_result: ResultSerdeType<ChannelMPCToken> = deserialize_result_object(ser_channel_token);
+        let channel_token_result: ResultSerdeType<ChannelMPCToken> =
+            deserialize_result_object(ser_channel_token);
         let channel_token = handle_errors!(channel_token_result);
 
         // Deserialize the state
@@ -225,23 +307,41 @@ pub mod ffishim_mpc {
         let state = handle_errors!(state_result);
 
         // Deserialize the merch_state
-        let merch_state_result: ResultSerdeType<MerchantMPCState> = deserialize_result_object(ser_merch_state);
+        let merch_state_result: ResultSerdeType<MerchantMPCState> =
+            deserialize_result_object(ser_merch_state);
         let mut merch_state = handle_errors!(merch_state_result);
 
         // get connection to the database
-        let mut db: RedisDatabase = handle_errors!(RedisDatabase::new("mpc", merch_state.db_url.clone()));
+        let mut db: RedisDatabase =
+            handle_errors!(RedisDatabase::new("mpc", merch_state.db_url.clone()));
 
         // We change the channel state
-        let pay_token = handle_errors!(mpc::activate_merchant(&mut db as &mut dyn StateDatabase, channel_token, &state, &mut merch_state));
-        let ser = ["{\'pay_token\':\'", &hex::encode(pay_token), "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
+        let pay_token = handle_errors!(mpc::activate_merchant(
+            &mut db as &mut dyn StateDatabase,
+            channel_token,
+            &state,
+            &mut merch_state
+        ));
+        let ser = [
+            "{\'pay_token\':\'",
+            &hex::encode(pay_token),
+            "\', \'merch_state\':\'",
+            serde_json::to_string(&merch_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn mpc_activate_customer_finalize(ser_pay_token: *mut c_char, ser_cust_state: *mut c_char) -> *mut c_char {
+    pub extern "C" fn mpc_activate_customer_finalize(
+        ser_pay_token: *mut c_char,
+        ser_cust_state: *mut c_char,
+    ) -> *mut c_char {
         // Deserialize the cust_state
-        let cust_state_result: ResultSerdeType<CustomerMPCState> = deserialize_result_object(ser_cust_state);
+        let cust_state_result: ResultSerdeType<CustomerMPCState> =
+            deserialize_result_object(ser_cust_state);
         let mut cust_state = handle_errors!(cust_state_result);
 
         // Deserialize pay token
@@ -252,7 +352,12 @@ pub mod ffishim_mpc {
 
         // We change the channel state
         mpc::activate_customer_finalize(pay_token_0, &mut cust_state);
-        let ser = ["{\'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\'}"].concat();
+        let ser = [
+            "{\'cust_state\':\'",
+            serde_json::to_string(&cust_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -260,33 +365,56 @@ pub mod ffishim_mpc {
     // PAYMENT
 
     #[no_mangle]
-    pub extern fn mpc_prepare_payment_customer(ser_channel_state: *mut c_char, amount: i64, ser_cust_state: *mut c_char) -> *mut c_char {
+    pub extern "C" fn mpc_prepare_payment_customer(
+        ser_channel_state: *mut c_char,
+        amount: i64,
+        ser_cust_state: *mut c_char,
+    ) -> *mut c_char {
         let rng = &mut rand::thread_rng();
 
         // Deserialize the channel_state
-        let channel_state_result: ResultSerdeType<ChannelMPCState> = deserialize_result_object(ser_channel_state);
+        let channel_state_result: ResultSerdeType<ChannelMPCState> =
+            deserialize_result_object(ser_channel_state);
         let channel_state = handle_errors!(channel_state_result);
 
         // Deserialize the cust_state
-        let cust_state_result: ResultSerdeType<CustomerMPCState> = deserialize_result_object(ser_cust_state);
+        let cust_state_result: ResultSerdeType<CustomerMPCState> =
+            deserialize_result_object(ser_cust_state);
         let mut cust_state = handle_errors!(cust_state_result);
 
         // We change the channel state
-        let (state, rev_state) = match mpc::pay_prepare_customer(rng, &channel_state, amount, &mut cust_state) {
-            Ok(n) => n,
-            Err(e) => return error_message(e)
-        };
-        let ser = ["{\'rev_state\':\'", serde_json::to_string(&rev_state).unwrap().as_str(), "\', \'state\':\'", serde_json::to_string(&state).unwrap().as_str(), "\', \'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\'}"].concat();
+        let (state, rev_state) =
+            match mpc::pay_prepare_customer(rng, &channel_state, amount, &mut cust_state) {
+                Ok(n) => n,
+                Err(e) => return error_message(e),
+            };
+        let ser = [
+            "{\'rev_state\':\'",
+            serde_json::to_string(&rev_state).unwrap().as_str(),
+            "\', \'state\':\'",
+            serde_json::to_string(&state).unwrap().as_str(),
+            "\', \'cust_state\':\'",
+            serde_json::to_string(&cust_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn mpc_prepare_payment_merchant(ser_channel_state: *mut c_char, ser_nonce: *mut c_char, ser_rev_lock_com: *mut c_char, amount: i64, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern "C" fn mpc_prepare_payment_merchant(
+        ser_channel_state: *mut c_char,
+        ser_nonce: *mut c_char,
+        ser_rev_lock_com: *mut c_char,
+        amount: i64,
+        ser_merch_state: *mut c_char,
+    ) -> *mut c_char {
         let rng = &mut rand::thread_rng();
 
         // Deserialize the channel_state
-        let channel_state_result: ResultSerdeType<ChannelMPCState> = deserialize_result_object(ser_channel_state);
+        let channel_state_result: ResultSerdeType<ChannelMPCState> =
+            deserialize_result_object(ser_channel_state);
         let channel_state = handle_errors!(channel_state_result);
 
         // Deserialize rev_lock_com
@@ -302,27 +430,55 @@ pub mod ffishim_mpc {
         nonce_ar.copy_from_slice(nonce.as_slice());
 
         // Deserialize the merch_state
-        let merch_state_result: ResultSerdeType<MerchantMPCState> = deserialize_result_object(ser_merch_state);
+        let merch_state_result: ResultSerdeType<MerchantMPCState> =
+            deserialize_result_object(ser_merch_state);
         let mut merch_state = handle_errors!(merch_state_result);
 
         // get connection to the database
-        let mut db: RedisDatabase = handle_errors!(RedisDatabase::new("mpc", merch_state.db_url.clone()));
+        let mut db: RedisDatabase =
+            handle_errors!(RedisDatabase::new("mpc", merch_state.db_url.clone()));
 
         // We change the channel state
-        let pay_token_mask_com = handle_errors!(mpc::pay_prepare_merchant(rng, &mut db as &mut dyn StateDatabase, &channel_state, nonce_ar, rev_lock_com_ar, amount, &mut merch_state));
-        let ser = ["{\'pay_token_mask_com\':\'", &hex::encode(pay_token_mask_com), "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
+        let pay_token_mask_com = handle_errors!(mpc::pay_prepare_merchant(
+            rng,
+            &mut db as &mut dyn StateDatabase,
+            &channel_state,
+            nonce_ar,
+            rev_lock_com_ar,
+            amount,
+            &mut merch_state
+        ));
+        let ser = [
+            "{\'pay_token_mask_com\':\'",
+            &hex::encode(pay_token_mask_com),
+            "\', \'merch_state\':\'",
+            serde_json::to_string(&merch_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn mpc_pay_update_customer(ser_channel_state: *mut c_char, ser_channel_token: *mut c_char, ser_start_state: *mut c_char, ser_end_state: *mut c_char, ser_pay_token_mask_com: *mut c_char, ser_rev_lock_com: *mut c_char, amount: i64, ser_cust_state: *mut c_char) -> *mut c_char {
+    pub extern "C" fn mpc_pay_update_customer(
+        ser_channel_state: *mut c_char,
+        ser_channel_token: *mut c_char,
+        ser_start_state: *mut c_char,
+        ser_end_state: *mut c_char,
+        ser_pay_token_mask_com: *mut c_char,
+        ser_rev_lock_com: *mut c_char,
+        amount: i64,
+        ser_cust_state: *mut c_char,
+    ) -> *mut c_char {
         // Deserialize the channel_state
-        let channel_state_result: ResultSerdeType<ChannelMPCState> = deserialize_result_object(ser_channel_state);
+        let channel_state_result: ResultSerdeType<ChannelMPCState> =
+            deserialize_result_object(ser_channel_state);
         let mut channel_state = handle_errors!(channel_state_result);
 
         // Deserialize the ChannelToken
-        let channel_token_result: ResultSerdeType<ChannelMPCToken> = deserialize_result_object(ser_channel_token);
+        let channel_token_result: ResultSerdeType<ChannelMPCToken> =
+            deserialize_result_object(ser_channel_token);
         let channel_token = handle_errors!(channel_token_result);
 
         // Deserialize the start_state
@@ -346,23 +502,48 @@ pub mod ffishim_mpc {
         rev_lock_com_ar.copy_from_slice(rev_lock_com.as_slice());
 
         // Deserialize the cust_state
-        let cust_state_result: ResultSerdeType<CustomerMPCState> = deserialize_result_object(ser_cust_state);
+        let cust_state_result: ResultSerdeType<CustomerMPCState> =
+            deserialize_result_object(ser_cust_state);
         let mut cust_state = handle_errors!(cust_state_result);
 
         // We change the channel state
-        let result = mpc::pay_update_customer(&mut channel_state, &channel_token, start_state, end_state, pay_token_mask_com_ar, rev_lock_com_ar, amount, &mut cust_state);
+        let result = mpc::pay_update_customer(
+            &mut channel_state,
+            &channel_token,
+            start_state,
+            end_state,
+            pay_token_mask_com_ar,
+            rev_lock_com_ar,
+            amount,
+            &mut cust_state,
+        );
         let is_ok: bool = handle_errors!(result);
-        let ser = ["{\'is_ok\':", &is_ok.to_string(), ", \'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\'}"].concat();
+        let ser = [
+            "{\'is_ok\':",
+            &is_ok.to_string(),
+            ", \'cust_state\':\'",
+            serde_json::to_string(&cust_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn mpc_pay_update_merchant(ser_channel_state: *mut c_char, ser_nonce: *mut c_char, ser_pay_token_mask_com: *mut c_char, ser_rev_lock_com: *mut c_char, amount: i64, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern "C" fn mpc_pay_update_merchant(
+        ser_channel_state: *mut c_char,
+        ser_nonce: *mut c_char,
+        ser_pay_token_mask_com: *mut c_char,
+        ser_rev_lock_com: *mut c_char,
+        amount: i64,
+        ser_merch_state: *mut c_char,
+    ) -> *mut c_char {
         let rng = &mut rand::thread_rng();
 
         // Deserialize the channel_state
-        let channel_state_result: ResultSerdeType<ChannelMPCState> = deserialize_result_object(ser_channel_state);
+        let channel_state_result: ResultSerdeType<ChannelMPCState> =
+            deserialize_result_object(ser_channel_state);
         let mut channel_state = handle_errors!(channel_state_result);
 
         // Deserialize nonce
@@ -384,22 +565,44 @@ pub mod ffishim_mpc {
         rev_lock_com_ar.copy_from_slice(rev_lock_com.as_slice());
 
         // Deserialize the merch_state
-        let merch_state_result: ResultSerdeType<MerchantMPCState> = deserialize_result_object(ser_merch_state);
+        let merch_state_result: ResultSerdeType<MerchantMPCState> =
+            deserialize_result_object(ser_merch_state);
         let mut merch_state = handle_errors!(merch_state_result);
 
         // get connection to the database
-        let mut db: RedisDatabase = handle_errors!(RedisDatabase::new("mpc", merch_state.db_url.clone()));
+        let mut db: RedisDatabase =
+            handle_errors!(RedisDatabase::new("mpc", merch_state.db_url.clone()));
 
         // We change the channel state
-        let result = mpc::pay_update_merchant(rng, &mut db as &mut dyn StateDatabase, &mut channel_state, nonce_ar, pay_token_mask_com_ar, rev_lock_com_ar, amount, &mut merch_state);
+        let result = mpc::pay_update_merchant(
+            rng,
+            &mut db as &mut dyn StateDatabase,
+            &mut channel_state,
+            nonce_ar,
+            pay_token_mask_com_ar,
+            rev_lock_com_ar,
+            amount,
+            &mut merch_state,
+        );
         let is_ok = handle_errors!(result);
-        let ser = ["{\'is_ok\':", &is_ok.to_string(), ", \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
+        let ser = [
+            "{\'is_ok\':",
+            &is_ok.to_string(),
+            ", \'merch_state\':\'",
+            serde_json::to_string(&merch_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn mpc_get_masked_tx_inputs(mpc_result: u32, ser_nonce: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern "C" fn mpc_get_masked_tx_inputs(
+        mpc_result: u32,
+        ser_nonce: *mut c_char,
+        ser_merch_state: *mut c_char,
+    ) -> *mut c_char {
         let mut mpc_success = false;
         if mpc_result >= 1 {
             mpc_success = true;
@@ -412,68 +615,123 @@ pub mod ffishim_mpc {
         nonce_ar.copy_from_slice(nonce.as_slice());
 
         // Deserialize the merch_state
-        let merch_state_result: ResultSerdeType<MerchantMPCState> = deserialize_result_object(ser_merch_state);
+        let merch_state_result: ResultSerdeType<MerchantMPCState> =
+            deserialize_result_object(ser_merch_state);
         let mut merch_state = handle_errors!(merch_state_result);
 
         // get connection to the database
-        let mut db: RedisDatabase = handle_errors!(RedisDatabase::new("mpc", merch_state.db_url.clone()));
-        
-        let result = mpc::pay_confirm_mpc_result(&mut db as &mut dyn StateDatabase,  mpc_success, nonce_ar, &mut merch_state);
+        let mut db: RedisDatabase =
+            handle_errors!(RedisDatabase::new("mpc", merch_state.db_url.clone()));
+
+        let result = mpc::pay_confirm_mpc_result(
+            &mut db as &mut dyn StateDatabase,
+            mpc_success,
+            nonce_ar,
+            &mut merch_state,
+        );
         let masked_tx_inputs = handle_errors!(result);
-        let ser = ["{\'masked_tx_inputs\':\'", serde_json::to_string(&masked_tx_inputs).unwrap().as_str(), "\'}"].concat();
+        let ser = [
+            "{\'masked_tx_inputs\':\'",
+            serde_json::to_string(&masked_tx_inputs).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn mpc_pay_unmask_sigs_customer(ser_channel_state: *mut c_char, ser_channel_token: *mut c_char, ser_masked_tx_inputs: *mut c_char, ser_cust_state: *mut c_char) -> *mut c_char {
+    pub extern "C" fn mpc_pay_unmask_sigs_customer(
+        ser_channel_state: *mut c_char,
+        ser_channel_token: *mut c_char,
+        ser_masked_tx_inputs: *mut c_char,
+        ser_cust_state: *mut c_char,
+    ) -> *mut c_char {
         // Deserialize the channel_state
-        let channel_state_result: ResultSerdeType<ChannelMPCState> = deserialize_result_object(ser_channel_state);
+        let channel_state_result: ResultSerdeType<ChannelMPCState> =
+            deserialize_result_object(ser_channel_state);
         let channel_state = handle_errors!(channel_state_result);
 
         // Deserialize the ChannelToken
-        let channel_token_result: ResultSerdeType<ChannelMPCToken> = deserialize_result_object(ser_channel_token);
+        let channel_token_result: ResultSerdeType<ChannelMPCToken> =
+            deserialize_result_object(ser_channel_token);
         let channel_token = handle_errors!(channel_token_result);
 
         // Deserialize masked_tx_inputs
-        let masked_tx_inputs_result: ResultSerdeType<MaskedTxMPCInputs> = deserialize_result_object(ser_masked_tx_inputs);
+        let masked_tx_inputs_result: ResultSerdeType<MaskedTxMPCInputs> =
+            deserialize_result_object(ser_masked_tx_inputs);
         let masked_tx_inputs = handle_errors!(masked_tx_inputs_result);
 
         // Deserialize the cust_state
-        let cust_state_result: ResultSerdeType<CustomerMPCState> = deserialize_result_object(ser_cust_state);
+        let cust_state_result: ResultSerdeType<CustomerMPCState> =
+            deserialize_result_object(ser_cust_state);
         let mut cust_state = handle_errors!(cust_state_result);
 
         // We change the channel state
-        let is_ok = handle_errors!(mpc::pay_unmask_sigs_customer(&channel_state, &channel_token, masked_tx_inputs, &mut cust_state));
-        let ser = ["{\'is_ok\':", &is_ok.to_string(), ", \'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\'}"].concat();
+        let is_ok = handle_errors!(mpc::pay_unmask_sigs_customer(
+            &channel_state,
+            &channel_token,
+            masked_tx_inputs,
+            &mut cust_state
+        ));
+        let ser = [
+            "{\'is_ok\':",
+            &is_ok.to_string(),
+            ", \'cust_state\':\'",
+            serde_json::to_string(&cust_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn mpc_pay_validate_rev_lock_merchant(ser_revoked_state: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern "C" fn mpc_pay_validate_rev_lock_merchant(
+        ser_revoked_state: *mut c_char,
+        ser_merch_state: *mut c_char,
+    ) -> *mut c_char {
         // Deserialize masked_tx_inputs
-        let revoked_state_result: ResultSerdeType<RevokedState> = deserialize_result_object(ser_revoked_state);
+        let revoked_state_result: ResultSerdeType<RevokedState> =
+            deserialize_result_object(ser_revoked_state);
         let revoked_state = handle_errors!(revoked_state_result);
 
         // Deserialize the merch_state
-        let merch_state_result: ResultSerdeType<MerchantMPCState> = deserialize_result_object(ser_merch_state);
+        let merch_state_result: ResultSerdeType<MerchantMPCState> =
+            deserialize_result_object(ser_merch_state);
         let mut merch_state = handle_errors!(merch_state_result);
 
         // get connection to the database
-        let mut db: RedisDatabase = handle_errors!(RedisDatabase::new("mpc", merch_state.db_url.clone()));
+        let mut db: RedisDatabase =
+            handle_errors!(RedisDatabase::new("mpc", merch_state.db_url.clone()));
 
         // We change the channel state
-        let pay_token_mask_result = mpc::pay_validate_rev_lock_merchant(&mut db as &mut dyn StateDatabase,revoked_state, &mut merch_state);
+        let pay_token_mask_result = mpc::pay_validate_rev_lock_merchant(
+            &mut db as &mut dyn StateDatabase,
+            revoked_state,
+            &mut merch_state,
+        );
         let pt = handle_errors!(pay_token_mask_result);
-        let ser = ["{\'pay_token_mask\':\'", &hex::encode(pt.0), "\', \'pay_token_mask_r\':\'", &hex::encode(pt.1),
-                          "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
+        let ser = [
+            "{\'pay_token_mask\':\'",
+            &hex::encode(pt.0),
+            "\', \'pay_token_mask_r\':\'",
+            &hex::encode(pt.1),
+            "\', \'merch_state\':\'",
+            serde_json::to_string(&merch_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn mpc_pay_unmask_pay_token_customer(ser_pt_mask_bytes: *mut c_char, ser_pt_mask_r: *mut c_char, ser_cust_state: *mut c_char) -> *mut c_char {
+    pub extern "C" fn mpc_pay_unmask_pay_token_customer(
+        ser_pt_mask_bytes: *mut c_char,
+        ser_pt_mask_r: *mut c_char,
+        ser_cust_state: *mut c_char,
+    ) -> *mut c_char {
         // Deserialize pt_mask_bytes
         let pt_mask_bytes_result = deserialize_hex_string(ser_pt_mask_bytes);
         let pt_mask_bytes = handle_errors!(pt_mask_bytes_result);
@@ -487,12 +745,21 @@ pub mod ffishim_mpc {
         pt_mask_r_ar.copy_from_slice(pt_mask_r.as_slice());
 
         // Deserialize the cust_state
-        let cust_state_result: ResultSerdeType<CustomerMPCState> = deserialize_result_object(ser_cust_state);
+        let cust_state_result: ResultSerdeType<CustomerMPCState> =
+            deserialize_result_object(ser_cust_state);
         let mut cust_state = handle_errors!(cust_state_result);
 
         // We change the channel state
-        let is_ok = mpc::pay_unmask_pay_token_customer(pt_mask_bytes_ar, pt_mask_r_ar, &mut cust_state);
-        let ser = ["{\'is_ok\':", &is_ok.to_string(), ", \'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\'}"].concat();
+        let is_ok =
+            mpc::pay_unmask_pay_token_customer(pt_mask_bytes_ar, pt_mask_r_ar, &mut cust_state);
+        let ser = [
+            "{\'is_ok\':",
+            &is_ok.to_string(),
+            ", \'cust_state\':\'",
+            serde_json::to_string(&cust_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -500,19 +767,26 @@ pub mod ffishim_mpc {
     // TRANSACTION BUILDER FOR ESCROW, MERCH-CLOSE-TX and CUST-CLOSE-TXS
 
     #[no_mangle]
-    pub extern fn customer_close_tx(ser_channel_state: *mut c_char, ser_channel_token: *mut c_char, ser_from_escrow: u32, ser_cust_state: *mut c_char) -> *mut c_char {
+    pub extern "C" fn customer_close_tx(
+        ser_channel_state: *mut c_char,
+        ser_channel_token: *mut c_char,
+        ser_from_escrow: u32,
+        ser_cust_state: *mut c_char,
+    ) -> *mut c_char {
         // Deserialize the channel_state
-        let channel_state_result: ResultSerdeType<ChannelMPCState> = deserialize_result_object(ser_channel_state);
+        let channel_state_result: ResultSerdeType<ChannelMPCState> =
+            deserialize_result_object(ser_channel_state);
         let channel_state = handle_errors!(channel_state_result);
 
         // Deserialize the ChannelToken
-        let channel_token_result: ResultSerdeType<ChannelMPCToken> = deserialize_result_object(ser_channel_token);
+        let channel_token_result: ResultSerdeType<ChannelMPCToken> =
+            deserialize_result_object(ser_channel_token);
         let channel_token = handle_errors!(channel_token_result);
 
         // Deserialize the cust_state
-        let cust_state_result: ResultSerdeType<CustomerMPCState> = deserialize_result_object(ser_cust_state);
+        let cust_state_result: ResultSerdeType<CustomerMPCState> =
+            deserialize_result_object(ser_cust_state);
         let cust_state = handle_errors!(cust_state_result);
-
 
         let mut from_escrow = false;
         // deserialize ser_from_escrow accordingly
@@ -520,33 +794,57 @@ pub mod ffishim_mpc {
             from_escrow = true;
         }
 
-        let (signed_tx, txid) = handle_errors!(mpc::customer_close(&channel_state, &channel_token, from_escrow, &cust_state));
-        let ser = ["{\'signed_tx\':\'", &hex::encode(signed_tx),
-                    "\', \'txid\':\'", &hex::encode(txid), "\'}"].concat();
+        let (signed_tx, txid) = handle_errors!(mpc::customer_close(
+            &channel_state,
+            &channel_token,
+            from_escrow,
+            &cust_state
+        ));
+        let ser = [
+            "{\'signed_tx\':\'",
+            &hex::encode(signed_tx),
+            "\', \'txid\':\'",
+            &hex::encode(txid),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn merchant_close_tx(ser_escrow_txid: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern "C" fn merchant_close_tx(
+        ser_escrow_txid: *mut c_char,
+        ser_merch_state: *mut c_char,
+    ) -> *mut c_char {
         // Deserialize the escrow-txid
         let escrow_txid_result = deserialize_hex_string(ser_escrow_txid);
         let escrow_txid = handle_errors!(escrow_txid_result);
 
         // Deserialize the merch_state
-        let merch_state_result: ResultSerdeType<MerchantMPCState> = deserialize_result_object(ser_merch_state);
+        let merch_state_result: ResultSerdeType<MerchantMPCState> =
+            deserialize_result_object(ser_merch_state);
         let merch_state = handle_errors!(merch_state_result);
 
         // use channel token to retrieve initial channel params, then generate the merch-close-tx and sign it
         let (signed_tx, txid) = handle_errors!(mpc::merchant_close(&escrow_txid, &merch_state));
-        let ser = ["{\'signed_tx\':\'", &hex::encode(signed_tx),
-                   "\', \'txid\':\'", &hex::encode(txid), "\'}"].concat();
+        let ser = [
+            "{\'signed_tx\':\'",
+            &hex::encode(signed_tx),
+            "\', \'txid\':\'",
+            &hex::encode(txid),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn merchant_check_rev_lock(ser_rev_lock: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern "C" fn merchant_check_rev_lock(
+        ser_rev_lock: *mut c_char,
+        ser_merch_state: *mut c_char,
+    ) -> *mut c_char {
         // Deserialize the rev_lock
         let rev_lock_result = deserialize_hex_string(ser_rev_lock);
         let _rev_lock = handle_errors!(rev_lock_result);
@@ -554,30 +852,48 @@ pub mod ffishim_mpc {
         let rev_lock_hex = hex::encode(&_rev_lock);
 
         // Deserialize the merch_state
-        let merch_state_result: ResultSerdeType<MerchantMPCState> = deserialize_result_object(ser_merch_state);
+        let merch_state_result: ResultSerdeType<MerchantMPCState> =
+            deserialize_result_object(ser_merch_state);
         let merch_state = handle_errors!(merch_state_result);
 
         // get connection to the database
-        let mut db: RedisDatabase = handle_errors!(RedisDatabase::new("mpc", merch_state.db_url.clone()));
+        let mut db: RedisDatabase =
+            handle_errors!(RedisDatabase::new("mpc", merch_state.db_url.clone()));
 
         let rs_result = db.get_rev_secret(&rev_lock_hex);
         let is_ok = rs_result.is_ok();
         let rev_secret = handle_errors!(rs_result);
 
-        let ser = ["{\'is_ok\':", &is_ok.to_string(), ", \'found_rev_secret\':\'", &rev_secret, "\'}"].concat();
+        let ser = [
+            "{\'is_ok\':",
+            &is_ok.to_string(),
+            ", \'found_rev_secret\':\'",
+            &rev_secret,
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn cust_form_escrow_transaction(ser_txid: *mut c_char, index: u32, input_sats: i64, output_sats: i64,
-                                               ser_cust_sk: *mut c_char, ser_cust_pk: *mut c_char, ser_merch_pk: *mut c_char,
-                                               ser_change_pk: *mut c_char, ser_change_pk_is_hash: u32) -> *mut c_char {
+    pub extern "C" fn cust_form_escrow_transaction(
+        ser_txid: *mut c_char,
+        index: u32,
+        input_sats: i64,
+        output_sats: i64,
+        ser_cust_sk: *mut c_char,
+        ser_cust_pk: *mut c_char,
+        ser_merch_pk: *mut c_char,
+        ser_change_pk: *mut c_char,
+        ser_change_pk_is_hash: u32,
+    ) -> *mut c_char {
         let txid_result = deserialize_hex_string(ser_txid);
         let txid = handle_errors!(txid_result);
 
         // Deserialize the sk_c
-        let cust_sk_result: ResultSerdeType<secp256k1::SecretKey> = deserialize_result_object(ser_cust_sk);
+        let cust_sk_result: ResultSerdeType<secp256k1::SecretKey> =
+            deserialize_result_object(ser_cust_sk);
         let cust_sk = handle_errors!(cust_sk_result);
 
         let cust_pk_result = deserialize_hex_string(ser_cust_pk);
@@ -595,16 +911,41 @@ pub mod ffishim_mpc {
             change_pk_is_hash = true;
         }
 
-        let (signed_tx, txid, prevout) = handle_errors!(txutil::customer_sign_escrow_transaction(txid, index, input_sats, output_sats, cust_sk, cust_pk, merch_pk, Some(change_pk), change_pk_is_hash));
-        let ser = ["{\'signed_tx\':\'", &hex::encode(signed_tx), "\', \'txid\':\'", &hex::encode(txid),
-                          "\', \'hash_prevout\':\'", &hex::encode(prevout), "\'}"].concat();
+        let (signed_tx, txid, prevout) = handle_errors!(txutil::customer_sign_escrow_transaction(
+            txid,
+            index,
+            input_sats,
+            output_sats,
+            cust_sk,
+            cust_pk,
+            merch_pk,
+            Some(change_pk),
+            change_pk_is_hash
+        ));
+        let ser = [
+            "{\'signed_tx\':\'",
+            &hex::encode(signed_tx),
+            "\', \'txid\':\'",
+            &hex::encode(txid),
+            "\', \'hash_prevout\':\'",
+            &hex::encode(prevout),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn form_merch_close_transaction(ser_escrow_txid: *mut c_char, ser_cust_pk: *mut c_char, ser_merch_pk: *mut c_char, ser_merch_close_pk: *mut c_char, cust_bal_sats: i64, merch_bal_sats: i64, ser_self_delay: *mut c_char) -> *mut c_char {
-
+    pub extern "C" fn form_merch_close_transaction(
+        ser_escrow_txid: *mut c_char,
+        ser_cust_pk: *mut c_char,
+        ser_merch_pk: *mut c_char,
+        ser_merch_close_pk: *mut c_char,
+        cust_bal_sats: i64,
+        merch_bal_sats: i64,
+        ser_self_delay: *mut c_char,
+    ) -> *mut c_char {
         let escrow_txid_result = deserialize_hex_string(ser_escrow_txid);
         let escrow_txid = handle_errors!(escrow_txid_result);
 
@@ -622,32 +963,60 @@ pub mod ffishim_mpc {
         let mut self_delay_be = [0u8; 2];
         self_delay_be.copy_from_slice(&self_delay);
 
-        let (merch_tx_preimage, _) = handle_errors!(transactions::btc::merchant_form_close_transaction::<Testnet>(escrow_txid, cust_pk, merch_pk, merch_close_pk, cust_bal_sats, merch_bal_sats, self_delay_be));
+        let (merch_tx_preimage, _) = handle_errors!(
+            transactions::btc::merchant_form_close_transaction::<Testnet>(
+                escrow_txid,
+                cust_pk,
+                merch_pk,
+                merch_close_pk,
+                cust_bal_sats,
+                merch_bal_sats,
+                self_delay_be
+            )
+        );
 
-        let ser = ["{\'merch_tx_preimage\':\'", &hex::encode(merch_tx_preimage), "\'}"].concat();
+        let ser = [
+            "{\'merch_tx_preimage\':\'",
+            &hex::encode(merch_tx_preimage),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn customer_sign_merch_close_tx(ser_cust_sk: *mut c_char, ser_merch_tx_preimage: *mut c_char) -> *mut c_char {
-
+    pub extern "C" fn customer_sign_merch_close_tx(
+        ser_cust_sk: *mut c_char,
+        ser_merch_tx_preimage: *mut c_char,
+    ) -> *mut c_char {
         // Deserialize the sk_c
-        let cust_sk_result: ResultSerdeType<secp256k1::SecretKey> = deserialize_result_object(ser_cust_sk);
+        let cust_sk_result: ResultSerdeType<secp256k1::SecretKey> =
+            deserialize_result_object(ser_cust_sk);
         let cust_sk = handle_errors!(cust_sk_result);
 
         let tx_preimage_result = deserialize_hex_string(ser_merch_tx_preimage);
         let merch_tx_preimage = handle_errors!(tx_preimage_result);
 
-        let cust_sig = handle_errors!(txutil::customer_sign_merch_close_transaction(cust_sk, merch_tx_preimage));
+        let cust_sig = handle_errors!(txutil::customer_sign_merch_close_transaction(
+            cust_sk,
+            merch_tx_preimage
+        ));
         let ser = ["{\'cust_sig\':\'", &hex::encode(cust_sig), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn merchant_verify_merch_close_tx(ser_escrow_txid: *mut c_char, ser_cust_pk: *mut c_char, cust_bal_sats: i64, merch_bal_sats: i64, ser_self_delay: *mut c_char, ser_cust_sig: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
-
+    pub extern "C" fn merchant_verify_merch_close_tx(
+        ser_escrow_txid: *mut c_char,
+        ser_cust_pk: *mut c_char,
+        cust_bal_sats: i64,
+        merch_bal_sats: i64,
+        ser_self_delay: *mut c_char,
+        ser_cust_sig: *mut c_char,
+        ser_merch_state: *mut c_char,
+    ) -> *mut c_char {
         let escrow_txid_result = deserialize_hex_string(ser_escrow_txid);
         let escrow_txid = handle_errors!(escrow_txid_result);
 
@@ -663,30 +1032,68 @@ pub mod ffishim_mpc {
         let cust_sig = handle_errors!(cust_sig_result);
 
         // Deserialize the merch_state
-        let merch_state_result: ResultSerdeType<MerchantMPCState> = deserialize_result_object(ser_merch_state);
+        let merch_state_result: ResultSerdeType<MerchantMPCState> =
+            deserialize_result_object(ser_merch_state);
         let mut merch_state = handle_errors!(merch_state_result);
 
         let merch_pk = merch_state.pk_m.serialize().to_vec();
         let merch_close_pk = merch_state.payout_pk.serialize().to_vec();
 
-        let (merch_tx_preimage, tx_params) = handle_errors!(transactions::btc::merchant_form_close_transaction::<Testnet>(escrow_txid.clone(), cust_pk.clone(), merch_pk, merch_close_pk, cust_bal_sats, merch_bal_sats, self_delay_be));
+        let (merch_tx_preimage, tx_params) = handle_errors!(
+            transactions::btc::merchant_form_close_transaction::<Testnet>(
+                escrow_txid.clone(),
+                cust_pk.clone(),
+                merch_pk,
+                merch_close_pk,
+                cust_bal_sats,
+                merch_bal_sats,
+                self_delay_be
+            )
+        );
 
-        let is_ok = handle_errors!(txutil::merchant_verify_merch_close_transaction(&merch_tx_preimage, &cust_sig, &cust_pk));
+        let is_ok = handle_errors!(txutil::merchant_verify_merch_close_transaction(
+            &merch_tx_preimage,
+            &cust_sig,
+            &cust_pk
+        ));
         if is_ok {
-            merch_state.store_merch_close_tx(&escrow_txid, &cust_pk, cust_bal_sats, merch_bal_sats, self_delay_be, &cust_sig);
+            merch_state.store_merch_close_tx(
+                &escrow_txid,
+                &cust_pk,
+                cust_bal_sats,
+                merch_bal_sats,
+                self_delay_be,
+                &cust_sig,
+            );
         }
 
         let (txid, prevout) = handle_errors!(txutil::merchant_generate_transaction_id(tx_params));
 
-        let ser = ["{\'is_ok\':", serde_json::to_string(&is_ok).unwrap().as_str(), ", \'txid\':\'", &hex::encode(txid),
-                          "\', \'hash_prevout\':\'", &hex::encode(prevout),
-                          "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
+        let ser = [
+            "{\'is_ok\':",
+            serde_json::to_string(&is_ok).unwrap().as_str(),
+            ", \'txid\':\'",
+            &hex::encode(txid),
+            "\', \'hash_prevout\':\'",
+            &hex::encode(prevout),
+            "\', \'merch_state\':\'",
+            serde_json::to_string(&merch_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn merch_sign_init_cust_close_txs(ser_funding_tx: *mut c_char, ser_rev_lock: *mut c_char, ser_cust_pk: *mut c_char, ser_cust_close_pk: *mut c_char, ser_self_delay: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern "C" fn merch_sign_init_cust_close_txs(
+        ser_funding_tx: *mut c_char,
+        ser_rev_lock: *mut c_char,
+        ser_cust_pk: *mut c_char,
+        ser_cust_close_pk: *mut c_char,
+        ser_self_delay: *mut c_char,
+        ser_merch_state: *mut c_char,
+    ) -> *mut c_char {
         // Deserialize the tx
         let tx_result: ResultSerdeType<FundingTxInfo> = deserialize_result_object(ser_funding_tx);
         let funding_tx = handle_errors!(tx_result);
@@ -708,28 +1115,51 @@ pub mod ffishim_mpc {
         self_delay_be.copy_from_slice(&self_delay);
 
         // Deserialize the merch_state
-        let merch_state_result: ResultSerdeType<MerchantMPCState> = deserialize_result_object(ser_merch_state);
+        let merch_state_result: ResultSerdeType<MerchantMPCState> =
+            deserialize_result_object(ser_merch_state);
         let merch_state = handle_errors!(merch_state_result);
 
-        let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(funding_tx, rl, cust_pk, cust_close_pk, self_delay_be);
+        let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(
+            funding_tx,
+            rl,
+            cust_pk,
+            cust_close_pk,
+            self_delay_be,
+        );
 
-        let ser = ["{\'escrow_sig\': \'", &hex::encode(escrow_sig), "\', \'merch_sig\':\'", &hex::encode(merch_sig), "\'}"].concat();
+        let ser = [
+            "{\'escrow_sig\': \'",
+            &hex::encode(escrow_sig),
+            "\', \'merch_sig\':\'",
+            &hex::encode(merch_sig),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn cust_verify_init_cust_close_txs(ser_funding_tx: *mut c_char, ser_channel_state: *mut c_char, ser_channel_token: *mut c_char, ser_escrow_sig: *mut c_char, ser_merch_sig: *mut c_char, ser_cust_state: *mut c_char) -> *mut c_char {
+    pub extern "C" fn cust_verify_init_cust_close_txs(
+        ser_funding_tx: *mut c_char,
+        ser_channel_state: *mut c_char,
+        ser_channel_token: *mut c_char,
+        ser_escrow_sig: *mut c_char,
+        ser_merch_sig: *mut c_char,
+        ser_cust_state: *mut c_char,
+    ) -> *mut c_char {
         // Deserialize the tx
         let tx_result: ResultSerdeType<FundingTxInfo> = deserialize_result_object(ser_funding_tx);
         let funding_tx = handle_errors!(tx_result);
 
         // Deserialize the channel_state
-        let channel_state_result: ResultSerdeType<ChannelMPCState> = deserialize_result_object(ser_channel_state);
+        let channel_state_result: ResultSerdeType<ChannelMPCState> =
+            deserialize_result_object(ser_channel_state);
         let channel_state = handle_errors!(channel_state_result);
 
         // Deserialize the ChannelToken
-        let channel_token_result: ResultSerdeType<ChannelMPCToken> = deserialize_result_object(ser_channel_token);
+        let channel_token_result: ResultSerdeType<ChannelMPCToken> =
+            deserialize_result_object(ser_channel_token);
         let mut channel_token = handle_errors!(channel_token_result);
 
         // Deserialize escrow-sig & merch-sig
@@ -740,22 +1170,45 @@ pub mod ffishim_mpc {
         let merch_sig = handle_errors!(merch_sig_result);
 
         // Deserialize the cust_state
-        let cust_state_result: ResultSerdeType<CustomerMPCState> = deserialize_result_object(ser_cust_state);
+        let cust_state_result: ResultSerdeType<CustomerMPCState> =
+            deserialize_result_object(ser_cust_state);
         let mut cust_state = handle_errors!(cust_state_result);
 
         handle_errors!(cust_state.set_funding_tx_info(&mut channel_token, &funding_tx));
 
         // now sign the customer's initial closing txs iff escrow-sig and merch-sig are valid
-        let got_close_tx = handle_errors!(cust_state.sign_initial_closing_transaction::<Testnet>(&channel_state, &channel_token, &escrow_sig, &merch_sig));
-        let ser = ["{\'is_ok\':", serde_json::to_string(&got_close_tx).unwrap().as_str(), ", \'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str(),
-                          "\', \'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\'}"].concat();
+        let got_close_tx = handle_errors!(cust_state.sign_initial_closing_transaction::<Testnet>(
+            &channel_state,
+            &channel_token,
+            &escrow_sig,
+            &merch_sig
+        ));
+        let ser = [
+            "{\'is_ok\':",
+            serde_json::to_string(&got_close_tx).unwrap().as_str(),
+            ", \'channel_token\':\'",
+            serde_json::to_string(&channel_token).unwrap().as_str(),
+            "\', \'cust_state\':\'",
+            serde_json::to_string(&cust_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn sign_merch_dispute_tx(ser_tx_index: *mut c_char, index: u32, amount: i64, ser_self_delay: *mut c_char, ser_output_pk: *mut c_char, ser_rev_lock: *mut c_char, ser_rev_secret: *mut c_char, ser_cust_close_pk: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
-
+    pub extern "C" fn sign_merch_dispute_tx(
+        ser_tx_index: *mut c_char,
+        index: u32,
+        amount: i64,
+        ser_self_delay: *mut c_char,
+        ser_output_pk: *mut c_char,
+        ser_rev_lock: *mut c_char,
+        ser_rev_secret: *mut c_char,
+        ser_cust_close_pk: *mut c_char,
+        ser_merch_state: *mut c_char,
+    ) -> *mut c_char {
         let txid_result = deserialize_hex_string(ser_tx_index);
         let txid_le = handle_errors!(txid_result);
 
@@ -777,23 +1230,45 @@ pub mod ffishim_mpc {
         self_delay_be.copy_from_slice(&self_delay);
 
         // Deserialize the merch_state
-        let merch_state_result: ResultSerdeType<MerchantMPCState> = deserialize_result_object(ser_merch_state);
+        let merch_state_result: ResultSerdeType<MerchantMPCState> =
+            deserialize_result_object(ser_merch_state);
         let merch_state = handle_errors!(merch_state_result);
 
         let merch_disp_pk = merch_state.payout_pk.serialize().to_vec();
         let merch_sk = merch_state.get_secret_key();
 
-        let signed_tx = handle_errors!(txutil::merchant_sign_merch_dispute_transaction(txid_le, index, amount, self_delay_be, output_pk, rev_lock, rev_secret, cust_close_pk, merch_disp_pk, merch_sk));
+        let signed_tx = handle_errors!(txutil::merchant_sign_merch_dispute_transaction(
+            txid_le,
+            index,
+            amount,
+            self_delay_be,
+            output_pk,
+            rev_lock,
+            rev_secret,
+            cust_close_pk,
+            merch_disp_pk,
+            merch_sk
+        ));
         let ser = ["{\'signed_tx\': \'", &hex::encode(signed_tx), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn sign_cust_claim_tx(ser_channel_state: *mut c_char, ser_tx_index: *mut c_char, index: u32, amount: i64, ser_self_delay: *mut c_char, ser_output_pk: *mut c_char, ser_rev_lock: *mut c_char, ser_cust_close_pk: *mut c_char, ser_cust_state: *mut c_char) -> *mut c_char {
-
+    pub extern "C" fn sign_cust_claim_tx(
+        ser_channel_state: *mut c_char,
+        ser_tx_index: *mut c_char,
+        index: u32,
+        amount: i64,
+        ser_self_delay: *mut c_char,
+        ser_output_pk: *mut c_char,
+        ser_rev_lock: *mut c_char,
+        ser_cust_close_pk: *mut c_char,
+        ser_cust_state: *mut c_char,
+    ) -> *mut c_char {
         // Deserialize the channel_state
-        let channel_state_result: ResultSerdeType<ChannelMPCState> = deserialize_result_object(ser_channel_state);
+        let channel_state_result: ResultSerdeType<ChannelMPCState> =
+            deserialize_result_object(ser_channel_state);
         let channel_state = handle_errors!(channel_state_result);
 
         let txid_result = deserialize_hex_string(ser_tx_index);
@@ -814,19 +1289,33 @@ pub mod ffishim_mpc {
         self_delay_be.copy_from_slice(&self_delay);
 
         // Deserialize the cust_state
-        let cust_state_result: ResultSerdeType<CustomerMPCState> = deserialize_result_object(ser_cust_state);
+        let cust_state_result: ResultSerdeType<CustomerMPCState> =
+            deserialize_result_object(ser_cust_state);
         let cust_state = handle_errors!(cust_state_result);
 
         let merch_disp_pk = match channel_state.merch_dispute_pk {
             Some(n) => n.serialize().to_vec(),
-            None => return error_message(String::from("channel state does not have merch_disp_pk set"))
+            None => {
+                return error_message(String::from(
+                    "channel state does not have merch_disp_pk set",
+                ))
+            }
         };
         let cust_sk = cust_state.get_secret_key();
 
-        let signed_tx = handle_errors!(txutil::customer_sign_cust_close_claim_transaction(txid_le, index, amount, self_delay_be, output_pk, rev_lock, cust_close_pk, merch_disp_pk, cust_sk));
+        let signed_tx = handle_errors!(txutil::customer_sign_cust_close_claim_transaction(
+            txid_le,
+            index,
+            amount,
+            self_delay_be,
+            output_pk,
+            rev_lock,
+            cust_close_pk,
+            merch_disp_pk,
+            cust_sk
+        ));
         let ser = ["{\'signed_tx\': \'", &hex::encode(signed_tx), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
-
 }

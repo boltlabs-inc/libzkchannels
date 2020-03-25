@@ -1,53 +1,61 @@
-extern crate rand;
-extern crate zkchannels;
-extern crate secp256k1_boltlabs as secp256k1;
-extern crate structopt;
-extern crate serde;
 extern crate bufstream;
+extern crate rand;
+extern crate secp256k1_boltlabs as secp256k1;
+extern crate serde;
 extern crate sha2;
+extern crate structopt;
 extern crate wagyu_bitcoin as bitcoin;
 extern crate wagyu_model;
+extern crate zkchannels;
 
-use zkchannels::mpc;
-use structopt::StructOpt;
-use std::str::FromStr;
-use serde::Deserialize;
-use std::net::{SocketAddr, TcpListener, TcpStream};
-use std::thread::sleep;
-use std::time;
-use bufstream::BufStream;
-use std::io::{BufRead, Write, Read};
-use std::path::PathBuf;
-use zkchannels::FundingTxInfo;
-use std::fs::File;
 use bitcoin::Testnet;
+use bufstream::BufStream;
 use rand::Rng;
+use serde::Deserialize;
+use std::fs::File;
+use std::io::{BufRead, Read, Write};
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::os::unix::io::AsRawFd;
 use std::os::unix::prelude::RawFd;
+use std::path::PathBuf;
+use std::str::FromStr;
+use std::thread::sleep;
+use std::time;
+use structopt::StructOpt;
+use zkchannels::mpc;
+use zkchannels::FundingTxInfo;
 
 macro_rules! handle_file_error {
-   ($e:expr, $f:expr) => (match $e {
-       Ok(val) => val,
-       Err(err) => return Err(format!("- {:?}: {}", $f, err)),
-   });
+    ($e:expr, $f:expr) => {
+        match $e {
+            Ok(val) => val,
+            Err(err) => return Err(format!("- {:?}: {}", $f, err)),
+        }
+    };
 }
 
 macro_rules! handle_error_result {
-    ($e:expr) => (match $e {
-        Ok(val) => val,
-        Err(err) => return Err(err.to_string()),
-    });
+    ($e:expr) => {
+        match $e {
+            Ok(val) => val,
+            Err(err) => return Err(err.to_string()),
+        }
+    };
 }
 
 macro_rules! print_error_result {
-    ($e:expr) => (match $e {
-        Ok(val) => val,
-        Err(err) => println!("{}", err.to_string()),
-    });
+    ($e:expr) => {
+        match $e {
+            Ok(val) => val,
+            Err(err) => println!("{}", err.to_string()),
+        }
+    };
 }
 
 macro_rules! create_connection {
-    ($e: expr) => (&mut Conn::new($e.own_ip, $e.own_port, $e.other_ip, $e.other_port));
+    ($e: expr) => {
+        &mut Conn::new($e.own_ip, $e.own_port, $e.other_ip, $e.other_port)
+    };
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -82,7 +90,7 @@ pub struct Open {
     #[structopt(short = "d", long = "dust-limit", default_value = "0")]
     dust_limit: i64,
     #[structopt(short = "t", long = "tx-fee", default_value = "0")]
-    tx_fee: i64
+    tx_fee: i64,
 }
 
 #[derive(Clone, Debug, StructOpt, Deserialize)]
@@ -108,7 +116,7 @@ pub struct Init {
     #[structopt(short = "d", long = "dust-limit", default_value = "0")]
     dust_limit: i64,
     #[structopt(short = "t", long = "tx-fee", default_value = "0")]
-    tx_fee: i64
+    tx_fee: i64,
 }
 
 #[derive(Clone, Debug, StructOpt, Deserialize)]
@@ -122,7 +130,7 @@ pub struct Activate {
     #[structopt(short = "j", long = "other-ip", default_value = "127.0.0.1")]
     other_ip: String,
     #[structopt(short = "q", long = "other-port")]
-    other_port: String
+    other_port: String,
 }
 
 #[derive(Clone, Debug, StructOpt, Deserialize)]
@@ -140,7 +148,7 @@ pub struct Pay {
     #[structopt(short = "q", long = "other-port")]
     other_port: String,
     #[structopt(short)]
-    verbose: bool
+    verbose: bool,
 }
 
 #[derive(Clone, Debug, StructOpt, Deserialize)]
@@ -152,7 +160,7 @@ pub struct Close {
     #[structopt(short = "e", long = "from-escrow")]
     from_escrow: bool,
     #[structopt(short = "c", long = "channel-token")]
-    channel_token: Option<PathBuf>
+    channel_token: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug, StructOpt, Deserialize)]
@@ -181,12 +189,12 @@ impl FromStr for Command {
 pub fn read_file(file_name: &'static str) -> Result<String, String> {
     let mut file = match File::open(file_name) {
         Ok(n) => n,
-        Err(e) => return Err(e.to_string())
+        Err(e) => return Err(e.to_string()),
     };
     let mut content = String::new();
     let content_len = match file.read_to_string(&mut content) {
-      Ok(n) => n,
-        Err(e) => return Err(e.to_string())
+        Ok(n) => n,
+        Err(e) => return Err(e.to_string()),
     };
     assert!(content_len > 0);
     Ok(content)
@@ -195,12 +203,12 @@ pub fn read_file(file_name: &'static str) -> Result<String, String> {
 pub fn read_pathfile(path_buf: PathBuf) -> Result<String, String> {
     let mut file = match File::open(path_buf) {
         Ok(n) => n,
-        Err(e) => return Err(e.to_string())
+        Err(e) => return Err(e.to_string()),
     };
     let mut content = String::new();
     let content_len = match file.read_to_string(&mut content) {
-      Ok(n) => n,
-        Err(e) => return Err(e.to_string())
+        Ok(n) => n,
+        Err(e) => return Err(e.to_string()),
     };
     assert!(content_len > 0);
     Ok(content)
@@ -209,22 +217,22 @@ pub fn read_pathfile(path_buf: PathBuf) -> Result<String, String> {
 pub fn write_file(file_name: &'static str, content: String) -> Result<(), String> {
     let mut file = match File::create(file_name) {
         Ok(n) => n,
-        Err(e) => return Err(e.to_string())
+        Err(e) => return Err(e.to_string()),
     };
     match file.write_all(content.as_ref()) {
         Ok(n) => Ok(n),
-        Err(e) => return Err(e.to_string())
+        Err(e) => return Err(e.to_string()),
     }
 }
 
 pub fn write_pathfile(path_buf: PathBuf, content: String) -> Result<(), String> {
     let mut file = match File::create(path_buf) {
         Ok(n) => n,
-        Err(e) => return Err(e.to_string())
+        Err(e) => return Err(e.to_string()),
     };
     match file.write_all(content.as_ref()) {
         Ok(n) => Ok(n),
-        Err(e) => return Err(e.to_string())
+        Err(e) => return Err(e.to_string()),
     }
 }
 
@@ -243,7 +251,10 @@ pub fn generate_keypair<R: Rng>(csprng: &mut R) -> (secp256k1::PublicKey, secp25
 #[derive(StructOpt, Debug)]
 #[structopt(name = "zkchannels-mpc")]
 struct Cli {
-    #[structopt(subcommand, help = "Options: open, init, activate, unlink, pay, or close")]
+    #[structopt(
+        subcommand,
+        help = "Options: open, init, activate, unlink, pay, or close"
+    )]
     command: Command,
 }
 
@@ -252,7 +263,7 @@ pub struct Conn {
     pub out_addr: SocketAddr,
     pub own_port: i32,
     pub other_port: i32,
-    pub raw_fd: RawFd
+    pub raw_fd: RawFd,
 }
 
 impl Conn {
@@ -265,7 +276,13 @@ impl Conn {
         let out_addr_sock = SocketAddr::from_str(out_addr.as_ref()).unwrap();
         let other_p = other_port.parse().unwrap_or(0);
 
-        Conn { in_addr: in_addr_sock, out_addr: out_addr_sock, own_port: own_p, other_port: other_p, raw_fd: 0 }
+        Conn {
+            in_addr: in_addr_sock,
+            out_addr: out_addr_sock,
+            own_port: own_p,
+            other_port: other_p,
+            raw_fd: 0,
+        }
     }
 
     pub fn send(&mut self, msg: &[String]) {
@@ -290,14 +307,19 @@ impl Conn {
         }
     }
 
-    pub fn send_and_wait(&mut self, msg: &[String], label: Option<String>, verbose: bool) -> Vec<String> {
+    pub fn send_and_wait(
+        &mut self,
+        msg: &[String],
+        label: Option<String>,
+        verbose: bool,
+    ) -> Vec<String> {
         self.send(msg);
         self.wait_for(label, verbose)
     }
 
     pub fn wait_for(&mut self, label: Option<String>, verbose: bool) -> Vec<String> {
         let listener = TcpListener::bind(self.in_addr).unwrap();
-        let mut out: Vec<String> = vec! {};
+        let mut out: Vec<String> = vec![];
 
         for stream in listener.incoming() {
             match stream {
@@ -308,7 +330,9 @@ impl Conn {
                         let mut reads = String::new();
                         buf_stream.read_line(&mut reads).unwrap();
                         if reads == "end\n" {
-                            if verbose && label.is_some() { println!("{}: {:?}", label.unwrap(), out); }
+                            if verbose && label.is_some() {
+                                println!("{}: {:?}", label.unwrap(), out);
+                            }
                             return out;
                         }
                         if reads != "" {
@@ -334,27 +358,35 @@ fn main() {
         Command::OPEN(open) => match open.party {
             Party::MERCH => match merch::open(create_connection!(open), open.dust_limit) {
                 Err(e) => println!("Channel opening phase failed with error: {}", e),
-                _ => ()
+                _ => (),
             },
-            Party::CUST => match cust::open(create_connection!(open), open.cust_bal, open.merch_bal) {
-                Err(e) => println!("Channel opening phase failed with error: {}", e),
-                _ => ()
-            },
+            Party::CUST => {
+                match cust::open(create_connection!(open), open.cust_bal, open.merch_bal) {
+                    Err(e) => println!("Channel opening phase failed with error: {}", e),
+                    _ => (),
+                }
+            }
         },
         Command::INIT(init) => match init.party {
             Party::MERCH => match merch::init(create_connection!(init)) {
                 Err(e) => println!("Initialize phase failed with error: {}", e),
-                _ => ()
+                _ => (),
             },
             // TODO: clean this up
-            Party::CUST => match cust::init(create_connection!(init), init.txid.unwrap(), init.index.unwrap(), init.input_sats.unwrap(), init.output_sats.unwrap()) {
+            Party::CUST => match cust::init(
+                create_connection!(init),
+                init.txid.unwrap(),
+                init.index.unwrap(),
+                init.input_sats.unwrap(),
+                init.output_sats.unwrap(),
+            ) {
                 Err(e) => println!("Initialize phase failed with error: {}", e),
-                _ => ()
+                _ => (),
             },
         },
         Command::ACTIVATE(activate) => match activate.party {
             Party::MERCH => merch::activate(create_connection!(activate)).unwrap(),
-            Party::CUST => cust::activate(create_connection!(activate)).unwrap()
+            Party::CUST => cust::activate(create_connection!(activate)).unwrap(),
         },
         Command::UNLINK(unlink) => match unlink.party {
             Party::MERCH => merch::pay(Some(0), create_connection!(unlink)).unwrap(),
@@ -362,15 +394,17 @@ fn main() {
         },
         Command::PAY(pay) => match pay.party {
             Party::MERCH => loop {
-                match merch::pay( pay.amount.clone(), create_connection!(pay.clone())) {
+                match merch::pay(pay.amount.clone(), create_connection!(pay.clone())) {
                     Err(e) => println!("Pay phase failed with error: {}", e),
-                    _ => ()
+                    _ => (),
                 }
             },
-            Party::CUST => match cust::pay(pay.amount.unwrap(), create_connection!(pay), pay.verbose) {
-                Err(e) => println!("Pay protocol failed with error: {}", e),
-                _ => ()
-            },
+            Party::CUST => {
+                match cust::pay(pay.amount.unwrap(), create_connection!(pay), pay.verbose) {
+                    Err(e) => println!("Pay protocol failed with error: {}", e),
+                    _ => (),
+                }
+            }
         },
         Command::CLOSE(close) => match close.party {
             Party::MERCH => print_error_result!(merch::close(close.file, close.channel_token)),
@@ -383,12 +417,16 @@ fn main() {
 
 mod cust {
     use super::*;
-    use zkchannels::channels_mpc::{ChannelMPCToken, ChannelMPCState, CustomerMPCState, NetworkConfig};
-    use zkchannels::txutil::{customer_sign_escrow_transaction, customer_sign_merch_close_transaction};
-    use zkchannels::FixedSizeArray32;
-    use zkchannels::transactions::btc::merchant_form_close_transaction;
-    use zkchannels::bindings::{ConnType_NETIO}; // ConnType_CUSTOM
+    use zkchannels::bindings::ConnType_NETIO; // ConnType_CUSTOM
+    use zkchannels::channels_mpc::{
+        ChannelMPCState, ChannelMPCToken, CustomerMPCState, NetworkConfig,
+    };
     use zkchannels::database::MaskedTxMPCInputs;
+    use zkchannels::transactions::btc::merchant_form_close_transaction;
+    use zkchannels::txutil::{
+        customer_sign_escrow_transaction, customer_sign_merch_close_transaction,
+    };
+    use zkchannels::FixedSizeArray32;
     // use std::os::unix::io::AsRawFd;
 
     pub fn open(conn: &mut Conn, b0_cust: i64, b0_merch: i64) -> Result<(), String> {
@@ -400,27 +438,38 @@ mod cust {
         let pk_m: secp256k1::PublicKey = serde_json::from_str(&msg0.get(1).unwrap()).unwrap();
 
         if b0_cust == 0 && b0_merch == 0 {
-            return Err(String::from("cust-bal or merch-bal must be greater than 0."));
+            return Err(String::from(
+                "cust-bal or merch-bal must be greater than 0.",
+            ));
         }
 
-        let (channel_token, cust_state) = mpc::init_customer(rng, &pk_m,
-                                                                 b0_cust, b0_merch, "Customer", None, None);
+        let (channel_token, cust_state) =
+            mpc::init_customer(rng, &pk_m, b0_cust, b0_merch, "Customer", None, None);
 
         println!("Saving the initial customer state...");
         save_state_cust(channel_state, channel_token, cust_state)
     }
 
-    pub fn init(conn: &mut Conn, txid: String, index: u32, input_sats: i64, output_sats: i64) -> Result<(), String> {
+    pub fn init(
+        conn: &mut Conn,
+        txid: String,
+        index: u32,
+        input_sats: i64,
+        output_sats: i64,
+    ) -> Result<(), String> {
         let mut rng = &mut rand::thread_rng();
 
         let ser_cust_state = handle_error_result!(read_file("cust_state.json"));
-        let mut cust_state: CustomerMPCState = handle_error_result!(serde_json::from_str(&ser_cust_state));
+        let mut cust_state: CustomerMPCState =
+            handle_error_result!(serde_json::from_str(&ser_cust_state));
 
         let ser_channel_state = handle_error_result!(read_file("cust_channel_state.json"));
-        let channel_state: ChannelMPCState = handle_error_result!(serde_json::from_str(&ser_channel_state));
+        let channel_state: ChannelMPCState =
+            handle_error_result!(serde_json::from_str(&ser_channel_state));
 
         let ser_channel_token = handle_error_result!(read_file("cust_channel_token.json"));
-        let mut channel_token: ChannelMPCToken = handle_error_result!(serde_json::from_str(&ser_channel_token));
+        let mut channel_token: ChannelMPCToken =
+            handle_error_result!(serde_json::from_str(&ser_channel_token));
 
         let to_self_delay_be: [u8; 2] = [0x05, 0xcf]; // big-endian format
 
@@ -439,23 +488,47 @@ mod cust {
 
         // form the escrow transaction
         let (signed_tx, escrow_txid, escrow_prevout) =
-            handle_error_result!(customer_sign_escrow_transaction(input_txid, index, input_sats, output_sats, cust_sk.clone(), cust_pk.clone(), merch_pk.clone(), Some(change_pk_vec), false));
+            handle_error_result!(customer_sign_escrow_transaction(
+                input_txid,
+                index,
+                input_sats,
+                output_sats,
+                cust_sk.clone(),
+                cust_pk.clone(),
+                merch_pk.clone(),
+                Some(change_pk_vec),
+                false
+            ));
 
         // form the merch-close-tx
         let cust_bal = cust_state.cust_balance;
         let merch_bal = cust_state.merch_balance;
         let merch_close_pk = channel_state.merch_payout_pk.unwrap().serialize().to_vec();
-        let (merch_tx_preimage, _) = handle_error_result!(merchant_form_close_transaction::<Testnet>(escrow_txid.to_vec(), cust_pk, merch_pk, merch_close_pk, cust_bal, merch_bal, to_self_delay_be));
+        let (merch_tx_preimage, _) =
+            handle_error_result!(merchant_form_close_transaction::<Testnet>(
+                escrow_txid.to_vec(),
+                cust_pk,
+                merch_pk,
+                merch_close_pk,
+                cust_bal,
+                merch_bal,
+                to_self_delay_be
+            ));
 
         // get the cust-sig on the merch-close-tx
-        let cust_sig = handle_error_result!(customer_sign_merch_close_transaction(cust_sk, merch_tx_preimage));
+        let cust_sig = handle_error_result!(customer_sign_merch_close_transaction(
+            cust_sk,
+            merch_tx_preimage
+        ));
 
         let init_cust_state = handle_error_result!(cust_state.get_initial_cust_state());
         // customer sends pk_c, n_0, rl_0, B_c, B_m, and escrow_txid/prevout to the merchant
-        let msg0 = [handle_error_result!(serde_json::to_string(&cust_sig)),
-                              handle_error_result!(serde_json::to_string(&escrow_txid)),
-                              handle_error_result!(serde_json::to_string(&escrow_prevout)),
-                              handle_error_result!(serde_json::to_string(&init_cust_state))];
+        let msg0 = [
+            handle_error_result!(serde_json::to_string(&cust_sig)),
+            handle_error_result!(serde_json::to_string(&escrow_txid)),
+            handle_error_result!(serde_json::to_string(&escrow_prevout)),
+            handle_error_result!(serde_json::to_string(&init_cust_state)),
+        ];
 
         println!("Sending cust-sig, escrow-txid/prevout and init cust state");
         let msg1 = conn.send_and_wait(&msg0, None, false);
@@ -474,23 +547,31 @@ mod cust {
             escrow_txid: FixedSizeArray32(escrow_txid),
             escrow_prevout: FixedSizeArray32(escrow_prevout),
             merch_txid: FixedSizeArray32(merch_txid),
-            merch_prevout: FixedSizeArray32(merch_prevout)
+            merch_prevout: FixedSizeArray32(merch_prevout),
         };
 
         cust_state.set_funding_tx_info(&mut channel_token, &funding_tx)?;
 
         // now sign the customer's initial closing txs
         println!("Signing the initial closing transactions...");
-        let got_close_tx = match cust_state.sign_initial_closing_transaction::<Testnet>(&channel_state, &channel_token, &escrow_sig, &merch_sig) {
+        let got_close_tx = match cust_state.sign_initial_closing_transaction::<Testnet>(
+            &channel_state,
+            &channel_token,
+            &escrow_sig,
+            &merch_sig,
+        ) {
             Ok(n) => n,
-            Err(e) => return Err(e.to_string())
+            Err(e) => return Err(e.to_string()),
         };
 
         // handle_error_result!(serde_json::to_string(&init_hash))];
-        let (init_cust_state, init_hash) = handle_error_result!(mpc::get_initial_state(&cust_state));
-        let msg2 = [handle_error_result!(serde_json::to_string(&channel_token)),
-                              handle_error_result!(serde_json::to_string(&init_cust_state)),
-                              handle_error_result!(serde_json::to_string(&init_hash))];
+        let (init_cust_state, init_hash) =
+            handle_error_result!(mpc::get_initial_state(&cust_state));
+        let msg2 = [
+            handle_error_result!(serde_json::to_string(&channel_token)),
+            handle_error_result!(serde_json::to_string(&init_cust_state)),
+            handle_error_result!(serde_json::to_string(&init_hash)),
+        ];
         let msg3 = conn.send_and_wait(&msg2, None, false);
 
         let res: bool = serde_json::from_str(&msg3.get(0).unwrap()).unwrap();
@@ -502,7 +583,10 @@ mod cust {
 
         println!("Can now broadcast the signed escrow transaction");
         write_file("signed_escrow_tx.txt", hex::encode(&signed_tx))?;
-        write_file("change_sk.txt", handle_error_result!(serde_json::to_string(&change_sk)))?;
+        write_file(
+            "change_sk.txt",
+            handle_error_result!(serde_json::to_string(&change_sk)),
+        )?;
 
         Ok(())
     }
@@ -514,12 +598,16 @@ mod cust {
         let mut cust_state: CustomerMPCState = serde_json::from_str(&ser_cust_state).unwrap();
 
         let ser_channel_token = handle_error_result!(read_file("cust_channel_token.json"));
-        let channel_token: ChannelMPCToken = handle_error_result!(serde_json::from_str(&ser_channel_token));
+        let channel_token: ChannelMPCToken =
+            handle_error_result!(serde_json::from_str(&ser_channel_token));
 
         let s0 = mpc::activate_customer(rng, &mut cust_state);
 
         // send the channel token and initial state
-        let msg1 = [handle_error_result!(serde_json::to_string(&channel_token)), handle_error_result!(serde_json::to_string(&s0))];
+        let msg1 = [
+            handle_error_result!(serde_json::to_string(&channel_token)),
+            handle_error_result!(serde_json::to_string(&s0)),
+        ];
         println!("Sending channel token and state (s0)");
         let msg2 = conn.send_and_wait(&msg1, None, false);
 
@@ -527,7 +615,10 @@ mod cust {
         println!("Obtained pay token (p0): {}", hex::encode(&pay_token));
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
-        write_file("cust_state.json", handle_error_result!(serde_json::to_string(&cust_state)))?;
+        write_file(
+            "cust_state.json",
+            handle_error_result!(serde_json::to_string(&cust_state)),
+        )?;
         Ok(())
     }
 
@@ -547,15 +638,17 @@ mod cust {
         }
 
         let ser_channel_token = read_file("cust_channel_token.json").unwrap();
-        let mut channel_token: ChannelMPCToken = handle_error_result!(serde_json::from_str(&ser_channel_token));
+        let mut channel_token: ChannelMPCToken =
+            handle_error_result!(serde_json::from_str(&ser_channel_token));
 
         let old_state = cust_state.get_current_state();
 
         // prepare phase
-        let (new_state, rev_state) = match mpc::pay_prepare_customer(rng, &mut channel_state, amount, &mut cust_state) {
-            Ok(n) => n,
-            Err(e) => return Err(e)
-        };
+        let (new_state, rev_state) =
+            match mpc::pay_prepare_customer(rng, &mut channel_state, amount, &mut cust_state) {
+                Ok(n) => n,
+                Err(e) => return Err(e),
+            };
         if verbose {
             let chan_id = channel_token.compute_channel_id().unwrap();
             println!("====================================");
@@ -568,26 +661,52 @@ mod cust {
         let old_nonce_str = hex::encode(&old_state.get_nonce());
         let rev_lock_com_str = hex::encode(&rev_state.rev_lock_com.0);
 
-        let msg = [old_nonce_str, rev_lock_com_str, amount_str]; 
-        let msg1 = conn.send_and_wait(&msg, Some(String::from("amount, nonce and rev_lock com")), true);
+        let msg = [old_nonce_str, rev_lock_com_str, amount_str];
+        let msg1 = conn.send_and_wait(
+            &msg,
+            Some(String::from("amount, nonce and rev_lock com")),
+            true,
+        );
         let pay_token_mask_com_vec = hex::decode(msg1.get(0).unwrap()).unwrap();
         let mut pay_token_mask_com = [0u8; 32];
         pay_token_mask_com.copy_from_slice(pay_token_mask_com_vec.as_slice());
 
-        let nc = NetworkConfig { conn_type: ConnType_NETIO, path: String::new(), dest_ip: String::from("127.0.0.1"), dest_port: conn.own_port, peer_raw_fd: conn.raw_fd  };
+        let nc = NetworkConfig {
+            conn_type: ConnType_NETIO,
+            path: String::new(),
+            dest_ip: String::from("127.0.0.1"),
+            dest_port: conn.own_port,
+            peer_raw_fd: conn.raw_fd,
+        };
         cust_state.set_network_config(nc);
 
         // execute the mpc phase
-        let result = mpc::pay_update_customer(&mut channel_state, &mut channel_token, old_state, new_state, pay_token_mask_com, rev_state.rev_lock_com.0, amount, &mut cust_state);
+        let result = mpc::pay_update_customer(
+            &mut channel_state,
+            &mut channel_token,
+            old_state,
+            new_state,
+            pay_token_mask_com,
+            rev_state.rev_lock_com.0,
+            amount,
+            &mut cust_state,
+        );
         let mut is_ok = result.is_ok() && result.unwrap();
 
         let msg1a = [handle_error_result!(serde_json::to_string(&is_ok))];
         let msg2 = conn.send_and_wait(&msg1a, None, false);
-        
+
         let mask_bytes: MaskedTxMPCInputs = serde_json::from_str(msg2.get(0).unwrap()).unwrap();
 
         // unmask the closing tx
-        is_ok = is_ok && mpc::pay_unmask_sigs_customer(&mut channel_state, &mut channel_token, mask_bytes, &mut cust_state).unwrap();
+        is_ok = is_ok
+            && mpc::pay_unmask_sigs_customer(
+                &mut channel_state,
+                &mut channel_token,
+                mask_bytes,
+                &mut cust_state,
+            )
+            .unwrap();
 
         let msg3 = [serde_json::to_string(&rev_state).unwrap()];
 
@@ -602,12 +721,13 @@ mod cust {
         pt_mask_r.copy_from_slice(pt_mask_r_vec.as_slice());
 
         // unmask the pay token
-        is_ok = is_ok && mpc::pay_unmask_pay_token_customer(pt_mask_bytes, pt_mask_r, &mut cust_state);
+        is_ok =
+            is_ok && mpc::pay_unmask_pay_token_customer(pt_mask_bytes, pt_mask_r, &mut cust_state);
 
         conn.send(&[is_ok.to_string()]);
         match is_ok {
             true => println!("Transaction succeeded!"),
-            false => println!("Transaction failed!")
+            false => println!("Transaction failed!"),
         }
 
         save_state_cust(channel_state, channel_token, cust_state)
@@ -615,19 +735,26 @@ mod cust {
 
     pub fn close(out_file: PathBuf, from_escrow: bool) -> Result<(), String> {
         let ser_channel_state = handle_error_result!(read_file("cust_channel_state.json"));
-        let channel_state: ChannelMPCState = handle_error_result!(serde_json::from_str(&ser_channel_state));
+        let channel_state: ChannelMPCState =
+            handle_error_result!(serde_json::from_str(&ser_channel_state));
 
         let ser_channel_token = handle_error_result!(read_file("cust_channel_token.json"));
-        let channel_token: ChannelMPCToken = handle_error_result!(serde_json::from_str(&ser_channel_token));
+        let channel_token: ChannelMPCToken =
+            handle_error_result!(serde_json::from_str(&ser_channel_token));
 
         let ser_cust_state = handle_error_result!(read_file("cust_state.json"));
         let cust_state: CustomerMPCState = serde_json::from_str(&ser_cust_state).unwrap();
 
-        let (signed_tx, txid) = handle_error_result!(mpc::customer_close(&channel_state, &channel_token, from_escrow, &cust_state));
+        let (signed_tx, txid) = handle_error_result!(mpc::customer_close(
+            &channel_state,
+            &channel_token,
+            from_escrow,
+            &cust_state
+        ));
 
         let closing_tx = match from_escrow {
             true => hex::encode(signed_tx),
-            false => hex::encode(signed_tx)
+            false => hex::encode(signed_tx),
         };
 
         match from_escrow {
@@ -639,10 +766,23 @@ mod cust {
         Ok(())
     }
 
-    fn save_state_cust(channel_state: ChannelMPCState, channel_token: ChannelMPCToken, cust_state: CustomerMPCState) -> Result<(), String> {
-        write_file("cust_channel_state.json", handle_error_result!(serde_json::to_string(&channel_state)))?;
-        write_file("cust_state.json", handle_error_result!(serde_json::to_string(&cust_state)))?;
-        write_file("cust_channel_token.json", handle_error_result!(serde_json::to_string(&channel_token)))?;
+    fn save_state_cust(
+        channel_state: ChannelMPCState,
+        channel_token: ChannelMPCToken,
+        cust_state: CustomerMPCState,
+    ) -> Result<(), String> {
+        write_file(
+            "cust_channel_state.json",
+            handle_error_result!(serde_json::to_string(&channel_state)),
+        )?;
+        write_file(
+            "cust_state.json",
+            handle_error_result!(serde_json::to_string(&cust_state)),
+        )?;
+        write_file(
+            "cust_channel_token.json",
+            handle_error_result!(serde_json::to_string(&channel_token)),
+        )?;
 
         Ok(())
     }
@@ -650,14 +790,18 @@ mod cust {
 
 mod merch {
     use super::*;
-    use zkchannels::database::{StateDatabase, RedisDatabase}; // HashMapDatabase
-    use zkchannels::channels_mpc::{ChannelMPCState, ChannelMPCToken, MerchantMPCState, InitCustState, NetworkConfig};
-    use zkchannels::wallet::State;
-    use zkchannels::transactions::btc::{completely_sign_multi_sig_transaction, merchant_form_close_transaction};
     use bitcoin::BitcoinPrivateKey;
     use wagyu_model::Transaction;
+    use zkchannels::bindings::ConnType_NETIO;
+    use zkchannels::channels_mpc::{
+        ChannelMPCState, ChannelMPCToken, InitCustState, MerchantMPCState, NetworkConfig,
+    };
+    use zkchannels::database::{RedisDatabase, StateDatabase};
     use zkchannels::fixed_size_array::FixedSizeArray32;
-    use zkchannels::bindings::{ConnType_NETIO}; // ConnType_CUSTOM
+    use zkchannels::transactions::btc::{
+        completely_sign_multi_sig_transaction, merchant_form_close_transaction,
+    };
+    use zkchannels::wallet::State;
 
     pub fn open(conn: &mut Conn, dust_limit: i64) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
@@ -672,7 +816,10 @@ mod merch {
         let db_url = "redis://127.0.0.1/".to_string();
         let merch_state = mpc::init_merchant(rng, db_url, &mut channel_state, "Merchant");
 
-        let msg1 = [handle_error_result!(serde_json::to_string(&channel_state)), handle_error_result!(serde_json::to_string(&merch_state.pk_m))];
+        let msg1 = [
+            handle_error_result!(serde_json::to_string(&channel_state)),
+            handle_error_result!(serde_json::to_string(&merch_state.pk_m)),
+        ];
         conn.send(&msg1);
 
         save_state_merch(channel_state, merch_state)
@@ -705,15 +852,30 @@ mod merch {
         let merch_bal = init_cust_state.merch_bal;
 
         // form the merch-close-tx
-        let (_, tx_params) = handle_error_result!(merchant_form_close_transaction::<Testnet>(escrow_txid.to_vec(), cust_pk.clone(), merch_pk, merch_close_pk, cust_bal, merch_bal, to_self_delay_be));
+        let (_, tx_params) = handle_error_result!(merchant_form_close_transaction::<Testnet>(
+            escrow_txid.to_vec(),
+            cust_pk.clone(),
+            merch_pk,
+            merch_close_pk,
+            cust_bal,
+            merch_bal,
+            to_self_delay_be
+        ));
 
         // sign the merch-close-tx given cust-sig
-        let merch_private_key = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(merch_sk, false);
+        let merch_private_key =
+            BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(merch_sk, false);
         let (signed_merch_close_tx, merch_txid, merch_prevout) =
-            completely_sign_multi_sig_transaction::<Testnet>(&tx_params, &cust_sig, false, None, &merch_private_key);
+            completely_sign_multi_sig_transaction::<Testnet>(
+                &tx_params,
+                &cust_sig,
+                false,
+                None,
+                &merch_private_key,
+            );
         let signed_merch_close_tx = match signed_merch_close_tx.to_transaction_bytes() {
             Ok(n) => n,
-            Err(e) => return Err(e.to_string())
+            Err(e) => return Err(e.to_string()),
         };
 
         // construct the funding tx info given info available
@@ -723,30 +885,52 @@ mod merch {
             escrow_txid: FixedSizeArray32(escrow_txid),
             escrow_prevout: FixedSizeArray32(escrow_prevout),
             merch_txid: FixedSizeArray32(merch_txid.clone()),
-            merch_prevout: FixedSizeArray32(merch_prevout.clone())
+            merch_prevout: FixedSizeArray32(merch_prevout.clone()),
         };
 
         // now proceed to sign the cust-close transactions (escrow + merch-close-tx)
         println!("Signing customer's initial closing tx...");
-        let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(funding_tx, rev_lock, cust_pk, cust_close_pk, to_self_delay_be);
+        let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(
+            funding_tx,
+            rev_lock,
+            cust_pk,
+            cust_close_pk,
+            to_self_delay_be,
+        );
 
-        let msg3 = [handle_error_result!(serde_json::to_string(&merch_txid)), handle_error_result!(serde_json::to_string(&merch_prevout)),
-                               handle_error_result!(serde_json::to_string(&escrow_sig)), handle_error_result!(serde_json::to_string(&merch_sig))];
+        let msg3 = [
+            handle_error_result!(serde_json::to_string(&merch_txid)),
+            handle_error_result!(serde_json::to_string(&merch_prevout)),
+            handle_error_result!(serde_json::to_string(&escrow_sig)),
+            handle_error_result!(serde_json::to_string(&merch_sig)),
+        ];
         let msg4 = conn.send_and_wait(&msg3, None, false);
 
         let channel_token: ChannelMPCToken = serde_json::from_str(&msg4.get(0).unwrap()).unwrap();
         let init_cust_state: InitCustState = serde_json::from_str(&msg4.get(1).unwrap()).unwrap();
         let init_hash: [u8; 32] = serde_json::from_str(&msg4.get(2).unwrap()).unwrap();
 
-        let res = handle_error_result!(mpc::validate_initial_state(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, init_hash, &mut merch_state));
+        let res = handle_error_result!(mpc::validate_initial_state(
+            &mut db as &mut dyn StateDatabase,
+            &channel_token,
+            &init_cust_state,
+            init_hash,
+            &mut merch_state
+        ));
         println!("Initial state for customer is correct: {}", res);
 
         let msg5 = [handle_error_result!(serde_json::to_string(&res))];
 
         conn.send(&msg5);
 
-        write_file("merch_state.json", handle_error_result!(serde_json::to_string(&merch_state)))?;
-        write_file("signed_merch_close_tx.txt", hex::encode(&signed_merch_close_tx))?;
+        write_file(
+            "merch_state.json",
+            handle_error_result!(serde_json::to_string(&merch_state)),
+        )?;
+        write_file(
+            "signed_merch_close_tx.txt",
+            hex::encode(&signed_merch_close_tx),
+        )?;
 
         Ok(())
     }
@@ -761,12 +945,20 @@ mod merch {
         let channel_token: ChannelMPCToken = serde_json::from_str(&msg2.get(0).unwrap()).unwrap();
         let s0: State = serde_json::from_str(msg2[1].as_ref()).unwrap();
 
-        let pay_token = handle_error_result!(mpc::activate_merchant(&mut db as &mut dyn StateDatabase, channel_token, &s0, &mut merch_state));
+        let pay_token = handle_error_result!(mpc::activate_merchant(
+            &mut db as &mut dyn StateDatabase,
+            channel_token,
+            &s0,
+            &mut merch_state
+        ));
 
         let msg3 = [handle_error_result!(serde_json::to_string(&pay_token))];
         conn.send(&msg3);
 
-        write_file("merch_state.json", handle_error_result!(serde_json::to_string(&merch_state)))?;
+        write_file(
+            "merch_state.json",
+            handle_error_result!(serde_json::to_string(&merch_state)),
+        )?;
         Ok(())
     }
 
@@ -798,34 +990,75 @@ mod merch {
                 i64::from_be_bytes(amount_buf)
             }
         };
-        println!("Payment request => nonce: {}, amount: {}", hex::encode(&nonce), amount);
+        println!(
+            "Payment request => nonce: {}, amount: {}",
+            hex::encode(&nonce),
+            amount
+        );
 
-        let pay_token_mask_com = handle_error_result!(mpc::pay_prepare_merchant(rng, &mut db as &mut dyn StateDatabase, &channel_state, nonce, rev_lock_com.clone(), amount, &mut merch_state));
+        let pay_token_mask_com = handle_error_result!(mpc::pay_prepare_merchant(
+            rng,
+            &mut db as &mut dyn StateDatabase,
+            &channel_state,
+            nonce,
+            rev_lock_com.clone(),
+            amount,
+            &mut merch_state
+        ));
 
         let msg1 = [hex::encode(&pay_token_mask_com)];
         conn.send(&msg1);
 
-        let nc = NetworkConfig { conn_type: ConnType_NETIO, path: String::new(), dest_ip: String::from("127.0.0.1"), dest_port: conn.other_port, peer_raw_fd: conn.raw_fd };
+        let nc = NetworkConfig {
+            conn_type: ConnType_NETIO,
+            path: String::new(),
+            dest_ip: String::from("127.0.0.1"),
+            dest_port: conn.other_port,
+            peer_raw_fd: conn.raw_fd,
+        };
         merch_state.set_network_config(nc);
 
         // execute mpc context
-        let _mpc_ok = handle_error_result!(mpc::pay_update_merchant(rng, &mut db as &mut dyn StateDatabase, &mut channel_state, nonce.clone(), pay_token_mask_com, rev_lock_com, amount, &mut merch_state));
-        
+        let _mpc_ok = handle_error_result!(mpc::pay_update_merchant(
+            rng,
+            &mut db as &mut dyn StateDatabase,
+            &mut channel_state,
+            nonce.clone(),
+            pay_token_mask_com,
+            rev_lock_com,
+            amount,
+            &mut merch_state
+        ));
+
         // confirm customer got mpc output
         let msg1a = conn.wait_for(None, false);
         let cust_mpc_ok: bool = serde_json::from_str(msg1a.get(0).unwrap()).unwrap();
         if !cust_mpc_ok {
             return Err(format!("failed to execute MPC successfully."));
         }
-        
-        let masked_inputs = mpc::pay_confirm_mpc_result(&mut db as &mut dyn StateDatabase, cust_mpc_ok, nonce, &mut merch_state).unwrap();
+
+        let masked_inputs = mpc::pay_confirm_mpc_result(
+            &mut db as &mut dyn StateDatabase,
+            cust_mpc_ok,
+            nonce,
+            &mut merch_state,
+        )
+        .unwrap();
         let msg3 = [handle_error_result!(serde_json::to_string(&masked_inputs))];
         let msg4 = conn.send_and_wait(&msg3, Some(String::from("Received revoked state")), true);
         let rev_state = serde_json::from_str(msg4.get(0).unwrap()).unwrap();
 
-        let (pt_mask_bytes, pt_mask_r) = match mpc::pay_validate_rev_lock_merchant(&mut db as &mut dyn StateDatabase, rev_state, &mut merch_state) {
+        let (pt_mask_bytes, pt_mask_r) = match mpc::pay_validate_rev_lock_merchant(
+            &mut db as &mut dyn StateDatabase,
+            rev_state,
+            &mut merch_state,
+        ) {
             Ok(n) => (n.0, n.1),
-            _ => return Err(String::from("Failed to get the pay token mask and randomness!"))
+            _ => {
+                return Err(String::from(
+                    "Failed to get the pay token mask and randomness!",
+                ))
+            }
         };
 
         let msg5 = [hex::encode(&pt_mask_bytes), hex::encode(&pt_mask_r)];
@@ -841,28 +1074,38 @@ mod merch {
         save_state_merch(channel_state, merch_state)
     }
 
-    fn save_state_merch(channel_state: ChannelMPCState, merch_state: MerchantMPCState) -> Result<(), String> {
-        write_file("merch_channel_state.json", handle_error_result!(serde_json::to_string(&channel_state)))?;
-        write_file("merch_state.json", handle_error_result!(serde_json::to_string(&merch_state)))?;
+    fn save_state_merch(
+        channel_state: ChannelMPCState,
+        merch_state: MerchantMPCState,
+    ) -> Result<(), String> {
+        write_file(
+            "merch_channel_state.json",
+            handle_error_result!(serde_json::to_string(&channel_state)),
+        )?;
+        write_file(
+            "merch_state.json",
+            handle_error_result!(serde_json::to_string(&merch_state)),
+        )?;
         Ok(())
     }
 
-   pub fn close(out_file: PathBuf, channel_token_file: Option<PathBuf>) -> Result<(), String> {
-       // output the merch-close-tx (only thing merchant can broadcast to close channel)
-       let ser_merch_state = read_file("merch_state.json").unwrap();
-       let merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
+    pub fn close(out_file: PathBuf, channel_token_file: Option<PathBuf>) -> Result<(), String> {
+        // output the merch-close-tx (only thing merchant can broadcast to close channel)
+        let ser_merch_state = read_file("merch_state.json").unwrap();
+        let merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
 
-       let ser_channel_token = match channel_token_file {
-           Some(ctf) => handle_file_error!(read_pathfile(ctf.clone()), ctf),
-           None => return Err(String::from("Channel-token file required!"))
-       };
-       let channel_token: ChannelMPCToken = serde_json::from_str(&ser_channel_token).unwrap();
+        let ser_channel_token = match channel_token_file {
+            Some(ctf) => handle_file_error!(read_pathfile(ctf.clone()), ctf),
+            None => return Err(String::from("Channel-token file required!")),
+        };
+        let channel_token: ChannelMPCToken = serde_json::from_str(&ser_channel_token).unwrap();
 
-       let escrow_txid = channel_token.escrow_txid.0.to_vec();
+        let escrow_txid = channel_token.escrow_txid.0.to_vec();
 
-       let (merch_close_tx, txid) = handle_error_result!(mpc::merchant_close(&escrow_txid, &merch_state));
-       write_pathfile(out_file, hex::encode(merch_close_tx))?;
-       println!("merch-close-tx signed txid: {}", hex::encode(txid));
-       Ok(())
-   }
+        let (merch_close_tx, txid) =
+            handle_error_result!(mpc::merchant_close(&escrow_txid, &merch_state));
+        write_pathfile(out_file, hex::encode(merch_close_tx))?;
+        println!("merch-close-tx signed txid: {}", hex::encode(txid));
+        Ok(())
+    }
 }

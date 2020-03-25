@@ -1,15 +1,17 @@
 // cl.rs
 // CL Sigs - Pointcheval Sanders ('06)
 use super::*;
-use pairing::{CurveProjective, Engine};
 use ff::PrimeField;
+use pairing::{CurveProjective, Engine};
+use ped92::{CSMultiParams, Commitment};
 use rand::Rng;
-use ped92::{Commitment, CSMultiParams};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use util;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-#[serde(bound(deserialize = "<E as pairing::Engine>::G1: serde::Deserialize<'de>, <E as pairing::Engine>::G2: serde::Deserialize<'de>"))]
+#[serde(bound(
+    deserialize = "<E as pairing::Engine>::G1: serde::Deserialize<'de>, <E as pairing::Engine>::G2: serde::Deserialize<'de>"
+))]
 pub struct PublicParams<E: Engine> {
     pub g1: E::G1,
     pub g2: E::G2,
@@ -23,8 +25,9 @@ impl<E: Engine> PartialEq for PublicParams<E> {
 
 impl<E: Engine> PublicParams<E> {
     pub fn from_slice<'de>(ser_g1: &'de [u8], ser_g2: &'de [u8]) -> Self
-        where <E as pairing::Engine>::G1: serde::Deserialize<'de>,
-             <E as pairing::Engine>::G2: serde::Deserialize<'de>
+    where
+        <E as pairing::Engine>::G1: serde::Deserialize<'de>,
+        <E as pairing::Engine>::G2: serde::Deserialize<'de>,
     {
         // TODO: handle malformed input errors
         let g1: E::G1 = serde_json::from_slice(ser_g1).unwrap();
@@ -59,7 +62,6 @@ impl<E: Engine> PartialEq for SecretKey<E> {
     }
 }
 
-
 #[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(bound(deserialize = "<E as pairing::Engine>::G2: serde::Deserialize<'de>"))]
 pub struct PublicKey<E: Engine> {
@@ -87,15 +89,21 @@ impl<E: Engine> PartialEq for PublicKey<E> {
 }
 
 impl<E: Engine> PublicKey<E> {
-    pub fn from_slice<'de>(ser_x: &'de [u8], ser_y: &'de [u8], y_len: usize, num_elems: usize) -> Self
-        where <E as pairing::Engine>::G2: serde::Deserialize<'de>
+    pub fn from_slice<'de>(
+        ser_x: &'de [u8],
+        ser_y: &'de [u8],
+        y_len: usize,
+        num_elems: usize,
+    ) -> Self
+    where
+        <E as pairing::Engine>::G2: serde::Deserialize<'de>,
     {
         let X: E::G2 = serde_json::from_slice(ser_x).unwrap();
         let mut Y: Vec<E::G2> = Vec::new();
         let mut start_pos = 0;
         let mut end_pos = y_len;
-        for _ in 0 .. num_elems {
-            let y = serde_json::from_slice(&ser_y[start_pos .. end_pos]).unwrap();
+        for _ in 0..num_elems {
+            let y = serde_json::from_slice(&ser_y[start_pos..end_pos]).unwrap();
             start_pos = end_pos;
             end_pos += y_len;
             Y.push(y);
@@ -124,15 +132,20 @@ impl<E: Engine> fmt::Display for BlindPublicKey<E> {
             y2_str = format!("{}\n{}", y2_str, y);
         }
 
-        write!(f, "Blind PK : \nX1={},\nX2{},\nY1=[{}\n],\nY2=[{}\n]", self.X1, self.X2, y1_str, y2_str)
+        write!(
+            f,
+            "Blind PK : \nX1={},\nX2{},\nY1=[{}\n],\nY2=[{}\n]",
+            self.X1, self.X2, y1_str, y2_str
+        )
     }
 }
 
 impl<E: Engine> PartialEq for BlindPublicKey<E> {
     fn eq(&self, other: &BlindPublicKey<E>) -> bool {
-        self.X1 == other.X1 && self.X2 == other.X2 &&
-            util::is_vec_g1_equal::<E>(&self.Y1, &other.Y1) &&
-            util::is_vec_g2_equal::<E>(&self.Y2, &other.Y2)
+        self.X1 == other.X1
+            && self.X2 == other.X2
+            && util::is_vec_g1_equal::<E>(&self.Y1, &other.Y1)
+            && util::is_vec_g2_equal::<E>(&self.Y2, &other.Y2)
     }
 }
 
@@ -150,7 +163,8 @@ impl<E: Engine> PartialEq for Signature<E> {
 
 impl<E: Engine> Signature<E> {
     pub fn from_slice<'de>(ser_h: &'de [u8], ser_H: &'de [u8]) -> Self
-        where <E as pairing::Engine>::G1: serde::Deserialize<'de>
+    where
+        <E as pairing::Engine>::G1: serde::Deserialize<'de>,
     {
         // TODO: handle malformed input errors
         let h: E::G1 = serde_json::from_slice(ser_h).unwrap();
@@ -159,7 +173,6 @@ impl<E: Engine> Signature<E> {
         Signature { h, H }
     }
 }
-
 
 #[derive(Clone)]
 pub struct KeyPair<E: Engine> {
@@ -170,12 +183,12 @@ pub struct KeyPair<E: Engine> {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
 <E as pairing::Engine>::G1: serde::Serialize, \
-<E as pairing::Engine>::G2: serde::Serialize"
-))]
-#[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G2: serde::Serialize"))]
+#[serde(
+    bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
 <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
-<E as pairing::Engine>::G2: serde::Deserialize<'de>"
-))]
+<E as pairing::Engine>::G2: serde::Deserialize<'de>")
+)]
 pub struct BlindKeyPair<E: Engine> {
     pub secret: SecretKey<E>,
     pub public: BlindPublicKey<E>,
@@ -194,19 +207,18 @@ pub struct ProofState<E: Engine> {
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
 <E as pairing::Engine>::G1: serde::Serialize, \
 <E as pairing::Engine>::G2: serde::Serialize, \
-<E as pairing::Engine>::Fqk: serde::Serialize"
-))]
-#[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+<E as pairing::Engine>::Fqk: serde::Serialize"))]
+#[serde(
+    bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
 <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
 <E as pairing::Engine>::G2: serde::Deserialize<'de>, \
-<E as pairing::Engine>::Fqk: serde::Deserialize<'de>"
-))]
+<E as pairing::Engine>::Fqk: serde::Deserialize<'de>")
+)]
 pub struct SignatureProof<E: Engine> {
     pub zsig: Vec<E::Fr>,
     pub zv: E::Fr,
     pub a: E::Fqk,
 }
-
 
 impl<E: Engine> SecretKey<E> {
     pub fn generate<R: Rng>(csprng: &mut R, l: usize) -> Self {
@@ -216,7 +228,10 @@ impl<E: Engine> SecretKey<E> {
             y.push(_y);
         }
 
-        SecretKey { x: E::Fr::rand(csprng), y: y }
+        SecretKey {
+            x: E::Fr::rand(csprng),
+            y: y,
+        }
     }
 
     pub fn sign<R: Rng>(&self, csprng: &mut R, message: &Vec<E::Fr>) -> Signature<E> {
@@ -257,24 +272,27 @@ impl<E: Engine> PublicKey<E> {
         // X = g2 ^ x
         let mut X = mpk.g2;
         X.mul_assign(secret.x);
-        PublicKey {
-            X: X,
-            Y: Y,
-        }
+        PublicKey { X: X, Y: Y }
     }
 
-    pub fn verify(&self, mpk: &PublicParams<E>, message: &Vec<E::Fr>, signature: &Signature<E>) -> bool {
+    pub fn verify(
+        &self,
+        mpk: &PublicParams<E>,
+        message: &Vec<E::Fr>,
+        signature: &Signature<E>,
+    ) -> bool {
         let mut L = E::G2::zero();
         let mut l = self.Y.len();
         let diff = (l - message.len());
 
         l = match diff > 0 {
             true => message.len(),
-            false => l
+            false => l,
         };
 
         for i in 0..l {
-            if (i < message.len()) { // bounds check on message vector
+            if (i < message.len()) {
+                // bounds check on message vector
                 // L = L + self.Y[i].mul(message[i]);
                 let mut Y = self.Y[i];
                 Y.mul_assign(message[i]); // Y_i ^ m_i
@@ -321,10 +339,18 @@ impl<E: Engine> BlindPublicKey<E> {
     }
 
     pub fn get_pub_key(&self) -> PublicKey<E> {
-        PublicKey { X: self.X2.clone(), Y: self.Y2.clone() }
+        PublicKey {
+            X: self.X2.clone(),
+            Y: self.Y2.clone(),
+        }
     }
 
-    pub fn verify(&self, mpk: &PublicParams<E>, message: &Vec<E::Fr>, signature: &Signature<E>) -> bool {
+    pub fn verify(
+        &self,
+        mpk: &PublicParams<E>,
+        message: &Vec<E::Fr>,
+        signature: &Signature<E>,
+    ) -> bool {
         let mut L = E::G2::zero();
         let l = self.Y2.len();
         //println!("verify - m.len = {}, l = {}", message.len(), l);
@@ -332,12 +358,12 @@ impl<E: Engine> BlindPublicKey<E> {
 
         let last_elem = match l == message.len() {
             true => message.len() - 1,
-            false => l
+            false => l,
         };
 
         let l = match l == message.len() {
             true => message.len() - 1,
-            false => l
+            false => l,
         };
 
         for i in 0..l {
@@ -361,7 +387,13 @@ impl<E: Engine> BlindPublicKey<E> {
     }
 
     /// verify a blinded signature without unblinding it first
-    pub fn verify_blind(&self, mpk: &PublicParams<E>, message: &Vec<E::Fr>, bf: &E::Fr, signature: &Signature<E>) -> bool {
+    pub fn verify_blind(
+        &self,
+        mpk: &PublicParams<E>,
+        message: &Vec<E::Fr>,
+        bf: &E::Fr,
+        signature: &Signature<E>,
+    ) -> bool {
         let mut m = message.clone();
         let t = bf.clone();
         m.push(t);
@@ -371,7 +403,13 @@ impl<E: Engine> BlindPublicKey<E> {
     /// Verify a proof of knowledge of a signature
     /// Takes in a proof generated by prove_response(), a blind signature, and a challenge
     /// outputs: boolean
-    pub fn verify_proof(&self, mpk: &PublicParams<E>, blindSig: Signature<E>, p: SignatureProof<E>, challenge: E::Fr) -> bool {
+    pub fn verify_proof(
+        &self,
+        mpk: &PublicParams<E>,
+        blindSig: Signature<E>,
+        p: SignatureProof<E>,
+        challenge: E::Fr,
+    ) -> bool {
         let mut gx = E::pairing(blindSig.h, self.X2);
         gx = gx.pow(challenge.into_repr());
         for j in 0..self.Y2.len() {
@@ -388,7 +426,12 @@ impl<E: Engine> BlindPublicKey<E> {
         gx == g
     }
 
-    pub fn blind<R: Rng>(&self, csprng: &mut R, bf: &E::Fr, signature: &Signature<E>) -> Signature<E> {
+    pub fn blind<R: Rng>(
+        &self,
+        csprng: &mut R,
+        bf: &E::Fr,
+        signature: &Signature<E>,
+    ) -> Signature<E> {
         let r = E::Fr::rand(csprng);
         let t = bf.clone();
         let mut h1 = signature.h;
@@ -413,14 +456,22 @@ impl<E: Engine> BlindPublicKey<E> {
         H.mul_assign(inv_bf);
         H.add_assign(&signature.H);
 
-        Signature { h: signature.h, H: H }
+        Signature {
+            h: signature.h,
+            H: H,
+        }
     }
-
 
     /// prove knowledge of a signature: commitment phase
     /// returns the proof state, including commitment a and a blind signature blindSig
-    pub fn prove_commitment<R: Rng>(&self, rng: &mut R, mpk: &PublicParams<E>, signature: &Signature<E>,
-                                    tOptional: Option<Vec<E::Fr>>, ttOptional: Option<E::Fr>) -> ProofState<E> {
+    pub fn prove_commitment<R: Rng>(
+        &self,
+        rng: &mut R,
+        mpk: &PublicParams<E>,
+        signature: &Signature<E>,
+        tOptional: Option<Vec<E::Fr>>,
+        ttOptional: Option<E::Fr>,
+    ) -> ProofState<E> {
         let v = E::Fr::rand(rng);
         let blindSig = self.blind(rng, &v, signature);
         let mut t = tOptional.unwrap_or(Vec::<E::Fr>::with_capacity(self.Y2.len()));
@@ -438,12 +489,23 @@ impl<E: Engine> BlindPublicKey<E> {
         let mut h = E::pairing(blindSig.h, mpk.g2);
         h = h.pow(tt.into_repr());
         a.mul_assign(&h);
-        ProofState { v, t, tt, a, blindSig }
+        ProofState {
+            v,
+            t,
+            tt,
+            a,
+            blindSig,
+        }
     }
 
     /// prove knowledge of a signature: response phase
     /// returns a proof that can be send to the verifier together with the challenge and the blind signature
-    pub fn prove_response(&self, ps: &ProofState<E>, challenge: E::Fr, message: &mut Vec<E::Fr>) -> SignatureProof<E> {
+    pub fn prove_response(
+        &self,
+        ps: &ProofState<E>,
+        challenge: E::Fr,
+        message: &mut Vec<E::Fr>,
+    ) -> SignatureProof<E> {
         let mut zsig = ps.t.clone();
         let z_len = zsig.len();
 
@@ -462,7 +524,6 @@ impl<E: Engine> BlindPublicKey<E> {
         SignatureProof { zsig, zv, a: ps.a }
     }
 }
-
 
 pub fn setup<R: Rng, E: Engine>(csprng: &mut R) -> PublicParams<E> {
     let g1 = E::G1::rand(csprng);
@@ -486,7 +547,12 @@ impl<E: Engine> KeyPair<E> {
         self.secret.sign(csprng, message)
     }
 
-    pub fn verify(&self, mpk: &PublicParams<E>, message: &Vec<E::Fr>, signature: &Signature<E>) -> bool {
+    pub fn verify(
+        &self,
+        mpk: &PublicParams<E>,
+        message: &Vec<E::Fr>,
+        signature: &Signature<E>,
+    ) -> bool {
         self.public.verify(mpk, message, signature)
     }
 }
@@ -503,10 +569,12 @@ impl<E: Engine> BlindKeyPair<E> {
     }
 
     pub fn generate_cs_multi_params(&self, mpk: &PublicParams<E>) -> CSMultiParams<E> {
-        let mut com_bases = vec! {mpk.g1};
+        let mut com_bases = vec![mpk.g1];
         com_bases.append(&mut self.public.Y1.clone());
 
-        CSMultiParams { pub_bases: com_bases }
+        CSMultiParams {
+            pub_bases: com_bases,
+        }
     }
 
     /// extract unblinded public key
@@ -520,7 +588,11 @@ impl<E: Engine> BlindKeyPair<E> {
     }
 
     /// randomize signature
-    pub fn rerandomize_signature<R: Rng>(&self, csprng: &mut R, signature: &Signature<E>) -> Signature<E> {
+    pub fn rerandomize_signature<R: Rng>(
+        &self,
+        csprng: &mut R,
+        signature: &Signature<E>,
+    ) -> Signature<E> {
         let r = E::Fr::rand(csprng);
         let mut h = signature.h.clone();
         let mut H = signature.H.clone();
@@ -530,7 +602,12 @@ impl<E: Engine> BlindKeyPair<E> {
     }
 
     /// sign a commitment of a vector of messages
-    pub fn sign_blind<R: Rng>(&self, csprng: &mut R, mpk: &PublicParams<E>, com: Commitment<E>) -> Signature<E> {
+    pub fn sign_blind<R: Rng>(
+        &self,
+        csprng: &mut R,
+        mpk: &PublicParams<E>,
+        com: Commitment<E>,
+    ) -> Signature<E> {
         let u = E::Fr::rand(csprng);
         let mut h1 = mpk.g1;
         h1.mul_assign(u); // g1 ^ u
@@ -544,7 +621,12 @@ impl<E: Engine> BlindKeyPair<E> {
     }
 
     /// computes a blind signature from an existing one
-    pub fn blind<R: Rng>(&self, csprng: &mut R, bf: &E::Fr, signature: &Signature<E>) -> Signature<E> {
+    pub fn blind<R: Rng>(
+        &self,
+        csprng: &mut R,
+        bf: &E::Fr,
+        signature: &Signature<E>,
+    ) -> Signature<E> {
         self.public.blind(csprng, bf, signature)
     }
 
@@ -554,7 +636,6 @@ impl<E: Engine> BlindKeyPair<E> {
         self.public.unblind(bf, signature)
     }
 }
-
 
 // display CL signature (PS)
 impl<E: Engine> fmt::Display for Signature<E> {
@@ -626,9 +707,20 @@ mod tests {
         let t1 = Fr::rand(&mut rng);
 
         // verify blind signatures and provide blinding factor as input
-        assert_eq!(keypair.public.verify_blind(&mpk, &message1, &t, &blind_sig), true);
-        assert_eq!(keypair.public.verify_blind(&mpk, &message2, &t, &blind_sig), false);
-        assert_eq!(keypair.public.verify_blind(&mpk, &message1, &t1, &blind_sig), false);
+        assert_eq!(
+            keypair.public.verify_blind(&mpk, &message1, &t, &blind_sig),
+            true
+        );
+        assert_eq!(
+            keypair.public.verify_blind(&mpk, &message2, &t, &blind_sig),
+            false
+        );
+        assert_eq!(
+            keypair
+                .public
+                .verify_blind(&mpk, &message1, &t1, &blind_sig),
+            false
+        );
 
         let rand_sig = keypair.rerandomize_signature(&mut rng, &sig);
         assert_eq!(public_key.verify(&mpk, &message1, &rand_sig), true);
@@ -653,9 +745,22 @@ mod tests {
         let blind_sig = keypair.blind(rng, &r, &signature);
         let signature1 = keypair.unblind(&r, &blind_sig);
 
-        assert_eq!(keypair.get_public_key(&mpk).verify(&mpk, &message1, &signature1), true);
-        assert_eq!(keypair.get_public_key(&mpk).verify(&mpk, &message1, &blind_sig), false);
-        assert_eq!(keypair.public.verify_blind(&mpk, &message1, &r, &blind_sig), true);
+        assert_eq!(
+            keypair
+                .get_public_key(&mpk)
+                .verify(&mpk, &message1, &signature1),
+            true
+        );
+        assert_eq!(
+            keypair
+                .get_public_key(&mpk)
+                .verify(&mpk, &message1, &blind_sig),
+            false
+        );
+        assert_eq!(
+            keypair.public.verify_blind(&mpk, &message1, &r, &blind_sig),
+            true
+        );
     }
 
     #[test]
@@ -684,11 +789,32 @@ mod tests {
 
         let t1 = Fr::rand(&mut rng);
 
-        assert_eq!(keypair.get_public_key(&mpk).verify(&mpk, &message1, &unblinded_sig), true);
-        assert_eq!(keypair.public.verify_blind(&mpk, &message1, &t, &signature), true);
-        assert_eq!(keypair.get_public_key(&mpk).verify(&mpk, &message2, &unblinded_sig), false);
-        assert_eq!(keypair.public.verify_blind(&mpk, &message2, &t, &signature), false);
-        assert_eq!(keypair.public.verify_blind(&mpk, &message1, &t1, &signature), false);
+        assert_eq!(
+            keypair
+                .get_public_key(&mpk)
+                .verify(&mpk, &message1, &unblinded_sig),
+            true
+        );
+        assert_eq!(
+            keypair.public.verify_blind(&mpk, &message1, &t, &signature),
+            true
+        );
+        assert_eq!(
+            keypair
+                .get_public_key(&mpk)
+                .verify(&mpk, &message2, &unblinded_sig),
+            false
+        );
+        assert_eq!(
+            keypair.public.verify_blind(&mpk, &message2, &t, &signature),
+            false
+        );
+        assert_eq!(
+            keypair
+                .public
+                .verify_blind(&mpk, &message1, &t1, &signature),
+            false
+        );
     }
 
     #[test]
@@ -708,9 +834,16 @@ mod tests {
         let sig = keypair.sign(&mut rng, &message1);
         let proof_state = keypair.public.prove_commitment(rng, &mpk, &sig, None, None);
         let challenge = Fr::rand(&mut rng);
-        let proof = keypair.public.prove_response(&proof_state.clone(), challenge, &mut message1);
+        let proof = keypair
+            .public
+            .prove_response(&proof_state.clone(), challenge, &mut message1);
 
-        assert_eq!(keypair.public.verify_proof(&mpk, proof_state.blindSig, proof, challenge), true);
+        assert_eq!(
+            keypair
+                .public
+                .verify_proof(&mpk, proof_state.blindSig, proof, challenge),
+            true
+        );
     }
 
     #[test]
@@ -763,8 +896,19 @@ mod tests {
 
     #[test]
     fn test_compact_public_params_deserialize() {
-        let bin_g1= vec![132, 83, 99, 124, 75, 72, 15, 109, 12, 94, 84, 103, 1, 58, 160, 232, 190, 23, 119, 195, 112, 161, 152, 141, 178, 29, 141, 61, 227, 246, 215, 157, 140, 190, 100, 18, 248, 141, 57, 222, 12, 209, 191, 158, 143, 155, 87, 255];
-        let bin_g2 = vec![147, 63, 33, 190, 248, 155, 91, 211, 249, 169, 1, 147, 101, 104, 219, 88, 204, 131, 38, 167, 25, 191, 86, 67, 139, 188, 171, 101, 154, 32, 234, 92, 3, 66, 235, 159, 7, 47, 16, 83, 3, 201, 13, 227, 179, 184, 101, 102, 21, 88, 153, 208, 93, 0, 57, 108, 250, 231, 74, 192, 82, 111, 13, 211, 12, 51, 224, 198, 121, 15, 63, 129, 25, 218, 193, 47, 182, 248, 112, 185, 163, 23, 175, 169, 76, 214, 36, 184, 142, 222, 48, 212, 157, 35, 115, 181];
+        let bin_g1 = vec![
+            132, 83, 99, 124, 75, 72, 15, 109, 12, 94, 84, 103, 1, 58, 160, 232, 190, 23, 119, 195,
+            112, 161, 152, 141, 178, 29, 141, 61, 227, 246, 215, 157, 140, 190, 100, 18, 248, 141,
+            57, 222, 12, 209, 191, 158, 143, 155, 87, 255,
+        ];
+        let bin_g2 = vec![
+            147, 63, 33, 190, 248, 155, 91, 211, 249, 169, 1, 147, 101, 104, 219, 88, 204, 131, 38,
+            167, 25, 191, 86, 67, 139, 188, 171, 101, 154, 32, 234, 92, 3, 66, 235, 159, 7, 47, 16,
+            83, 3, 201, 13, 227, 179, 184, 101, 102, 21, 88, 153, 208, 93, 0, 57, 108, 250, 231,
+            74, 192, 82, 111, 13, 211, 12, 51, 224, 198, 121, 15, 63, 129, 25, 218, 193, 47, 182,
+            248, 112, 185, 163, 23, 175, 169, 76, 214, 36, 184, 142, 222, 48, 212, 157, 35, 115,
+            181,
+        ];
 
         let ser_g1 = util::encode_as_hexstring(&bin_g1);
         let ser_g2 = util::encode_as_hexstring(&bin_g2);
@@ -786,9 +930,28 @@ mod tests {
 
     #[test]
     fn test_compact_cl_public_key_deserialize() {
-        let bin_g2_x = vec![147, 63, 33, 190, 248, 155, 91, 211, 249, 169, 1, 147, 101, 104, 219, 88, 204, 131, 38, 167, 25, 191, 86, 67, 139, 188, 171, 101, 154, 32, 234, 92, 3, 66, 235, 159, 7, 47, 16, 83, 3, 201, 13, 227, 179, 184, 101, 102, 21, 88, 153, 208, 93, 0, 57, 108, 250, 231, 74, 192, 82, 111, 13, 211, 12, 51, 224, 198, 121, 15, 63, 129, 25, 218, 193, 47, 182, 248, 112, 185, 163, 23, 175, 169, 76, 214, 36, 184, 142, 222, 48, 212, 157, 35, 115, 181];
-        let bin_g2_y1 = vec![143, 76, 112, 7, 35, 99, 254, 7, 255, 225, 69, 13, 99, 32, 92, 186, 234, 175, 230, 0, 202, 144, 1, 216, 187, 248, 152, 76, 229, 74, 156, 94, 4, 16, 132, 119, 157, 172, 231, 164, 207, 88, 41, 6, 234, 78, 73, 58, 19, 104, 236, 127, 5, 231, 248, 150, 53, 197, 85, 194, 110, 93, 1, 73, 24, 96, 149, 133, 109, 194, 16, 190, 244, 184, 254, 192, 52, 21, 205, 109, 18, 83, 189, 175, 208, 147, 74, 32, 181, 126, 224, 136, 250, 126, 224, 186];
-        let bin_g2_y2 = vec![150, 132, 45, 236, 146, 135, 127, 242, 61, 55, 73, 100, 151, 12, 51, 134, 151, 42, 138, 227, 105, 54, 121, 7, 0, 27, 205, 139, 186, 69, 139, 143, 41, 132, 35, 33, 168, 35, 31, 52, 65, 5, 73, 153, 203, 25, 178, 196, 4, 9, 218, 130, 22, 64, 98, 152, 225, 212, 27, 202, 245, 234, 138, 34, 82, 102, 40, 72, 211, 248, 16, 221, 54, 154, 186, 95, 246, 132, 54, 0, 128, 170, 111, 94, 155, 166, 27, 225, 51, 31, 107, 223, 139, 0, 209, 236];
+        let bin_g2_x = vec![
+            147, 63, 33, 190, 248, 155, 91, 211, 249, 169, 1, 147, 101, 104, 219, 88, 204, 131, 38,
+            167, 25, 191, 86, 67, 139, 188, 171, 101, 154, 32, 234, 92, 3, 66, 235, 159, 7, 47, 16,
+            83, 3, 201, 13, 227, 179, 184, 101, 102, 21, 88, 153, 208, 93, 0, 57, 108, 250, 231,
+            74, 192, 82, 111, 13, 211, 12, 51, 224, 198, 121, 15, 63, 129, 25, 218, 193, 47, 182,
+            248, 112, 185, 163, 23, 175, 169, 76, 214, 36, 184, 142, 222, 48, 212, 157, 35, 115,
+            181,
+        ];
+        let bin_g2_y1 = vec![
+            143, 76, 112, 7, 35, 99, 254, 7, 255, 225, 69, 13, 99, 32, 92, 186, 234, 175, 230, 0,
+            202, 144, 1, 216, 187, 248, 152, 76, 229, 74, 156, 94, 4, 16, 132, 119, 157, 172, 231,
+            164, 207, 88, 41, 6, 234, 78, 73, 58, 19, 104, 236, 127, 5, 231, 248, 150, 53, 197, 85,
+            194, 110, 93, 1, 73, 24, 96, 149, 133, 109, 194, 16, 190, 244, 184, 254, 192, 52, 21,
+            205, 109, 18, 83, 189, 175, 208, 147, 74, 32, 181, 126, 224, 136, 250, 126, 224, 186,
+        ];
+        let bin_g2_y2 = vec![
+            150, 132, 45, 236, 146, 135, 127, 242, 61, 55, 73, 100, 151, 12, 51, 134, 151, 42, 138,
+            227, 105, 54, 121, 7, 0, 27, 205, 139, 186, 69, 139, 143, 41, 132, 35, 33, 168, 35, 31,
+            52, 65, 5, 73, 153, 203, 25, 178, 196, 4, 9, 218, 130, 22, 64, 98, 152, 225, 212, 27,
+            202, 245, 234, 138, 34, 82, 102, 40, 72, 211, 248, 16, 221, 54, 154, 186, 95, 246, 132,
+            54, 0, 128, 170, 111, 94, 155, 166, 27, 225, 51, 31, 107, 223, 139, 0, 209, 236,
+        ];
 
         let ser_g2_x = util::encode_as_hexstring(&bin_g2_x);
         let ser_g2_y1 = util::encode_as_hexstring(&bin_g2_y1);
@@ -802,7 +965,8 @@ mod tests {
         vec.extend(str_g2_y1);
         vec.extend(str_g2_y2);
 
-        let rec_cl_pk = PublicKey::<Bls12>::from_slice(&str_g2_x, &vec.as_slice(), ser_g2_y1.len(), 2);
+        let rec_cl_pk =
+            PublicKey::<Bls12>::from_slice(&str_g2_x, &vec.as_slice(), ser_g2_y1.len(), 2);
 
         let rec_x_str = serde_json::to_string(&rec_cl_pk.X).unwrap();
         assert_eq!(rec_x_str, "\"933f21bef89b5bd3f9a901936568db58cc8326a719bf56438bbcab659a20ea5c0342eb9f072f105303c90de3b3b86566155899d05d00396cfae74ac0526f0dd30c33e0c6790f3f8119dac12fb6f870b9a317afa94cd624b88ede30d49d2373b5\"");
@@ -814,4 +978,3 @@ mod tests {
         assert_eq!(rec_y2_str, "\"96842dec92877ff23d374964970c3386972a8ae369367907001bcd8bba458b8f29842321a8231f3441054999cb19b2c40409da8216406298e1d41bcaf5ea8a2252662848d3f810dd369aba5ff684360080aa6f5e9ba61be1331f6bdf8b00d1ec\"");
     }
 }
-
