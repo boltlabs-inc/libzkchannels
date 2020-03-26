@@ -1,6 +1,6 @@
 #!/bin/bash
 
-mode=debug
+mode=release
 
 ../target/$mode/zkchannels-mpc open --party CUST --other-port 12347 --own-port 12346 --cust-bal 9000 --merch-bal 0 
 

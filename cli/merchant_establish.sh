@@ -1,6 +1,6 @@
 #!/bin/bash
 
-mode=debug
+mode=release
 
 ../target/$mode/zkchannels-mpc open --party MERCH --own-port 12347 --other-port 12346 --dust-limit 100
 
