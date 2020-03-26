@@ -101,7 +101,7 @@ pub trait StateDatabase {
     fn update_unlink_set(&mut self, nonce: &String) -> Result<bool, String>;
     fn get_unlink_set(&mut self) -> Result<HashSet<String>, String>;
     fn is_member_unlink_set(&mut self, nonce: &String) -> bool;
-    fn remove_from_unlink_set(&mut self, nonce: &String) -> Result<bool, String>;
+    fn remove_from_unlink_set(&mut self, nonce: &String) -> bool;
     // nonce to pay mask methods
     fn update_nonce_mask_map(
         &mut self,
@@ -233,10 +233,10 @@ impl StateDatabase for RedisDatabase {
         Ok(hash_set)
     }
 
-    fn is_member_unlink_set(&mut self, nonce: &String) -> bool {
+    fn is_member_unlink_set(&mut self, nonce_hex: &String) -> bool {
         match self
             .conn
-            .sismember(self.unlink_set_key.clone(), nonce.clone())
+            .sismember(self.unlink_set_key.clone(), nonce_hex.clone())
         {
             Ok(s) => s,
             Err(e) => {
@@ -246,12 +246,15 @@ impl StateDatabase for RedisDatabase {
         }
     }
 
-    fn remove_from_unlink_set(&mut self, nonce: &String) -> Result<bool, String> {
-        match self.conn.hdel(self.unlink_set_key.clone(), nonce.clone()) {
-            Ok(n) => n,
-            Err(e) => return Err(e.to_string()),
+    fn remove_from_unlink_set(&mut self, nonce_hex: &String) -> bool {
+        match self.conn.hdel(self.unlink_set_key.clone(), nonce_hex.clone()) 
+        {
+            Ok(s) => s,
+            Err(e) => {
+                println!("remove_from_unlink_set: {} {} {}", self.unlink_set_key.clone(), e.to_string(), nonce_hex);
+                false
+            }
         }
-        Ok(true)
     }
 
     fn clear_state(&mut self) -> bool {
@@ -451,11 +454,11 @@ impl StateDatabase for HashMapDatabase {
         self.unlink_map.contains(nonce)
     }
 
-    fn remove_from_unlink_set(&mut self, nonce: &String) -> Result<bool, String> {
+    fn remove_from_unlink_set(&mut self, nonce: &String) -> bool {
         if self.unlink_map.contains(nonce) {
             self.unlink_map.remove(nonce);
         }
-        Ok(true)
+        return true;
     }
 
     fn clear_state(&mut self) -> bool {

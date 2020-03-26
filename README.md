@@ -318,6 +318,10 @@ Customer can similarly initiate channel closing with a signed cust-close-tx of c
 	let (cust_signed_tx, txid) = mpc::customer_close(&channel_state, &channel_token, from_escrow, &cust_state).unwrap();
 
 
+## Usage Guide
+
+TODO: provide usage for `zkchannels-mpc` utility
+
 # Documentation
 
 Build the api documentation by simply running `make doc`. Documentation will be generated in your local `target/doc` directory.

@@ -1433,11 +1433,7 @@ impl MerchantMPCState {
         // check if n_i in the unlink map. if so, remove it
         if db.is_member_unlink_set(&nonce_hex) {
             // remove from unlink set
-            let res = db.remove_from_unlink_set(&nonce_hex);
-            match res {
-                Ok(a) => println!("Result: {}", a),
-                Err(e) => println!("remove_from_unlink_set: {}", e),
-            };
+            let _res = db.remove_from_unlink_set(&nonce_hex);
         }
 
         Ok((pt_mask, pt_mask_r))
