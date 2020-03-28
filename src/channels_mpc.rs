@@ -2,11 +2,11 @@ use super::*;
 use fixed_size_array::{FixedSizeArray16, FixedSizeArray32, FixedSizeArray64};
 use util::{compute_hash160, hash_to_slice, hmac_sign};
 
-use bindings::ConnType;
+use bindings::{ConnType, load_circuit_file};
 use bitcoin::SignatureHash::SIGHASH_ALL;
 use bitcoin::{BitcoinNetwork, BitcoinPrivateKey, BitcoinTransactionParameters};
 use database::{MaskedMPCInputs, MaskedTxMPCInputs, StateDatabase};
-use mpcwrapper::{mpc_build_masked_tokens_cust, mpc_build_masked_tokens_merch};
+use mpcwrapper::{mpc_build_masked_tokens_cust, mpc_build_masked_tokens_merch, CIRCUIT_FILE};
 use rand::Rng;
 use sha2::{Digest, Sha256};
 use std::fmt::Debug;
@@ -19,6 +19,8 @@ use transactions::btc::{
 use transactions::ClosePublicKeys;
 use wagyu_model::Transaction;
 use wallet::{State, NONCE_LEN};
+use std::ffi::{c_void, CString};
+use std::{env, ptr};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct NetworkConfig {
@@ -28,6 +30,11 @@ pub struct NetworkConfig {
     pub dest_port: i32,
     pub peer_raw_fd: RawFd,
 }
+
+// pub struct Circuit {
+//     ptr: *mut c_void
+// }
+
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ChannelMPCToken {
@@ -407,6 +414,33 @@ impl CustomerMPCState {
         self.net_config = Some(net_config);
     }
 
+    pub fn get_circuit_file(&self) -> *mut c_void { // Box<Circuit>
+        let using_ag2pc = match env::var("AG2PC") {
+            Ok(_s) => true,
+            Err(_e) => false
+        };
+
+        let circuit_file = match using_ag2pc {
+            true => match env::var("ZK_DEPS_INSTALL") {
+                Ok(s) => format!("{}{}", s, CIRCUIT_FILE),
+                Err(e) => panic!("ZK_DEPS_INSTALL env not set: {}", e)
+            },
+            false => String::new()
+        };
+
+        let cf_ptr = match using_ag2pc {
+            true => {
+                let cf_ptr = unsafe {
+                    let c_str = CString::new(circuit_file).unwrap();
+                    load_circuit_file(c_str.as_ptr() as *const i8)
+                };
+                cf_ptr
+            },
+            false => ptr::null_mut()
+        };
+        return cf_ptr; // Box::new(Circuit { ptr: cf_ptr }
+    }
+
     // customer side of mpc
     pub fn execute_mpc_context(
         &mut self,
@@ -451,9 +485,12 @@ impl CustomerMPCState {
             }
         };
 
+        let cf_ptr = self.get_circuit_file();
+
         let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) =
             match mpc_build_masked_tokens_cust(
                 net_conn,
+                cf_ptr,
                 amount,
                 &paytoken_mask_com,
                 &rev_lock_com,
@@ -1279,6 +1316,33 @@ impl MerchantMPCState {
         Ok((signed_merch_close_tx, txid_be.to_vec()))
     }
 
+    pub fn get_circuit_file(&self) -> *mut c_void { // Box<Circuit>
+        let using_ag2pc = match env::var("AG2PC") {
+            Ok(_s) => true,
+            Err(_e) => false
+        };
+
+        let circuit_file = match using_ag2pc {
+            true => match env::var("ZK_DEPS_INSTALL") {
+                Ok(s) => format!("{}{}", s, CIRCUIT_FILE),
+                Err(e) => panic!("ZK_DEPS_INSTALL env not set: {}", e)
+            },
+            false => String::new()
+        };
+        println!("Circuit: {}", circuit_file);
+        let cf_ptr = match using_ag2pc {
+            true => {
+                let cf_ptr = unsafe {
+                    let c_str = CString::new(circuit_file).unwrap();
+                    load_circuit_file(c_str.as_ptr() as *const i8)
+                };
+                cf_ptr
+            },
+            false => ptr::null_mut()
+        };
+        return cf_ptr; // Box::new(Circuit { ptr: cf_ptr }
+    }
+
     // for merchant side
     pub fn execute_mpc_context<R: Rng>(
         &mut self,
@@ -1342,9 +1406,12 @@ impl MerchantMPCState {
             }
         };
 
+        let cf_ptr = self.get_circuit_file();
+
         let (r_merch, r_esc) = mpc_build_masked_tokens_merch(
             csprng,
             net_conn,
+            cf_ptr,
             amount,
             &paytoken_mask_com,
             &rev_lock_com,

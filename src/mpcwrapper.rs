@@ -2,7 +2,7 @@ use bindings::{
     build_masked_tokens_cust, build_masked_tokens_merch, get_netio_ptr, get_unixnetio_ptr,
     Balance_l, BitcoinPublicKey_l, CommitmentRandomness_l, ConnType_NETIO, ConnType_TORNETIO,
     ConnType_UNIXNETIO, Conn_l, EcdsaSig_l, HMACKeyCommitment_l, HMACKey_l, MaskCommitment_l,
-    Mask_l, Nonce_l, PayToken_l, PublicKeyHash_l, RevLockCommitment_l, RevLock_l, State_l, Txid_l,
+    Mask_l, Nonce_l, PayToken_l, PublicKeyHash_l, RevLockCommitment_l, RevLock_l, State_l, Txid_l
 }; // ConnType_CUSTOM, get_gonetio_ptr
 use channels_mpc::NetworkConfig;
 use ecdsa_partial::EcdsaPartialSig;
@@ -13,8 +13,10 @@ use std::ffi::{CStr, CString};
 use std::ptr;
 use std::str;
 use wallet::State;
+use std::time::Instant;
 
 static MPC_ERROR: &str = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+pub static CIRCUIT_FILE: &str = "/include/emp-tool/circuits/files/tokens.circuit.txt";
 
 extern "C" fn io_callback(net_config: *mut c_void, party: c_int) -> *mut c_void {
     // unsafe is needed because we dereference a raw pointer to network config
@@ -45,6 +47,7 @@ extern "C" fn io_callback(net_config: *mut c_void, party: c_int) -> *mut c_void 
 
 pub fn mpc_build_masked_tokens_cust(
     net_conn: NetworkConfig,
+    circuit_ptr: *mut c_void,
     amount: i64,
     pay_mask_com: &[u8],
     rev_lock_com: &[u8],
@@ -113,10 +116,18 @@ pub fn mpc_build_masked_tokens_cust(
         peer_raw_fd: ptr::null_mut(),
     };
 
+    // let file = "/Users/ayo/Projects/libzkchannels/deps/root/include/emp-tool/circuits/files/tokens.circuit.txt";
+    // let cf_ptr = unsafe {
+    //     let c_str = CString::new(file).unwrap();
+    //     load_circuit_file(c_str.as_ptr() as *const i8)
+    // };
+
+    let timer = Instant::now();
     unsafe {
         build_masked_tokens_cust(
             Some(io_callback),
             conn,
+            circuit_ptr,
             translate_balance(amount),
             rl_c,
             paymask_com,
@@ -137,6 +148,8 @@ pub fn mpc_build_masked_tokens_cust(
             &mut ct_merch,
         );
     };
+    let stop = timer.elapsed();
+    println!("Execute MPC: {} ms", stop.as_millis());
 
     let mut pt_masked_ar = [0u8; 32];
     pt_masked_ar.copy_from_slice(u32_to_bytes(&pt_return.paytoken[..]).as_slice());
@@ -288,6 +301,7 @@ fn u32_to_bytes(input: &[u32]) -> Vec<u8> {
 pub fn mpc_build_masked_tokens_merch<R: Rng>(
     rng: &mut R,
     net_conn: NetworkConfig,
+    circuit_ptr: *mut c_void,
     amount: i64,
     com_new: &[u8],
     rev_lock_com: &[u8],
@@ -366,10 +380,12 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(
         peer_raw_fd: ptr::null_mut(),
     };
 
+    let timer = Instant::now();
     unsafe {
         build_masked_tokens_merch(
             Some(io_callback),
             conn,
+            circuit_ptr,
             translate_balance(amount),
             rl_c,
             paymask_com,
@@ -389,6 +405,8 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(
             params2,
         );
     };
+    let stop = timer.elapsed();
+    println!("Execute MPC: {} ms", stop.as_millis());
 
     (pp1.getK(), pp2.getK())
 }
@@ -409,6 +427,8 @@ mod tests {
     use transactions::btc::{create_cust_close_transaction, create_reverse_input};
     use transactions::ClosePublicKeys;
     use util::{hash_to_slice, hmac_sign};
+    use bindings::load_circuit_file;
+    use std::env;
 
     fn compute_commitment(buf: &Vec<u8>, r: &[u8; 16]) -> [u8; 32] {
         let mut input_buf = buf.clone();
@@ -512,10 +532,35 @@ rusty_fork_test! {
             dest_port: 12345,
             peer_raw_fd: 0,
         };
+        
+        let using_ag2pc = match env::var("AG2PC") {
+            Ok(_s) => true,
+            Err(_e) => false
+        };
+
+        let circuit_file = match using_ag2pc {
+            true => match env::var("ZK_DEPS_INSTALL") {
+                Ok(s) => format!("{}{}", s, CIRCUIT_FILE),
+                Err(e) => panic!("ZK_DEPS_INSTALL env not set: {}", e)
+            },
+            false => String::new()
+        };
+
+        let cf_ptr = match using_ag2pc {
+            true => {
+                let cf_ptr = unsafe {
+                    let c_str = CString::new(circuit_file).unwrap();
+                    load_circuit_file(c_str.as_ptr() as *const i8)
+                };
+                cf_ptr
+            },
+            false => ptr::null_mut()
+        };
 
         let (r1, r2) = mpc_build_masked_tokens_merch(
             &mut csprng,
             nc,
+            cf_ptr,
             amount,
             &paytoken_mask_com,
             &rev_lock_com,
@@ -760,9 +805,36 @@ rusty_fork_test! {
             dest_port: 12345,
             peer_raw_fd: 0,
         };
+                
+        // check if AGPC=1 in env 
+        let using_ag2pc = match env::var("AG2PC") {
+            Ok(_s) => true,
+            Err(_e) => false
+        };
+
+        let circuit_file = match using_ag2pc {
+            true => match env::var("ZK_DEPS_INSTALL") {
+                Ok(s) => format!("{}{}", s, CIRCUIT_FILE),
+                Err(e) => panic!("ZK_DEPS_INSTALL env not set: {}", e)
+            },
+            false => String::new()
+        };
+
+        let cf_ptr = match using_ag2pc {
+            true => {
+                let cf_ptr = unsafe {
+                    let c_str = CString::new(circuit_file).unwrap();
+                    // TODO: need a way to verify circuit is correctly generated
+                    load_circuit_file(c_str.as_ptr() as *const i8)
+                };
+                cf_ptr
+            },
+            false => ptr::null_mut()
+        };
 
         let mpc_result = mpc_build_masked_tokens_cust(
             nc,
+            cf_ptr,
             amount,
             &paytoken_mask_com,
             &rev_lock_com,
