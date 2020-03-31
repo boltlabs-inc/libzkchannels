@@ -8,13 +8,13 @@ zkChannels is a system for conducting **privacy-preserving off-chain payments** 
 
 ## <a name='TableofContents'></a>Table of Contents
 
-* 1. [Install Rust](#installing-rust)
-* 2. [Build & Install](#build--install)
-* 3. [Run Tests](#tests)
-* 4. [zkChannels API](#2-build-guide)
+1. [Install Rust](#installing-rust)
+2. [Build & Install](#build--install)
+3. [Run Tests](#tests)
+4. [zkChannels API](#2-build-guide)
     * [Using ZK Proof techniques](#payment-channels-using-zk-proof-techniques)
     * [Using MPC techniques](#payment-channels-using-mpc-techniques)	
-* 5. [Guide for MPC](#3-mpc-guide)
+5. [Guide for MPC](#3-mpc-guide)
 
 # WARNING
 
@@ -327,6 +327,18 @@ Customer can similarly initiate channel closing with a signed cust-close-tx of c
 	let from_escrow = true;
 	let (cust_signed_tx, txid) = mpc::customer_close(&channel_state, &channel_token, from_escrow, &cust_state).unwrap();
 
+## Compile MPC with Malicious Security 
+
+Our MPC can be instantiated in two possible ways: **semi-honest** or **malicious** model. We build for the semi-honest model by default for testing. However, you can enable zkChannels with malicious security as follows:
+
+	export AG2PC=1
+	cargo clean
+	cargo build --release
+	make mpctest
+
+### Performance in Malicious Security
+
+TODO: add numbers here
 
 # Documentation
 
