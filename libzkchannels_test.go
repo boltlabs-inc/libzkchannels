@@ -189,13 +189,22 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("TX6: Close MerchTx ID: ", CloseMerchTxId)
 	fmt.Println("TX6: Close from MerchCloseTx => ", string(CloseMerchTx))
 
-	isOk, FoundRevSecret, err := MerchantCheckRevLock(revState.RevLock, merchState)
+	isOldRevLock, FoundRevSecret, err := MerchantCheckRevLock(revState.RevLock, merchState)
 	fmt.Println("Looking for rev lock: ", revState.RevLock)
-	if isOk {
+	if isOldRevLock {
 		fmt.Println("Found rev secret: ", FoundRevSecret)
 	} else {
 		fmt.Println("Could not find rev secret!")
 	}
+
+
+	// Dispute scenario - If the customer has broadcast CloseEscrowTx and the revLock is an old revLock
+	index := uint32(0)
+	amount := custBal - 10
+	// ideally generate new changePk
+	outputPk := changePk
+	disputeTx, err := MerchantSignDisputeTx(CloseEscrowTxId, index, amount, toSelfDelay, outputPk, revState.RevLock, FoundRevSecret, custClosePk, merchState)
+	fmt.Println("TX5: disputeCloseEscrowTx: ", disputeTx)
 
 	return
 }
@@ -219,7 +228,7 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	assert.Nil(t, err)
 
 	inputSats := int64(50 * 100000000)
-	cust_utxo_txid := "f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1"
+	cust_utxo_txid := "e8aed42b9f07c74a3ce31a9417146dc61eb8611a1e66d345fd69be06b644278d"
 	custInputSk := fmt.Sprintf("\"%v\"", "5511111111111111111111111111111100000000000000000000000000000000")
 
 	custSk := fmt.Sprintf("\"%v\"", custState.SkC)
@@ -246,6 +255,7 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	// fmt.Println("escrow txid => ", escrowTxid)
 	// fmt.Println("escrow prevout => ", escrowPrevout)
 	fmt.Println("TX1: signedEscrowTx => ", signedEscrowTx)
+	fmt.Println("escrow txid => ", escrowTxid)
 
 	merchTxPreimage, err := FormMerchCloseTx(escrowTxid, custPk, merchPk, merchClosePk, custBal, merchBal, toSelfDelay)
 
@@ -373,18 +383,27 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	fmt.Println("TX4: Close MerchTx ID: ", CloseMerchTxId)
 	fmt.Println("TX4: Close from MerchCloseTx => ", string(CloseMerchTx))
 
-	isOk, FoundRevSecret, err := MerchantCheckRevLock(revState.RevLock, merchState)
+	isOldRevLock, FoundRevSecret, err := MerchantCheckRevLock(revState.RevLock, merchState)
 	fmt.Println("Looking for rev lock: ", revState.RevLock)
-	if isOk {
+	if isOldRevLock {
 		fmt.Println("Found rev secret: ", FoundRevSecret)
 	} else {
 		fmt.Println("Could not find rev secret!")
 	}
 
-	isOk, FoundRevSecret, err = MerchantCheckRevLock("4157697b6428532758a9d0f9a73ce58befe3fd665797427d1c5bb3d33f6a132e", merchState)
-	if !isOk {
+	isOldRevLock, FoundRevSecret, err = MerchantCheckRevLock("4157697b6428532758a9d0f9a73ce58befe3fd665797427d1c5bb3d33f6a132e", merchState)
+	if isOldRevLock {
 		fmt.Println("Fails as expected!")
 	}
+
+	// Dispute scenario - If the customer has broadcast CloseEscrowTx and the revLock is an old revLock
+	index := uint32(0)
+	amount := custBal - 10
+	// ideally generate new changePk
+	outputPk := changePk
+	disputeTx, err := MerchantSignDisputeTx(CloseEscrowTxId, index, amount, toSelfDelay, outputPk, revState.RevLock, FoundRevSecret, custClosePk, merchState)
+	fmt.Println("TX5: disputeCloseEscrowTx: ", disputeTx)
+
 }
 
 func runPayCust(channelState ChannelState, channelToken ChannelToken, state State, newState State, payTokenMaskCom string, revLockCom string, custState CustState) {

@@ -101,7 +101,7 @@ def pk_to_p2wpkh(compressed, network):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cust_input_sk", "-sk", help="secret key used to generate pubkey output for coinbase tx")
+    parser.add_argument("--cust_input_sk", "-sk",  required=True, help="secret key used to generate pubkey output for coinbase tx")
     parser.add_argument("--network", "-n", help="select the type of network", default="simnet")
     args = parser.parse_args()
     cust_input_sk = str(args.cust_input_sk)
