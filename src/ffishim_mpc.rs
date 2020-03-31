@@ -1234,8 +1234,8 @@ pub mod ffishim_mpc {
             deserialize_result_object(ser_merch_state);
         let merch_state = handle_errors!(merch_state_result);
 
-        let merch_disp_pk = merch_state.payout_pk.serialize().to_vec();
-        let merch_sk = merch_state.get_secret_key();
+        let merch_disp_pk = merch_state.dispute_pk.serialize().to_vec();
+        let merch_disp_sk = merch_state.get_dispute_secret_key();
 
         let signed_tx = handle_errors!(txutil::merchant_sign_merch_dispute_transaction(
             txid_le,
@@ -1247,7 +1247,7 @@ pub mod ffishim_mpc {
             rev_secret,
             cust_close_pk,
             merch_disp_pk,
-            merch_sk
+            merch_disp_sk
         ));
         let ser = ["{\'signed_tx\': \'", &hex::encode(signed_tx), "\'}"].concat();
         let cser = CString::new(ser).unwrap();

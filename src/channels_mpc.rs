@@ -414,7 +414,7 @@ impl CustomerMPCState {
         self.net_config = Some(net_config);
     }
 
-    pub fn get_circuit_file(&self) -> *mut c_void { // Box<Circuit>
+    pub fn get_circuit_file(&self) -> *mut c_void { 
         let using_ag2pc = match env::var("AG2PC") {
             Ok(_s) => true,
             Err(_e) => false
@@ -438,7 +438,7 @@ impl CustomerMPCState {
             },
             false => ptr::null_mut()
         };
-        return cf_ptr; // Box::new(Circuit { ptr: cf_ptr }
+        return cf_ptr;
     }
 
     // customer side of mpc
@@ -1027,6 +1027,8 @@ impl MerchantMPCState {
     pub fn get_secret_key(&self) -> secp256k1::SecretKey {
         return self.sk_m.clone();
     }
+
+    pub fn get_dispute_secret_key(&self) -> secp256k1::SecretKey { return self.dispute_sk.clone(); }
 
     pub fn activate_channel(
         &self,

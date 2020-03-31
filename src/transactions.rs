@@ -735,6 +735,7 @@ pub mod btc {
             &pubkeys.cust_close_pk,
             &self_delay_le,
         );
+
         // println!("(1) to_customer: {}", hex::encode(&output1_script_pubkey));
         let to_customer = BitcoinTransactionOutput {
             amount: BitcoinAmount::from_satoshi(cust_bal).unwrap(),
@@ -867,8 +868,8 @@ pub mod btc {
         self_delay_be: [u8; 2],
         rev_lock: Vec<u8>,
         rev_secret: Vec<u8>,
-        merch_disp_pk: Vec<u8>,
         cust_close_pk: Vec<u8>,
+        merch_disp_pk: Vec<u8>,
         private_key: BitcoinPrivateKey<N>,
     ) -> Result<(Vec<u8>, Vec<u8>), String> {
         let version = 2;

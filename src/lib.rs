@@ -1450,8 +1450,8 @@ pub mod txutil {
             self_delay_be,
             rev_lock,
             rev_secret,
-            merch_disp_pk,
             cust_close_pk,
+            merch_disp_pk,
             sk,
         ) {
             Ok(s) => s.0,
