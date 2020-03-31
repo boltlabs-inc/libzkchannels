@@ -14,7 +14,8 @@ zkChannels is a system for conducting **privacy-preserving off-chain payments** 
 4. [zkChannels API](#2-build-guide)
     * [Using ZK Proof techniques](#payment-channels-using-zk-proof-techniques)
     * [Using MPC techniques](#payment-channels-using-mpc-techniques)	
-5. [Guide for MPC](#3-mpc-guide)
+5. [Guide for MPC](#compile-mpc-with-malicious-security)
+    * [Performance](#performance-in-malicious-security)
 
 # WARNING
 
