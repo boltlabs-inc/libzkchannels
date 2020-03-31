@@ -1,8 +1,20 @@
+![](blog-header-light-14.png)
+
 # libzkchannels
 
 A Rust library implementation of libzkchannels (formerly BOLT: Blind Off-chain Lightweight Transactions).
 
 zkChannels is a system for conducting **privacy-preserving off-chain payments** between pairs of individual parties. The protocol is designed to enable privacy-preserving cryptocurrencies on top of Bitcoin (via MPC) and Zcash (via ZK proofs), by allowing individuals to establish and use payment channels for instantaneous payments that do not require an on-chain transaction.
+
+## <a name='TableofContents'></a>Table of Contents
+
+* 1. [Install Rust](#installing-rust)
+* 2. [Build & Install](#build--install)
+* 3. [Run Tests](#tests)
+* 4. [zkChannels API](#2-build-guide)
+    * [Using ZK Proof techniques](#payment-channels-using-zk-proof-techniques)
+    * [Using MPC techniques](#payment-channels-using-mpc-techniques)	
+* 5. [Guide for MPC](#3-mpc-guide)
 
 # WARNING
 
@@ -36,7 +48,7 @@ To be able to build libzkchannels, we require that you install the EMP-toolkit a
 	make deps
 	./test_emp.sh
 
-In addition, you'll need to start up the Redis database as follows:
+In addition, you'll need to start the Redis database service as follows:
 
 	./setup_redis.sh
 
@@ -45,10 +57,6 @@ To build libzkchannels and execute all unit tests, run `make`
 # Tests
 
 To run just the libzkchannels unit tests, run `make test` and for MPC-only tests, run `make mpctest`
-
-# Benchmarks
-
-To run libzkchannels benchmarks, run `make bench`
 
 # Usage
 
@@ -64,16 +72,18 @@ Then add an extern declaration at the root of your crate as follows:
 extern crate zkchannels;
 ```
 
-# API
+# zkChannels API
 
-The libzkchannels library provides APIs for two types of payment channels:
+The libzkchannels library provides APIs for anonymous bidirectional payment channels based on two kinds of techniques to provide privacy:
 
-* bidirectional payment channels
-* third-party payments
+* ZK: Non-interactive Zero-knowledge proofs
+* MPC: Secure multi-party computation (or 2PC)
+
+zkChannels allow a customer and a merchant to exchange arbitrary positive and negative amounts.
 
 ## Payment Channels using ZK Proof techniques
 
-An anonymous payment channel enables two parties to exchange arbitrary positive and negative amounts.
+We now describe the construction based on ZK proofs.
 
 ### Channel Setup and Key Generation
 
@@ -317,10 +327,6 @@ Customer can similarly initiate channel closing with a signed cust-close-tx of c
 	let from_escrow = true;
 	let (cust_signed_tx, txid) = mpc::customer_close(&channel_state, &channel_token, from_escrow, &cust_state).unwrap();
 
-
-## Usage Guide
-
-TODO: provide usage for `zkchannels-mpc` utility
 
 # Documentation
 

@@ -1,3 +1,3 @@
-# zkchannels-mpc
+# zkchannels-mpc command-line utility
 
-TODO: add usage guide here
+For testing the MPC protocol end-to-end
