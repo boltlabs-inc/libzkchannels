@@ -8,14 +8,12 @@ zkChannels is a system for conducting **privacy-preserving off-chain payments** 
 
 ## <a name='TableofContents'></a>Table of Contents
 
-1. [Install Rust](#installing-rust)
-2. [Build & Install](#build--install)
-3. [Run Tests](#tests)
-4. [zkChannels API](#2-build-guide)
-    * [Using ZK Proof techniques](#payment-channels-using-zk-proof-techniques)
-    * [Using MPC techniques](#payment-channels-using-mpc-techniques)	
-5. [Guide for MPC](#compile-mpc-with-malicious-security)
-    * [Performance](#performance-in-malicious-security)
+* [Install Rust](#installing-rust)
+* [Build & Install](#build--install)
+* [Run Tests](#tests)
+* [zkChannels API](#zkchannels-api)
+    * [1. Using MPC techniques](#using-mpc-techniques)
+    * [2. Using ZK Proof techniques](#using-zk-proof-techniques)
 
 # WARNING
 
@@ -75,18 +73,147 @@ extern crate zkchannels;
 
 # zkChannels API
 
-The libzkchannels library provides APIs for anonymous bidirectional payment channels based on two kinds of techniques to provide privacy:
+The libzkchannels library provides APIs for anonymous bidirectional payment channels for cryptocurrencies based on two classes of cryptographic techniques:
 
-* ZK: Non-interactive Zero-knowledge proofs
-* MPC: Secure multi-party computation (or 2PC)
+* Secure multi-party computation (or 2PC)
+* Non-interactive Zero-knowledge proofs of knowledge
 
 zkChannels allow a customer and a merchant to exchange arbitrary positive and negative amounts.
 
-## Payment Channels using ZK Proof techniques
+## 1. Using MPC techniques
+
+We now describe the APIs around our support for non-anonymous currencies like Bitcoin.
+
+<img src="libzkchannels-mpc-arch.png" width=300 align=center>
+
+### 1.1. Overview of Architecture
+
+To implement our MPC protocol, we used an existing software framework that runs MPC on an arbitrary function: the **Efficient Multi-Party (EMP) computation [toolkit](https://github.com/emp-toolkit/)**. 
+
+This framework has several advantages that make it well-suited for our application: in particular, it supports multiple protocols in both the semi-honest and malicious security models, and all of these protocols are in the garbled circuit paradigm. 
+
+In our implementation, the *merchant* plays the role of the garbler and the *customer* serves as the evaluator. This was a natural choice as only the customer is supposed to receive an output from the computation. 
+
+**EMP toolkit** implements a C library used to describe secure functionalities. The library either executes a semi-honest protocol or compiles the function into a boolean circuit. This circuit can be passed to one of several additional MPC protocol implementations (including several that are secure against a malicious adversary).
+
+Our application (represented by **libtoken-utils** above) breaks down into several main functionalities, including lots of SHA256 hashes, lots of input validation, and ECDSA signatures. With the exception of the signatures, all of these functions are basically boolean operations: bit shifts, equality checks, and XOR masks. EMP-toolkit represents data as encrypted (garbled) bits and functions as boolean circuits. 
+
+### 1.2 Protocol API
+
+#### 1.2.1 Channel Setup
+
+	use zkchannels::mpc;
+
+	// create initial channel mpc state
+	let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
+
+#### 1.2.2 Initialize & Establish
+
+	let cust_bal = 100;
+	let merch_bal = 100;
+
+	// merchant initializes state for all channels it will open with customers
+	let mut merch_state = mpc::init_merchant(&mut rng, &mut channel_state, "Bob");
+
+	// customer initializes state for channel with initial balances
+	let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, cust_bal, merch_bal, "Alice");
+
+	// form all the transactions: <escrow-tx> and <merch-close-tx>
+
+	// customer gets the initial state of the channel and
+	let (init_cust_state, init_hash) = mpc::get_initial_state(&cust_state).unwrap();
+
+	// merchant validates the initial state
+	let res = mpc::validate_initial_state(&channel_token, &init_cust_state, init_hash, &mut merch_state);
+
+	// at this point, both parties proceed with exchanging signatures on their respective closing transactions
+	// customer gets two signed closing transactions from merchant that issues a refund back to customer
+	// merchant gets a signed <merch-close-tx> that locks up the channel balance to another timelocked multi-sig
+
+	// customer signs & broadcasts <escrow-tx> to the blockchain
+	// both parties wait for the network to confirm the txs
+
+#### 1.2.3 Activate & Unlink
+
+	// prepare to active the channel by generating initial rev lock commitment and initial randomness
+	// returns the initial state of channel
+	let old_state = mpc::activate_customer(&mut rng, &mut cust_state);
+
+	// merchant returns an initial pay token for channel
+	let pay_token = mpc::activate_merchant(channel_token, &old_state, &mut merch_state);
+
+	// customer stores the initial pay token
+	mpc::activate_customer_finalize(pay_token, &mut cust_state);
+
+	// customer unlinks initial pay-token by running the following pay protocol with a 0-payment
+
+#### 1.2.4 Unlinkable Payments
+
+Prepare/Update State phase
+
+	// customer prepares payment by generating a new state, new revocation lock and secret, and
+	let (state, revoked_state) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, 10, &mut cust_state).unwrap();
+	let rev_lock_com = revoked_state.get_rev_lock_com();
+
+	// merchant generates a pay token mask and return a commitment to the customer
+	let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, channel_state, rev_lock_com, old_state.get_nonce(), rev_lock_com, 10, &mut merch_state).unwrap();
+
+Now proceed with executing the MPC if successful
+
+	// customer executes mpc protocol with old/new state, pay mask commitment, rev lock commitment and payment amount
+	let ok_cust = mpc::pay_update_customer(&mut channel_state, &channel_token, old_state, new_state, pay_mask_com, rev_lock_com, 10, &mut cust_state);
+
+	// merchant executes mpc protocol with customer nonce, pay mask commitment, rev lock commitment and payment amount
+	let ok_merch = mpc::pay_update_merchant(&mut rng, &mut channel_state, old_state.get_nonce(), pay_mask_com, rev_lock_com, 10, &mut merch_state);
+
+	// customer sends success/error back to merchant if the customer obtains 3 masked outputs for both closing transactions and pay token
+
+Unmask/Revoke phase
+
+	// unmask the closing signatures on the current state (from MPC output)
+	// and if signatures are valid, the customer sends the revoked state message
+	let is_ok = mpc::pay_unmask_sigs_customer(masks, &mut cust_state);
+
+	// merchant verifies that revoked message on the previous state if unmasking was successful
+	let (pt_mask, pt_mask_r) = mpc::pay_validate_rev_lock_merchant(revoked_state, &mut merch_state).unwrap();
+
+	// customer unmasks the pay token and checks validity of pay-token mask commitment opening
+	let is_ok = mpc::pay_unmask_pay_token_customer(pt_mask, pt_mask_r, &mut cust_state);
+
+#### 1.2.5 Close
+
+Merchant can initiate channel closing with a signed *merch-close-tx* that pays full channel balance to a timelocked multi-sig:
+
+	// merchant signs the merch-close-tx for the channel and combines with customer signature
+	let (merch_signed_tx, txid) = mpc::merchant_close(&escrow_txid, &merch_state).unwrap();
+
+Customer can similarly initiate channel closing with a signed *cust-close-tx* of current balances spending from *escrow-tx* (or *merch-close-tx*):
+
+	// customer signs the current state of channel and combines with escrow signature (if spending from <escrow-tx>)
+	let from_escrow = true;
+	let (cust_signed_tx, txid) = mpc::customer_close(&channel_state, &channel_token, from_escrow, &cust_state).unwrap();
+
+### 1.3 Build MPC with Malicious Security 
+
+As mentioned before, our MPC functionality can be instantiated in two possible models: **semi-honest** or **malicious**. We build with the semi-honest model by default for testing but it is not ideal for real world adversaries. You can compile zkChannels with malicious security as follows:
+
+	export AG2PC=1
+	cargo clean
+	cargo build --release
+	make mpctest
+
+### 1.4 Performance with Malicious Security
+
+TODO: add numbers here
+
+
+## 2. Using ZK Proof techniques
 
 We now describe the construction based on ZK proofs.
 
-### Channel Setup and Key Generation
+### 2.1 Protocol API
+
+#### 2.1.1 Channel Setup and Key Generation
 
 The first part of setting up bi-directional payment channels involve generating initial setup parameters using curve BLS12-381 with channel state.
 
@@ -100,7 +227,7 @@ The first part of setting up bi-directional payment channels involve generating 
 	// generate fresh public parameters
 	channel_state.setup(&mut rng);
 
-### Initialization
+#### 2.1.2 Initialization
 
 To initialize state/keys for both parties, call the ``zkproofs::init_merchant()`` and ``zkproofs::init_customer()``:
 
@@ -118,7 +245,7 @@ To initialize state/keys for both parties, call the ``zkproofs::init_merchant()`
 	                                              "Alice")); // channel name/purpose
 
 
-### Establish Protocol
+#### 2.1.3 Establish Protocol
 
 When opening a payment channel, execute the establishment protocol API to escrow funds privately as follows:
 
@@ -142,7 +269,7 @@ When opening a payment channel, execute the establishment protocol API to escrow
 	// confirm that the channel state is now established
 	assert!(channel_state.channel_established);
 
-### Pay protocol
+#### 2.1.4 Pay protocol
 
 To spend on the channel, execute the pay protocol API (can be executed as many times as necessary):
 
@@ -161,7 +288,7 @@ To spend on the channel, execute the pay protocol API (can be executed as many t
 	// final - customer verifies the pay token and updates internal state
 	assert!(cust_state.verify_pay_token(&channel_state, &new_pay_token));
 
-### Channel Closure
+#### 2.1.5 Channel Closure
 
 To close a channel, the customer must execute the `zkproofs::customer_close()` routine as follows:
 
@@ -171,9 +298,9 @@ If the customer broadcasts an outdated version of his state, then the merchant c
 
 	let merch_close = zkproofs::merchant_close(&channel_state, &channel_token, &cust_close_msg, &merch_state);
 
-## Third-party Payments
+### 2.2 Third-party Payments
 
-The bidirectional payment channels can be used to construct third-party payments in which a party **A** pays a second party **B** through an untrusted intermediary (**I**) to which both **A** and **B** have already established a channel. With BOLT, the intermediary learns nothing about the payment from **A** to **B** and cannot link transactions to individual users.
+The bidirectional payment channels can be used to construct third-party payments in which a party **A** pays a second party **B** through an untrusted intermediary (**I**) to which both **A** and **B** have already established a channel. With zkChannels (formerly BOLT), the intermediary learns nothing about the payment from **A** to **B** and cannot link transactions to individual users.
 
 To enable third-party payment support, initialize each payment channel as follows:
 
@@ -228,118 +355,6 @@ The channel establishment still works as described before and the pay protocol i
 	...
 
 See the `intermediary_payment_basics_works()` unit test in `src/lib.rs` for more details.
-
-## Payment Channels using MPC techniques
-
-We now describe the APIs around our support for non-anonymous currencies like Bitcoin.
-
-<img src="libzkchannels-mpc-arch.png" width=300 align=center>
-
-### Channel Setup
-
-	use zkchannels::mpc;
-
-	// create initial channel mpc state
-	let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
-
-### Initialize & Establish
-
-	let cust_bal = 100;
-	let merch_bal = 100;
-
-	// merchant initializes state for all channels it will open with customers
-	let mut merch_state = mpc::init_merchant(&mut rng, &mut channel_state, "Bob");
-
-	// customer initializes state for channel with initial balances
-	let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, cust_bal, merch_bal, "Alice");
-
-	// form all the transactions: <escrow-tx> and <merch-close-tx>
-
-	// customer gets the initial state of the channel and
-	let (init_cust_state, init_hash) = mpc::get_initial_state(&cust_state).unwrap();
-
-	// merchant validates the initial state
-	let res = mpc::validate_initial_state(&channel_token, &init_cust_state, init_hash, &mut merch_state);
-
-	// at this point, both parties proceed with exchanging signatures on their respective closing transactions
-	// customer gets two signed closing transactions from merchant that issues a refund back to customer
-	// merchant gets a signed <merch-close-tx> that locks up the channel balance to another timelocked multi-sig
-
-	// customer signs & broadcasts <escrow-tx> to the blockchain
-	// both parties wait for the network to confirm the txs
-
-### Activate & Unlink
-
-	// prepare to active the channel by generating initial rev lock commitment and initial randomness
-	// returns the initial state of channel
-	let old_state = mpc::activate_customer(&mut rng, &mut cust_state);
-
-	// merchant returns an initial pay token for channel
-	let pay_token = mpc::activate_merchant(channel_token, &old_state, &mut merch_state);
-
-	// customer stores the initial pay token
-	mpc::activate_customer_finalize(pay_token, &mut cust_state);
-
-	// customer unlinks initial pay-token by running the following pay protocol with a 0-payment
-
-### Pay Protocol
-
-Prepare/Update State phase
-
-	// customer prepares payment by generating a new state, new revocation lock and secret, and
-	let (state, revoked_state) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, 10, &mut cust_state).unwrap();
-	let rev_lock_com = revoked_state.get_rev_lock_com();
-
-	// merchant generates a pay token mask and return a commitment to the customer
-	let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, channel_state, rev_lock_com, old_state.get_nonce(), rev_lock_com, 10, &mut merch_state).unwrap();
-
-Now proceed with executing the MPC if successful
-
-	// customer executes mpc protocol with old/new state, pay mask commitment, rev lock commitment and payment amount
-	let ok_cust = mpc::pay_update_customer(&mut channel_state, &channel_token, old_state, new_state, pay_mask_com, rev_lock_com, 10, &mut cust_state);
-
-	// merchant executes mpc protocol with customer nonce, pay mask commitment, rev lock commitment and payment amount
-	let ok_merch = mpc::pay_update_merchant(&mut rng, &mut channel_state, old_state.get_nonce(), pay_mask_com, rev_lock_com, 10, &mut merch_state);
-
-	// customer sends success/error back to merchant if the customer obtains 3 masked outputs for both closing transactions and pay token
-
-Unmask/Revoke phase
-
-	// unmask the closing signatures on the current state (from MPC output)
-	// and if signatures are valid, the customer sends the revoked state message
-	let is_ok = mpc::pay_unmask_sigs_customer(masks, &mut cust_state);
-
-	// merchant verifies that revoked message on the previous state if unmasking was successful
-	let (pt_mask, pt_mask_r) = mpc::pay_validate_rev_lock_merchant(revoked_state, &mut merch_state).unwrap();
-
-	// customer unmasks the pay token and checks validity of pay-token mask commitment opening
-	let is_ok = mpc::pay_unmask_pay_token_customer(pt_mask, pt_mask_r, &mut cust_state);
-
-### Close
-
-Merchant can initiate channel closing with a signed merch-close-tx that pays full channel balance to a timelocked multi-sig:
-
-	// merchant signs the merch-close-tx for the channel and combines with customer signature
-	let (merch_signed_tx, txid) = mpc::merchant_close(&escrow_txid, &merch_state).unwrap();
-
-Customer can similarly initiate channel closing with a signed cust-close-tx of current balances spending from escrow-tx (or merch-close-tx):
-
-	// customer signs the current state of channel and combines with escrow signature (if spending from <escrow-tx>)
-	let from_escrow = true;
-	let (cust_signed_tx, txid) = mpc::customer_close(&channel_state, &channel_token, from_escrow, &cust_state).unwrap();
-
-## Compile MPC with Malicious Security 
-
-Our MPC can be instantiated in two possible ways: **semi-honest** or **malicious** model. We build for the semi-honest model by default for testing. However, you can enable zkChannels with malicious security as follows:
-
-	export AG2PC=1
-	cargo clean
-	cargo build --release
-	make mpctest
-
-### Performance in Malicious Security
-
-TODO: add numbers here
 
 # Documentation
 
