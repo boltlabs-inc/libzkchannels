@@ -247,7 +247,7 @@ impl StateDatabase for RedisDatabase {
     }
 
     fn remove_from_unlink_set(&mut self, nonce_hex: &String) -> bool {
-        match self.conn.hdel(self.unlink_set_key.clone(), nonce_hex.clone()) 
+        match self.conn.srem(self.unlink_set_key.clone(), nonce_hex.clone()) 
         {
             Ok(s) => s,
             Err(e) => {
