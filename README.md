@@ -12,8 +12,13 @@ zkChannels is a system for conducting **privacy-preserving off-chain payments** 
 * [Build & Install](#build--install)
 * [Run Tests](#tests)
 * [zkChannels API](#zkchannels-api)
-    * [1. Using MPC techniques](#using-mpc-techniques)
-    * [2. Using ZK Proof techniques](#using-zk-proof-techniques)
+    * [1. Using MPC techniques](#1-using-mpc-techniques)
+      * [1.1 Overview of Architecture](#11-overview-of-architecture) 
+      * [1.2 Protocol API](#12-protocol-api)
+      * [1.3 Build MPC with Malicious Security](#13-build-mpc-with-malicious-security)
+      * [1.4 Performance](#14-performance)	
+    * [2. Using ZK Proof techniques](#2-using-zk-proof-techniques)
+      * [2.1 Protocol API](#21-protocol-api)
 
 # WARNING
 
@@ -99,6 +104,8 @@ In our implementation, the *merchant* plays the role of the garbler and the *cus
 Our application (represented by **libtoken-utils** above) breaks down into several main functionalities, including lots of SHA256 hashes, lots of input validation, and ECDSA signatures. With the exception of the signatures, all of these functions are basically boolean operations: bit shifts, equality checks, and XOR masks. EMP-toolkit represents data as encrypted (garbled) bits and functions as boolean circuits. 
 
 ### 1.2 Protocol API
+
+We now describe the high-level protocol API implemented in module `zkchannels::mpc`. The protocol implementation consists of 5 subprotocols: setup/initialize, establish, activate, unlink, pay and close.
 
 #### 1.2.1 Channel Setup
 
@@ -202,9 +209,9 @@ As mentioned before, our MPC functionality can be instantiated in two possible m
 	cargo build --release
 	make mpctest
 
-### 1.4 Performance with Malicious Security
+### 1.4 Performance
 
-TODO: add numbers here
+TODO: add numbers here for malicious security
 
 
 ## 2. Using ZK Proof techniques
