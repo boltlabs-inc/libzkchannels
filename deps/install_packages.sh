@@ -83,7 +83,8 @@ function install_pkgs_ubuntu() {
 }
 
 function install_pkgs_debian() {
-    sudo apt update
+    sudo apt -y update
+    sudo apt -y upgrade
     sudo apt install -y cmake git build-essential libssl-dev libgmp-dev python
     sudo apt install -y libboost1.67-dev libboost-system1.67-dev
     sudo apt install -y libcrypto++ llvm-dev libclang-dev clang

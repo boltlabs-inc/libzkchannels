@@ -17,10 +17,12 @@ COPY ./examples ./examples
 COPY ./deps ./deps
 COPY Makefile Makefile
 COPY ./test_emp.sh ./test_emp.sh
+COPY ./setup_redis.sh ./setup_redis.sh
 COPY ./test_mpcwrapper.sh ./test_mpcwrapper.sh
 COPY ./test_channels_mpc.sh ./test_channels_mpc.sh
 
 RUN . ./env && make deps
+RUN ./setup_redis.sh
 RUN . ./env && cargo build --release
 RUN . ./env && make mpctest
 

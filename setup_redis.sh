@@ -66,7 +66,7 @@ function main() {
   elif [[ $OS = "debian" ]]; then
     console "Detected Debian ($OS_VERSION)"
     set -x
-    sudo systemctl restart redis
+    sudo systemctl enable --now redis-server.service
     set +x
   fi
   redis-cli ping
