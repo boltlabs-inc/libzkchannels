@@ -1,5 +1,6 @@
-FROM rust:1.37
+FROM rust:1.42
 
+RUN apt-get update && apt-get -y install sudo
 RUN USER=root cargo new --bin libzkchannels
 WORKDIR /libzkchannels
 
