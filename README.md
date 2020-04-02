@@ -10,6 +10,8 @@ zkChannels is a system for conducting **privacy-preserving off-chain payments** 
 
 * [Install Rust](#installing-rust)
 * [Build & Install](#build--install)
+    * [1. Install dependencies](#1-install-dependencies)
+    * [2. Build libzkchannels](#2-build-libzkchannels)
 * [Run Tests](#tests)
 * [zkChannels API](#zkchannels-api)
     * [1. Using MPC techniques](#1-using-mpc-techniques)
@@ -46,6 +48,8 @@ Note that the above rust dependencies will be compiled and installed as a result
 
 # Build & Install
 
+## 1. Install dependencies
+
 To be able to build libzkchannels, we require that you install the EMP-toolkit and other dependencies as follows:
 
 	. ./env
@@ -55,6 +59,8 @@ To be able to build libzkchannels, we require that you install the EMP-toolkit a
 In addition, you'll need to start the Redis database service as follows:
 
 	./setup_redis.sh
+
+## 2. Build libzkchannels
 
 To build libzkchannels and execute all unit tests, run `make`
 
