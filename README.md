@@ -211,8 +211,9 @@ As mentioned before, our MPC functionality can be instantiated in two possible m
 
 ### 1.4 Performance
 
-TODO: add numbers here for malicious security
+With support for new signatures (as in zcash or most smart contract systems like Ethereum or Tezos), zkChannels takes < 100 ms to make a payment. BTC requires ECDSA, which adds considerable overhead. We expect Schnorr to improve this greatly.
 
+In the malicious model, 9 seconds ...
 
 ## 2. Using ZK Proof techniques
 

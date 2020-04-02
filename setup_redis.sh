@@ -67,6 +67,7 @@ function main() {
     console "Detected Debian ($OS_VERSION)"
     set -x
     sudo systemctl enable --now redis-server.service
+    sudo service redis-server start
     set +x
   fi
   redis-cli ping
