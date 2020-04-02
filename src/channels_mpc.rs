@@ -1622,7 +1622,7 @@ mod tests {
             cust_state.update_pay_com(pay_token_mask_com);
 
             // cust_state.set_mpc_connect_type(2);
-            cust_state.set_network_config(NetworkConfig { conn_type: 1, dest_ip: String::from("127.0.0.1"), dest_port: 123457, path: String::from("foobar"), peer_raw_fd: 0 });
+            cust_state.set_network_config(NetworkConfig { conn_type: 1, dest_ip: String::from("127.0.0.1"), dest_port: 12347, path: String::from("foobar"), peer_raw_fd: 0 });
             // prepare the customer inputs
             let s0 = s_0.clone();
             let s1 = s_1.clone();
@@ -1799,7 +1799,7 @@ mod tests {
         merch_state.set_network_config(NetworkConfig {
             conn_type: 1,
             dest_ip: String::from("127.0.0.1"),
-            dest_port: 123457,
+            dest_port: 12347,
             path: String::from("foobar"),
             peer_raw_fd: 0,
         });
