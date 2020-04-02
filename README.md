@@ -116,7 +116,7 @@ We now describe the high-level protocol API implemented in module `zkchannels::m
 
 #### 1.2.2 Initialize & Establish
 
-	let cust_bal = 100;
+	let cust_bal = 10000;
 	let merch_bal = 100;
 
 	// merchant initializes state for all channels it will open with customers
@@ -125,7 +125,7 @@ We now describe the high-level protocol API implemented in module `zkchannels::m
 	// customer initializes state for channel with initial balances
 	let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, cust_bal, merch_bal, "Alice");
 
-	// form all the transactions: <escrow-tx> and <merch-close-tx>
+	// form all the transactions using tx builder: <escrow-tx> and <merch-close-tx>
 
 	// customer gets the initial state of the channel and
 	let (init_cust_state, init_hash) = mpc::get_initial_state(&cust_state).unwrap();
@@ -202,7 +202,9 @@ Customer can similarly initiate channel closing with a signed *cust-close-tx* of
 
 ### 1.3 Build MPC with Malicious Security 
 
-As mentioned before, our MPC functionality can be instantiated in two possible models: **semi-honest** or **malicious**. We build with the semi-honest model by default for testing but it is not ideal for real world adversaries. You can compile zkChannels with malicious security as follows:
+As mentioned before, our MPC functionality can be instantiated in two possible models: **semi-honest** or **malicious**. For testing, we build with the semi-honest model by default. Our MPC functionality is secure against adversaries that do not necessarily follow the protocol and may try any arbitrary attack strategy in order to deanonymize the users, link payments, or corrupt the MPC outputs. Security in this model means that despite the attack strategy, users either get correct output from the MPC or no output (e.g., due to an abort). 
+
+You can compile zkChannels with malicious security as follows:
 
 	export AG2PC=1
 	cargo clean
@@ -211,9 +213,7 @@ As mentioned before, our MPC functionality can be instantiated in two possible m
 
 ### 1.4 Performance
 
-With support for new signatures (as in zcash or most smart contract systems like Ethereum or Tezos), zkChannels takes < 100 ms to make a payment. BTC requires ECDSA, which adds considerable overhead. We expect Schnorr to improve this greatly.
-
-In the malicious model, 9 seconds ...
+The strong guarantee of the malicious model is necessary for production deployment but also has significant performance drawbacks. For instance, the time to execute the MPC takes about **7–8 seconds on average** on a modern workstation (not including network latency). There are a number of optimizations we are investigating to speed up computation in this model.
 
 ## 2. Using ZK Proof techniques
 
