@@ -212,6 +212,8 @@ As mentioned before, our MPC functionality can be instantiated in two possible m
 
 You can compile zkChannels with malicious security as follows:
 
+First build the dependencies as described [earlier](#1-install-dependencies), next:
+
 	export AG2PC=1
 	cargo clean
 	cargo build --release
