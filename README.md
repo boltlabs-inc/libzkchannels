@@ -202,7 +202,7 @@ Customer can similarly initiate channel closing with a signed *cust-close-tx* of
 
 ### 1.3 Build MPC with Malicious Security 
 
-As mentioned before, our MPC functionality can be instantiated in two possible models: **semi-honest** or **malicious**. For testing, we build with the semi-honest model by default. Our MPC functionality is secure against adversaries that do not necessarily follow the protocol and may try any arbitrary attack strategy in order to deanonymize the users, link payments, or corrupt the MPC outputs. Security in this model means that despite the attack strategy, users either get correct output from the MPC or no output (e.g., due to an abort). 
+As mentioned before, our MPC functionality can be instantiated in two possible models: **semi-honest** or **malicious**. For testing, we build with the semi-honest model by default. Our MPC functionality is also secure against adversaries that do not necessarily follow the protocol and may try any arbitrary attack strategy in order to deanonymize the users, link payments, or corrupt the MPC outputs. Security in the malicious model means that despite the attack strategy, users either get correct output from the MPC or no output (e.g., due to an abort). 
 
 You can compile zkChannels with malicious security as follows:
 
