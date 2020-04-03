@@ -107,11 +107,11 @@ In our implementation, the *merchant* plays the role of the garbler and the *cus
 
 **EMP toolkit** implements a C library used to describe secure functionalities. The library either executes a semi-honest protocol or compiles the function into a boolean circuit. This circuit can be passed to one of several additional MPC protocol implementations (including several that are secure against a malicious adversary).
 
-Our application (represented by **libtoken-utils** above) breaks down into several main functionalities, including lots of SHA256 hashes, lots of input validation, and ECDSA signatures. With the exception of the signatures, all of these functions are basically boolean operations: bit shifts, equality checks, and XOR masks. EMP-toolkit represents data as encrypted (garbled) bits and functions as boolean circuits. 
+Our application (**libtoken-utils** above) breaks down into several main functionalities, including lots of SHA256 hashes, lots of input validation, and ECDSA signatures. With the exception of the signatures, all of these functions are basically boolean operations: bit shifts, equality checks, and XOR masks. EMP-toolkit represents data as encrypted (garbled) bits and functions as boolean circuits. 
 
 ### 1.2 Protocol API
 
-We now describe the high-level protocol API implemented in module `zkchannels::mpc`. The protocol implementation consists of 5 subprotocols: setup/initialize, establish, activate, unlink, pay and close.
+We now describe the high-level protocol API implemented in module `zkchannels::mpc`. The protocol implementation consists of 5 subprotocols: setup, initialize/establish, activate/unlink, pay and close.
 
 #### 1.2.1 Channel Setup
 
