@@ -1492,6 +1492,91 @@ pub mod txutil {
         };
         Ok(signed_tx)
     }
+
+    pub fn merchant_sign_cust_close_claim_transaction(
+        txid_le: Vec<u8>,
+        index: u32,
+        input_sats: i64,
+        output_pk: Vec<u8>,
+        merch_sk: secp256k1::SecretKey
+    ) -> Result<Vec<u8>, String> {
+        let sk = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(merch_sk, false);
+        let input = Input {
+            address_format: "p2wpkh",
+            transaction_id: txid_le,
+            index: index,
+            redeem_script: None,
+            script_pub_key: None,
+            utxo_amount: Some(input_sats),
+            sequence: Some([0xff, 0xff, 0xff, 0xff]), // 4294967295
+        };
+
+        let output = Output {
+            amount: input_sats,
+            pubkey: output_pk,
+        };
+
+        let signed_tx = match transactions::btc::sign_merch_claim_transaction(
+            input,
+            output,
+            sk,
+        ) {
+            Ok(s) => s.0,
+            Err(e) => return Err(e.to_string())
+        };
+        Ok(signed_tx)
+    }
+
+    pub fn merchant_sign_merch_close_claim_transaction(
+        txid_le: Vec<u8>,
+        index: u32,
+        input_sats: i64,
+        output_pk: Vec<u8>,
+        to_self_delay_be: [u8; 2],
+        cust_pk: Vec<u8>,
+        merch_pk: Vec<u8>,
+        merch_close_pk: Vec<u8>,
+        merch_close_sk: secp256k1::SecretKey
+    ) -> Result<Vec<u8>, String> {
+        let sk = BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(merch_close_sk, false);
+        let mut to_self_delay_le = to_self_delay_be.to_vec();
+        to_self_delay_le.reverse();
+        
+        let redeem_script = transactions::btc::serialize_p2wsh_merch_close_redeem_script(
+            &cust_pk,
+            &merch_pk,
+            &merch_close_pk,
+            &to_self_delay_le,
+        );
+        to_self_delay_le.extend_from_slice(&[0u8; 2]);
+        let mut sequence = [0u8; 4];
+        sequence.copy_from_slice(to_self_delay_le.as_slice());
+
+        let input = Input {
+            address_format: "p2wsh",
+            transaction_id: txid_le,
+            index: index,
+            redeem_script: Some(redeem_script),
+            script_pub_key: None,
+            utxo_amount: Some(input_sats),
+            sequence: Some(sequence),
+        };
+
+        let output = Output {
+            amount: input_sats,
+            pubkey: output_pk,
+        };
+
+        let signed_tx = match transactions::btc::sign_merch_claim_transaction(
+            input,
+            output,
+            sk,
+        ) {
+            Ok(s) => s.0,
+            Err(e) => return Err(e.to_string())
+        };
+        Ok(signed_tx)
+    }
 }
 
 #[cfg(all(test, feature = "unstable"))]

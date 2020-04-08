@@ -949,7 +949,7 @@ pub mod btc {
         let version = 2;
         let lock_time = 0;
         let address_format = match input.address_format {
-            "p2wpkh" => BitcoinFormat::P2PKH, // output of cust-close-*-tx
+            "p2wpkh" => BitcoinFormat::Bech32, // output of cust-close-*-tx
             "p2wsh" => BitcoinFormat::P2WSH,  // output of merch-close-tx
             _ => {
                 return Err(format!(
@@ -971,7 +971,7 @@ pub mod btc {
             BitcoinFormat::P2WSH => {
                 BitcoinAddress::<N>::p2wsh(redeem_script.as_ref().unwrap()).unwrap()
             }
-            BitcoinFormat::P2PKH => private_key.to_address(&address_format).unwrap(),
+            BitcoinFormat::Bech32 => private_key.to_address(&address_format).unwrap(),
             _ => {
                 return Err(format!(
                     "address format {} not supported right now",
@@ -1423,7 +1423,7 @@ mod tests {
 
         println!("preimage merch_dispue tx: {}", hex::encode(&tx_preimage));
         println!("signed merch_dispute tx: {}", hex::encode(&signed_tx));
-        let expected_tx_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000007063a820192353284afd64b5a40e0cf61e81a914eb0fe441867bbb4f255095e1c14bd3f58821021882b66a9c4ec1b8fc29ac37fbf4607b8c4f1bfe2cc9a49bc1048eb57bcebe676702cf05b27521027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb68ac00e1f50500000000fffffffff80c36c55d65a6c94b50753f32e6d75cfc64d03f96d52d1b882bd1492d7a46180000000001000000").unwrap();
+        let expected_tx_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000007063a820192353284afd64b5a40e0cf61e81a914eb0fe441867bbb4f255095e1c14bd3f58821027160fb5e48252f02a00066dfa823d15844ad93e04f9c9b746e1f28ed4a1eaddb6702cf05b27521021882b66a9c4ec1b8fc29ac37fbf4607b8c4f1bfe2cc9a49bc1048eb57bcebe6768ac00e1f50500000000fffffffff80c36c55d65a6c94b50753f32e6d75cfc64d03f96d52d1b882bd1492d7a46180000000001000000").unwrap();
         assert_eq!(tx_preimage, expected_tx_preimage);
     }
 
@@ -1507,12 +1507,13 @@ mod tests {
             "cNTSD7W8URSCmfPTvNf2B5gyKe2wwyNomkCikVhuHPCsFgBUKrAV",
         )
         .unwrap();
-        let (_signed_tx1, _tx_preimage1) = transactions::btc::sign_merch_claim_transaction(
+        let (signed_tx1, _tx_preimage1) = transactions::btc::sign_merch_claim_transaction(
             input1,
             output.clone(),
             m_private_key.clone(),
         )
         .unwrap();
+        println!("Spend from P2WPKH: {}", hex::encode(signed_tx1));
 
         // case 2 - testing merchant claiming the `merch-close-tx` output after timelock
         let cust_pk =
@@ -1547,8 +1548,8 @@ mod tests {
             sequence: Some([0xff, 0xff, 0xff, 0xff]), // 4294967295
         };
 
-        let (_signed_tx2, _tx_preimage2) =
+        let (signed_tx2, _tx_preimage2) =
             transactions::btc::sign_merch_claim_transaction(input2, output, m_private_key).unwrap();
-        // TODO: verify preimages
+        println!("Spend from P2WSH: {}", hex::encode(signed_tx2));    
     }
 }

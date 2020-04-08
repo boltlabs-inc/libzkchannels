@@ -693,8 +693,40 @@ func CustomerSignClaimTx(channelState ChannelState, txid string, index uint32, a
 		return "", err
 	}
 
-	resp := C.GoString(C.sign_cust_claim_tx(C.CString(string(serChannelState)), C.CString(txid), C.uint(index), C.longlong(amount),
+	resp := C.GoString(C.cust_claim_tx_from_cust_close(C.CString(string(serChannelState)), C.CString(txid), C.uint(index), C.longlong(amount),
 		C.CString(toSelfDelay), C.CString(outputPk), C.CString(revLock), C.CString(custClosePk), C.CString(string(serCustState))))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return "", err
+	}
+
+	return r.SignedTx, err
+}
+
+func MerchantSignCustClaimTx(txid string, index uint32, amount int64, outputPk string, merchState MerchState) (string, error) {
+	serMerchState, err := json.Marshal(merchState)
+	if err != nil {
+		return "", err
+	}
+
+	resp := C.GoString(C.merch_claim_tx_from_cust_close(C.CString(txid), C.uint(index), C.longlong(amount),
+		C.CString(outputPk), C.CString(string(serMerchState))))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return "", err
+	}
+
+	return r.SignedTx, err
+}
+
+func MerchantSignMerchClaimTx(txid string, index uint32, amount int64, toSelfDelay string, custPk string, outputPk string, merchState MerchState) (string, error) {
+	serMerchState, err := json.Marshal(merchState)
+	if err != nil {
+		return "", err
+	}
+
+	resp := C.GoString(C.merch_claim_tx_from_merch_close(C.CString(txid), C.uint(index), C.longlong(amount), C.CString(toSelfDelay),
+		C.CString(custPk), C.CString(outputPk), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", err

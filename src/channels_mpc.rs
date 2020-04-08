@@ -263,6 +263,8 @@ impl CustomerMPCState {
         return self.sk_c.clone();
     }
 
+    pub fn get_close_secret_key(&self) -> secp256k1::SecretKey { return self.payout_sk.clone(); }
+
     pub fn update_pay_com(&mut self, pay_token_mask_com: [u8; 32]) {
         self.pay_token_mask_com
             .0
@@ -1027,6 +1029,8 @@ impl MerchantMPCState {
     pub fn get_secret_key(&self) -> secp256k1::SecretKey {
         return self.sk_m.clone();
     }
+
+    pub fn get_close_secret_key(&self) -> secp256k1::SecretKey { return self.payout_sk.clone(); }
 
     pub fn get_dispute_secret_key(&self) -> secp256k1::SecretKey { return self.dispute_sk.clone(); }
 

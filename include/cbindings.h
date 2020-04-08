@@ -87,6 +87,16 @@ typedef struct {
   uint32_t sig[8];
 } EcdsaSig_l;
 
+char *cust_claim_tx_from_cust_close(char *ser_channel_state,
+                                    char *ser_tx_index,
+                                    uint32_t index,
+                                    int64_t amount,
+                                    char *ser_self_delay,
+                                    char *ser_output_pk,
+                                    char *ser_rev_lock,
+                                    char *ser_cust_close_pk,
+                                    char *ser_cust_state);
+
 char *cust_form_escrow_transaction(char *ser_txid,
                                    uint32_t index,
                                    int64_t input_sats,
@@ -314,6 +324,26 @@ extern void issue_tokens(State_l old_state_l,
 
 extern void *load_circuit_file(const char *path);
 
+/**
+ * Merchant - claim output from cust-close-tx which is spendable immediately
+ */
+char *merch_claim_tx_from_cust_close(char *ser_tx_index,
+                                     uint32_t index,
+                                     int64_t amount,
+                                     char *ser_output_pk,
+                                     char *ser_merch_state);
+
+/**
+ * Merchant - claim output from merch-close-tx after timeout
+ */
+char *merch_claim_tx_from_merch_close(char *ser_tx_index,
+                                      uint32_t index,
+                                      int64_t amount,
+                                      char *ser_self_delay,
+                                      char *ser_cust_pk,
+                                      char *ser_output_pk,
+                                      char *ser_merch_state);
+
 char *merch_sign_init_cust_close_txs(char *ser_funding_tx,
                                      char *ser_rev_lock,
                                      char *ser_cust_pk,
@@ -397,16 +427,6 @@ char *mpc_validate_initial_state(char *ser_channel_token,
                                  char *ser_init_state,
                                  char *ser_init_hash,
                                  char *ser_merch_state);
-
-char *sign_cust_claim_tx(char *ser_channel_state,
-                         char *ser_tx_index,
-                         uint32_t index,
-                         int64_t amount,
-                         char *ser_self_delay,
-                         char *ser_output_pk,
-                         char *ser_rev_lock,
-                         char *ser_cust_close_pk,
-                         char *ser_cust_state);
 
 char *sign_merch_dispute_tx(char *ser_tx_index,
                             uint32_t index,

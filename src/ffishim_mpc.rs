@@ -1254,8 +1254,93 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
+    /// Merchant - claim output from cust-close-tx which is spendable immediately
     #[no_mangle]
-    pub extern "C" fn sign_cust_claim_tx(
+    pub extern "C" fn merch_claim_tx_from_cust_close(
+        ser_tx_index: *mut c_char,
+        index: u32,
+        amount: i64,
+        ser_output_pk: *mut c_char,
+        ser_merch_state: *mut c_char
+    ) -> *mut c_char {
+        let txid_result = deserialize_hex_string(ser_tx_index);
+        let txid_le = handle_errors!(txid_result);
+
+        let output_pk_result = deserialize_hex_string(ser_output_pk);
+        let output_pk = handle_errors!(output_pk_result);
+
+        // Deserialize the merch_state
+        let merch_state_result: ResultSerdeType<MerchantMPCState> =
+            deserialize_result_object(ser_merch_state);
+        let merch_state = handle_errors!(merch_state_result);
+
+        let merch_sk = merch_state.get_close_secret_key();
+
+        let signed_tx = handle_errors!(txutil::merchant_sign_cust_close_claim_transaction(
+            txid_le,
+            index,
+            amount,
+            output_pk,
+            merch_sk    
+        ));
+        let ser = ["{\'signed_tx\': \'", &hex::encode(signed_tx), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    /// Merchant - claim output from merch-close-tx after timeout   
+    #[no_mangle]
+    pub extern "C" fn merch_claim_tx_from_merch_close(
+        ser_tx_index: *mut c_char,
+        index: u32,
+        amount: i64,
+        ser_self_delay: *mut c_char,
+        ser_cust_pk: *mut c_char,
+        ser_output_pk: *mut c_char,
+        ser_merch_state: *mut c_char
+    ) -> *mut c_char {
+        let txid_result = deserialize_hex_string(ser_tx_index);
+        let mut txid_be = handle_errors!(txid_result);
+        txid_be.reverse();
+
+        let self_delay_result = deserialize_hex_string(ser_self_delay);
+        let self_delay = handle_errors!(self_delay_result);
+        let mut self_delay_be = [0u8; 2];
+        self_delay_be.copy_from_slice(&self_delay);
+
+        let cust_pk_result = deserialize_hex_string(ser_cust_pk);
+        let cust_pk = handle_errors!(cust_pk_result);
+ 
+        let output_pk_result = deserialize_hex_string(ser_output_pk);
+        let output_pk = handle_errors!(output_pk_result);
+
+        // Deserialize the merch_state
+        let merch_state_result: ResultSerdeType<MerchantMPCState> =
+            deserialize_result_object(ser_merch_state);
+        let merch_state = handle_errors!(merch_state_result);
+
+        let merch_pk = merch_state.pk_m.serialize().to_vec();
+        let merch_close_sk = merch_state.get_close_secret_key();
+        let merch_close_pk = merch_state.payout_pk.serialize().to_vec();
+
+        let signed_tx = handle_errors!(txutil::merchant_sign_merch_close_claim_transaction(
+            txid_be,
+            index,
+            amount,
+            output_pk,
+            self_delay_be,
+            cust_pk,
+            merch_pk,
+            merch_close_pk,
+            merch_close_sk    
+        ));
+        let ser = ["{\'signed_tx\': \'", &hex::encode(signed_tx), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern "C" fn cust_claim_tx_from_cust_close(
         ser_channel_state: *mut c_char,
         ser_tx_index: *mut c_char,
         index: u32,
@@ -1301,7 +1386,7 @@ pub mod ffishim_mpc {
                 ))
             }
         };
-        let cust_sk = cust_state.get_secret_key();
+        let cust_sk = cust_state.get_close_secret_key();
 
         let signed_tx = handle_errors!(txutil::customer_sign_cust_close_claim_transaction(
             txid_le,
