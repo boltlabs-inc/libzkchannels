@@ -1,7 +1,7 @@
 use super::*;
-use fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
 use redis::{Commands, Connection};
 use std::collections::hash_map::RandomState;
+use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
 
 fn create_db_connection(url: String) -> redis::RedisResult<Connection> {
     let client = redis::Client::open(url.as_str())?;
@@ -247,11 +247,18 @@ impl StateDatabase for RedisDatabase {
     }
 
     fn remove_from_unlink_set(&mut self, nonce_hex: &String) -> bool {
-        match self.conn.srem(self.unlink_set_key.clone(), nonce_hex.clone()) 
+        match self
+            .conn
+            .srem(self.unlink_set_key.clone(), nonce_hex.clone())
         {
             Ok(s) => s,
             Err(e) => {
-                println!("remove_from_unlink_set: {} {} {}", self.unlink_set_key.clone(), e.to_string(), nonce_hex);
+                println!(
+                    "remove_from_unlink_set: {} {} {}",
+                    self.unlink_set_key.clone(),
+                    e.to_string(),
+                    nonce_hex
+                );
                 false
             }
         }

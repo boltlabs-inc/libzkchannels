@@ -33,9 +33,7 @@ num = "*"
 hex = "0.3.2"
 structopt = "0.3.7"
 bufstream = "0.1"
-wagyu-model = { git = "https://github.com/boltlabs-inc/wagyu", branch = "feature/transactions" }
-wagyu-bitcoin = { git = "https://github.com/boltlabs-inc/wagyu", branch = "feature/transactions" }
-# TODO: add wagyu-zcash
+zkchan-tx = { git = "https://github.com/boltlabs-inc/zkchan-tx", branch = "master" }
 
 [build-dependencies]
 bindgen="*"
@@ -50,7 +48,3 @@ crate-type = ["lib", "cdylib", "staticlib"]
 [[bin]]
 name = "zkchannels-mpc"
 path = "src/main.rs"
-
-[[bin]]
-name = "zkchannels-tx"
-path = "src/tx_main.rs"

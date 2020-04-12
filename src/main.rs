@@ -4,11 +4,9 @@ extern crate secp256k1_boltlabs as secp256k1;
 extern crate serde;
 extern crate sha2;
 extern crate structopt;
-extern crate wagyu_bitcoin as bitcoin;
-extern crate wagyu_model;
+extern crate zkchan_tx;
 extern crate zkchannels;
 
-use bitcoin::Testnet;
 use bufstream::BufStream;
 use rand::Rng;
 use serde::Deserialize;
@@ -22,6 +20,7 @@ use std::str::FromStr;
 use std::thread::sleep;
 use std::time;
 use structopt::StructOpt;
+use zkchan_tx::Testnet;
 use zkchannels::mpc;
 use zkchannels::FundingTxInfo;
 
@@ -417,16 +416,16 @@ fn main() {
 
 mod cust {
     use super::*;
+    use zkchan_tx::fixed_size_array::FixedSizeArray32;
+    use zkchan_tx::transactions::btc::merchant_form_close_transaction;
+    use zkchan_tx::txutil::{
+        customer_sign_escrow_transaction, customer_sign_merch_close_transaction,
+    };
     use zkchannels::bindings::ConnType_NETIO; // ConnType_CUSTOM
     use zkchannels::channels_mpc::{
         ChannelMPCState, ChannelMPCToken, CustomerMPCState, NetworkConfig,
     };
     use zkchannels::database::MaskedTxMPCInputs;
-    use zkchannels::transactions::btc::merchant_form_close_transaction;
-    use zkchannels::txutil::{
-        customer_sign_escrow_transaction, customer_sign_merch_close_transaction,
-    };
-    use zkchannels::FixedSizeArray32;
     // use std::os::unix::io::AsRawFd;
 
     pub fn open(conn: &mut Conn, b0_cust: i64, b0_merch: i64) -> Result<(), String> {
@@ -790,17 +789,16 @@ mod cust {
 
 mod merch {
     use super::*;
-    use bitcoin::BitcoinPrivateKey;
-    use wagyu_model::Transaction;
+    use zkchan_tx::fixed_size_array::FixedSizeArray32;
+    use zkchan_tx::transactions::btc::{
+        completely_sign_multi_sig_transaction, get_private_key, merchant_form_close_transaction,
+    };
+    use zkchan_tx::Transaction;
     use zkchannels::bindings::ConnType_NETIO;
     use zkchannels::channels_mpc::{
         ChannelMPCState, ChannelMPCToken, InitCustState, MerchantMPCState, NetworkConfig,
     };
     use zkchannels::database::{RedisDatabase, StateDatabase};
-    use zkchannels::fixed_size_array::FixedSizeArray32;
-    use zkchannels::transactions::btc::{
-        completely_sign_multi_sig_transaction, merchant_form_close_transaction,
-    };
     use zkchannels::wallet::State;
 
     pub fn open(conn: &mut Conn, dust_limit: i64) -> Result<(), String> {
@@ -863,8 +861,9 @@ mod merch {
         ));
 
         // sign the merch-close-tx given cust-sig
-        let merch_private_key =
-            BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(merch_sk, false);
+        //let merch_private_key =
+        //    BitcoinPrivateKey::<Testnet>::from_secp256k1_secret_key(merch_sk, false);
+        let merch_private_key = get_private_key(&merch_sk).unwrap();
         let (signed_merch_close_tx, merch_txid, merch_prevout) =
             completely_sign_multi_sig_transaction::<Testnet>(
                 &tx_params,

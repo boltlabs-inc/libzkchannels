@@ -2,7 +2,6 @@
 pub mod ffishim_mpc {
     extern crate libc;
 
-    use bitcoin::Testnet;
     use channels_mpc::{
         ChannelMPCState, ChannelMPCToken, CustomerMPCState, InitCustState, MerchantMPCState,
     };
@@ -14,9 +13,8 @@ pub mod ffishim_mpc {
     use serde::Deserialize;
     use std::ffi::{CStr, CString};
     use std::str;
-    use transactions;
-    use txutil;
     use wallet::State;
+    use zkchan_tx::Testnet;
     use FundingTxInfo;
 
     fn error_message(s: String) -> *mut c_char {
@@ -892,8 +890,7 @@ pub mod ffishim_mpc {
         let txid = handle_errors!(txid_result);
 
         // Deserialize the sk_c
-        let cust_sk_result: ResultSerdeType<secp256k1::SecretKey> =
-            deserialize_result_object(ser_cust_sk);
+        let cust_sk_result = deserialize_hex_string(ser_cust_sk);
         let cust_sk = handle_errors!(cust_sk_result);
 
         let cust_pk_result = deserialize_hex_string(ser_cust_pk);
@@ -911,17 +908,18 @@ pub mod ffishim_mpc {
             change_pk_is_hash = true;
         }
 
-        let (signed_tx, txid, prevout) = handle_errors!(txutil::customer_sign_escrow_transaction(
-            txid,
-            index,
-            input_sats,
-            output_sats,
-            cust_sk,
-            cust_pk,
-            merch_pk,
-            Some(change_pk),
-            change_pk_is_hash
-        ));
+        let (signed_tx, txid, prevout) =
+            handle_errors!(zkchan_tx::txutil::customer_sign_escrow_transaction(
+                txid,
+                index,
+                input_sats,
+                output_sats,
+                cust_sk,
+                cust_pk,
+                merch_pk,
+                Some(change_pk),
+                change_pk_is_hash
+            ));
         let ser = [
             "{\'signed_tx\':\'",
             &hex::encode(signed_tx),
@@ -964,7 +962,7 @@ pub mod ffishim_mpc {
         self_delay_be.copy_from_slice(&self_delay);
 
         let (merch_tx_preimage, _) = handle_errors!(
-            transactions::btc::merchant_form_close_transaction::<Testnet>(
+            zkchan_tx::transactions::btc::merchant_form_close_transaction::<Testnet>(
                 escrow_txid,
                 cust_pk,
                 merch_pk,
@@ -991,14 +989,13 @@ pub mod ffishim_mpc {
         ser_merch_tx_preimage: *mut c_char,
     ) -> *mut c_char {
         // Deserialize the sk_c
-        let cust_sk_result: ResultSerdeType<secp256k1::SecretKey> =
-            deserialize_result_object(ser_cust_sk);
+        let cust_sk_result = deserialize_hex_string(ser_cust_sk);
         let cust_sk = handle_errors!(cust_sk_result);
 
         let tx_preimage_result = deserialize_hex_string(ser_merch_tx_preimage);
         let merch_tx_preimage = handle_errors!(tx_preimage_result);
 
-        let cust_sig = handle_errors!(txutil::customer_sign_merch_close_transaction(
+        let cust_sig = handle_errors!(zkchan_tx::txutil::customer_sign_merch_close_transaction(
             cust_sk,
             merch_tx_preimage
         ));
@@ -1040,7 +1037,7 @@ pub mod ffishim_mpc {
         let merch_close_pk = merch_state.payout_pk.serialize().to_vec();
 
         let (merch_tx_preimage, tx_params) = handle_errors!(
-            transactions::btc::merchant_form_close_transaction::<Testnet>(
+            zkchan_tx::transactions::btc::merchant_form_close_transaction::<Testnet>(
                 escrow_txid.clone(),
                 cust_pk.clone(),
                 merch_pk,
@@ -1051,7 +1048,7 @@ pub mod ffishim_mpc {
             )
         );
 
-        let is_ok = handle_errors!(txutil::merchant_verify_merch_close_transaction(
+        let is_ok = handle_errors!(zkchan_tx::txutil::merchant_verify_merch_close_transaction(
             &merch_tx_preimage,
             &cust_sig,
             &cust_pk
@@ -1067,7 +1064,9 @@ pub mod ffishim_mpc {
             );
         }
 
-        let (txid, prevout) = handle_errors!(txutil::merchant_generate_transaction_id(tx_params));
+        let (txid, prevout) = handle_errors!(zkchan_tx::txutil::merchant_generate_transaction_id(
+            tx_params
+        ));
 
         let ser = [
             "{\'is_ok\':",
@@ -1237,7 +1236,7 @@ pub mod ffishim_mpc {
         let merch_disp_pk = merch_state.dispute_pk.serialize().to_vec();
         let merch_disp_sk = merch_state.get_dispute_secret_key();
 
-        let signed_tx = handle_errors!(txutil::merchant_sign_merch_dispute_transaction(
+        let signed_tx = handle_errors!(zkchan_tx::txutil::merchant_sign_merch_dispute_transaction(
             txid_le,
             index,
             amount,
@@ -1261,7 +1260,7 @@ pub mod ffishim_mpc {
         index: u32,
         amount: i64,
         ser_output_pk: *mut c_char,
-        ser_merch_state: *mut c_char
+        ser_merch_state: *mut c_char,
     ) -> *mut c_char {
         let txid_result = deserialize_hex_string(ser_tx_index);
         let txid_le = handle_errors!(txid_result);
@@ -1274,15 +1273,17 @@ pub mod ffishim_mpc {
             deserialize_result_object(ser_merch_state);
         let merch_state = handle_errors!(merch_state_result);
 
-        let merch_sk = merch_state.get_close_secret_key();
+        let merch_close_sk = merch_state.get_close_secret_key();
 
-        let signed_tx = handle_errors!(txutil::merchant_sign_cust_close_claim_transaction(
-            txid_le,
-            index,
-            amount,
-            output_pk,
-            merch_sk    
-        ));
+        let signed_tx = handle_errors!(
+            zkchan_tx::txutil::merchant_sign_cust_close_claim_transaction(
+                txid_le,
+                index,
+                amount,
+                output_pk,
+                merch_close_sk
+            )
+        );
         let ser = ["{\'signed_tx\': \'", &hex::encode(signed_tx), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
@@ -1297,7 +1298,7 @@ pub mod ffishim_mpc {
         ser_self_delay: *mut c_char,
         ser_cust_pk: *mut c_char,
         ser_output_pk: *mut c_char,
-        ser_merch_state: *mut c_char
+        ser_merch_state: *mut c_char,
     ) -> *mut c_char {
         let txid_result = deserialize_hex_string(ser_tx_index);
         let mut txid_be = handle_errors!(txid_result);
@@ -1310,7 +1311,7 @@ pub mod ffishim_mpc {
 
         let cust_pk_result = deserialize_hex_string(ser_cust_pk);
         let cust_pk = handle_errors!(cust_pk_result);
- 
+
         let output_pk_result = deserialize_hex_string(ser_output_pk);
         let output_pk = handle_errors!(output_pk_result);
 
@@ -1323,17 +1324,19 @@ pub mod ffishim_mpc {
         let merch_close_sk = merch_state.get_close_secret_key();
         let merch_close_pk = merch_state.payout_pk.serialize().to_vec();
 
-        let signed_tx = handle_errors!(txutil::merchant_sign_merch_close_claim_transaction(
-            txid_be,
-            index,
-            amount,
-            output_pk,
-            self_delay_be,
-            cust_pk,
-            merch_pk,
-            merch_close_pk,
-            merch_close_sk    
-        ));
+        let signed_tx = handle_errors!(
+            zkchan_tx::txutil::merchant_sign_merch_close_claim_transaction(
+                txid_be,
+                index,
+                amount,
+                output_pk,
+                self_delay_be,
+                cust_pk,
+                merch_pk,
+                merch_close_pk,
+                merch_close_sk
+            )
+        );
         let ser = ["{\'signed_tx\': \'", &hex::encode(signed_tx), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
@@ -1388,17 +1391,19 @@ pub mod ffishim_mpc {
         };
         let cust_sk = cust_state.get_close_secret_key();
 
-        let signed_tx = handle_errors!(txutil::customer_sign_cust_close_claim_transaction(
-            txid_le,
-            index,
-            amount,
-            self_delay_be,
-            output_pk,
-            rev_lock,
-            cust_close_pk,
-            merch_disp_pk,
-            cust_sk
-        ));
+        let signed_tx = handle_errors!(
+            zkchan_tx::txutil::customer_sign_cust_close_claim_transaction(
+                txid_le,
+                index,
+                amount,
+                self_delay_be,
+                output_pk,
+                rev_lock,
+                cust_close_pk,
+                merch_disp_pk,
+                cust_sk
+            )
+        );
         let ser = ["{\'signed_tx\': \'", &hex::encode(signed_tx), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()

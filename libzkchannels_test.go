@@ -34,11 +34,11 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 		fmt.Println("Did not specify a UTXO_TXID.")
 		return
 	}
-	custInputSk := fmt.Sprintf("\"%v\"", "5511111111111111111111111111111100000000000000000000000000000000")
+	custInputSk := fmt.Sprintf("%v", "5511111111111111111111111111111100000000000000000000000000000000")
 
-	custSk := fmt.Sprintf("\"%v\"", custState.SkC)
+	custSk := fmt.Sprintf("%v", custState.SkC)
 	custPk := fmt.Sprintf("%v", custState.PkC)
-	merchSk := fmt.Sprintf("\"%v\"", *merchState.SkM)
+	merchSk := fmt.Sprintf("%v", *merchState.SkM)
 	merchPk := fmt.Sprintf("%v", *merchState.PkM)
 	// changeSk := "4157697b6428532758a9d0f9a73ce58befe3fd665797427d1c5bb3d33f6a132e"
 	changePk := "037bed6ab680a171ef2ab564af25eff15c0659313df0bbfb96414da7c7d1e65882"
@@ -263,9 +263,9 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 
 	inputSats := int64(50 * 100000000)
 	cust_utxo_txid := "e8aed42b9f07c74a3ce31a9417146dc61eb8611a1e66d345fd69be06b644278d"
-	custInputSk := fmt.Sprintf("\"%v\"", "5511111111111111111111111111111100000000000000000000000000000000")
+	custInputSk := fmt.Sprintf("%v", "5511111111111111111111111111111100000000000000000000000000000000")
 
-	custSk := fmt.Sprintf("\"%v\"", custState.SkC)
+	custSk := fmt.Sprintf("%v", custState.SkC)
 	custPk := fmt.Sprintf("%v", custState.PkC)
 	// merchSk := fmt.Sprintf("\"%v\"", *merchState.SkM)
 	merchPk := fmt.Sprintf("%v", *merchState.PkM)
