@@ -22,7 +22,7 @@ extern crate ff_bl as ff;
 extern crate pairing_bl as pairing;
 extern crate rand;
 
-extern crate secp256k1_boltlabs as secp256k1;
+extern crate secp256k1;
 extern crate sha2;
 extern crate time;
 
