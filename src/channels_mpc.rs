@@ -1,26 +1,24 @@
 use super::*;
-use fixed_size_array::{FixedSizeArray16, FixedSizeArray32, FixedSizeArray64};
 use util::{compute_hash160, hash_to_slice, hmac_sign};
 
-use bindings::{ConnType, load_circuit_file};
-use bitcoin::SignatureHash::SIGHASH_ALL;
-use bitcoin::{BitcoinNetwork, BitcoinPrivateKey, BitcoinTransactionParameters};
+use bindings::{load_circuit_file, ConnType};
 use database::{MaskedMPCInputs, MaskedTxMPCInputs, StateDatabase};
 use mpcwrapper::{mpc_build_masked_tokens_cust, mpc_build_masked_tokens_merch, CIRCUIT_FILE};
 use rand::Rng;
 use sha2::{Digest, Sha256};
+use std::ffi::{c_void, CString};
 use std::fmt::Debug;
 use std::os::unix::io::RawFd;
-use transactions::btc::{
-    completely_sign_multi_sig_transaction, create_cust_close_transaction, create_reverse_input,
-    generate_signature_for_multi_sig_transaction, get_var_length_int,
-    merchant_form_close_transaction,
-};
-use transactions::ClosePublicKeys;
-use wagyu_model::Transaction;
-use wallet::{State, NONCE_LEN};
-use std::ffi::{c_void, CString};
 use std::{env, ptr};
+use wallet::{State, NONCE_LEN};
+use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32, FixedSizeArray64};
+use zkchan_tx::transactions::btc::{
+    completely_sign_multi_sig_transaction, create_cust_close_transaction, create_reverse_input,
+    generate_customer_close_tx_helper, generate_signature_for_multi_sig_transaction,
+    get_private_key, merchant_form_close_transaction,
+};
+use zkchan_tx::transactions::ClosePublicKeys;
+use zkchan_tx::{BitcoinNetwork, BitcoinTransactionParameters, Transaction};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct NetworkConfig {
@@ -34,7 +32,6 @@ pub struct NetworkConfig {
 // pub struct Circuit {
 //     ptr: *mut c_void
 // }
-
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ChannelMPCToken {
@@ -153,7 +150,7 @@ pub struct MaskedMPCOutputs {
 pub struct CustomerMPCState {
     pub name: String,
     pub pk_c: secp256k1::PublicKey,
-    sk_c: secp256k1::SecretKey,
+    sk_c: FixedSizeArray32,
     pub cust_balance: i64,
     pub merch_balance: i64,
     rev_lock: FixedSizeArray32,
@@ -164,7 +161,7 @@ pub struct CustomerMPCState {
     masked_outputs: HashMap<i32, MaskedMPCOutputs>,
     pay_tokens: HashMap<i32, FixedSizeArray32>,
     pay_token_mask_com: FixedSizeArray32,
-    payout_sk: secp256k1::SecretKey,
+    payout_sk: FixedSizeArray32,
     payout_pk: secp256k1::PublicKey,
     close_escrow_signature: Option<String>,
     close_merch_signature: Option<String>,
@@ -206,11 +203,11 @@ impl CustomerMPCState {
     ) -> Self {
         let secp = secp256k1::Secp256k1::new();
 
-        let mut seckey = [0u8; 32];
+        let mut _sk_c = [0u8; 32];
         let mut _payout_sk = [0u8; 32];
         match sk {
-            Some(n) => seckey.copy_from_slice(&n),
-            None => csprng.fill_bytes(&mut seckey),
+            Some(n) => _sk_c.copy_from_slice(&n),
+            None => csprng.fill_bytes(&mut _sk_c),
         }
 
         match payout_sk {
@@ -218,7 +215,7 @@ impl CustomerMPCState {
             None => csprng.fill_bytes(&mut _payout_sk),
         }
         // generate the signing keypair for the channel
-        let sk_c = secp256k1::SecretKey::from_slice(&seckey).unwrap();
+        let sk_c = secp256k1::SecretKey::from_slice(&_sk_c).unwrap();
         let pk_c = secp256k1::PublicKey::from_secret_key(&secp, &sk_c);
 
         // generate the keypair for the initial state of channel
@@ -239,7 +236,7 @@ impl CustomerMPCState {
         return CustomerMPCState {
             name: name,
             pk_c: pk_c,
-            sk_c: sk_c,
+            sk_c: FixedSizeArray32(_sk_c),
             cust_balance: cust_bal,
             merch_balance: merch_bal,
             rev_lock: FixedSizeArray32(rev_lock),
@@ -250,7 +247,7 @@ impl CustomerMPCState {
             masked_outputs: mpc_outputs,
             pay_tokens: pt_db,
             pay_token_mask_com: FixedSizeArray32(pay_mask_com),
-            payout_sk: payout_sk,
+            payout_sk: FixedSizeArray32(_payout_sk),
             payout_pk: payout_pk,
             close_escrow_signature: None,
             close_merch_signature: None,
@@ -259,11 +256,14 @@ impl CustomerMPCState {
         };
     }
 
-    pub fn get_secret_key(&self) -> secp256k1::SecretKey {
-        return self.sk_c.clone();
+    pub fn get_secret_key(&self) -> Vec<u8> {
+        // let sk_c = secp256k1::SecretKey::from_slice(&self.sk_c.0).unwrap();
+        return self.sk_c.0.to_vec();
     }
 
-    pub fn get_close_secret_key(&self) -> secp256k1::SecretKey { return self.payout_sk.clone(); }
+    pub fn get_close_secret_key(&self) -> Vec<u8> {
+        return self.payout_sk.0.to_vec();
+    }
 
     pub fn update_pay_com(&mut self, pay_token_mask_com: [u8; 32]) {
         self.pay_token_mask_com
@@ -416,18 +416,18 @@ impl CustomerMPCState {
         self.net_config = Some(net_config);
     }
 
-    pub fn get_circuit_file(&self) -> *mut c_void { 
+    pub fn get_circuit_file(&self) -> *mut c_void {
         let using_ag2pc = match env::var("AG2PC") {
             Ok(_s) => true,
-            Err(_e) => false
+            Err(_e) => false,
         };
 
         let circuit_file = match using_ag2pc {
             true => match env::var("ZK_DEPS_INSTALL") {
                 Ok(s) => format!("{}{}", s, CIRCUIT_FILE),
-                Err(e) => panic!("ZK_DEPS_INSTALL env not set: {}", e)
+                Err(e) => panic!("ZK_DEPS_INSTALL env not set: {}", e),
             },
-            false => String::new()
+            false => String::new(),
         };
 
         let cf_ptr = match using_ag2pc {
@@ -437,8 +437,8 @@ impl CustomerMPCState {
                     load_circuit_file(c_str.as_ptr() as *const i8)
                 };
                 cf_ptr
-            },
-            false => ptr::null_mut()
+            }
+            false => ptr::null_mut(),
         };
         return cf_ptr;
     }
@@ -753,127 +753,19 @@ impl CustomerMPCState {
     ) -> Result<(Vec<u8>, Vec<u8>), String> {
         let (escrow_tx_preimage, merch_tx_preimage, escrow_tx_params, merch_tx_params) =
             self.construct_close_transaction_preimage::<N>(channel_state, channel_token);
-        let secp = secp256k1::Secp256k1::verification_only();
-        let private_key =
-            BitcoinPrivateKey::<N>::from_secp256k1_secret_key(self.sk_c.clone(), false);
-        let sighash_code = SIGHASH_ALL as u32;
-
-        match from_escrow {
-            true => {
-                let escrow_signature = match self.close_escrow_signature.clone() {
-                    Some(n) => match hex::decode(n) {
-                        Ok(s) => match secp256k1::Signature::from_compact(&s) {
-                            Ok(t) => t,
-                            Err(e) => {
-                                return Err(format!(
-                                    "error parsing close_escrow_signature = {}",
-                                    e.to_string()
-                                ))
-                            }
-                        },
-                        Err(e) => return Err(e.to_string()),
-                    },
-                    None => {
-                        return Err(String::from(
-                            "do not have a merchant signature on cust-close from escrow tx",
-                        ))
-                    }
-                };
-                let escrow_tx_hash = Sha256::digest(&Sha256::digest(&escrow_tx_preimage));
-                // println!("Tx hash: {}", hex::encode(&merch_tx_hash));
-                let msg = secp256k1::Message::from_slice(&escrow_tx_hash).unwrap();
-                let escrow_sig_valid = secp
-                    .verify(&msg, &escrow_signature, &channel_token.pk_m)
-                    .is_ok();
-                if escrow_sig_valid {
-                    // customer sign the transactions to complete multi-sig and store CT bytes locally
-                    let mut escrow_signature = escrow_signature.serialize_der().to_vec();
-                    escrow_signature.push(sighash_code.to_le_bytes()[0]);
-                    let enc_escrow_signature = [
-                        get_var_length_int(escrow_signature.len() as u64).unwrap(),
-                        escrow_signature,
-                    ]
-                    .concat();
-
-                    // sign the cust-close-from-escrow-tx
-                    let (signed_cust_close_escrow_tx, close_escrow_txid, _) =
-                        completely_sign_multi_sig_transaction::<N>(
-                            &escrow_tx_params,
-                            &enc_escrow_signature,
-                            true,
-                            None,
-                            &private_key,
-                        );
-                    let mut close_escrow_txid_le = close_escrow_txid.to_vec();
-                    close_escrow_txid_le.reverse();
-                    let close_escrow_txid = close_escrow_txid_le;
-                    let close_escrow_tx =
-                        signed_cust_close_escrow_tx.to_transaction_bytes().unwrap();
-
-                    Ok((close_escrow_tx, close_escrow_txid))
-                } else {
-                    Err(String::from("<merch-sig> to spend from <escrow-tx> out of sync with current customer state"))
-                }
-            }
-            false => {
-                let merch_signature =
-                    match self.close_merch_signature.clone() {
-                        Some(n) => match hex::decode(n) {
-                            Ok(s) => match secp256k1::Signature::from_compact(&s) {
-                                Ok(t) => t,
-                                Err(e) => {
-                                    return Err(format!(
-                                        "error parsing close_merch_signature = {}",
-                                        e.to_string()
-                                    ))
-                                }
-                            },
-                            Err(e) => return Err(e.to_string()),
-                        },
-                        None => return Err(String::from(
-                            "do not have a merchant signature on cust-close from merch-close tx",
-                        )),
-                    };
-
-                // sanity check on the signatures to make sure not out of sync with current state
-                let merch_tx_hash = Sha256::digest(&Sha256::digest(&merch_tx_preimage));
-                // println!("Tx hash: {}", hex::encode(&merch_tx_hash));
-                let msg = secp256k1::Message::from_slice(&merch_tx_hash).unwrap();
-                let merch_sig_valid = secp
-                    .verify(&msg, &merch_signature, &channel_token.pk_m)
-                    .is_ok();
-
-                if merch_sig_valid {
-                    // customer sign the transactions to complete multi-sig and store CT bytes locally
-                    let mut merch_signature = merch_signature.serialize_der().to_vec();
-                    merch_signature.push(sighash_code.to_le_bytes()[0]);
-                    let enc_merch_signature = [
-                        get_var_length_int(merch_signature.len() as u64).unwrap(),
-                        merch_signature,
-                    ]
-                    .concat();
-
-                    // sign the cust-close-from-merch-tx
-                    let script_data: Vec<u8> = vec![0x01];
-                    let (signed_cust_close_merch_tx, close_merch_txid, _) =
-                        completely_sign_multi_sig_transaction::<N>(
-                            &merch_tx_params,
-                            &enc_merch_signature,
-                            true,
-                            Some(script_data),
-                            &private_key,
-                        );
-                    let mut close_merch_txid_le = close_merch_txid.to_vec();
-                    close_merch_txid_le.reverse();
-                    let close_merch_txid = close_merch_txid_le;
-                    let close_merch_tx = signed_cust_close_merch_tx.to_transaction_bytes().unwrap();
-
-                    Ok((close_merch_tx, close_merch_txid))
-                } else {
-                    Err(String::from("<merch-sig> to spend from <merch-close-tx> out of sync with current customer state"))
-                }
-            }
-        }
+        let merch_pk = channel_token.pk_m.serialize().to_vec();
+        let cust_sk = self.sk_c.0.to_vec();
+        return generate_customer_close_tx_helper::<N>(
+            &self.close_escrow_signature,
+            &escrow_tx_preimage,
+            &escrow_tx_params,
+            &self.close_merch_signature,
+            &merch_tx_preimage,
+            &merch_tx_params,
+            from_escrow,
+            &merch_pk,
+            &cust_sk,
+        );
     }
 }
 
@@ -956,12 +848,12 @@ pub struct MerchCloseTx {
 pub struct MerchantMPCState {
     id: String,
     pub pk_m: secp256k1::PublicKey, // pk_m
-    sk_m: secp256k1::SecretKey,     // sk_m - for escrow
+    sk_m: FixedSizeArray32,         // sk_m - for escrow
     hmac_key: FixedSizeArray64,
-    hmac_key_r: FixedSizeArray16,    // key_com_r
-    payout_sk: secp256k1::SecretKey, // for payout pub key
+    hmac_key_r: FixedSizeArray16, // key_com_r
+    payout_sk: FixedSizeArray32,  // for payout pub key
     pub payout_pk: secp256k1::PublicKey,
-    dispute_sk: secp256k1::SecretKey, // for dispute pub key
+    dispute_sk: FixedSizeArray32, // for dispute pub key
     pub dispute_pk: secp256k1::PublicKey,
     // replace the following with a fast in-memory key-value DB
     pub activate_map: HashMap<String, State>,
@@ -978,11 +870,11 @@ impl MerchantMPCState {
         id: String,
     ) -> Self {
         let secp = secp256k1::Secp256k1::new();
-        let mut seckey = [0u8; 32];
-        csprng.fill_bytes(&mut seckey);
+        let mut _sk_m = [0u8; 32];
+        csprng.fill_bytes(&mut _sk_m);
 
         // generate the signing keypair for the channel
-        let sk_m = secp256k1::SecretKey::from_slice(&seckey).unwrap();
+        let sk_m = secp256k1::SecretKey::from_slice(&_sk_m).unwrap();
         let pk_m = secp256k1::PublicKey::from_secret_key(&secp, &sk_m);
 
         let mut hmac_key_buf = [0u8; 64]; // 512 bits
@@ -1012,12 +904,12 @@ impl MerchantMPCState {
         MerchantMPCState {
             id: id.clone(),
             pk_m: pk_m,
-            sk_m: sk_m,
+            sk_m: FixedSizeArray32(_sk_m),
             hmac_key: FixedSizeArray64::new(hmac_key_buf),
             hmac_key_r: FixedSizeArray16(key_com_r),
-            payout_sk: payout_sk,
+            payout_sk: FixedSizeArray32(_payout_sk),
             payout_pk: payout_pub_key,
-            dispute_sk: dispute_sk,
+            dispute_sk: FixedSizeArray32(_dispute_sk),
             dispute_pk: dispute_pub_key,
             activate_map: HashMap::new(),
             close_tx: HashMap::new(),
@@ -1026,13 +918,17 @@ impl MerchantMPCState {
         }
     }
 
-    pub fn get_secret_key(&self) -> secp256k1::SecretKey {
-        return self.sk_m.clone();
+    pub fn get_secret_key(&self) -> Vec<u8> {
+        return self.sk_m.0.to_vec();
     }
 
-    pub fn get_close_secret_key(&self) -> secp256k1::SecretKey { return self.payout_sk.clone(); }
+    pub fn get_close_secret_key(&self) -> Vec<u8> {
+        return self.payout_sk.0.to_vec();
+    }
 
-    pub fn get_dispute_secret_key(&self) -> secp256k1::SecretKey { return self.dispute_sk.clone(); }
+    pub fn get_dispute_secret_key(&self) -> Vec<u8> {
+        return self.dispute_sk.0.to_vec();
+    }
 
     pub fn activate_channel(
         &self,
@@ -1242,8 +1138,10 @@ impl MerchantMPCState {
         );
 
         // merchant generates signatures
-        let m_private_key =
-            BitcoinPrivateKey::<N>::from_secp256k1_secret_key(self.sk_m.clone(), false);
+        // let m_private_key =
+        //    BitcoinPrivateKey::<N>::from_secp256k1_secret_key(self.sk_m.clone(), false);
+        let sk_m = self.sk_m.0.to_vec();
+        let m_private_key = get_private_key(&sk_m).unwrap();
         let escrow_cust_sig =
             generate_signature_for_multi_sig_transaction::<N>(&escrow_tx_preimage, &m_private_key)
                 .unwrap();
@@ -1309,7 +1207,8 @@ impl MerchantMPCState {
             m.bm,
             to_self_delay
         ));
-        let sk = BitcoinPrivateKey::<N>::from_secp256k1_secret_key(self.sk_m.clone(), false);
+        // let sk = BitcoinPrivateKey::<N>::from_secp256k1_secret_key(self.sk_m.clone(), false);
+        let sk = get_private_key(&self.sk_m.0.to_vec()).unwrap();
         let (signed_merch_close_tx, txid_be, _) = completely_sign_multi_sig_transaction::<N>(
             &tx_params,
             &cust_sig_and_len_byte,
@@ -1322,18 +1221,19 @@ impl MerchantMPCState {
         Ok((signed_merch_close_tx, txid_be.to_vec()))
     }
 
-    pub fn get_circuit_file(&self) -> *mut c_void { // Box<Circuit>
+    pub fn get_circuit_file(&self) -> *mut c_void {
+        // Box<Circuit>
         let using_ag2pc = match env::var("AG2PC") {
             Ok(_s) => true,
-            Err(_e) => false
+            Err(_e) => false,
         };
 
         let circuit_file = match using_ag2pc {
             true => match env::var("ZK_DEPS_INSTALL") {
                 Ok(s) => format!("{}{}", s, CIRCUIT_FILE),
-                Err(e) => panic!("ZK_DEPS_INSTALL env not set: {}", e)
+                Err(e) => panic!("ZK_DEPS_INSTALL env not set: {}", e),
             },
-            false => String::new()
+            false => String::new(),
         };
         println!("Circuit: {}", circuit_file);
         let cf_ptr = match using_ag2pc {
@@ -1343,8 +1243,8 @@ impl MerchantMPCState {
                     load_circuit_file(c_str.as_ptr() as *const i8)
                 };
                 cf_ptr
-            },
-            false => ptr::null_mut()
+            }
+            false => ptr::null_mut(),
         };
         return cf_ptr; // Box::new(Circuit { ptr: cf_ptr }
     }
@@ -1413,6 +1313,7 @@ impl MerchantMPCState {
         };
 
         let cf_ptr = self.get_circuit_file();
+        let sk_m = secp256k1::SecretKey::from_slice(&self.sk_m.0).unwrap();
 
         let (r_merch, r_esc) = mpc_build_masked_tokens_merch(
             csprng,
@@ -1429,7 +1330,7 @@ impl MerchantMPCState {
             self.payout_pk,
             nonce,
             &hmac_key,
-            self.sk_m.clone(),
+            sk_m,
             &merch_mask_bytes,
             &pay_mask_bytes,
             &pay_mask_r,
@@ -1516,13 +1417,13 @@ impl MerchantMPCState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bitcoin::Testnet;
     use channels_mpc::{ChannelMPCState, CustomerMPCState, MerchantMPCState};
     use database::{MaskedMPCInputs, RedisDatabase};
     use rand::SeedableRng;
     use rand_xorshift::XorShiftRng;
     use sha2::Digest;
     use sha2::Sha256;
+    use zkchan_tx::Testnet;
 
     fn generate_test_txs<R: Rng>(csprng: &mut R, b0_cust: i64, b0_merch: i64) -> FundingTxInfo {
         let mut escrow_txid = [0u8; 32];

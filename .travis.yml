@@ -1,0 +1,22 @@
+language: rust
+
+services:
+  - redis-server
+
+before_install:
+  - echo $TRAVIS_OS_NAME
+  - set -e
+  - . ./env && ./deps/install_packages.sh
+  - . ./env && make deps
+  - redis-server --daemonize yes
+  - redis-cli info
+  - set +e
+
+rust:
+  - stable
+  - beta
+  - nightly
+
+matrix:
+  allow_failures:
+    - rust: nightly

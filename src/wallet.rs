@@ -1,9 +1,9 @@
 use super::*;
 use ff::PrimeField;
-use fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
 use pairing::Engine;
 use std::fmt;
 use util::{hash_to_fr, hash_to_slice};
+use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize"))]
