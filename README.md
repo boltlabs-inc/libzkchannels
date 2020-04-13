@@ -2,6 +2,8 @@
 
 # libzkchannels
 
+<a href="https://travis-ci.com/github/boltlabs-inc/libzkchannels"><img src="https://travis-ci.com/boltlabs-inc/libzkchannels.svg?branch=master"></a>
+
 A Rust library implementation of libzkchannels (formerly BOLT: Blind Off-chain Lightweight Transactions).
 
 zkChannels is a system for conducting **privacy-preserving off-chain payments** between pairs of individual parties. The protocol is designed to enable privacy-preserving cryptocurrencies on top of Bitcoin (via MPC) and Zcash (via ZK proofs), by allowing individuals to establish and use payment channels for instantaneous payments that do not require an on-chain transaction.
