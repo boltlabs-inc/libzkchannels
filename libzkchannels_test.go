@@ -25,7 +25,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	custBal := int64(1000000)
 	merchBal := int64(0)
 
-	channelToken, custState, err := InitCustomer(fmt.Sprintf("\"%v\"", *merchState.PkM), custBal, merchBal, "cust", skC, payoutSk)
+	channelToken, custState, err := InitCustomer(fmt.Sprintf("%v", *merchState.PkM), custBal, merchBal, "cust", skC, payoutSk)
 	assert.Nil(t, err)
 
 	inputSats := int64(50 * 100000000)
@@ -258,7 +258,7 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	custBal := int64(10000)
 	merchBal := int64(0)
 
-	channelToken, custState, err := InitCustomer(fmt.Sprintf("\"%v\"", *merchState.PkM), custBal, merchBal, "cust", skC, payoutSk)
+	channelToken, custState, err := InitCustomer(fmt.Sprintf("%v", *merchState.PkM), custBal, merchBal, "cust", skC, payoutSk)
 	assert.Nil(t, err)
 
 	inputSats := int64(50 * 100000000)

@@ -126,7 +126,7 @@ pub mod ffishim_mpc {
 
     #[no_mangle]
     pub extern "C" fn mpc_init_customer(
-        ser_pk_m: *mut c_char,
+        ser_merch_pk: *mut c_char,
         cust_bal: i64,
         merch_bal: i64,
         name_ptr: *const c_char,
@@ -136,9 +136,9 @@ pub mod ffishim_mpc {
         let rng = &mut rand::thread_rng();
 
         // Deserialize the pk_m
-        let pk_m_result: ResultSerdeType<secp256k1::PublicKey> =
-            deserialize_result_object(ser_pk_m);
-        let pk_m = handle_errors!(pk_m_result);
+        let merch_pk_result = deserialize_hex_string(ser_merch_pk);
+        let merch_pk = handle_errors!(merch_pk_result);
+        let pk_m = handle_errors!(secp256k1::PublicKey::from_slice(&merch_pk));
 
         // Deserialize the name
         let bytes = unsafe { CStr::from_ptr(name_ptr).to_bytes() };
