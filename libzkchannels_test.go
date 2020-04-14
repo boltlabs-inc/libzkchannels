@@ -14,7 +14,7 @@ import (
 
 func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	dbUrl := "redis://127.0.0.1/"
-	channelState, err := ChannelSetup("channel", false)
+	channelState, err := ChannelSetup("channel", uint16(1487), false)
 	assert.Nil(t, err)
 
 	channelState, merchState, err := InitMerchant(dbUrl, channelState, "merch")
@@ -45,7 +45,10 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 
 	merchClosePk := fmt.Sprintf("%v", *merchState.PayoutPk)
 	merchDispPk := fmt.Sprintf("%v", *merchState.DisputePk)
-	toSelfDelay := "05cf" // 1487 blocks
+	// toSelfDelay := "05cf" // 1487 blocks
+	toSelfDelay, err := GetSelfDelayBE(channelState)
+	fmt.Println("toSelfDelay :=> ", toSelfDelay)
+
 	fmt.Println("custSk :=> ", custSk)
 	fmt.Println("custPk :=> ", custPk)
 	fmt.Println("merchSk :=> ", merchSk)
@@ -246,11 +249,16 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	dbUrl := "redis://127.0.0.1/"
 
-	channelState, err := ChannelSetup("channel", false)
+	chanID, err := GenerateRandomBytes(32)
+	fmt.Println("Temp chan ID: ", chanID)
+
+	channelState, err := ChannelSetup("channel", uint16(1487), false)
 	assert.Nil(t, err)
 
 	channelState, merchState, err := InitMerchant(dbUrl, channelState, "merch")
 	assert.Nil(t, err)
+
+	// fmt.Println("Self Delay: ", channelState.SelfDelay)
 
 	skC := "1a1971e1379beec67178509e25b6772c66cb67bb04d70df2b4bcdb8c08a01827"
 	payoutSk := "4157697b6428532758a9d0f9a73ce58befe3fd665797427d1c5bb3d33f6a132e"
@@ -275,7 +283,9 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	isChangePkHash := true
 
 	merchClosePk := fmt.Sprintf("%v", *merchState.PayoutPk)
-	toSelfDelay := "05cf"
+	toSelfDelay, err := GetSelfDelayBE(channelState) // "05cf"
+	fmt.Println("toSelfDelay :=> ", toSelfDelay)
+
 	// fmt.Println("custSk :=> ", custSk)
 	// fmt.Println("custPk :=> ", custPk)
 	// fmt.Println("merchSk :=> ", merchSk)

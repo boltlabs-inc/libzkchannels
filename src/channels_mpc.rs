@@ -89,10 +89,11 @@ pub struct ChannelMPCState {
     pub third_party: bool,
     pub merch_payout_pk: Option<secp256k1::PublicKey>,
     pub merch_dispute_pk: Option<secp256k1::PublicKey>,
+    pub self_delay: u16
 }
 
 impl ChannelMPCState {
-    pub fn new(name: String, third_party_support: bool) -> ChannelMPCState {
+    pub fn new(name: String, self_delay: u16, third_party_support: bool) -> ChannelMPCState {
         ChannelMPCState {
             tx_fee: 0,
             dust_limit: 0,
@@ -101,6 +102,7 @@ impl ChannelMPCState {
             third_party: third_party_support,
             merch_payout_pk: None,
             merch_dispute_pk: None,
+            self_delay: self_delay
         }
     }
 
@@ -136,6 +138,14 @@ impl ChannelMPCState {
     ) {
         self.merch_payout_pk = Some(merch_payout_pk);
         self.merch_dispute_pk = Some(merch_dispute_pk);
+    }
+
+    pub fn get_self_delay_be(&self) -> [u8; 2] {
+        let b = self.self_delay.to_be_bytes();
+
+        let mut self_delay_be = [0u8; 2];
+        self_delay_be.copy_from_slice(&b);
+        self_delay_be
     }
 }
 
@@ -565,7 +575,7 @@ impl CustomerMPCState {
         // TODO: should be configurable via a tx_config
         let escrow_index = 0;
         let merch_index = 0;
-        let to_self_delay_be: [u8; 2] = [0x05, 0xcf]; // big-endian format
+        let to_self_delay_be: [u8; 2] = channel_state.get_self_delay_be(); // big-endian format
 
         let pubkeys = self.get_pubkeys(channel_state, channel_token);
         let escrow_input =
@@ -1138,8 +1148,6 @@ impl MerchantMPCState {
         );
 
         // merchant generates signatures
-        // let m_private_key =
-        //    BitcoinPrivateKey::<N>::from_secp256k1_secret_key(self.sk_m.clone(), false);
         let sk_m = self.sk_m.0.to_vec();
         let m_private_key = get_private_key(&sk_m).unwrap();
         let escrow_cust_sig =
@@ -1207,7 +1215,7 @@ impl MerchantMPCState {
             m.bm,
             to_self_delay
         ));
-        // let sk = BitcoinPrivateKey::<N>::from_secp256k1_secret_key(self.sk_m.clone(), false);
+
         let sk = get_private_key(&self.sk_m.0.to_vec()).unwrap();
         let (signed_merch_close_tx, txid_be, _) = completely_sign_multi_sig_transaction::<N>(
             &tx_params,
@@ -1460,7 +1468,7 @@ mod tests {
     rusty_fork_test! {
         #[test]
         fn mpc_channel_util_customer_works() {
-            let mut channel_state = ChannelMPCState::new(String::from("Channel A <-> B"), false);
+            let mut channel_state = ChannelMPCState::new(String::from("Channel A <-> B"), 1487, false);
             // let rng = &mut rand::thread_rng();
             let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d86);
 
@@ -1602,7 +1610,7 @@ mod tests {
 
     #[test]
     fn mpc_channel_util_merchant_works() {
-        let mut channel = ChannelMPCState::new(String::from("Channel A <-> B"), false);
+        let mut channel = ChannelMPCState::new(String::from("Channel A <-> B"), 1487, false);
         // let rng = &mut rand::thread_rng();
         let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d86);
         let db_url = "redis://127.0.0.1/".to_string();
@@ -1741,7 +1749,7 @@ mod tests {
 
     #[test]
     fn mpc_test_serialization() {
-        let mut channel_state = ChannelMPCState::new(String::from("Channel A <-> B"), false);
+        let mut channel_state = ChannelMPCState::new(String::from("Channel A <-> B"), 1487, false);
         let mut rng = XorShiftRng::seed_from_u64(0x8d863e545dbe6259);
         let db_url = "redis://127.0.0.1/".to_string();
 

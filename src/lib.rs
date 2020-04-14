@@ -1961,7 +1961,7 @@ mod tests {
         // let mut db = RedisDatabase::new("lib", "redis://127.0.0.1/").unwrap();
         let mut db = HashMapDatabase::new("", "".to_string()).unwrap();
 
-        let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
+        let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, false);
         let mut merch_state = mpc::init_merchant(rng, "".to_string(), &mut channel_state, "Bob");
 
         let (mut channel_token, mut cust_state) =
@@ -1977,7 +1977,7 @@ mod tests {
         let pubkeys = cust_state.get_pubkeys(&channel_state, &channel_token);
 
         // merchant signs the customer's closing transactions and sends signatures back to customer
-        let to_self_delay_be: [u8; 2] = [0x05, 0xcf]; // big-endian format
+        let to_self_delay_be = channel_state.get_self_delay_be(); // [0x05, 0xcf]; // big-endian format
         let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(
             funding_tx_info.clone(),
             pubkeys.rev_lock.0,
@@ -2063,7 +2063,7 @@ mod tests {
         let mut db = RedisDatabase::new("lib", "redis://127.0.0.1/".to_string()).unwrap();
         db.clear_state();
 
-        let mut channel = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
+        let mut channel = mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, false);
         let mut merch_state = mpc::init_merchant(&mut rng, "".to_string(), &mut channel, "Bob");
 
         let b0_cust = 100;
@@ -2172,7 +2172,7 @@ mod tests {
             let mut db = RedisDatabase::new("lib", "redis://127.0.0.1/".to_string()).unwrap();
             db.clear_state();
 
-            let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
+            let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, false);
             let mut merch_state = mpc::init_merchant(&mut rng, "".to_string(), &mut channel_state, "Bob");
 
             let b0_cust = 100;

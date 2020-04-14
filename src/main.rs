@@ -88,6 +88,8 @@ pub struct Open {
     other_port: String,
     #[structopt(short = "d", long = "dust-limit", default_value = "0")]
     dust_limit: i64,
+    #[structopt(short = "d", long = "self-delay", default_value = "1487")]
+    self_delay: u16,
     #[structopt(short = "t", long = "tx-fee", default_value = "0")]
     tx_fee: i64,
 }
@@ -355,7 +357,7 @@ fn main() {
 
     match args.command {
         Command::OPEN(open) => match open.party {
-            Party::MERCH => match merch::open(create_connection!(open), open.dust_limit) {
+            Party::MERCH => match merch::open(create_connection!(open), open.dust_limit, open.self_delay) {
                 Err(e) => println!("Channel opening phase failed with error: {}", e),
                 _ => (),
             },
@@ -470,7 +472,7 @@ mod cust {
         let mut channel_token: ChannelMPCToken =
             handle_error_result!(serde_json::from_str(&ser_channel_token));
 
-        let to_self_delay_be: [u8; 2] = [0x05, 0xcf]; // big-endian format
+        let to_self_delay_be = channel_state.get_self_delay_be();
 
         let cust_sk = cust_state.get_secret_key();
         let cust_pk = cust_state.pk_c.serialize().to_vec();
@@ -801,10 +803,10 @@ mod merch {
     use zkchannels::database::{RedisDatabase, StateDatabase};
     use zkchannels::wallet::State;
 
-    pub fn open(conn: &mut Conn, dust_limit: i64) -> Result<(), String> {
+    pub fn open(conn: &mut Conn, dust_limit: i64, self_delay: u16) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
 
-        let mut channel_state = ChannelMPCState::new(String::from("Channel"), false);
+        let mut channel_state = ChannelMPCState::new(String::from("Channel"), self_delay, false);
         if dust_limit == 0 {
             let s = format!("Dust limit must be greater than 0!");
             return Err(s);
@@ -828,6 +830,9 @@ mod merch {
         let ser_merch_state = read_file("merch_state.json").unwrap();
         let mut merch_state: MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
 
+        let ser_channel_state = read_file("merch_channel_state.json").unwrap();
+        let channel_state: ChannelMPCState = serde_json::from_str(&ser_channel_state).unwrap();
+
         let mut db = handle_error_result!(RedisDatabase::new("cli", merch_state.db_url.clone()));
 
         let msg0 = conn.wait_for(None, false);
@@ -836,7 +841,8 @@ mod merch {
         let escrow_txid: [u8; 32] = serde_json::from_str(&msg0.get(1).unwrap()).unwrap();
         let escrow_prevout: [u8; 32] = serde_json::from_str(&msg0.get(2).unwrap()).unwrap();
         let init_cust_state: InitCustState = serde_json::from_str(&msg0.get(3).unwrap()).unwrap();
-        let to_self_delay_be: [u8; 2] = [0x05, 0xcf]; // big-endian format
+
+        let to_self_delay_be = channel_state.get_self_delay_be();
 
         let cust_pk = init_cust_state.pk_c.serialize().to_vec();
         let cust_close_pk = init_cust_state.close_pk.serialize().to_vec();

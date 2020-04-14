@@ -295,6 +295,8 @@ char *form_merch_close_transaction(char *ser_escrow_txid,
 
 extern void *get_gonetio_ptr(void *raw_stream_fd, int party);
 
+char *get_self_delay_be_hex(char *ser_channel_state);
+
 extern void issue_tokens(State_l old_state_l,
                          State_l new_state_l,
                          PayToken_l old_paytoken_l,
@@ -369,7 +371,9 @@ char *mpc_activate_customer_finalize(char *ser_pay_token, char *ser_cust_state);
 
 char *mpc_activate_merchant(char *ser_channel_token, char *ser_state, char *ser_merch_state);
 
-char *mpc_channel_setup(const char *channel_name, uint32_t third_party_support);
+char *mpc_channel_setup(const char *channel_name,
+                        uint16_t self_delay,
+                        uint32_t third_party_support);
 
 void mpc_free_string(char *pointer);
 
@@ -379,7 +383,7 @@ char *mpc_get_initial_state(char *ser_cust_state);
 
 char *mpc_get_masked_tx_inputs(uint32_t mpc_result, char *ser_nonce, char *ser_merch_state);
 
-char *mpc_init_customer(char *ser_pk_m,
+char *mpc_init_customer(char *ser_merch_pk,
                         int64_t cust_bal,
                         int64_t merch_bal,
                         const char *name_ptr,

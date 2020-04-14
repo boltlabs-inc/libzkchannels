@@ -67,9 +67,33 @@ pub mod ffishim_mpc {
         };
     }
 
+    // UTILS
+
+    #[no_mangle]
+    pub extern "C" fn get_self_delay_be_hex(
+        ser_channel_state: *mut c_char 
+    ) -> *mut c_char {
+        let channel_state_result: ResultSerdeType<mpc::ChannelMPCState> =
+            deserialize_result_object(ser_channel_state);
+        let channel_state = handle_errors!(channel_state_result);
+
+        let ser = [
+            "{\'self_delay_be\':\'",
+            &hex::encode(channel_state.get_self_delay_be()),
+            "\'}",
+        ]
+        .concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+
+    // CHANNEL SETUP - define name, self-delay, third-party-support
+
     #[no_mangle]
     pub extern "C" fn mpc_channel_setup(
         channel_name: *const c_char,
+        self_delay: u16,
         third_party_support: u32,
     ) -> *mut c_char {
         let bytes = unsafe { CStr::from_ptr(channel_name).to_bytes() };
@@ -79,7 +103,7 @@ pub mod ffishim_mpc {
         if third_party_support >= 1 {
             tps = true;
         }
-        let channel_state = mpc::ChannelMPCState::new(name.to_string(), tps);
+        let channel_state = mpc::ChannelMPCState::new(name.to_string(), self_delay, tps);
 
         let ser = [
             "{\'channel_state\':\'",

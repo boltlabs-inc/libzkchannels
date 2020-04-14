@@ -5,6 +5,7 @@ package libzkchannels
 // #include <cbindings.h>
 import "C"
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -35,6 +36,7 @@ type setupResp struct {
 	MerchSig        string `json:"merch_sig"`
 	InitCustState   string `json:"init_state"`
 	InitHash        string `json:"init_hash"`
+	SelfDelayBE     string `json:"self_delay_be"`
 	Error           string `json:"error"`
 }
 
@@ -46,6 +48,7 @@ type ChannelState struct {
 	ThirdParty     bool    `json:"third_party"`
 	MerchPayOutPk  *string `json:"merch_payout_pk"`
 	MerchDisputePk *string `json:"merch_dispute_pk"`
+	SelfDelay      uint16  `json:"self_delay"`
 }
 
 type MerchState struct {
@@ -139,8 +142,31 @@ type InitCustState struct {
 	MerchBal int64   `json:"merch_bal"`
 }
 
-func ChannelSetup(name string, channelSupport bool) (ChannelState, error) {
-	resp := C.GoString(C.mpc_channel_setup(C.CString(name), C.uint(btoi(channelSupport))))
+func GenerateRandomBytes(n int) ([]byte, error) {
+	b := make([]byte, n)
+	_, err := rand.Read(b)
+	// Note that err == nil only if we read len(b) bytes.
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+func GetSelfDelayBE(channelState ChannelState) (string, error) {
+	serChannelState, err := json.Marshal(channelState)
+	if err != nil {
+		return "", err
+	}
+	resp := C.GoString(C.get_self_delay_be_hex(C.CString(string(serChannelState))))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return "", err
+	}
+	return r.SelfDelayBE, err
+}
+
+func ChannelSetup(name string, selfDelay uint16, channelThirdPartySupport bool) (ChannelState, error) {
+	resp := C.GoString(C.mpc_channel_setup(C.CString(name), C.uint16_t(selfDelay), C.uint(btoi(channelThirdPartySupport))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return ChannelState{}, err
