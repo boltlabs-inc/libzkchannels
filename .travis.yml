@@ -7,6 +7,7 @@ before_install:
   - echo $TRAVIS_OS_NAME
   - set -e
   - . ./env && ./deps/install_packages.sh
+  - sudo dpkg -i ./deps/emp-sh2pc/libcrypto++9v5*.deb
   - sudo dpkg -i ./deps/emp-sh2pc/libcrypto++-dev*.deb
   - . ./env && make deps
   - redis-server --daemonize yes
