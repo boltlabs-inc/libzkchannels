@@ -77,7 +77,7 @@ function install_pkgs_ubuntu() {
         sudo apt-get install -y cmake git build-essential libssl-dev libgmp-dev python
         sudo apt-get install -y libboost1.58-dev
         sudo apt-get install -y libboost-{chrono,log,program-options,date-time,thread,system,filesystem,regex,test}1.58-dev
-        sudo apt-get install -y libcrypto++ llvm-dev libclang-dev clang
+        sudo apt-get install -y libcrypto++-dev llvm-dev libclang-dev clang
         sudo apt-get install -y redis-server
     fi
 }
