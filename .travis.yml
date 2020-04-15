@@ -16,6 +16,11 @@ rust:
   - stable
   - nightly
 
+script:
+  - . ./env && cargo build --verbose --all 
+  - . ./env && cargo test --verbose --all -- --nocapture
+  - . ./env && cargo test --verbose --release --lib mpcwrapper -- --nocapture
+
 matrix:
   allow_failures:
     - rust: nightly

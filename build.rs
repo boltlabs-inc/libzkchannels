@@ -21,10 +21,12 @@ fn main() {
     } else {
         header_file = "deps/root/include/emp-sh2pc/tokens.h";
     }
+    let path_to_header_file = format!("{}/{}", project_dir, header_file);
+    //println!("token header file path: {}", path_to_header_file);
     let bindings = bindgen::Builder::default()
         // The input header we would like to generate
         // bindings for.
-        .header(header_file)
+        .header(path_to_header_file)
         .clang_arg("-x")
         .clang_arg("c++")
         .trust_clang_mangling(false)
