@@ -3,7 +3,7 @@ use redis::{Commands, Connection};
 use std::collections::hash_map::RandomState;
 use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
 
-fn create_db_connection(url: String) -> redis::RedisResult<Connection> {
+pub fn create_db_connection(url: String) -> redis::RedisResult<Connection> {
     let client = redis::Client::open(url.as_str())?;
     let con: Connection = client.get_connection()?;
 

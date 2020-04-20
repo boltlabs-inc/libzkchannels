@@ -910,7 +910,7 @@ pub mod mpc {
         pk_m: &PublicKey,
         b0_cust: i64,
         b0_merch: i64,
-        name: &'a str,
+        name: &str,
         sk: Option<[u8; 32]>,
         payout_sk: Option<[u8; 32]>,
     ) -> (ChannelMPCToken, CustomerMPCState) {
