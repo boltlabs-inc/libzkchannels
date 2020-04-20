@@ -1,15 +1,16 @@
 extern crate bufstream;
 extern crate rand;
+extern crate redis;
 extern crate secp256k1;
 extern crate serde;
 extern crate sha2;
 extern crate structopt;
 extern crate zkchan_tx;
 extern crate zkchannels;
-extern crate redis;
 
 use bufstream::BufStream;
 use rand::Rng;
+use redis::Commands;
 use serde::Deserialize;
 use std::fs::File;
 use std::io::{BufRead, Read, Write};
@@ -21,11 +22,10 @@ use std::str::FromStr;
 use std::thread::sleep;
 use std::time;
 use structopt::StructOpt;
-use redis::Commands;
 use zkchan_tx::Testnet;
+use zkchannels::database::create_db_connection;
 use zkchannels::mpc;
 use zkchannels::FundingTxInfo;
-use zkchannels::database::create_db_connection;
 
 // macro_rules! handle_file_error {
 //     ($e:expr, $f:expr) => {
@@ -96,7 +96,7 @@ pub struct Open {
     #[structopt(short = "t", long = "tx-fee", default_value = "0")]
     tx_fee: i64,
     #[structopt(short = "n", long = "channel-name", default_value = "")]
-    channel_name: String
+    channel_name: String,
 }
 
 #[derive(Clone, Debug, StructOpt, Deserialize)]
@@ -124,7 +124,7 @@ pub struct Init {
     #[structopt(short = "t", long = "tx-fee", default_value = "0")]
     tx_fee: i64,
     #[structopt(short = "n", long = "channel-name", default_value = "")]
-    channel_name: String
+    channel_name: String,
 }
 
 #[derive(Clone, Debug, StructOpt, Deserialize)]
@@ -140,7 +140,7 @@ pub struct Activate {
     #[structopt(short = "q", long = "other-port")]
     other_port: String,
     #[structopt(short = "n", long = "channel-name", default_value = "")]
-    channel_name: String
+    channel_name: String,
 }
 
 #[derive(Clone, Debug, StructOpt, Deserialize)]
@@ -172,7 +172,7 @@ pub struct Close {
     #[structopt(short = "e", long = "from-escrow")]
     from_escrow: bool,
     #[structopt(short = "n", long = "channel-id")]
-    channel_id: String
+    channel_id: String,
 }
 
 #[derive(Clone, Debug, StructOpt, Deserialize)]
@@ -255,7 +255,12 @@ pub fn connect_db(url: String) -> Result<redis::Connection, String> {
     Ok(conn)
 }
 
-pub fn store_file_in_db(conn: &mut redis::Connection, key: &String, field_name: &String, json_blob: &String) -> Result<bool, String> {
+pub fn store_file_in_db(
+    conn: &mut redis::Connection,
+    key: &String,
+    field_name: &String,
+    json_blob: &String,
+) -> Result<bool, String> {
     match conn.hset::<String, String, String, i32>(
         key.clone(),
         field_name.clone(),
@@ -266,10 +271,12 @@ pub fn store_file_in_db(conn: &mut redis::Connection, key: &String, field_name: 
     }
 }
 
-pub fn get_file_from_db(conn: &mut redis::Connection, key: &String, field_name: &String) -> Result<String, String> {
-        match conn
-        .hget::<String, String, String>(key.clone(), field_name.clone())
-    {
+pub fn get_file_from_db(
+    conn: &mut redis::Connection,
+    key: &String,
+    field_name: &String,
+) -> Result<String, String> {
+    match conn.hget::<String, String, String>(key.clone(), field_name.clone()) {
         Ok(s) => Ok(s),
         Err(e) => return Err(e.to_string()),
     }
@@ -377,19 +384,31 @@ impl Conn {
 }
 
 fn main() {
-    println!("******************************************");
 
     let args = Cli::from_args();
     let db_url = "redis://127.0.0.1/".to_string(); // make constant
 
+    println!("******************************************");
+
     match args.command {
         Command::OPEN(open) => match open.party {
-            Party::MERCH => match merch::open(create_connection!(open), &db_url, open.dust_limit, open.self_delay) {
+            Party::MERCH => match merch::open(
+                create_connection!(open),
+                &db_url,
+                open.dust_limit,
+                open.self_delay,
+            ) {
                 Err(e) => println!("Channel opening phase failed with error: {}", e),
                 _ => (),
             },
             Party::CUST => {
-                match cust::open(create_connection!(open), &db_url, open.cust_bal, open.merch_bal, open.channel_name) {
+                match cust::open(
+                    create_connection!(open),
+                    &db_url,
+                    open.cust_bal,
+                    open.merch_bal,
+                    open.channel_name,
+                ) {
                     Err(e) => println!("Channel opening phase failed with error: {}", e),
                     _ => (),
                 }
@@ -408,7 +427,7 @@ fn main() {
                 init.index.unwrap(),
                 init.input_sats.unwrap(),
                 init.output_sats.unwrap(),
-                init.channel_name
+                init.channel_name,
             ) {
                 Err(e) => println!("Initialize phase failed with error: {}", e),
                 _ => (),
@@ -416,35 +435,73 @@ fn main() {
         },
         Command::ACTIVATE(activate) => match activate.party {
             Party::MERCH => merch::activate(create_connection!(activate), &db_url).unwrap(),
-            Party::CUST => cust::activate(create_connection!(activate), &db_url, activate.channel_name).unwrap(),
+            Party::CUST => {
+                cust::activate(create_connection!(activate), &db_url, activate.channel_name)
+                    .unwrap()
+            }
         },
-        Command::UNLINK(unlink) => match unlink.party { 
+        Command::UNLINK(unlink) => match unlink.party {
             Party::MERCH => {
-                let (mut channel_state, mut merch_state) = merch::load_merchant_data(&db_url).unwrap();               
-                merch::pay(Some(0), create_connection!(unlink), &db_url, &mut channel_state, &mut merch_state).unwrap()
-            },
-            Party::CUST => cust::pay(0, create_connection!(unlink), &db_url, unlink.channel_name, unlink.verbose).unwrap(),
+                let (mut channel_state, mut merch_state) =
+                    merch::load_merchant_data(&db_url).unwrap();
+                merch::pay(
+                    Some(0),
+                    create_connection!(unlink),
+                    &db_url,
+                    &mut channel_state,
+                    &mut merch_state,
+                )
+                .unwrap()
+            }
+            Party::CUST => cust::pay(
+                0,
+                create_connection!(unlink),
+                &db_url,
+                unlink.channel_name,
+                unlink.verbose,
+            )
+            .unwrap(),
         },
         Command::PAY(pay) => match pay.party {
             Party::MERCH => {
-                let (mut channel_state, mut merch_state) = merch::load_merchant_data(&db_url).unwrap();
+                let (mut channel_state, mut merch_state) =
+                    merch::load_merchant_data(&db_url).unwrap();
                 loop {
-                    match merch::pay(pay.amount.clone(), create_connection!(pay.clone()), &db_url, &mut channel_state, &mut merch_state) {
+                    match merch::pay(
+                        pay.amount.clone(),
+                        create_connection!(pay.clone()),
+                        &db_url,
+                        &mut channel_state,
+                        &mut merch_state,
+                    ) {
                         Err(e) => println!("Pay phase failed with error: {}", e),
                         _ => (),
                     }
                 }
-            },
+            }
             Party::CUST => {
-                match cust::pay(pay.amount.unwrap(), create_connection!(pay), &db_url, pay.channel_name, pay.verbose) {
+                match cust::pay(
+                    pay.amount.unwrap(),
+                    create_connection!(pay),
+                    &db_url,
+                    pay.channel_name,
+                    pay.verbose,
+                ) {
                     Err(e) => println!("Pay protocol failed with error: {}", e),
                     _ => (),
                 }
             }
         },
         Command::CLOSE(close) => match close.party {
-            Party::MERCH => print_error_result!(merch::close(&db_url, close.file, close.channel_id)),
-            Party::CUST => print_error_result!(cust::close(&db_url, close.file, close.from_escrow, close.channel_id)),
+            Party::MERCH => {
+                print_error_result!(merch::close(&db_url, close.file, close.channel_id))
+            }
+            Party::CUST => print_error_result!(cust::close(
+                &db_url,
+                close.file,
+                close.from_escrow,
+                close.channel_id
+            )),
         },
     }
 
@@ -465,7 +522,13 @@ mod cust {
     use zkchannels::database::MaskedTxMPCInputs;
     // use std::os::unix::io::AsRawFd;
 
-    pub fn open(conn: &mut Conn, db_url: &String, b0_cust: i64, b0_merch: i64, channel_name: String) -> Result<(), String> {
+    pub fn open(
+        conn: &mut Conn,
+        db_url: &String,
+        b0_cust: i64,
+        b0_merch: i64,
+        channel_name: String,
+    ) -> Result<(), String> {
         if channel_name == "" {
             return Err(String::from("missing channel-name"));
         }
@@ -484,11 +547,24 @@ mod cust {
             ));
         }
 
-        let (channel_token, cust_state) =
-            mpc::init_customer(rng, &pk_m, b0_cust, b0_merch, channel_name.as_str(), None, None);
+        let (channel_token, cust_state) = mpc::init_customer(
+            rng,
+            &pk_m,
+            b0_cust,
+            b0_merch,
+            channel_name.as_str(),
+            None,
+            None,
+        );
 
         println!("Saving the initial customer state...");
-        cust_save_state_in_db(&mut db_conn, channel_name, channel_state, channel_token, cust_state)
+        cust_save_state_in_db(
+            &mut db_conn,
+            channel_name,
+            channel_state,
+            channel_token,
+            cust_state,
+        )
     }
 
     pub fn init(
@@ -498,7 +574,7 @@ mod cust {
         index: u32,
         input_sats: i64,
         output_sats: i64,
-        channel_name: String
+        channel_name: String,
     ) -> Result<(), String> {
         if channel_name == "" {
             return Err(String::from("missing channel-name"));
@@ -510,19 +586,22 @@ mod cust {
 
         // load the customer state from DB
         let cust_state_key = format!("cust:{}:cust_state", channel_name);
-        let ser_cust_state = handle_error_result!(get_file_from_db(&mut db_conn, &key, &cust_state_key));
+        let ser_cust_state =
+            handle_error_result!(get_file_from_db(&mut db_conn, &key, &cust_state_key));
         let mut cust_state: CustomerMPCState =
             handle_error_result!(serde_json::from_str(&ser_cust_state));
 
         // load the channel state from DB
         let channel_state_key = format!("cust:{}:channel_state", channel_name);
-        let ser_channel_state = handle_error_result!(get_file_from_db(&mut db_conn, &key, &channel_state_key));
+        let ser_channel_state =
+            handle_error_result!(get_file_from_db(&mut db_conn, &key, &channel_state_key));
         let channel_state: ChannelMPCState =
             handle_error_result!(serde_json::from_str(&ser_channel_state));
 
         // load the channel token from DB
         let channel_token_key = format!("cust:{}:channel_token", channel_name);
-        let ser_channel_token = handle_error_result!(get_file_from_db(&mut db_conn, &key, &channel_token_key));
+        let ser_channel_token =
+            handle_error_result!(get_file_from_db(&mut db_conn, &key, &channel_token_key));
         let mut channel_token: ChannelMPCToken =
             handle_error_result!(serde_json::from_str(&ser_channel_token));
 
@@ -633,7 +712,13 @@ mod cust {
         assert!(res);
 
         if got_close_tx {
-            cust_save_state_in_db(&mut db_conn, channel_name, channel_state, channel_token, cust_state)?;
+            cust_save_state_in_db(
+                &mut db_conn,
+                channel_name,
+                channel_state,
+                channel_token,
+                cust_state,
+            )?;
         }
 
         println!("Can now broadcast the signed escrow transaction");
@@ -653,13 +738,15 @@ mod cust {
 
         // load the customer state from DB
         let cust_state_key = format!("cust:{}:cust_state", channel_name);
-        let ser_cust_state = handle_error_result!(get_file_from_db(&mut db_conn, &key, &cust_state_key));
+        let ser_cust_state =
+            handle_error_result!(get_file_from_db(&mut db_conn, &key, &cust_state_key));
         let mut cust_state: CustomerMPCState =
             handle_error_result!(serde_json::from_str(&ser_cust_state));
 
         // load the channel token from DB
         let channel_token_key = format!("cust:{}:channel_token", channel_name);
-        let ser_channel_token = handle_error_result!(get_file_from_db(&mut db_conn, &key, &channel_token_key));
+        let ser_channel_token =
+            handle_error_result!(get_file_from_db(&mut db_conn, &key, &channel_token_key));
         let channel_token: ChannelMPCToken =
             handle_error_result!(serde_json::from_str(&ser_channel_token));
 
@@ -684,20 +771,28 @@ mod cust {
         Ok(())
     }
 
-    pub fn pay(amount: i64, conn: &mut Conn, db_url: &String, channel_name: String, verbose: bool) -> Result<(), String> {
+    pub fn pay(
+        amount: i64,
+        conn: &mut Conn,
+        db_url: &String,
+        channel_name: String,
+        verbose: bool,
+    ) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
         let mut db_conn = handle_error_result!(create_db_connection(db_url.clone()));
         let key = format!("id:{}", channel_name);
 
         // load the channel state from DB
         let channel_state_key = format!("cust:{}:channel_state", channel_name);
-        let ser_channel_state = handle_error_result!(get_file_from_db(&mut db_conn, &key, &channel_state_key));
+        let ser_channel_state =
+            handle_error_result!(get_file_from_db(&mut db_conn, &key, &channel_state_key));
         let mut channel_state: ChannelMPCState =
             handle_error_result!(serde_json::from_str(&ser_channel_state));
 
         // load the customer state from DB
         let cust_state_key = format!("cust:{}:cust_state", channel_name);
-        let ser_cust_state = handle_error_result!(get_file_from_db(&mut db_conn, &key, &cust_state_key));
+        let ser_cust_state =
+            handle_error_result!(get_file_from_db(&mut db_conn, &key, &cust_state_key));
         let mut cust_state: CustomerMPCState =
             handle_error_result!(serde_json::from_str(&ser_cust_state));
 
@@ -709,7 +804,8 @@ mod cust {
 
         // load the channel token from DB
         let channel_token_key = format!("cust:{}:channel_token", channel_name);
-        let ser_channel_token = handle_error_result!(get_file_from_db(&mut db_conn, &key, &channel_token_key));
+        let ser_channel_token =
+            handle_error_result!(get_file_from_db(&mut db_conn, &key, &channel_token_key));
         let mut channel_token: ChannelMPCToken =
             handle_error_result!(serde_json::from_str(&ser_channel_token));
 
@@ -802,28 +898,42 @@ mod cust {
             false => println!("Transaction failed!"),
         }
 
-        cust_save_state_in_db(&mut db_conn, channel_name, channel_state, channel_token, cust_state)
+        cust_save_state_in_db(
+            &mut db_conn,
+            channel_name,
+            channel_state,
+            channel_token,
+            cust_state,
+        )
     }
 
-    pub fn close(db_url: &String, out_file: PathBuf, from_escrow: bool, channel_id: String) -> Result<(), String> {
+    pub fn close(
+        db_url: &String,
+        out_file: PathBuf,
+        from_escrow: bool,
+        channel_id: String,
+    ) -> Result<(), String> {
         let mut db_conn = handle_error_result!(create_db_connection(db_url.clone()));
         let key = format!("id:{}", channel_id);
 
         // load the channel state from DB
         let channel_state_key = format!("cust:{}:channel_state", channel_id);
-        let ser_channel_state = handle_error_result!(get_file_from_db(&mut db_conn, &key, &channel_state_key));
+        let ser_channel_state =
+            handle_error_result!(get_file_from_db(&mut db_conn, &key, &channel_state_key));
         let channel_state: ChannelMPCState =
             handle_error_result!(serde_json::from_str(&ser_channel_state));
 
         // load the customer state from DB
         let cust_state_key = format!("cust:{}:cust_state", channel_id);
-        let ser_cust_state = handle_error_result!(get_file_from_db(&mut db_conn, &key, &cust_state_key));
+        let ser_cust_state =
+            handle_error_result!(get_file_from_db(&mut db_conn, &key, &cust_state_key));
         let cust_state: CustomerMPCState =
             handle_error_result!(serde_json::from_str(&ser_cust_state));
 
         // load the channel token from DB
         let channel_token_key = format!("cust:{}:channel_token", channel_id);
-        let ser_channel_token = handle_error_result!(get_file_from_db(&mut db_conn, &key, &channel_token_key));
+        let ser_channel_token =
+            handle_error_result!(get_file_from_db(&mut db_conn, &key, &channel_token_key));
         let channel_token: ChannelMPCToken =
             handle_error_result!(serde_json::from_str(&ser_channel_token));
 
@@ -861,7 +971,7 @@ mod cust {
         let channel_state_json_str = handle_error_result!(serde_json::to_string(&channel_state));
         store_file_in_db(db_conn, &key, &channel_state_key, &channel_state_json_str)?;
 
-        let channel_token_key = format!("cust:{}:channel_token", channel_name);        
+        let channel_token_key = format!("cust:{}:channel_token", channel_name);
         let channel_token_json_str = handle_error_result!(serde_json::to_string(&channel_token));
         store_file_in_db(db_conn, &key, &channel_token_key, &channel_token_json_str)?;
 
@@ -889,7 +999,12 @@ mod merch {
     static MERCH_STATE_KEY: &str = "merch_state";
     static CHANNEL_STATE_KEY: &str = "channel_state";
 
-    pub fn open(conn: &mut Conn, db_url: &String, dust_limit: i64, self_delay: u16) -> Result<(), String> {
+    pub fn open(
+        conn: &mut Conn,
+        db_url: &String,
+        dust_limit: i64,
+        self_delay: u16,
+    ) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
 
         let mut channel_state = ChannelMPCState::new(String::from("Channel"), self_delay, false);
@@ -899,7 +1014,7 @@ mod merch {
         }
         channel_state.set_dust_limit(dust_limit);
 
-        let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));        
+        let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
         let merch_state = mpc::init_merchant(rng, db_url.clone(), &mut channel_state, "Merchant");
 
         let msg1 = [
@@ -917,12 +1032,20 @@ mod merch {
         let key = String::from("cli:merch_db");
 
         // load the channel state from DB
-        let ser_channel_state = handle_error_result!(get_file_from_db(&mut db.conn, &key, &CHANNEL_STATE_KEY.to_string()));
+        let ser_channel_state = handle_error_result!(get_file_from_db(
+            &mut db.conn,
+            &key,
+            &CHANNEL_STATE_KEY.to_string()
+        ));
         let channel_state: ChannelMPCState =
             handle_error_result!(serde_json::from_str(&ser_channel_state));
 
         // load the merchant state from DB
-        let ser_merch_state = handle_error_result!(get_file_from_db(&mut db.conn, &key, &MERCH_STATE_KEY.to_string()));
+        let ser_merch_state = handle_error_result!(get_file_from_db(
+            &mut db.conn,
+            &key,
+            &MERCH_STATE_KEY.to_string()
+        ));
         let mut merch_state: MerchantMPCState =
             handle_error_result!(serde_json::from_str(&ser_merch_state));
 
@@ -1030,8 +1153,13 @@ mod merch {
         let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
         let key = String::from("cli:merch_db");
 
-        let ser_merch_state = handle_error_result!(get_file_from_db(&mut db.conn, &key, &MERCH_STATE_KEY.to_string()));
-        let mut merch_state: MerchantMPCState = handle_error_result!(serde_json::from_str(&ser_merch_state));
+        let ser_merch_state = handle_error_result!(get_file_from_db(
+            &mut db.conn,
+            &key,
+            &MERCH_STATE_KEY.to_string()
+        ));
+        let mut merch_state: MerchantMPCState =
+            handle_error_result!(serde_json::from_str(&ser_merch_state));
 
         let msg2 = conn.wait_for(None, false);
 
@@ -1054,24 +1182,40 @@ mod merch {
         merch_save_state_in_db(&mut db.conn, None, &merch_state)
     }
 
-    pub fn load_merchant_data(db_url: &String) -> Result<(ChannelMPCState, MerchantMPCState), String> {
+    pub fn load_merchant_data(
+        db_url: &String,
+    ) -> Result<(ChannelMPCState, MerchantMPCState), String> {
         let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
         let key = String::from("cli:merch_db");
 
         // load the channel state from DB
-        let ser_channel_state = handle_error_result!(get_file_from_db(&mut db.conn, &key, &CHANNEL_STATE_KEY.to_string()));
+        let ser_channel_state = handle_error_result!(get_file_from_db(
+            &mut db.conn,
+            &key,
+            &CHANNEL_STATE_KEY.to_string()
+        ));
         let channel_state: ChannelMPCState =
             handle_error_result!(serde_json::from_str(&ser_channel_state));
 
         // load the merchant state from DB
-        let ser_merch_state = handle_error_result!(get_file_from_db(&mut db.conn, &key, &MERCH_STATE_KEY.to_string()));
+        let ser_merch_state = handle_error_result!(get_file_from_db(
+            &mut db.conn,
+            &key,
+            &MERCH_STATE_KEY.to_string()
+        ));
         let merch_state: MerchantMPCState =
             handle_error_result!(serde_json::from_str(&ser_merch_state));
 
         Ok((channel_state, merch_state))
     }
 
-    pub fn pay(cmd_amount: Option<i64>, conn: &mut Conn, db_url: &String, channel_state: &mut ChannelMPCState, merch_state: &mut MerchantMPCState) -> Result<(), String> {
+    pub fn pay(
+        cmd_amount: Option<i64>,
+        conn: &mut Conn,
+        db_url: &String,
+        channel_state: &mut ChannelMPCState,
+        merch_state: &mut MerchantMPCState,
+    ) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
         let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
 
@@ -1182,25 +1326,34 @@ mod merch {
         db_conn: &mut redis::Connection,
         channel_state: Option<&ChannelMPCState>,
         merch_state: &MerchantMPCState,
-    ) -> Result<(), String> { 
-
+    ) -> Result<(), String> {
         let key = String::from("cli:merch_db");
         match channel_state {
             Some(n) => {
                 let channel_state_json_str = handle_error_result!(serde_json::to_string(n));
-                store_file_in_db(db_conn, &key, &CHANNEL_STATE_KEY.to_string(), &channel_state_json_str)?
-            },
-            None => false // do nothing
+                store_file_in_db(
+                    db_conn,
+                    &key,
+                    &CHANNEL_STATE_KEY.to_string(),
+                    &channel_state_json_str,
+                )?
+            }
+            None => false, // do nothing
         };
 
         let merch_state_json_str = handle_error_result!(serde_json::to_string(merch_state));
-        store_file_in_db(db_conn, &key, &MERCH_STATE_KEY.to_string(), &merch_state_json_str)?;
+        store_file_in_db(
+            db_conn,
+            &key,
+            &MERCH_STATE_KEY.to_string(),
+            &merch_state_json_str,
+        )?;
         Ok(())
-    }    
+    }
 
     pub fn save_channel_token(
         db_conn: &mut redis::Connection,
-        channel_token: &ChannelMPCToken
+        channel_token: &ChannelMPCToken,
     ) -> Result<(), String> {
         let key = String::from("cli:merch_channels");
         let channel_id = channel_token.compute_channel_id().unwrap();
@@ -1224,15 +1377,20 @@ mod merch {
         let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
 
         let key1 = String::from("cli:merch_db");
-        let ser_merch_state = handle_error_result!(get_file_from_db(&mut db.conn, &key1, &MERCH_STATE_KEY.to_string()));
-        let merch_state: MerchantMPCState = handle_error_result!(serde_json::from_str(&ser_merch_state));
+        let ser_merch_state = handle_error_result!(get_file_from_db(
+            &mut db.conn,
+            &key1,
+            &MERCH_STATE_KEY.to_string()
+        ));
+        let merch_state: MerchantMPCState =
+            handle_error_result!(serde_json::from_str(&ser_merch_state));
 
         let key2 = String::from("cli:merch_channels");
         let channel_token_key = format!("id:{}", channel_id);
-        let ser_channel_token = handle_error_result!(get_file_from_db(&mut db.conn, &key2, &channel_token_key));
+        let ser_channel_token =
+            handle_error_result!(get_file_from_db(&mut db.conn, &key2, &channel_token_key));
         let channel_token: ChannelMPCToken =
             handle_error_result!(serde_json::from_str(&ser_channel_token));
-
 
         let escrow_txid = channel_token.escrow_txid.0.to_vec();
 

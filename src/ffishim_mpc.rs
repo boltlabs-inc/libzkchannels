@@ -70,9 +70,7 @@ pub mod ffishim_mpc {
     // UTILS
 
     #[no_mangle]
-    pub extern "C" fn get_self_delay_be_hex(
-        ser_channel_state: *mut c_char 
-    ) -> *mut c_char {
+    pub extern "C" fn get_self_delay_be_hex(ser_channel_state: *mut c_char) -> *mut c_char {
         let channel_state_result: ResultSerdeType<mpc::ChannelMPCState> =
             deserialize_result_object(ser_channel_state);
         let channel_state = handle_errors!(channel_state_result);
@@ -86,7 +84,6 @@ pub mod ffishim_mpc {
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
-
 
     // CHANNEL SETUP - define name, self-delay, third-party-support
 

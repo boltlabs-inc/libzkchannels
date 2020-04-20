@@ -89,7 +89,7 @@ pub struct ChannelMPCState {
     pub third_party: bool,
     pub merch_payout_pk: Option<secp256k1::PublicKey>,
     pub merch_dispute_pk: Option<secp256k1::PublicKey>,
-    pub self_delay: u16
+    pub self_delay: u16,
 }
 
 impl ChannelMPCState {
@@ -102,7 +102,7 @@ impl ChannelMPCState {
             third_party: third_party_support,
             merch_payout_pk: None,
             merch_dispute_pk: None,
-            self_delay: self_delay
+            self_delay: self_delay,
         }
     }
 

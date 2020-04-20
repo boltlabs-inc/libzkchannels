@@ -35,8 +35,8 @@ The libzkchannels library is a proof of concept implementation that relies on ex
 * pairing
 * serde, serde_json
 * sha2, ripemd160, hmac, hex
-* wagyu-bitcoin and wagyu-zcash
 * redis
+* zkchan-tx
 
 Note that the above rust dependencies will be compiled and installed as a result of running the `make` command.
 
