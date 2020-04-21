@@ -23,6 +23,9 @@ zkChannels is a system for conducting **privacy-preserving off-chain payments** 
       * [1.4 Performance](#14-performance)	
     * [2. Using ZK Proof techniques](#2-using-zk-proof-techniques)
       * [2.1 Protocol API](#21-protocol-api)
+* [Documentation](#documentation)
+* [Contributions](#contributions)
+* [License](#license)
 
 # WARNING
 
@@ -223,7 +226,7 @@ First build the dependencies as described [earlier](#1-install-dependencies), ne
 
 ### 1.4 Performance
 
-The strong guarantee of the malicious model is necessary for production deployment but also has significant performance drawbacks. For instance, the time to execute the MPC takes about **7–8 seconds on average** on a modern workstation (not including network latency). There are a number of optimizations we are investigating to speed up computation in this model.
+The strong guarantee of the malicious model is necessary for production deployment but also has significant performance drawbacks. For instance, the time to execute the MPC takes about **7–9 seconds on average** on a modern workstation (not including network latency). There are a number of optimizations we are investigating to speed up computation in this model.
 
 ## 2. Using ZK Proof techniques
 
@@ -377,8 +380,6 @@ See the `intermediary_payment_basics_works()` unit test in `src/lib.rs` for more
 # Documentation
 
 Build the api documentation by simply running `make doc`. Documentation will be generated in your local `target/doc` directory.
-
-For the libzkchannels (or BOLT) design documentation, see the `docs/bolt.pdf` document.
 
 # Contributions
 

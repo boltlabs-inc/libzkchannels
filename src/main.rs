@@ -27,15 +27,6 @@ use zkchannels::database::create_db_connection;
 use zkchannels::mpc;
 use zkchannels::FundingTxInfo;
 
-// macro_rules! handle_file_error {
-//     ($e:expr, $f:expr) => {
-//         match $e {
-//             Ok(val) => val,
-//             Err(err) => return Err(format!("- {:?}: {}", $f, err)),
-//         }
-//     };
-// }
-
 macro_rules! handle_error_result {
     ($e:expr) => {
         match $e {
@@ -44,6 +35,16 @@ macro_rules! handle_error_result {
         }
     };
 }
+
+macro_rules! handle_error_result_with_str {
+    ($e:expr, $str:tt) => {
+        match $e {
+            Ok(val) => val,
+            Err(_err) => return Err(format!($str)),
+        }
+    };
+}
+
 
 macro_rules! print_error_result {
     ($e:expr) => {
@@ -169,9 +170,9 @@ pub struct Close {
     party: Party,
     #[structopt(short = "f", long = "file")]
     file: PathBuf,
-    #[structopt(short = "e", long = "from-escrow")]
-    from_escrow: bool,
-    #[structopt(short = "n", long = "channel-id")]
+    #[structopt(short = "e", long = "from-merch")]
+    from_merch_close: bool,
+    #[structopt(short = "n", long = "channel-id", default_value = "")]
     channel_id: String,
 }
 
@@ -499,7 +500,7 @@ fn main() {
             Party::CUST => print_error_result!(cust::close(
                 &db_url,
                 close.file,
-                close.from_escrow,
+                close.from_merch_close,
                 close.channel_id
             )),
         },
@@ -647,7 +648,7 @@ mod cust {
                 cust_bal,
                 merch_bal,
                 to_self_delay_be
-            ));
+            ));    
 
         // get the cust-sig on the merch-close-tx
         let cust_sig = handle_error_result!(customer_sign_merch_close_transaction(
@@ -910,7 +911,7 @@ mod cust {
     pub fn close(
         db_url: &String,
         out_file: PathBuf,
-        from_escrow: bool,
+        from_merch_close: bool,
         channel_id: String,
     ) -> Result<(), String> {
         let mut db_conn = handle_error_result!(create_db_connection(db_url.clone()));
@@ -937,6 +938,8 @@ mod cust {
         let channel_token: ChannelMPCToken =
             handle_error_result!(serde_json::from_str(&ser_channel_token));
 
+        let from_escrow = !from_merch_close;
+
         let (signed_tx, txid) = handle_error_result!(mpc::customer_close(
             &channel_state,
             &channel_token,
@@ -944,17 +947,13 @@ mod cust {
             &cust_state
         ));
 
-        let closing_tx = match from_escrow {
-            true => hex::encode(signed_tx),
-            false => hex::encode(signed_tx),
-        };
-
-        match from_escrow {
-            true => println!("cust-close from escrow txid: {}", hex::encode(txid)),
-            false => println!("cust-close from merch txid: {}", hex::encode(txid)),
-        };
+        if from_escrow {
+            println!("cust-close from escrow txid: {}", hex::encode(txid));
+        } else {
+            println!("cust-close from merch txid: {}", hex::encode(txid));
+        }
         // write out to a file
-        write_pathfile(out_file, closing_tx)?;
+        write_pathfile(out_file, hex::encode(signed_tx))?;
         Ok(())
     }
 
@@ -985,10 +984,7 @@ mod cust {
 mod merch {
     use super::*;
     use zkchan_tx::fixed_size_array::FixedSizeArray32;
-    use zkchan_tx::transactions::btc::{
-        completely_sign_multi_sig_transaction, get_private_key, merchant_form_close_transaction,
-    };
-    use zkchan_tx::Transaction;
+    use zkchan_tx::transactions::btc::merchant_form_close_transaction;
     use zkchannels::bindings::ConnType_NETIO;
     use zkchannels::channels_mpc::{
         ChannelMPCState, ChannelMPCToken, InitCustState, MerchantMPCState, NetworkConfig,
@@ -1050,6 +1046,7 @@ mod merch {
             handle_error_result!(serde_json::from_str(&ser_merch_state));
 
         let msg0 = conn.wait_for(None, false);
+
         // wait for cust_sig, escrow_txid and escrow_prevout
         let cust_sig: Vec<u8> = serde_json::from_str(&msg0.get(0).unwrap()).unwrap();
         let escrow_txid: [u8; 32] = serde_json::from_str(&msg0.get(1).unwrap()).unwrap();
@@ -1061,7 +1058,6 @@ mod merch {
         let cust_pk = init_cust_state.pk_c.serialize().to_vec();
         let cust_close_pk = init_cust_state.close_pk.serialize().to_vec();
         let rev_lock = init_cust_state.rev_lock.0;
-        let merch_sk = merch_state.get_secret_key();
 
         let merch_pk = merch_state.pk_m.serialize().to_vec();
         let merch_close_pk = merch_state.payout_pk.serialize().to_vec();
@@ -1070,7 +1066,7 @@ mod merch {
         let merch_bal = init_cust_state.merch_bal;
 
         // form the merch-close-tx
-        let (_, tx_params) = handle_error_result!(merchant_form_close_transaction::<Testnet>(
+        let (merch_tx_preimage, tx_params) = handle_error_result!(merchant_form_close_transaction::<Testnet>(
             escrow_txid.to_vec(),
             cust_pk.clone(),
             merch_pk,
@@ -1080,20 +1076,26 @@ mod merch {
             to_self_delay_be
         ));
 
-        // sign the merch-close-tx given cust-sig
-        let merch_private_key = get_private_key(&merch_sk).unwrap();
-        let (signed_merch_close_tx, merch_txid, merch_prevout) =
-            completely_sign_multi_sig_transaction::<Testnet>(
-                &tx_params,
+        // verify signature from merchant
+        let is_ok = handle_error_result!(zkchan_tx::txutil::merchant_verify_merch_close_transaction(
+            &merch_tx_preimage,
+            &cust_sig,
+            &cust_pk
+        ));
+        if is_ok {
+            merch_state.store_merch_close_tx(
+                &escrow_txid.to_vec(),
+                &cust_pk,
+                cust_bal,
+                merch_bal,
+                to_self_delay_be,
                 &cust_sig,
-                false,
-                None,
-                &merch_private_key,
             );
-        let signed_merch_close_tx = match signed_merch_close_tx.to_transaction_bytes() {
-            Ok(n) => n,
-            Err(e) => return Err(e.to_string()),
-        };
+        }
+
+        let (merch_txid, merch_prevout) = handle_error_result!(zkchan_tx::txutil::merchant_generate_transaction_id(
+            tx_params
+        ));
 
         // construct the funding tx info given info available
         let funding_tx = FundingTxInfo {
@@ -1141,11 +1143,6 @@ mod merch {
         conn.send(&msg5);
 
         merch_save_state_in_db(&mut db.conn, None, &merch_state)?;
-        write_file(
-            "signed_merch_close_tx.txt",
-            hex::encode(&signed_merch_close_tx),
-        )?;
-
         Ok(())
     }
 
@@ -1365,16 +1362,26 @@ mod merch {
         Ok(())
     }
 
-    // pub fn list_channels(
-    //     db_conn: &mut redis::Connection
-    // ) -> Result<(), String> {
-    //     let key = String::from("cli:merch_channels");
-    //     Ok(())
-    // }
+    pub fn list_channels(
+        db_conn: &mut redis::Connection
+    ) {
+        let key = String::from("cli:merch_channels");
+
+        let channel_ids : Vec<String> = db_conn.hkeys(key).unwrap();
+        println!("List zkchannels...");
+        for id in channel_ids {
+            println!("{}", id);
+        }
+     }
 
     pub fn close(db_url: &String, out_file: PathBuf, channel_id: String) -> Result<(), String> {
         // output the merch-close-tx (only thing merchant can broadcast to close channel)
         let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
+
+        if channel_id == "" {
+            list_channels(&mut db.conn);
+            return Ok(());
+        }
 
         let key1 = String::from("cli:merch_db");
         let ser_merch_state = handle_error_result!(get_file_from_db(
@@ -1388,7 +1395,7 @@ mod merch {
         let key2 = String::from("cli:merch_channels");
         let channel_token_key = format!("id:{}", channel_id);
         let ser_channel_token =
-            handle_error_result!(get_file_from_db(&mut db.conn, &key2, &channel_token_key));
+            handle_error_result_with_str!(get_file_from_db(&mut db.conn, &key2, &channel_token_key), "Invalid channel ID");
         let channel_token: ChannelMPCToken =
             handle_error_result!(serde_json::from_str(&ser_channel_token));
 
