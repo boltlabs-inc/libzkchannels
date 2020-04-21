@@ -39,7 +39,7 @@ The libzkchannels library is a proof of concept implementation that relies on ex
 * serde, serde_json
 * sha2, ripemd160, hmac, hex
 * redis
-* zkchan-tx
+* [zkchan-tx](https://github.com/boltlabs-inc/zkchan-tx)
 
 Note that the above rust dependencies will be compiled and installed as a result of running the `make` command.
 

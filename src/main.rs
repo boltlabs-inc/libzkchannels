@@ -36,7 +36,7 @@ macro_rules! handle_error_result {
     };
 }
 
-macro_rules! handle_error_result_with_str {
+macro_rules! handle_error_with_string {
     ($e:expr, $str:tt) => {
         match $e {
             Ok(val) => val,
@@ -444,7 +444,7 @@ fn main() {
         Command::UNLINK(unlink) => match unlink.party {
             Party::MERCH => {
                 let (mut channel_state, mut merch_state) =
-                    merch::load_merchant_data(&db_url).unwrap();
+                    merch::load_merchant_state_info(&db_url).unwrap();
                 merch::pay(
                     Some(0),
                     create_connection!(unlink),
@@ -466,7 +466,7 @@ fn main() {
         Command::PAY(pay) => match pay.party {
             Party::MERCH => {
                 let (mut channel_state, mut merch_state) =
-                    merch::load_merchant_data(&db_url).unwrap();
+                    merch::load_merchant_state_info(&db_url).unwrap();
                 loop {
                     match merch::pay(
                         pay.amount.clone(),
@@ -1001,25 +1001,41 @@ mod merch {
         dust_limit: i64,
         self_delay: u16,
     ) -> Result<(), String> {
-        let rng = &mut rand::thread_rng();
 
-        let mut channel_state = ChannelMPCState::new(String::from("Channel"), self_delay, false);
-        if dust_limit == 0 {
-            let s = format!("Dust limit must be greater than 0!");
-            return Err(s);
-        }
-        channel_state.set_dust_limit(dust_limit);
+        let merch_state_info = load_merchant_state_info(&db_url);
 
-        let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
-        let merch_state = mpc::init_merchant(rng, db_url.clone(), &mut channel_state, "Merchant");
+        let (channel_state, merch_state) = match merch_state_info {
+            Err(_) => {
+                // create a new channel state and merchant state DB
+                let rng = &mut rand::thread_rng();
 
+                let mut channel_state = ChannelMPCState::new(String::from("Channel"), self_delay, false);
+                if dust_limit == 0 {
+                    let s = format!("Dust limit must be greater than 0!");
+                    return Err(s);
+                }
+                // set dust limit if it's set above
+                channel_state.set_dust_limit(dust_limit);
+    
+                let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
+                
+                let merch_state = mpc::init_merchant(rng, db_url.clone(), &mut channel_state, "Merchant");
+
+                merch_save_state_in_db(&mut db.conn, Some(&channel_state), &merch_state)?;
+
+                (channel_state, merch_state)
+            },
+            Ok(n) => (n.0, n.1)
+        };
+
+        // send initial channel info 
         let msg1 = [
             handle_error_result!(serde_json::to_string(&channel_state)),
             handle_error_result!(serde_json::to_string(&merch_state.pk_m)),
         ];
         conn.send(&msg1);
 
-        merch_save_state_in_db(&mut db.conn, Some(&channel_state), &merch_state)
+        Ok(())
     }
 
     pub fn init(conn: &mut Conn, db_url: &String) -> Result<(), String> {
@@ -1028,20 +1044,20 @@ mod merch {
         let key = String::from("cli:merch_db");
 
         // load the channel state from DB
-        let ser_channel_state = handle_error_result!(get_file_from_db(
+        let ser_channel_state = handle_error_with_string!(get_file_from_db(
             &mut db.conn,
             &key,
             &CHANNEL_STATE_KEY.to_string()
-        ));
+        ), "Could not load the merchant channel state");
         let channel_state: ChannelMPCState =
             handle_error_result!(serde_json::from_str(&ser_channel_state));
 
         // load the merchant state from DB
-        let ser_merch_state = handle_error_result!(get_file_from_db(
+        let ser_merch_state = handle_error_with_string!(get_file_from_db(
             &mut db.conn,
             &key,
             &MERCH_STATE_KEY.to_string()
-        ));
+        ), "Could not load the merchant state DB");
         let mut merch_state: MerchantMPCState =
             handle_error_result!(serde_json::from_str(&ser_merch_state));
 
@@ -1150,11 +1166,11 @@ mod merch {
         let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
         let key = String::from("cli:merch_db");
 
-        let ser_merch_state = handle_error_result!(get_file_from_db(
+        let ser_merch_state = handle_error_with_string!(get_file_from_db(
             &mut db.conn,
             &key,
             &MERCH_STATE_KEY.to_string()
-        ));
+        ), "Could not load the merchant state DB");
         let mut merch_state: MerchantMPCState =
             handle_error_result!(serde_json::from_str(&ser_merch_state));
 
@@ -1179,27 +1195,27 @@ mod merch {
         merch_save_state_in_db(&mut db.conn, None, &merch_state)
     }
 
-    pub fn load_merchant_data(
+    pub fn load_merchant_state_info(
         db_url: &String,
     ) -> Result<(ChannelMPCState, MerchantMPCState), String> {
         let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
         let key = String::from("cli:merch_db");
 
         // load the channel state from DB
-        let ser_channel_state = handle_error_result!(get_file_from_db(
+        let ser_channel_state = handle_error_with_string!(get_file_from_db(
             &mut db.conn,
             &key,
             &CHANNEL_STATE_KEY.to_string()
-        ));
+        ), "Could not load the merchant channel state");
         let channel_state: ChannelMPCState =
             handle_error_result!(serde_json::from_str(&ser_channel_state));
 
         // load the merchant state from DB
-        let ser_merch_state = handle_error_result!(get_file_from_db(
+        let ser_merch_state = handle_error_with_string!(get_file_from_db(
             &mut db.conn,
             &key,
             &MERCH_STATE_KEY.to_string()
-        ));
+        ), "Could not load the merchant state DB");
         let merch_state: MerchantMPCState =
             handle_error_result!(serde_json::from_str(&ser_merch_state));
 
@@ -1384,18 +1400,18 @@ mod merch {
         }
 
         let key1 = String::from("cli:merch_db");
-        let ser_merch_state = handle_error_result!(get_file_from_db(
+        let ser_merch_state = handle_error_with_string!(get_file_from_db(
             &mut db.conn,
             &key1,
             &MERCH_STATE_KEY.to_string()
-        ));
+        ), "Could not load the merchant state DB");
         let merch_state: MerchantMPCState =
             handle_error_result!(serde_json::from_str(&ser_merch_state));
 
         let key2 = String::from("cli:merch_channels");
         let channel_token_key = format!("id:{}", channel_id);
         let ser_channel_token =
-            handle_error_result_with_str!(get_file_from_db(&mut db.conn, &key2, &channel_token_key), "Invalid channel ID");
+        handle_error_with_string!(get_file_from_db(&mut db.conn, &key2, &channel_token_key), "Invalid channel ID");
         let channel_token: ChannelMPCToken =
             handle_error_result!(serde_json::from_str(&ser_channel_token));
 
