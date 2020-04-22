@@ -100,6 +100,9 @@ type State struct {
 	EscrowPrevOut string `json:"escrow_prevout"`
 	MerchTxId     string `json:"merch_txid"`
 	MerchPrevOut  string `json:"merch_prevout"`
+	MinFee        int64  `json:"min_fee"`
+	MaxFee        int64  `json:"max_fee"`
+	FeeMC         int64  `json:"fee_mc"`
 }
 
 type ChannelToken struct {
@@ -549,7 +552,7 @@ func PreparePaymentMerchant(channelState ChannelState, nonce string, revLockCom 
 	return r.PayTokenMaskCom, merchState, err
 }
 
-func PayUpdateCustomer(channelState ChannelState, channelToken ChannelToken, startState State, endState State, payTokenMaskCom string, revLockCom string, amount int64, custState CustState) (bool, CustState, error) {
+func PayUpdateCustomer(channelState ChannelState, channelToken ChannelToken, startState State, endState State, payTokenMaskCom string, revLockCom string, amount int64, feeCc int64, custState CustState) (bool, CustState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
 		return false, CustState{}, err
@@ -572,7 +575,7 @@ func PayUpdateCustomer(channelState ChannelState, channelToken ChannelToken, sta
 	}
 
 	resp := C.GoString(C.mpc_pay_update_customer(C.CString(string(serChannelState)), C.CString(string(serChannelToken)), C.CString(string(serStartState)),
-		C.CString(string(serEndState)), C.CString(payTokenMaskCom), C.CString(revLockCom), C.longlong(amount), C.CString(string(serCustState))))
+		C.CString(string(serEndState)), C.CString(payTokenMaskCom), C.CString(revLockCom), C.longlong(amount), C.longlong(feeCc), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return false, CustState{}, err

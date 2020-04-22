@@ -488,6 +488,7 @@ pub mod ffishim_mpc {
         ser_pay_token_mask_com: *mut c_char,
         ser_rev_lock_com: *mut c_char,
         amount: i64,
+        fee_cc: i64,
         ser_cust_state: *mut c_char,
     ) -> *mut c_char {
         // Deserialize the channel_state
@@ -531,6 +532,7 @@ pub mod ffishim_mpc {
             &channel_token,
             start_state,
             end_state,
+            fee_cc,
             pay_token_mask_com_ar,
             rev_lock_com_ar,
             amount,

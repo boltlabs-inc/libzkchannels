@@ -1077,6 +1077,7 @@ pub mod mpc {
         channel_token: &ChannelMPCToken,
         s0: State,
         s1: State,
+        fee_cc: i64,
         pay_token_mask_com: [u8; 32],
         rev_lock_com: [u8; 32],
         amount: i64,
@@ -1098,6 +1099,7 @@ pub mod mpc {
             &channel_token,
             s0,
             s1,
+            fee_cc,
             pay_token_mask_com,
             rev_lock_com,
             amount,
@@ -2208,7 +2210,7 @@ mod tests {
 
             let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &mut db as &mut dyn StateDatabase, &channel_state, state.get_nonce(), rev_lock_com.clone(), 10, &mut merch_state).unwrap();
 
-            let res_cust = mpc::pay_update_customer(&mut channel_state, &channel_token, s0, state, pay_mask_com, rev_lock_com, 10, &mut cust_state);
+            let res_cust = mpc::pay_update_customer(&mut channel_state, &channel_token, s0, state, 150, pay_mask_com, rev_lock_com, 10, &mut cust_state);
             assert!(res_cust.is_ok() && res_cust.unwrap());
 
             let mut pt_mask = [0u8; 32];

@@ -150,6 +150,8 @@ pub struct Pay {
     party: Party,
     #[structopt(short = "a", long = "amount", allow_hyphen_values = true)]
     amount: Option<i64>,
+    #[structopt(short = "f", long = "fee-cc", allow_hyphen_values = true)]
+    fee_cc: Option<i64>,
     #[structopt(short = "i", long = "own-ip", default_value = "127.0.0.1")]
     own_ip: String,
     #[structopt(short = "p", long = "own-port")]
@@ -287,8 +289,8 @@ pub fn get_file_from_db(
 #[structopt(name = "zkchannels-mpc")]
 struct Cli {
     #[structopt(
-        subcommand,
-        help = "Options: open, init, activate, unlink, pay, or close"
+    subcommand,
+    help = "Options: open, init, activate, unlink, pay, or close"
     )]
     command: Command,
 }
@@ -385,7 +387,6 @@ impl Conn {
 }
 
 fn main() {
-
     let args = Cli::from_args();
     let db_url = "redis://127.0.0.1/".to_string(); // make constant
 
@@ -452,16 +453,17 @@ fn main() {
                     &mut channel_state,
                     &mut merch_state,
                 )
-                .unwrap()
+                    .unwrap()
             }
             Party::CUST => cust::pay(
                 0,
+                150,
                 create_connection!(unlink),
                 &db_url,
                 unlink.channel_name,
                 unlink.verbose,
             )
-            .unwrap(),
+                .unwrap(),
         },
         Command::PAY(pay) => match pay.party {
             Party::MERCH => {
@@ -483,6 +485,7 @@ fn main() {
             Party::CUST => {
                 match cust::pay(
                     pay.amount.unwrap(),
+                    pay.fee_cc.unwrap_or(150),
                     create_connection!(pay),
                     &db_url,
                     pay.channel_name,
@@ -516,7 +519,8 @@ mod cust {
     use zkchan_tx::txutil::{
         customer_sign_escrow_transaction, customer_sign_merch_close_transaction,
     };
-    use zkchannels::bindings::ConnType_NETIO; // ConnType_CUSTOM
+    use zkchannels::bindings::ConnType_NETIO;
+    // ConnType_CUSTOM
     use zkchannels::channels_mpc::{
         ChannelMPCState, ChannelMPCToken, CustomerMPCState, NetworkConfig,
     };
@@ -648,7 +652,7 @@ mod cust {
                 cust_bal,
                 merch_bal,
                 to_self_delay_be
-            ));    
+            ));
 
         // get the cust-sig on the merch-close-tx
         let cust_sig = handle_error_result!(customer_sign_merch_close_transaction(
@@ -774,6 +778,7 @@ mod cust {
 
     pub fn pay(
         amount: i64,
+        fee_cc: i64,
         conn: &mut Conn,
         db_url: &String,
         channel_name: String,
@@ -855,6 +860,7 @@ mod cust {
             &mut channel_token,
             old_state,
             new_state,
+            fee_cc,
             pay_token_mask_com,
             rev_state.rev_lock_com.0,
             amount,
@@ -870,11 +876,11 @@ mod cust {
         // unmask the closing tx
         is_ok = is_ok
             && mpc::pay_unmask_sigs_customer(
-                &mut channel_state,
-                &mut channel_token,
-                mask_bytes,
-                &mut cust_state,
-            )
+            &mut channel_state,
+            &mut channel_token,
+            mask_bytes,
+            &mut cust_state,
+        )
             .unwrap();
 
         let msg3 = [serde_json::to_string(&rev_state).unwrap()];
@@ -1288,7 +1294,7 @@ mod merch {
             nonce,
             merch_state,
         )
-        .unwrap();
+            .unwrap();
         let msg3 = [handle_error_result!(serde_json::to_string(&masked_inputs))];
         let msg4 = conn.send_and_wait(&msg3, Some(String::from("Received revoked state")), true);
         let rev_state = serde_json::from_str(msg4.get(0).unwrap()).unwrap();
@@ -1302,7 +1308,7 @@ mod merch {
             _ => {
                 return Err(String::from(
                     "Failed to get the pay token mask and randomness!",
-                ))
+                ));
             }
         };
 
@@ -1367,12 +1373,12 @@ mod merch {
     ) {
         let key = String::from("cli:merch_channels");
 
-        let channel_ids : Vec<String> = db_conn.hkeys(key).unwrap();
+        let channel_ids: Vec<String> = db_conn.hkeys(key).unwrap();
         println!("List zkchannels...");
         for id in channel_ids {
             println!("{}", id);
         }
-     }
+    }
 
     pub fn close(db_url: &String, out_file: PathBuf, channel_id: String) -> Result<(), String> {
         // output the merch-close-tx (only thing merchant can broadcast to close channel)

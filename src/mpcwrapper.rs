@@ -3,10 +3,12 @@ use bindings::{
     Balance_l, BitcoinPublicKey_l, CommitmentRandomness_l, ConnType_NETIO, ConnType_TORNETIO,
     ConnType_UNIXNETIO, Conn_l, EcdsaSig_l, HMACKeyCommitment_l, HMACKey_l, MaskCommitment_l,
     Mask_l, Nonce_l, PayToken_l, PublicKeyHash_l, RevLockCommitment_l, RevLock_l, State_l, Txid_l,
-}; // ConnType_CUSTOM, get_gonetio_ptr
+};
+// ConnType_CUSTOM, get_gonetio_ptr
 use channels_mpc::NetworkConfig;
 use ecdsa_partial::EcdsaPartialSig;
-use libc::{c_int, c_void}; // c_uint, c_char
+use libc::{c_int, c_void};
+// c_uint, c_char
 use rand::Rng;
 use secp256k1;
 use std::ffi::{CStr, CString};
@@ -17,6 +19,7 @@ use wallet::State;
 
 static MPC_ERROR: &str = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
 pub static CIRCUIT_FILE: &str = "/include/emp-tool/circuits/files/tokens.circuit.txt";
+static VAL_CPFP: i64 = 150;
 
 extern "C" fn io_callback(net_config: *mut c_void, party: c_int) -> *mut c_void {
     // unsafe is needed because we dereference a raw pointer to network config
@@ -59,6 +62,7 @@ pub fn mpc_build_masked_tokens_cust(
     merch_payout_pub_key: secp256k1::PublicKey,
     new_state: State,
     old_state: State,
+    fee_cc: i64,
     pt_old: &[u8],
     cust_escrow_pub_key: secp256k1::PublicKey,
     cust_payout_pub_key: secp256k1::PublicKey,
@@ -72,6 +76,8 @@ pub fn mpc_build_masked_tokens_cust(
     let new_state_c = translate_state(&new_state);
     // translate old_wallet
     let old_state_c = translate_state(&old_state);
+    //translate fee_cc
+    let fee_cc_c = translate_balance(fee_cc);
     // translate payment_token
     let pt_old_c = translate_paytoken(&pt_old);
     // paymask_com
@@ -94,6 +100,7 @@ pub fn mpc_build_masked_tokens_cust(
     let cust_payout_pub_key_c = translate_bitcoin_key(&cust_payout_pub_key);
 
     let nonce = translate_nonce(&old_state.get_nonce());
+    let val_cpfp_c = translate_balance(VAL_CPFP);
 
     // create pointers the output variables
     let pt_return_ar = [0u32; 8];
@@ -137,9 +144,11 @@ pub fn mpc_build_masked_tokens_cust(
             merch_public_key_hash_c,
             merch_payout_pub_key_c,
             nonce,
+            val_cpfp_c,
             rl_rand_c,
             new_state_c,
             old_state_c,
+            fee_cc_c,
             pt_old_c,
             cust_escrow_pub_key_c,
             cust_payout_pub_key_c,
@@ -224,6 +233,9 @@ fn translate_state(state: &State) -> State_l {
 
     let bc = translate_balance(state.bc);
     let bm = translate_balance(state.bm);
+    let min_fee = translate_balance(state.min_fee);
+    let max_fee = translate_balance(state.max_fee);
+    let fee_mc = translate_balance(state.fee_mc);
 
     let new_state = State_l {
         nonce,
@@ -238,6 +250,9 @@ fn translate_state(state: &State) -> State_l {
         HashPrevOuts_merch: Txid_l {
             txid: prevout_merch,
         },
+        min_fee,
+        max_fee,
+        fee_mc,
     };
     new_state
 }
@@ -329,6 +344,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(
     let merch_payout_pub_key_c = translate_bitcoin_key(&merch_payout_pub_key);
 
     let nonce_c = translate_nonce(&nonce);
+    let val_cpfp_c = translate_balance(VAL_CPFP);
 
     // Create ECDSA_params
     let pp1 = EcdsaPartialSig::New(rng, &merch_escrow_secret_key.clone());
@@ -395,6 +411,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(
             merch_public_key_hash_c,
             merch_payout_pub_key_c,
             nonce_c,
+            val_cpfp_c,
             hmac_key,
             merch_mask,
             escrow_mask,
@@ -699,6 +716,9 @@ mod tests {
             merch_txid: FixedSizeArray32(tx_id_merch),
             escrow_prevout: FixedSizeArray32(hashouts_escrow),
             merch_prevout: FixedSizeArray32(hashouts_merch),
+            min_fee: 0,
+            max_fee: 10,
+            fee_mc: 1,
         };
         let old_state = State {
             nonce: FixedSizeArray16(nonce2),
@@ -709,6 +729,9 @@ mod tests {
             merch_txid: FixedSizeArray32(tx_id_merch),
             escrow_prevout: FixedSizeArray32(hashouts_escrow),
             merch_prevout: FixedSizeArray32(hashouts_merch),
+            min_fee: 0,
+            max_fee: 10,
+            fee_mc: 1,
         };
 
         let mut hmac_key = [0u8; 64];
@@ -730,13 +753,13 @@ mod tests {
                 .unwrap()
                 .as_slice(),
         )
-        .unwrap();
+            .unwrap();
         let cust_payout_pub_key = secp256k1::PublicKey::from_slice(
             hex::decode("03195e272df2310ded35f9958fd0c2847bf73b5b429a716c005d465009bd768641")
                 .unwrap()
                 .as_slice(),
         )
-        .unwrap();
+            .unwrap();
 
         /* END CUSTOMER INPUTS */
 
@@ -778,13 +801,13 @@ mod tests {
                 .unwrap()
                 .as_slice(),
         )
-        .unwrap();
+            .unwrap();
         let merch_dispute_key = secp256k1::PublicKey::from_slice(
             hex::decode("0253be79afe84fd9342c1f52024379b6da6299ea98844aee23838e8e678a765f7c")
                 .unwrap()
                 .as_slice(),
         )
-        .unwrap();
+            .unwrap();
         let mut merch_public_key_hash = [0u8; 20];
         merch_public_key_hash.copy_from_slice(
             hex::decode("43e9e81bc632ad9cad48fc23f800021c5769a063")
@@ -796,7 +819,7 @@ mod tests {
                 .unwrap()
                 .as_slice(),
         )
-        .unwrap();
+            .unwrap();
 
         let nc = NetworkConfig {
             conn_type: ConnType_NETIO,
@@ -846,6 +869,7 @@ mod tests {
             merch_payout_pub_key,
             new_state,
             old_state,
+            150,
             &old_paytoken,
             cust_escrow_pub_key,
             cust_payout_pub_key,
@@ -1035,9 +1059,9 @@ mod tests {
             BigInt::from_bytes_be(
                 Sign::Plus,
                 &hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141")
-                    .unwrap()
+                    .unwrap(),
             )
-            .to_string()
+                .to_string()
         );
         let mes = secp256k1::Message::from_slice(&msg).unwrap();
         println!("{:?}", mes);
@@ -1047,14 +1071,14 @@ mod tests {
             .verify(
                 &mes,
                 &signature,
-                &secp256k1::PublicKey::from_secret_key(&secp, &sk)
+                &secp256k1::PublicKey::from_secret_key(&secp, &sk),
             )
             .is_ok());
         assert!(secp
             .verify(
                 &mes,
                 &sign,
-                &secp256k1::PublicKey::from_secret_key(&secp, &sk)
+                &secp256k1::PublicKey::from_secret_key(&secp, &sk),
             )
             .is_ok());
     }

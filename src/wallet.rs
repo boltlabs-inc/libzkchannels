@@ -85,6 +85,9 @@ pub struct State {
     pub escrow_prevout: FixedSizeArray32,
     pub merch_txid: FixedSizeArray32,
     pub merch_prevout: FixedSizeArray32,
+    pub min_fee: i64,
+    pub max_fee: i64,
+    pub fee_mc: i64,
 }
 
 impl State {
@@ -98,6 +101,10 @@ impl State {
         output_buf.extend_from_slice(&self.escrow_txid.0);
         output_buf.extend_from_slice(&self.merch_prevout.0);
         output_buf.extend_from_slice(&self.escrow_prevout.0);
+        //TODO: uncomment when MPC updated
+        // output_buf.extend_from_slice(&self.min_fee.to_be_bytes());
+        // output_buf.extend_from_slice(&self.max_fee.to_be_bytes());
+        // output_buf.extend_from_slice(&self.fee_mc.to_be_bytes());
 
         return output_buf;
     }
@@ -128,7 +135,7 @@ impl fmt::Display for State {
         let merch_txid_hex = hex::encode(self.merch_txid.0.to_vec());
         let merch_prevout_hex = hex::encode(self.merch_prevout.0.to_vec());
 
-        write!(f, "State : (\nnonce={:?}\nrev_lock={:?}\nbc={}\nbm={}\nescrow_txid={:?}\nescrow_prevout={:?}\nmerch_txid={:?}\nmerch_prevout={:?}\n)",
-               nonce_hex, rev_lock_hex, &self.bc, &self.bm, escrow_txid_hex, escrow_prevout_hex, merch_txid_hex, merch_prevout_hex)
+        write!(f, "State : (\nnonce={:?}\nrev_lock={:?}\nbc={}\nbm={}\nescrow_txid={:?}\nescrow_prevout={:?}\nmerch_txid={:?}\nmerch_prevout={:?}\nmin_fee={}\nmax_fee={}\nfee_mc={}\n)",
+               nonce_hex, rev_lock_hex, &self.bc, &self.bm, escrow_txid_hex, escrow_prevout_hex, merch_txid_hex, merch_prevout_hex, &self.min_fee, &self.max_fee, &self.fee_mc)
     }
 }

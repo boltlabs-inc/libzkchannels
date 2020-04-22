@@ -302,6 +302,9 @@ impl CustomerMPCState {
             merch_txid: FixedSizeArray32([0u8; 32]),
             escrow_prevout: FixedSizeArray32([0u8; 32]),
             merch_prevout: FixedSizeArray32([0u8; 32]),
+            min_fee: 0,
+            max_fee: 1000,
+            fee_mc: 150,
         };
 
         // assert!(channel_token.is_init());
@@ -460,6 +463,7 @@ impl CustomerMPCState {
         channel_token: &ChannelMPCToken,
         old_state: State,
         new_state: State,
+        fee_cc: i64,
         paytoken_mask_com: [u8; 32],
         rev_lock_com: [u8; 32],
         amount: i64,
@@ -514,6 +518,7 @@ impl CustomerMPCState {
                 merch_payout_pub_key,
                 new_state,
                 old_state,
+                fee_cc,
                 &old_paytoken.0,
                 cust_escrow_pub_key,
                 cust_payout_pub_key,
@@ -1031,6 +1036,9 @@ impl MerchantMPCState {
             escrow_prevout: FixedSizeArray32(escrow_prevout),
             merch_txid: channel_token.merch_txid,
             merch_prevout: FixedSizeArray32(merch_prevout),
+            min_fee: 0,
+            max_fee: 1000,
+            fee_mc: 150,
         };
 
         if init_state_hash != s0.compute_hash() {
@@ -1541,7 +1549,7 @@ mod tests {
             let s1 = s_1.clone();
 
             println!("hello, customer!");
-            let res = cust_state.execute_mpc_context(&channel_state, &channel_token, s0, s1, pay_token_mask_com, r_com, amount);
+            let res = cust_state.execute_mpc_context(&channel_state, &channel_token, s0, s1, 150, pay_token_mask_com, r_com, amount);
             assert!(res.is_ok());
 
             println!("completed mpc execution!");

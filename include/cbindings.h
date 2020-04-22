@@ -3,17 +3,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define INTMAX_MAX 9223372036854775807
-
-#define INTMAX_MIN -9223372036854775808ULL
-
-#define PTRDIFF_MAX 9223372036854775807
-
-#define PTRDIFF_MIN -9223372036854775808ULL
-
-#define UINTMAX_MAX -1
-
-#define _LIBCPP_HAS_MERGED_TYPEINFO_NAMES_DEFAULT 1
+#define _LIBCPP_HAS_MERGED_TYPEINFO_NAMES_DEFAULT 0
 
 typedef struct {
   uint32_t nonce[4];
@@ -40,6 +30,9 @@ typedef struct {
   Txid_l txid_escrow;
   Txid_l HashPrevOuts_merch;
   Txid_l HashPrevOuts_escrow;
+  Balance_l min_fee;
+  Balance_l max_fee;
+  Balance_l fee_mc;
 } State_l;
 
 typedef struct {
@@ -299,6 +292,7 @@ char *get_self_delay_be_hex(char *ser_channel_state);
 
 extern void issue_tokens(State_l old_state_l,
                          State_l new_state_l,
+                         Balance_l fee_cc,
                          PayToken_l old_paytoken_l,
                          BitcoinPublicKey_l cust_escrow_pub_key_l,
                          BitcoinPublicKey_l cust_payout_pub_key_l,
@@ -408,6 +402,7 @@ char *mpc_pay_update_customer(char *ser_channel_state,
                               char *ser_pay_token_mask_com,
                               char *ser_rev_lock_com,
                               int64_t amount,
+                              int64_t fee_cc,
                               char *ser_cust_state);
 
 char *mpc_pay_update_merchant(char *ser_channel_state,
