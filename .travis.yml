@@ -19,9 +19,10 @@ rust:
   - nightly
 
 script:
-  - . ./env && cargo build --verbose --all 
-  - . ./env && cargo test --verbose --all -- --nocapture
-  - . ./env && cargo test --verbose --release --lib mpcwrapper -- --nocapture
+  - . ./env && cargo build --all 
+  - . ./env && cargo test --all -- --nocapture
+  - . ./env && cargo test --release --lib mpcwrapper -- --nocapture
+  - . ./env && cargo test --release --lib channels_mpc -- --nocapture
 
 matrix:
   allow_failures:

@@ -910,7 +910,7 @@ pub mod mpc {
         pk_m: &PublicKey,
         b0_cust: i64,
         b0_merch: i64,
-        name: &'a str,
+        name: &str,
         sk: Option<[u8; 32]>,
         payout_sk: Option<[u8; 32]>,
     ) -> (ChannelMPCToken, CustomerMPCState) {
@@ -1961,7 +1961,8 @@ mod tests {
         // let mut db = RedisDatabase::new("lib", "redis://127.0.0.1/").unwrap();
         let mut db = HashMapDatabase::new("", "".to_string()).unwrap();
 
-        let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, false);
+        let mut channel_state =
+            mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, false);
         let mut merch_state = mpc::init_merchant(rng, "".to_string(), &mut channel_state, "Bob");
 
         let (mut channel_token, mut cust_state) =
