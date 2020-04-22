@@ -23,6 +23,7 @@ script:
   - . ./env && cargo test --all -- --nocapture
   - . ./env && cargo test --release --lib mpcwrapper -- --nocapture
   - . ./env && cargo test --release --lib channels_mpc -- --nocapture
+  - . ./env && cargo test --release -- --ignored --nocapture
 
 matrix:
   allow_failures:
