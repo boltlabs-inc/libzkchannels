@@ -95,21 +95,10 @@ def pk_to_p2wpkh(compressed, network):
         return "Enter the network: tesnet/simnet/mainnet"
     return bech32.encode(prefix, version, program)
 
-
-# Example usage
-# python3 make_utxo.py --cust_input_sk=5511111111111111111111111111111100000000000000000000000000000000
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--cust_input_sk", "-sk",  required=True, help="secret key used to generate pubkey output for coinbase tx")
-    parser.add_argument("--network", "-n", help="select the type of network", default="simnet")
-    args = parser.parse_args()
-    cust_input_sk = str(args.cust_input_sk)
-    network = str(args.network)
-    print("Network: ", network)
+def make_coinbase_utxo_for_sk(input_sk, network):
 
     # Generate pubkey and p2sh_p2wpkh address
-    miner_pubkey_bytes = privkey_to_pubkey(bytes.fromhex(cust_input_sk))
+    miner_pubkey_bytes = privkey_to_pubkey(bytes.fromhex(input_sk))
     print("Miner PK: ", miner_pubkey_bytes.hex())
     # miner_p2wpkh_address = pk_to_p2wpkh(miner_pubkey_bytes, network = "simnet")
     miner_p2sh_p2wpkh_address = pk_to_p2sh_p2wpkh(miner_pubkey_bytes, network)
@@ -137,13 +126,43 @@ def main():
 
     # get the coinbase txid
     mined_txid = block["tx"][0]
-    print("new utxo txid (little Endian) => " + mined_txid)
 
-    f = open("run_gotest.sh", "w")
-    f.write("#!/bin/bash\n\n")
-    f.write("export UTXO_TXID={txid}\n".format(txid=mined_txid))
-    f.write("cd ../..\n")
-    f.write("make mpcgotest\n")
-    f.close()
+    return mined_txid
+
+# Example usage
+# python3 make_utxo.py --cust_input_sk=5511111111111111111111111111111100000000000000000000000000000000  --merch_input_sk=6611111111111111111111111111111100000000000000000000000000000000
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--cust_input_sk", "-csk",  required=True, help="secret key used to generate pubkey output for customer's coinbase tx")
+    parser.add_argument("--merch_input_sk", "-msk",  required=False, help="secret key used to generate pubkey output for merchant's coinbase tx")
+    parser.add_argument("--network", "-n", help="select the type of network", default="simnet")
+    args = parser.parse_args()
+    cust_input_sk = str(args.cust_input_sk)
+    if args.merch_input_sk:
+        merch_input_sk = str(args.merch_input_sk)
+    network = str(args.network)
+    print("Network: ", network)
+    cust_mined_txid = make_coinbase_utxo_for_sk(cust_input_sk, network)
+    print("new cust utxo txid (little Endian) => " + cust_mined_txid)
+
+    if args.merch_input_sk:
+        merch_mined_txid = make_coinbase_utxo_for_sk(merch_input_sk, network)
+        print("new merch utxo txid (little Endian) => " + merch_mined_txid)
+
+        f = open("run_gotest.sh", "w")
+        f.write("#!/bin/bash\n\n")
+        f.write("export Cust_UTXO_TXID={txid}\n".format(txid=cust_mined_txid))
+        f.write("export Merch_UTXO_TXID={txid}\n".format(txid=merch_mined_txid))
+        f.write("cd ../..\n")
+        f.write("make mpcgotest\n")
+        f.close()
+    else:
+        f = open("run_gotest.sh", "w")
+        f.write("#!/bin/bash\n\n")
+        f.write("export UTXO_TXID={txid}\n".format(txid=cust_mined_txid))
+        f.write("cd ../..\n")
+        f.write("make mpcgotest\n")
+        f.close()
 
 main()
