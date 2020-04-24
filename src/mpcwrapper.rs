@@ -66,6 +66,7 @@ pub fn mpc_build_masked_tokens_cust(
     pt_old: &[u8],
     cust_escrow_pub_key: secp256k1::PublicKey,
     cust_payout_pub_key: secp256k1::PublicKey,
+    cust_pub_key_hash: [u8; 20],
 ) -> Result<([u8; 32], [u8; 32], [u8; 32]), String> {
     // translate wpk
     let rl_c = translate_revlock_com(&rev_lock_com);
@@ -98,6 +99,7 @@ pub fn mpc_build_masked_tokens_cust(
 
     let cust_escrow_pub_key_c = translate_bitcoin_key(&cust_escrow_pub_key);
     let cust_payout_pub_key_c = translate_bitcoin_key(&cust_payout_pub_key);
+    let cust_public_key_hash_c = translate_pub_key_hash(&cust_pub_key_hash);
 
     let nonce = translate_nonce(&old_state.get_nonce());
     let val_cpfp_c = translate_balance(VAL_CPFP);
@@ -152,6 +154,7 @@ pub fn mpc_build_masked_tokens_cust(
             pt_old_c,
             cust_escrow_pub_key_c,
             cust_payout_pub_key_c,
+            cust_public_key_hash_c,
             &mut pt_return,
             &mut ct_escrow,
             &mut ct_merch,
@@ -441,7 +444,7 @@ mod tests {
     use std::env;
     use std::ffi::CStr;
     use std::str;
-    use util::{hash_to_slice, hmac_sign};
+    use util::{hash_to_slice, hmac_sign, compute_hash160};
     use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
     use zkchan_tx::transactions::btc::{create_cust_close_transaction, create_reverse_input};
     use zkchan_tx::transactions::ClosePublicKeys;
@@ -760,6 +763,8 @@ mod tests {
                 .as_slice(),
         )
             .unwrap();
+        let cust_pk_input_buf = cust_payout_pub_key.serialize();
+        let cust_pub_key_hash = compute_hash160(&cust_pk_input_buf.to_vec());
 
         /* END CUSTOMER INPUTS */
 
@@ -873,6 +878,7 @@ mod tests {
             &old_paytoken,
             cust_escrow_pub_key,
             cust_payout_pub_key,
+            cust_pub_key_hash,
         );
 
         // if this assert is triggered, then there was an error inside the mpc

@@ -475,6 +475,8 @@ impl CustomerMPCState {
         // get cust pub keys
         let cust_escrow_pub_key = self.pk_c.clone();
         let cust_payout_pub_key = self.payout_pk;
+        let cust_pk_input_buf = cust_payout_pub_key.serialize();
+        let cust_public_key_hash = compute_hash160(&cust_pk_input_buf.to_vec());
 
         let merch_escrow_pub_key = channel_token.pk_m.clone();
         let merch_dispute_key = channel_state.merch_dispute_pk.unwrap();
@@ -522,6 +524,7 @@ impl CustomerMPCState {
                 &old_paytoken.0,
                 cust_escrow_pub_key,
                 cust_payout_pub_key,
+                cust_public_key_hash,
             ) {
                 Ok(c) => (c.0, c.1, c.2),
                 Err(e) => return Err(e.to_string()),
