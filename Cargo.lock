@@ -1620,7 +1620,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "wagyu-bitcoin"
 version = "0.6.3"
-source = "git+https://github.com/jakinyele/wagyu#fddc988a3f6171c1bc9001e4d8c70017a17eb983"
+source = "git+https://github.com/AleoHQ/wagyu#5d7cc8d64f1016520f405f11345bc4f4ad6f1da8"
 dependencies = [
  "base58 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "bech32 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1638,13 +1638,13 @@ dependencies = [
  "serde_json 1.0.51 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha2 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "wagyu-model 0.6.3 (git+https://github.com/jakinyele/wagyu)",
+ "wagyu-model 0.6.3 (git+https://github.com/AleoHQ/wagyu)",
 ]
 
 [[package]]
 name = "wagyu-model"
 version = "0.6.3"
-source = "git+https://github.com/jakinyele/wagyu#fddc988a3f6171c1bc9001e4d8c70017a17eb983"
+source = "git+https://github.com/AleoHQ/wagyu#5d7cc8d64f1016520f405f11345bc4f4ad6f1da8"
 dependencies = [
  "base58 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "base58-monero 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1735,7 +1735,7 @@ dependencies = [
 [[package]]
 name = "zkchan-tx"
 version = "0.1.0"
-source = "git+https://github.com/boltlabs-inc/zkchan-tx#edf807e07c810e0bce37e9a20b419e87ef4b7320"
+source = "git+https://github.com/boltlabs-inc/zkchan-tx?branch=fees#bd1e8a8486576f156bb7f0f3b7dce76a15fcf85a"
 dependencies = [
  "hex 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "libsecp256k1 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1743,8 +1743,8 @@ dependencies = [
  "serde_derive 1.0.106 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.51 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha2 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "wagyu-bitcoin 0.6.3 (git+https://github.com/jakinyele/wagyu)",
- "wagyu-model 0.6.3 (git+https://github.com/jakinyele/wagyu)",
+ "wagyu-bitcoin 0.6.3 (git+https://github.com/AleoHQ/wagyu)",
+ "wagyu-model 0.6.3 (git+https://github.com/AleoHQ/wagyu)",
 ]
 
 [[package]]
@@ -1775,7 +1775,7 @@ dependencies = [
  "structopt 0.3.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.42 (registry+https://github.com/rust-lang/crates.io-index)",
  "typenum 1.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "zkchan-tx 0.1.0 (git+https://github.com/boltlabs-inc/zkchan-tx)",
+ "zkchan-tx 0.1.0 (git+https://github.com/boltlabs-inc/zkchan-tx?branch=fees)",
 ]
 
 [metadata]
@@ -1973,8 +1973,8 @@ dependencies = [
 "checksum vec_map 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)" = "05c78687fb1a80548ae3250346c3db86a80a7cdd77bda190189f2d0a0987c81a"
 "checksum version_check 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)" = "078775d0255232fb988e6fccf26ddc9d1ac274299aaedcedce21c6f72cc533ce"
 "checksum void 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
-"checksum wagyu-bitcoin 0.6.3 (git+https://github.com/jakinyele/wagyu)" = "<none>"
-"checksum wagyu-model 0.6.3 (git+https://github.com/jakinyele/wagyu)" = "<none>"
+"checksum wagyu-bitcoin 0.6.3 (git+https://github.com/AleoHQ/wagyu)" = "<none>"
+"checksum wagyu-model 0.6.3 (git+https://github.com/AleoHQ/wagyu)" = "<none>"
 "checksum wait-timeout 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "9f200f5b12eb75f8c1ed65abd4b2db8a6e1b138a20de009dacee265a2498f3f6"
 "checksum wasi 0.9.0+wasi-snapshot-preview1 (registry+https://github.com/rust-lang/crates.io-index)" = "cccddf32554fecc6acb585f82a32a72e28b48f8c4c1883ddfeeeaa96f7d8e519"
 "checksum which 3.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "d011071ae14a2f6671d0b74080ae0cd8ebf3a6f8c9589a2cd45f23126fe29724"
@@ -1985,4 +1985,4 @@ dependencies = [
 "checksum winapi-util 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "fa515c5163a99cc82bab70fd3bfdd36d827be85de63737b40fcef2ce084a436e"
 "checksum winapi-x86_64-pc-windows-gnu 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 "checksum ws2_32-sys 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "d59cefebd0c892fa2dd6de581e937301d8552cb44489cdff035c6187cb63fa5e"
-"checksum zkchan-tx 0.1.0 (git+https://github.com/boltlabs-inc/zkchan-tx)" = "<none>"
+"checksum zkchan-tx 0.1.0 (git+https://github.com/boltlabs-inc/zkchan-tx?branch=fees)" = "<none>"

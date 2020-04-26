@@ -597,6 +597,7 @@ impl CustomerMPCState {
             &to_self_delay_be,
             self.cust_balance,
             self.merch_balance,
+            150,150,150,
             true,
         );
 
@@ -606,6 +607,7 @@ impl CustomerMPCState {
             &to_self_delay_be,
             self.cust_balance,
             self.merch_balance,
+            150,150,150,
             false,
         );
 
@@ -1146,6 +1148,9 @@ impl MerchantMPCState {
             &to_self_delay_be,
             funding_tx.init_cust_bal,
             funding_tx.init_merch_bal,
+            150,
+            150,
+            150,
             true,
         );
 
@@ -1155,6 +1160,7 @@ impl MerchantMPCState {
             &to_self_delay_be,
             funding_tx.init_cust_bal,
             funding_tx.init_merch_bal,
+            150,150,150,
             false,
         );
 
