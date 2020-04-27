@@ -342,31 +342,13 @@ print(final_tx.hex())
 # Print out tx digest details if debug flag was set
 if args.debug:
 
-    print("\ntx digest preimage")
-    print(tx_digest_preimage.hex())
-
-    print("\nbreakdown of tx digest preimage")
-    print("version: ", version.hex())
-    print("hashPrevOuts: ", hashPrevOuts.hex())
-    print("hashSequence: ", hashSequence.hex())
-    print("txid little endian: ",txid.hex())
-    print("index: ",index.hex())
-    print("scriptcode: ",scriptcode.hex())
-    print("input_amount: ",input_amount.hex())
-    print("sequence: ",sequence.hex())
-    print("hashOutputs: ", hashOutputs.hex())
-    print("locktime: ", locktime.hex())
-    print("sighash: ",sighash.hex())
-
     # Calculate txid of the tx we have just created:
     # Convert to pre-segwit format, double sha256, reverse bytes (little endian)
     final_tx_legacy = (
         version
         + tx_in_count
-        + txid
-        + index
-        + scriptSig
-        + sequence
+        + cust_input
+        + merch_input
         + tx_out_count
         + outputs
         + locktime
