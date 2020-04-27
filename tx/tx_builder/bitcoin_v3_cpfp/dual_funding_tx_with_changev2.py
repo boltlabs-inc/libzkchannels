@@ -355,7 +355,14 @@ if args.debug:
     )
 
     new_txid = dSHA256(final_tx_legacy)[::-1]
-
     print("\nfinal_tx_legacy: ", final_tx_legacy.hex())
-    print("\nDouble SHA256 final_tx_legacy: ", dSHA256(final_tx_legacy).hex())
+    print("\nBreakdown of final_tx_legacy")
+    print("\nversion: ", version.hex())
+    print("\ntx_in_count: ", tx_in_count.hex())
+    print("\ncust_input: ", cust_input.hex())
+    print("\nmerch_input: ", merch_input.hex())
+    print("\ntx_out_count: ", tx_out_count.hex())
+    print("\noutputs: ", outputs.hex())
+    print("\nlocktime: ", locktime.hex())
+    print("\n\nDouble SHA256 final_tx_legacy: ", dSHA256(final_tx_legacy).hex())
     print("\ntxid of this tx: ",new_txid.hex())
