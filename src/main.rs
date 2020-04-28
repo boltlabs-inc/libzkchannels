@@ -82,6 +82,8 @@ pub struct Open {
     cust_bal: i64,
     #[structopt(short = "m", long = "merch-bal", default_value = "0")]
     merch_bal: i64,
+    #[structopt(short = "f", long = "fee-cc", default-value = "0")]
+    fee_cc: i64,
     #[structopt(short = "i", long = "own-ip", default_value = "127.0.0.1")]
     own_ip: String,
     #[structopt(short = "p", long = "own-port")]
@@ -94,8 +96,6 @@ pub struct Open {
     dust_limit: i64,
     #[structopt(short = "d", long = "self-delay", default_value = "1487")]
     self_delay: u16,
-    #[structopt(short = "t", long = "tx-fee", default_value = "0")]
-    tx_fee: i64,
     #[structopt(short = "n", long = "channel-name", default_value = "")]
     channel_name: String,
 }
@@ -409,6 +409,7 @@ fn main() {
                     &db_url,
                     open.cust_bal,
                     open.merch_bal,
+                    open.fee_cc,
                     open.channel_name,
                 ) {
                     Err(e) => println!("Channel opening phase failed with error: {}", e),
@@ -532,6 +533,7 @@ mod cust {
         db_url: &String,
         b0_cust: i64,
         b0_merch: i64,
+        fee_cc: i64,
         channel_name: String,
     ) -> Result<(), String> {
         if channel_name == "" {
@@ -557,6 +559,7 @@ mod cust {
             &pk_m,
             b0_cust,
             b0_merch,
+            fee_cc,
             channel_name.as_str(),
             None,
             None,

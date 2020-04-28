@@ -10,7 +10,7 @@ use ecdsa_partial::EcdsaPartialSig;
 use libc::{c_int, c_void};
 // c_uint, c_char
 use rand::Rng;
-use secp256k1;
+use ::{secp256k1, util};
 use std::ffi::{CStr, CString};
 use std::ptr;
 use std::str;
@@ -19,7 +19,6 @@ use wallet::State;
 
 static MPC_ERROR: &str = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
 pub static CIRCUIT_FILE: &str = "/include/emp-tool/circuits/files/tokens.circuit.txt";
-static VAL_CPFP: i64 = 150;
 
 extern "C" fn io_callback(net_config: *mut c_void, party: c_int) -> *mut c_void {
     // unsafe is needed because we dereference a raw pointer to network config
@@ -102,7 +101,7 @@ pub fn mpc_build_masked_tokens_cust(
     let cust_public_key_hash_c = translate_pub_key_hash(&cust_pub_key_hash);
 
     let nonce = translate_nonce(&old_state.get_nonce());
-    let val_cpfp_c = translate_balance(VAL_CPFP);
+    let val_cpfp_c = translate_balance(util::VAL_CPFP);
 
     // create pointers the output variables
     let pt_return_ar = [0u32; 8];
@@ -347,7 +346,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(
     let merch_payout_pub_key_c = translate_bitcoin_key(&merch_payout_pub_key);
 
     let nonce_c = translate_nonce(&nonce);
-    let val_cpfp_c = translate_balance(VAL_CPFP);
+    let val_cpfp_c = translate_balance(util::VAL_CPFP);
 
     // Create ECDSA_params
     let pp1 = EcdsaPartialSig::New(rng, &merch_escrow_secret_key.clone());
@@ -905,10 +904,10 @@ mod tests {
         let secp = Secp256k1::new();
 
         // We are signing this thing (this is post hash): "c76b9fbe0364d533b6ee018de59b3f3d529c6caa1d6fbe28853785e03b006047"
-        // the escrow Preimage is: "020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff40000000047522103f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd2103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae6407030000000000ffffffff18db38ef7dfc800123f89516094927d76ea60295c353e6717acb816d08a5e5900000000001000000"
-        let escrow_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff40000000047522103f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd2103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae6407030000000000ffffffff18db38ef7dfc800123f89516094927d76ea60295c353e6717acb816d08a5e5900000000001000000").unwrap();
+        // the escrow Preimage is: "020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff40000000047522103f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd2103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae400d030000000000ffffffffab11137ab3c29c95e0c35debd9cfebf1e265ad5e496fa5964400767425e203cb0000000001000000"
+        let escrow_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff40000000047522103f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd2103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae400d030000000000ffffffffab11137ab3c29c95e0c35debd9cfebf1e265ad5e496fa5964400767425e203cb0000000001000000").unwrap();
         // automatically generate the escrow_preimage
-        let input1 = create_reverse_input(&tx_id_esc, 0, 198500);
+        let input1 = create_reverse_input(&tx_id_esc, 0, new_state.bc + new_state.bm);
         let mut pubkeys = ClosePublicKeys {
             cust_pk: cust_escrow_pub_key.serialize().to_vec(),
             cust_close_pk: cust_payout_pub_key.serialize().to_vec(),
@@ -930,7 +929,7 @@ mod tests {
             new_state.bm,
             fee_cc,
             new_state.fee_mc,
-            VAL_CPFP,
+            util::VAL_CPFP,
             true,
         );
         println!(
@@ -941,14 +940,14 @@ mod tests {
 
         let escrow_tx_ar = Sha256::digest(&Sha256::digest(escrow_preimage.as_slice()));
         let escrow_tx = Message::from_slice(escrow_tx_ar.as_slice()).unwrap();
-        // the merch preimage is: "020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000007263522103f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd2103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae6702cf05b2752102f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90ac68f200030000000000ffffffffba7b7eedb1ef8114e7ae39f8fa310b7db125dee0abb15a010673b92c48e008c30000000001000000"
-        let merch_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000007263522103f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd2103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae6702cf05b2752102f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90ac68f200030000000000ffffffffba7b7eedb1ef8114e7ae39f8fa310b7db125dee0abb15a010673b92c48e008c30000000001000000").unwrap();
+        // the merch preimage is: "020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000007263522103f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd2103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae6702cf05b2752102f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90ac68400d030000000000ffffffffcb618c017ebbe60597107dbb2060df80bbbb03b8b3ea19d0dbf5f3553d55d4a10000000001000000"
+        let merch_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000007263522103f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd2103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae6702cf05b2752102f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90ac68400d030000000000ffffffffcb618c017ebbe60597107dbb2060df80bbbb03b8b3ea19d0dbf5f3553d55d4a10000000001000000").unwrap();
         let merch_tx_ar = Sha256::digest(&Sha256::digest(merch_preimage.as_slice()));
         let merch_tx = Message::from_slice(merch_tx_ar.as_slice()).unwrap();
 
 
         // automatically generate the escrow_preimage
-        let input2 = create_reverse_input(&tx_id_merch, 0, 196850);
+        let input2 = create_reverse_input(&tx_id_merch, 0, new_state.bc + new_state.bm);
         let (m_tx_preimage, _, _) = create_cust_close_transaction::<Testnet>(
             &input2,
             &pubkeys,
@@ -957,7 +956,7 @@ mod tests {
             new_state.bm,
             fee_cc,
             new_state.fee_mc,
-            VAL_CPFP,
+            util::VAL_CPFP,
             false,
         );
         println!(

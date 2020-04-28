@@ -863,6 +863,7 @@ pub mod wtp_utils {
 pub struct FundingTxInfo {
     pub init_cust_bal: i64,
     pub init_merch_bal: i64,
+    pub fee_mc: i64,
     pub escrow_txid: FixedSizeArray32,
     pub escrow_prevout: FixedSizeArray32,
     pub merch_txid: FixedSizeArray32,
@@ -910,6 +911,7 @@ pub mod mpc {
         pk_m: &PublicKey,
         b0_cust: i64,
         b0_merch: i64,
+        fee_cc: i64,
         name: &str,
         sk: Option<[u8; 32]>,
         payout_sk: Option<[u8; 32]>,
@@ -919,11 +921,11 @@ pub mod mpc {
 
         let cust_name = String::from(name);
         let mut cust_state =
-            CustomerMPCState::new(csprng, b0_cust, b0_merch, cust_name, sk, payout_sk);
+            CustomerMPCState::new(csprng, b0_cust, b0_merch, fee_cc, cust_name, sk, payout_sk);
 
         // generate the initial channel token given the funding tx info
         let mut channel_token = cust_state.generate_init_channel_token(pk_m);
-        cust_state.generate_init_state(csprng, &mut channel_token);
+        cust_state.generate_init_state(csprng, &mut channel_token, 0, 100000, 1500);
 
         (channel_token, cust_state)
     }
@@ -1967,14 +1969,18 @@ mod tests {
             mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, false);
         let mut merch_state = mpc::init_merchant(rng, "".to_string(), &mut channel_state, "Bob");
 
+        let fee_cc = 1000;
+        let fee_mc = 1000;
+        let b0_cust = 10000;
+        let b0_merch = 10000;
         let (mut channel_token, mut cust_state) =
-            mpc::init_customer(rng, &merch_state.pk_m, 100, 100, "Alice", None, None);
+            mpc::init_customer(rng, &merch_state.pk_m, b0_cust, b0_merch, fee_cc, "Alice", None, None);
 
         // customer sends pk_c, n_0, rl_0 to the merchant
         //let init_cust_state = cust_state.get_initial_cust_state().unwrap();
 
         // form all of the escrow and merch-close-tx transactions
-        let funding_tx_info = generate_funding_tx(&mut rng, 100, 100);
+        let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch, fee_mc);
 
         // form and sign the cust-close-from-escrow-tx and from-merch-close-tx
         let pubkeys = cust_state.get_pubkeys(&channel_state, &channel_token);
@@ -1987,10 +1993,12 @@ mod tests {
             pubkeys.cust_pk,
             pubkeys.cust_close_pk,
             to_self_delay_be,
+            fee_cc,
+            fee_mc,
         );
 
         let res1 = cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info);
-        println!("cust_state -> set_funding_tx_info: {}", res1.is_ok());
+        assert!(res1.is_ok(), res1.err().unwrap());
 
         let got_close_tx = cust_state.sign_initial_closing_transaction::<Testnet>(
             &channel_state,
@@ -1998,7 +2006,7 @@ mod tests {
             &escrow_sig,
             &merch_sig,
         );
-        assert!(got_close_tx.is_ok());
+        assert!(got_close_tx.is_ok(), got_close_tx.err().unwrap());
         // customer can proceed to sign the escrow-tx and merch-close-tx and sends resulting signatures to merchant
         let (init_cust_state, init_hash) = mpc::get_initial_state(&cust_state).unwrap();
 
@@ -2010,7 +2018,7 @@ mod tests {
             init_hash,
             &mut merch_state,
         );
-        println!("mpc::validate_initial_state: {}", res2.is_ok());
+        assert!(res2.is_ok(), res2.err().unwrap());
 
         let s0 = mpc::activate_customer(rng, &mut cust_state);
 
@@ -2019,15 +2027,15 @@ mod tests {
             channel_token,
             &s0,
             &mut merch_state,
-        )
-        .unwrap();
+        );
+        assert!(pay_token.is_ok(), pay_token.err().unwrap());
 
-        mpc::activate_customer_finalize(pay_token, &mut cust_state);
+        mpc::activate_customer_finalize(pay_token.unwrap(), &mut cust_state);
 
         //TODO: test unlinking with a 0-payment of pay protocol
     }
 
-    fn generate_funding_tx<R: Rng>(csprng: &mut R, b0_cust: i64, b0_merch: i64) -> FundingTxInfo {
+    fn generate_funding_tx<R: Rng>(csprng: &mut R, b0_cust: i64, b0_merch: i64, fee_mc: i64) -> FundingTxInfo {
         let mut escrow_txid = [0u8; 32];
         let mut merch_txid = [0u8; 32];
 
@@ -2056,6 +2064,7 @@ mod tests {
             merch_txid: FixedSizeArray32(merch_txid),
             escrow_prevout: FixedSizeArray32(escrow_prevout),
             merch_prevout: FixedSizeArray32(merch_prevout),
+            fee_mc: fee_mc,
         };
     }
 
@@ -2069,20 +2078,23 @@ mod tests {
         let mut channel = mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, false);
         let mut merch_state = mpc::init_merchant(&mut rng, "".to_string(), &mut channel, "Bob");
 
-        let b0_cust = 100;
-        let b0_merch = 100;
+        let b0_cust = 100000;
+        let b0_merch = 100000;
+        let fee_cc = 1000;
+        let fee_mc = 1000;
 
         let (mut channel_token, mut cust_state) = mpc::init_customer(
             &mut rng,
             &merch_state.pk_m,
             b0_cust,
             b0_merch,
+            fee_cc,
             "Alice",
             None,
             None,
         );
 
-        let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch);
+        let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch, fee_mc);
 
         cust_state
             .set_funding_tx_info(&mut channel_token, &funding_tx_info)
@@ -2178,11 +2190,13 @@ mod tests {
             let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, false);
             let mut merch_state = mpc::init_merchant(&mut rng, "".to_string(), &mut channel_state, "Bob");
 
-            let b0_cust = 100;
-            let b0_merch = 100;
-            let (mut channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, b0_cust, b0_merch, "Alice", None, None);
+            let b0_cust = 100000;
+            let b0_merch = 100000;
+            let fee_cc = 1000;
+            let fee_mc = 1000;
+            let (mut channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, b0_cust, b0_merch, fee_cc, "Alice", None, None);
 
-            let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch);
+            let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch, fee_mc);
 
             cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info).unwrap();
 

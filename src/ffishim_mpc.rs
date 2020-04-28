@@ -150,6 +150,7 @@ pub mod ffishim_mpc {
         ser_merch_pk: *mut c_char,
         cust_bal: i64,
         merch_bal: i64,
+        fee_cc: i64,
         name_ptr: *const c_char,
         ser_sk_c: *mut c_char,
         ser_payout_sk: *mut c_char,
@@ -187,7 +188,7 @@ pub mod ffishim_mpc {
 
         // We change the channel state
         let (channel_token, cust_state) =
-            mpc::init_customer(rng, &pk_m, cust_bal, merch_bal, name, sk, payout_sk);
+            mpc::init_customer(rng, &pk_m, cust_bal, merch_bal, fee_cc, name, sk, payout_sk);
         let ser = [
             "{\'cust_state\':\'",
             serde_json::to_string(&cust_state).unwrap().as_str(),
@@ -1115,6 +1116,8 @@ pub mod ffishim_mpc {
         ser_cust_close_pk: *mut c_char,
         ser_self_delay: *mut c_char,
         ser_merch_state: *mut c_char,
+        fee_cc: i64,
+        fee_mc: i64,
     ) -> *mut c_char {
         // Deserialize the tx
         let tx_result: ResultSerdeType<FundingTxInfo> = deserialize_result_object(ser_funding_tx);
@@ -1147,6 +1150,8 @@ pub mod ffishim_mpc {
             cust_pk,
             cust_close_pk,
             self_delay_be,
+            fee_cc,
+            fee_mc,
         );
 
         let ser = [
