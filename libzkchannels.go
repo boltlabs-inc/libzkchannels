@@ -41,7 +41,6 @@ type setupResp struct {
 }
 
 type ChannelState struct {
-	TxFee          int64   `json:"tx_fee"`
 	DustLimit      int64   `json:"dust_limit"`
 	KeyCom         string  `json:"key_com"`
 	Name           string  `json:"name"`
@@ -73,6 +72,7 @@ type CustState struct {
 	SkC                string                  `json:"sk_c"`
 	CustBalance        int64                   `json:"cust_balance"`
 	MerchBalance       int64                   `json:"merch_balance"`
+	FeeCC              int64                   `json:"fee_cc"`
 	RevLock            string                  `json:"rev_lock"`
 	RevSecret          string                  `json:"rev_secret"`
 	T                  string                  `json:"t"`
@@ -134,6 +134,7 @@ type FundingTxInfo struct {
 	MerchPrevout  string `json:"merch_prevout"`
 	InitCustBal   int64  `json:"init_cust_bal"`
 	InitMerchBal  int64  `json:"init_merch_bal"`
+	FeeMC         int64  `json:"fee_mc"`
 }
 
 type InitCustState struct {
@@ -143,6 +144,9 @@ type InitCustState struct {
 	RevLock  string  `json:"rev_lock"`
 	CustBal  int64   `json:"cust_bal"`
 	MerchBal int64   `json:"merch_bal"`
+	MinFee   int64   `json:"min_fee"`
+	MaxFee   int64   `json:"max_fee"`
+	FeeMC    int64   `json:"fee_mc"`
 }
 
 func GenerateRandomBytes(n int) ([]byte, error) {
@@ -198,9 +202,9 @@ func InitMerchant(dbUrl string, channelState ChannelState, name string) (Channel
 	return channelState, merchState, err
 }
 
-func InitCustomer(pkM string, custBal int64, merchBal int64, name string, skC string, payoutSk string) (ChannelToken, CustState, error) {
+func InitCustomer(pkM string, custBal int64, merchBal int64, feeCC int64, name string, skC string, payoutSk string) (ChannelToken, CustState, error) {
 	resp := C.GoString(C.mpc_init_customer(C.CString(pkM), C.longlong(custBal),
-		C.longlong(merchBal), C.CString(name),
+		C.longlong(merchBal), C.longlong(feeCC), C.CString(name),
 		C.CString(skC), C.CString(payoutSk)))
 	r, err := processCResponse(resp)
 	if err != nil {
@@ -327,7 +331,7 @@ func MerchantCheckRevLock(revLock string, merchState MerchState) (bool, string, 
 	return r.IsOk, r.FoundRevSecret, err
 }
 
-func MerchantSignInitCustCloseTx(tx FundingTxInfo, revLock string, custPk string, custClosePk string, toSelfDelay string, merchState MerchState) (string, string, error) {
+func MerchantSignInitCustCloseTx(tx FundingTxInfo, revLock string, custPk string, custClosePk string, toSelfDelay string, merchState MerchState, feeCC int64, feeMC int64) (string, string, error) {
 	serFundingTx, err := json.Marshal(tx)
 	if err != nil {
 		return "", "", err
@@ -339,7 +343,7 @@ func MerchantSignInitCustCloseTx(tx FundingTxInfo, revLock string, custPk string
 	}
 
 	resp := C.GoString(C.merch_sign_init_cust_close_txs(C.CString(string(serFundingTx)), C.CString(revLock), C.CString(custPk),
-		C.CString(custClosePk), C.CString(toSelfDelay), C.CString(string(serMerchState))))
+		C.CString(custClosePk), C.CString(toSelfDelay), C.CString(string(serMerchState)), C.longlong(feeCC), C.longlong(feeMC)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", "", err
