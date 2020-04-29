@@ -371,6 +371,7 @@ char *mpc_activate_merchant(char *ser_channel_token, char *ser_state, char *ser_
 
 char *mpc_channel_setup(const char *channel_name,
                         uint16_t self_delay,
+                        int64_t dust_limit,
                         uint32_t third_party_support);
 
 void mpc_free_string(char *pointer);
