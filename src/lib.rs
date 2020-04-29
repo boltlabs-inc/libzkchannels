@@ -2085,6 +2085,7 @@ mod tests {
         let b0_merch = 100000;
         let fee_cc = 1000;
         let fee_mc = 1000;
+        let amount = 1000;
 
         let (mut channel_token, mut cust_state) = mpc::init_customer(
             &mut rng,
@@ -2127,7 +2128,7 @@ mod tests {
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
         let (_new_state, revoked_state) =
-            mpc::pay_prepare_customer(&mut rng, &channel, 600, &mut cust_state).unwrap();
+            mpc::pay_prepare_customer(&mut rng, &channel, amount, &mut cust_state).unwrap();
         let rev_lock_com = revoked_state.get_rev_lock_com();
 
         let pay_mask_com = mpc::pay_prepare_merchant(
@@ -2136,7 +2137,7 @@ mod tests {
             &channel,
             s0.get_nonce(),
             rev_lock_com.clone(),
-            600,
+            amount,
             &mut merch_state,
         )
         .unwrap();
@@ -2148,7 +2149,7 @@ mod tests {
             s0.get_nonce(),
             pay_mask_com,
             rev_lock_com,
-            600,
+            amount,
             &mut merch_state,
         );
         assert!(res_merch.is_ok());
@@ -2198,6 +2199,7 @@ mod tests {
             let b0_merch = 100000;
             let fee_cc = 1000;
             let fee_mc = 1000;
+            let amount = 1000;
             let (mut channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, b0_cust, b0_merch, fee_cc, "Alice", None, None);
 
             let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch, fee_mc);
@@ -2223,12 +2225,12 @@ mod tests {
             let orig_funding_tx_info: FundingTxInfo = serde_json::from_str(&ser_tx_info).unwrap();
             assert_eq!(funding_tx_info, orig_funding_tx_info);
 
-            let (state, rev_state) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, 600, &mut cust_state).unwrap();
+            let (state, rev_state) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, amount, &mut cust_state).unwrap();
             let rev_lock_com = rev_state.rev_lock_com.0;
 
-            let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &mut db as &mut dyn StateDatabase, &channel_state, state.get_nonce(), rev_lock_com.clone(), 600, &mut merch_state).unwrap();
+            let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &mut db as &mut dyn StateDatabase, &channel_state, state.get_nonce(), rev_lock_com.clone(), amount, &mut merch_state).unwrap();
 
-            let res_cust = mpc::pay_update_customer(&mut channel_state, &channel_token, s0, state, 150, pay_mask_com, rev_lock_com, 600, &mut cust_state);
+            let res_cust = mpc::pay_update_customer(&mut channel_state, &channel_token, s0, state, fee_cc, pay_mask_com, rev_lock_com, amount, &mut cust_state);
             assert!(res_cust.is_ok() && res_cust.unwrap());
 
             let mut pt_mask = [0u8; 32];
@@ -2249,8 +2251,8 @@ mod tests {
                 r_merch_sig
             );
 
-            let is_ok = mpc::pay_unmask_sigs_customer(&channel_state, &channel_token, masks, &mut cust_state).unwrap();
-            assert!(is_ok);
+            let is_ok = mpc::pay_unmask_sigs_customer(&channel_state, &channel_token, masks, &mut cust_state);
+            assert!(is_ok.is_ok(), is_ok.err().unwrap());
 
             let mut pt_mask = [0u8; 32];
             pt_mask.copy_from_slice(hex::decode("f53a27a851a43c7843c4781962a54fa36cd32e3254e7adaf3e742870ecab92ae").unwrap().as_slice());
