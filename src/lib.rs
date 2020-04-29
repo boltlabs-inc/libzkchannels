@@ -863,6 +863,8 @@ pub mod wtp_utils {
 pub struct FundingTxInfo {
     pub init_cust_bal: i64,
     pub init_merch_bal: i64,
+    pub min_fee: i64,
+    pub max_fee: i64,
     pub fee_mc: i64,
     pub escrow_txid: FixedSizeArray32,
     pub escrow_prevout: FixedSizeArray32,
@@ -1995,7 +1997,6 @@ mod tests {
             pubkeys.cust_close_pk,
             to_self_delay_be,
             fee_cc,
-            fee_mc,
         );
 
         let res1 = cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info);
@@ -2066,6 +2067,8 @@ mod tests {
             escrow_prevout: FixedSizeArray32(escrow_prevout),
             merch_prevout: FixedSizeArray32(merch_prevout),
             fee_mc: fee_mc,
+            min_fee: 0,
+            max_fee: 10000,
         };
     }
 
@@ -2152,7 +2155,7 @@ mod tests {
             amount,
             &mut merch_state,
         );
-        assert!(res_merch.is_ok());
+        assert!(res_merch.is_ok(), res_merch.err().unwrap());
 
         let mpc_result = res_merch.unwrap();
         let masked_inputs = mpc::pay_confirm_mpc_result(
@@ -2161,7 +2164,7 @@ mod tests {
             s0.get_nonce(),
             &mut merch_state,
         );
-        assert!(masked_inputs.is_ok());
+        assert!(masked_inputs.is_ok(), masked_inputs.err().unwrap());
         // println!("Masked Tx Inputs: {:#?}", masked_inputs.unwrap());
 
         let (pay_token_mask, pay_token_mask_r) = match mpc::pay_validate_rev_lock_merchant(

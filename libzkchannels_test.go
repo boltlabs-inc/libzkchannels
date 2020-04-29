@@ -96,6 +96,8 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 		InitCustBal:   custBal,
 		InitMerchBal:  merchBal,
 		FeeMC:         feeMC,
+		MinFee:        0,
+		MaxFee:        10000,
 	}
 
 	fmt.Println("RevLock => ", custState.RevLock)
@@ -335,6 +337,8 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 		InitCustBal:   custBal,
 		InitMerchBal:  merchBal,
 		FeeMC:         feeMC,
+		MinFee:        0,
+		MaxFee:        10000,
 	}
 
 	fmt.Println("RevLock => ", custState.RevLock)

@@ -135,6 +135,8 @@ type FundingTxInfo struct {
 	InitCustBal   int64  `json:"init_cust_bal"`
 	InitMerchBal  int64  `json:"init_merch_bal"`
 	FeeMC         int64  `json:"fee_mc"`
+	MinFee        int64  `json:"min_fee"`
+	MaxFee        int64  `json:"max_fee"`
 }
 
 type InitCustState struct {

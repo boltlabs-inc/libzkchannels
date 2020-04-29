@@ -126,6 +126,10 @@ pub struct Init {
     fee_cc: i64,
     #[structopt(short = "g", long = "fee-mc", default_value = "0")]
     fee_mc: i64,
+    #[structopt(short = "m", long = "min-fee", default_value = "0")]
+    min_fee: i64,
+    #[structopt(short = "s", long = "max-fee", default_value = "10000")]
+    max_fee: i64,
     #[structopt(short = "n", long = "channel-name", default_value = "")]
     channel_name: String,
 }
@@ -420,7 +424,7 @@ fn main() {
             }
         },
         Command::INIT(init) => match init.party {
-            Party::MERCH => match merch::init(create_connection!(init), &db_url, init.fee_cc, init.fee_mc) {
+            Party::MERCH => match merch::init(create_connection!(init), &db_url, init.fee_cc, init.fee_mc, init.min_fee, init.max_fee) {
                 Err(e) => println!("Initialize phase failed with error: {}", e),
                 _ => (),
             },
@@ -434,6 +438,8 @@ fn main() {
                 init.output_sats.unwrap(),
                 init.channel_name,
                 init.fee_mc,
+                init.min_fee,
+                init.max_fee,
             ) {
                 Err(e) => println!("Initialize phase failed with error: {}", e),
                 _ => (),
@@ -587,6 +593,8 @@ mod cust {
         output_sats: i64,
         channel_name: String,
         fee_mc: i64,
+        min_fee: i64,
+        max_fee: i64,
     ) -> Result<(), String> {
         if channel_name == "" {
             return Err(String::from("missing channel-name"));
@@ -690,6 +698,8 @@ mod cust {
         let funding_tx = FundingTxInfo {
             init_cust_bal: cust_bal,
             init_merch_bal: merch_bal,
+            min_fee: min_fee,
+            max_fee: max_fee,
             fee_mc: fee_mc,
             escrow_txid: FixedSizeArray32(escrow_txid),
             escrow_prevout: FixedSizeArray32(escrow_prevout),
@@ -1052,7 +1062,7 @@ mod merch {
         Ok(())
     }
 
-    pub fn init(conn: &mut Conn, db_url: &String, fee_cc: i64, fee_mc: i64) -> Result<(), String> {
+    pub fn init(conn: &mut Conn, db_url: &String, fee_cc: i64, fee_mc: i64, min_fee: i64, max_fee: i64) -> Result<(), String> {
         // build tx and sign it
         let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
         let key = String::from("cli:merch_db");
@@ -1131,6 +1141,8 @@ mod merch {
         let funding_tx = FundingTxInfo {
             init_cust_bal: cust_bal,
             init_merch_bal: merch_bal,
+            min_fee: min_fee,
+            max_fee: max_fee,
             fee_mc,
             escrow_txid: FixedSizeArray32(escrow_txid),
             escrow_prevout: FixedSizeArray32(escrow_prevout),

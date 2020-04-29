@@ -358,6 +358,8 @@ impl CustomerMPCState {
         s.merch_prevout = tx.merch_prevout.clone();
         s.bc = tx.init_cust_bal;
         s.bm = tx.init_merch_bal;
+        s.min_fee = tx.min_fee;
+        s.max_fee = tx.max_fee;
         s.fee_mc = tx.fee_mc;
         self.state = Some(s);
 
@@ -1517,6 +1519,8 @@ mod tests {
             merch_txid: FixedSizeArray32(merch_txid),
             merch_prevout: FixedSizeArray32(merch_prevout),
             fee_mc: fee_mc,
+            min_fee: 0,
+            max_fee: 10000
         };
     }
 
