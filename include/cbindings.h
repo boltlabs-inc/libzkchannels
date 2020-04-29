@@ -348,8 +348,7 @@ char *merch_sign_init_cust_close_txs(char *ser_funding_tx,
                                      char *ser_cust_close_pk,
                                      char *ser_self_delay,
                                      char *ser_merch_state,
-                                     int64_t fee_cc,
-                                     int64_t fee_mc);
+                                     int64_t fee_cc);
 
 char *merchant_check_rev_lock(char *ser_rev_lock, char *ser_merch_state);
 

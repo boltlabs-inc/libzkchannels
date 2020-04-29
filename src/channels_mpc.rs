@@ -1161,7 +1161,6 @@ impl MerchantMPCState {
         cust_close_pk: Vec<u8>,
         to_self_delay_be: [u8; 2],
         fee_cc: i64,
-        fee_mc: i64,
     ) -> (Vec<u8>, Vec<u8>) {
         let init_balance = funding_tx.init_cust_bal + funding_tx.init_merch_bal;
         let escrow_index = 0;
@@ -1187,7 +1186,7 @@ impl MerchantMPCState {
             funding_tx.init_cust_bal,
             funding_tx.init_merch_bal,
             fee_cc,
-            fee_mc,
+            funding_tx.fee_mc,
             util::VAL_CPFP,
             true,
         );
@@ -1198,7 +1197,7 @@ impl MerchantMPCState {
             &to_self_delay_be,
             funding_tx.init_cust_bal,
             funding_tx.init_merch_bal,
-            fee_cc, fee_mc, util::VAL_CPFP,
+            fee_cc, funding_tx.fee_mc, util::VAL_CPFP,
             false,
         );
 

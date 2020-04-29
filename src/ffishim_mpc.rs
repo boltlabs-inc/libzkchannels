@@ -1118,7 +1118,6 @@ pub mod ffishim_mpc {
         ser_self_delay: *mut c_char,
         ser_merch_state: *mut c_char,
         fee_cc: i64,
-        fee_mc: i64,
     ) -> *mut c_char {
         // Deserialize the tx
         let tx_result: ResultSerdeType<FundingTxInfo> = deserialize_result_object(ser_funding_tx);
@@ -1152,7 +1151,6 @@ pub mod ffishim_mpc {
             cust_close_pk,
             self_delay_be,
             fee_cc,
-            fee_mc,
         );
 
         let ser = [

@@ -331,7 +331,7 @@ func MerchantCheckRevLock(revLock string, merchState MerchState) (bool, string, 
 	return r.IsOk, r.FoundRevSecret, err
 }
 
-func MerchantSignInitCustCloseTx(tx FundingTxInfo, revLock string, custPk string, custClosePk string, toSelfDelay string, merchState MerchState, feeCC int64, feeMC int64) (string, string, error) {
+func MerchantSignInitCustCloseTx(tx FundingTxInfo, revLock string, custPk string, custClosePk string, toSelfDelay string, merchState MerchState, feeCC int64) (string, string, error) {
 	serFundingTx, err := json.Marshal(tx)
 	if err != nil {
 		return "", "", err
@@ -343,7 +343,7 @@ func MerchantSignInitCustCloseTx(tx FundingTxInfo, revLock string, custPk string
 	}
 
 	resp := C.GoString(C.merch_sign_init_cust_close_txs(C.CString(string(serFundingTx)), C.CString(revLock), C.CString(custPk),
-		C.CString(custClosePk), C.CString(toSelfDelay), C.CString(string(serMerchState)), C.longlong(feeCC), C.longlong(feeMC)))
+		C.CString(custClosePk), C.CString(toSelfDelay), C.CString(string(serMerchState)), C.longlong(feeCC)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", "", err
@@ -556,7 +556,7 @@ func PreparePaymentMerchant(channelState ChannelState, nonce string, revLockCom 
 	return r.PayTokenMaskCom, merchState, err
 }
 
-func PayUpdateCustomer(channelState ChannelState, channelToken ChannelToken, startState State, endState State, payTokenMaskCom string, revLockCom string, amount int64, feeCc int64, custState CustState) (bool, CustState, error) {
+func PayUpdateCustomer(channelState ChannelState, channelToken ChannelToken, startState State, endState State, payTokenMaskCom string, revLockCom string, amount int64, feeCC int64, custState CustState) (bool, CustState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
 		return false, CustState{}, err
@@ -579,7 +579,7 @@ func PayUpdateCustomer(channelState ChannelState, channelToken ChannelToken, sta
 	}
 
 	resp := C.GoString(C.mpc_pay_update_customer(C.CString(string(serChannelState)), C.CString(string(serChannelToken)), C.CString(string(serStartState)),
-		C.CString(string(serEndState)), C.CString(payTokenMaskCom), C.CString(revLockCom), C.longlong(amount), C.longlong(feeCc), C.CString(string(serCustState))))
+		C.CString(string(serEndState)), C.CString(payTokenMaskCom), C.CString(revLockCom), C.longlong(amount), C.longlong(feeCC), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return false, CustState{}, err

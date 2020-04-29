@@ -1147,7 +1147,6 @@ mod merch {
             cust_close_pk,
             to_self_delay_be,
             fee_cc,
-            fee_mc,
         );
 
         let msg3 = [

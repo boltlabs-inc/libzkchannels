@@ -93,14 +93,15 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 		EscrowPrevout: escrowPrevout,
 		MerchTxId:     merchTxid,
 		MerchPrevout:  merchPrevout,
-		InitCustBal:   int64(custBal),
-		InitMerchBal:  int64(merchBal),
+		InitCustBal:   custBal,
+		InitMerchBal:  merchBal,
+		FeeMC:         feeMC,
 	}
 
 	fmt.Println("RevLock => ", custState.RevLock)
 
 	custClosePk := custState.PayoutPk
-	escrowSig, merchSig, err := MerchantSignInitCustCloseTx(txInfo, custState.RevLock, custState.PkC, custClosePk, toSelfDelay, merchState, feeCC, feeMC)
+	escrowSig, merchSig, err := MerchantSignInitCustCloseTx(txInfo, custState.RevLock, custState.PkC, custClosePk, toSelfDelay, merchState, feeCC)
 	assert.Nil(t, err)
 
 	fmt.Println("escrow sig: ", escrowSig)
@@ -339,7 +340,7 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	fmt.Println("RevLock => ", custState.RevLock)
 
 	custClosePk := custState.PayoutPk
-	escrowSig, merchSig, err := MerchantSignInitCustCloseTx(txInfo, custState.RevLock, custState.PkC, custClosePk, toSelfDelay, merchState, feeCC, feeMC)
+	escrowSig, merchSig, err := MerchantSignInitCustCloseTx(txInfo, custState.RevLock, custState.PkC, custClosePk, toSelfDelay, merchState, feeCC)
 	assert.Nil(t, err)
 
 	fmt.Println("escrow sig: ", escrowSig)
