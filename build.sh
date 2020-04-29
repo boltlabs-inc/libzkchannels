@@ -14,7 +14,7 @@ else
    echo "Did not specify correct path to zklnd..."
 fi
 
-unset ZK_DEPS_INSTALL 
+unset ZK_DEPS_INSTALL
 
 ROOT=$(pwd)
 ZK_DEPS_INSTALL=${ROOT}/deps/root
@@ -23,10 +23,9 @@ export ZK_DEPS_INSTALL
 export LD_LIBRARY_PATH=${ZK_DEPS_INSTALL}/lib:${LD_LIBRARY_PATH}
 export PATH=$ZK_DEPS_INSTALL/bin:$PATH
 
-mkdir -p ${ZK_DEPS_INSTALL}/lib
-mkdir -p ${ZK_DEPS_INSTALL}/bin
+make distclean
 
-make -C deps 
+make -C deps
 
 ./setup_redis.sh
 
