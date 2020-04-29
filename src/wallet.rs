@@ -101,10 +101,9 @@ impl State {
         output_buf.extend_from_slice(&self.escrow_txid.0);
         output_buf.extend_from_slice(&self.merch_prevout.0);
         output_buf.extend_from_slice(&self.escrow_prevout.0);
-        //TODO: uncomment when MPC updated
-        // output_buf.extend_from_slice(&self.min_fee.to_be_bytes());
-        // output_buf.extend_from_slice(&self.max_fee.to_be_bytes());
-        // output_buf.extend_from_slice(&self.fee_mc.to_be_bytes());
+        output_buf.extend_from_slice(&self.min_fee.to_be_bytes());
+        output_buf.extend_from_slice(&self.max_fee.to_be_bytes());
+        output_buf.extend_from_slice(&self.fee_mc.to_be_bytes());
 
         return output_buf;
     }

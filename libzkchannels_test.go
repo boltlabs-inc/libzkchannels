@@ -23,9 +23,11 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	skC := "1a1971e1379beec67178509e25b6772c66cb67bb04d70df2b4bcdb8c08a01827"
 	payoutSk := "4157697b6428532758a9d0f9a73ce58befe3fd665797427d1c5bb3d33f6a132e"
 	custBal := int64(1000000)
-	merchBal := int64(0)
+	merchBal := int64(1000000)
+	feeCC := int64(1000)
+	feeMC := int64(1000)
 
-	channelToken, custState, err := InitCustomer(fmt.Sprintf("%v", *merchState.PkM), custBal, merchBal, "cust", skC, payoutSk)
+	channelToken, custState, err := InitCustomer(fmt.Sprintf("%v", *merchState.PkM), custBal, merchBal, feeCC, "cust", skC, payoutSk)
 	assert.Nil(t, err)
 
 	inputSats := int64(50 * 100000000)
@@ -98,7 +100,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("RevLock => ", custState.RevLock)
 
 	custClosePk := custState.PayoutPk
-	escrowSig, merchSig, err := MerchantSignInitCustCloseTx(txInfo, custState.RevLock, custState.PkC, custClosePk, toSelfDelay, merchState)
+	escrowSig, merchSig, err := MerchantSignInitCustCloseTx(txInfo, custState.RevLock, custState.PkC, custClosePk, toSelfDelay, merchState, feeCC, feeMC)
 	assert.Nil(t, err)
 
 	fmt.Println("escrow sig: ", escrowSig)
@@ -263,10 +265,12 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	skC := "1a1971e1379beec67178509e25b6772c66cb67bb04d70df2b4bcdb8c08a01827"
 	payoutSk := "4157697b6428532758a9d0f9a73ce58befe3fd665797427d1c5bb3d33f6a132e"
 
-	custBal := int64(10000)
-	merchBal := int64(0)
+	custBal := int64(1000000)
+	merchBal := int64(1000000)
+	feeCC := int64(1000)
+	feeMC := int64(1000)
 
-	channelToken, custState, err := InitCustomer(fmt.Sprintf("%v", *merchState.PkM), custBal, merchBal, "cust", skC, payoutSk)
+	channelToken, custState, err := InitCustomer(fmt.Sprintf("%v", *merchState.PkM), custBal, merchBal, feeCC, "cust", skC, payoutSk)
 	assert.Nil(t, err)
 
 	inputSats := int64(50 * 100000000)
@@ -327,14 +331,15 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 		EscrowPrevout: escrowPrevout,
 		MerchTxId:     merchTxid,
 		MerchPrevout:  merchPrevout,
-		InitCustBal:   int64(custBal),
-		InitMerchBal:  int64(merchBal),
+		InitCustBal:   custBal,
+		InitMerchBal:  merchBal,
+		FeeMC:         feeMC,
 	}
 
 	fmt.Println("RevLock => ", custState.RevLock)
 
 	custClosePk := custState.PayoutPk
-	escrowSig, merchSig, err := MerchantSignInitCustCloseTx(txInfo, custState.RevLock, custState.PkC, custClosePk, toSelfDelay, merchState)
+	escrowSig, merchSig, err := MerchantSignInitCustCloseTx(txInfo, custState.RevLock, custState.PkC, custClosePk, toSelfDelay, merchState, feeCC, feeMC)
 	assert.Nil(t, err)
 
 	fmt.Println("escrow sig: ", escrowSig)
@@ -377,7 +382,7 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	// unlink should happen at this point (0-value payment)
 	fmt.Println("proceed with pay protocol...")
 
-	revState, newState, custState, err := PreparePaymentCustomer(channelState, 10, custState)
+	revState, newState, custState, err := PreparePaymentCustomer(channelState, 1000, custState)
 	assert.Nil(t, err)
 
 	assert.NotNil(t, revState)
@@ -387,11 +392,11 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 
 	fmt.Println("Nonce: ", state.Nonce)
 
-	payTokenMaskCom, merchState, err := PreparePaymentMerchant(channelState, state.Nonce, revState.RevLockCom, 10, merchState)
+	payTokenMaskCom, merchState, err := PreparePaymentMerchant(channelState, state.Nonce, revState.RevLockCom, 1000, merchState)
 	assert.Nil(t, err)
 
 	go runPayCust(channelState, channelToken, state, newState, payTokenMaskCom, revState.RevLockCom, custState)
-	isOk, merchState, err = PayUpdateMerchant(channelState, state.Nonce, payTokenMaskCom, revState.RevLockCom, 10, merchState)
+	isOk, merchState, err = PayUpdateMerchant(channelState, state.Nonce, payTokenMaskCom, revState.RevLockCom, 1000, merchState)
 	assert.Nil(t, err)
 	time.Sleep(time.Second * 5)
 
@@ -456,7 +461,7 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	fmt.Println("FoundRevSecret: ", FoundRevSecret2)
 	// Dispute scenario - If the customer has broadcast CloseEscrowTx and the revLock is an old revLock
 	index := uint32(0)
-	amount := custBal - 10
+	amount := custBal - 10000
 	// ideally generate new changePk
 	outputPk = changePk
 	disputeTx, err := MerchantSignDisputeTx(CloseEscrowTxId, index, amount, toSelfDelay, outputPk, revState.RevLock, FoundRevSecret, custClosePk, merchState)
@@ -516,7 +521,7 @@ func TestPayUpdateCustomer(t *testing.T) {
 	err = json.Unmarshal([]byte(os.Getenv("custState")), &custState)
 	assert.Nil(t, err)
 
-	isOk, custState, err := PayUpdateCustomer(channelState, channelToken, state, newState, payTokenMaskCom, revLockCom, 10, 1, custState)
+	isOk, custState, err := PayUpdateCustomer(channelState, channelToken, state, newState, payTokenMaskCom, revLockCom, 1000, 1000, custState)
 	serCustState, err := json.Marshal(custState)
 	t.Log("\n|||", string(serCustState), "|||\n")
 	assert.True(t, isOk)

@@ -48,6 +48,10 @@ typedef struct {
 } CommitmentRandomness_l;
 
 typedef struct {
+  uint32_t hash[5];
+} PublicKeyHash_l;
+
+typedef struct {
   uint32_t key[16];
 } HMACKey_l;
 
@@ -71,10 +75,6 @@ typedef struct {
 typedef struct {
   uint32_t commitment[8];
 } RevLockCommitment_l;
-
-typedef struct {
-  uint32_t hash[5];
-} PublicKeyHash_l;
 
 typedef struct {
   uint32_t sig[8];
@@ -297,6 +297,7 @@ extern void issue_tokens(State_l old_state_l,
                          BitcoinPublicKey_l cust_escrow_pub_key_l,
                          BitcoinPublicKey_l cust_payout_pub_key_l,
                          CommitmentRandomness_l revlock_commitment_randomness_l,
+                         PublicKeyHash_l cust_publickey_hash_l,
                          HMACKey_l hmac_key_l,
                          Mask_l paytoken_mask_l,
                          Mask_l merch_mask_l,
@@ -310,6 +311,7 @@ extern void issue_tokens(State_l old_state_l,
                          MaskCommitment_l paytoken_mask_commitment_l,
                          RevLockCommitment_l rlc_l,
                          Nonce_l nonce_l,
+                         Balance_l val_cpfp,
                          BitcoinPublicKey_l merch_escrow_pub_key_l,
                          BitcoinPublicKey_l merch_dispute_key_l,
                          BitcoinPublicKey_l merch_payout_pub_key_l,
@@ -345,7 +347,9 @@ char *merch_sign_init_cust_close_txs(char *ser_funding_tx,
                                      char *ser_cust_pk,
                                      char *ser_cust_close_pk,
                                      char *ser_self_delay,
-                                     char *ser_merch_state);
+                                     char *ser_merch_state,
+                                     int64_t fee_cc,
+                                     int64_t fee_mc);
 
 char *merchant_check_rev_lock(char *ser_rev_lock, char *ser_merch_state);
 
@@ -380,6 +384,7 @@ char *mpc_get_masked_tx_inputs(uint32_t mpc_result, char *ser_nonce, char *ser_m
 char *mpc_init_customer(char *ser_merch_pk,
                         int64_t cust_bal,
                         int64_t merch_bal,
+                        int64_t fee_cc,
                         const char *name_ptr,
                         char *ser_sk_c,
                         char *ser_payout_sk);
