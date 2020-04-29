@@ -12,6 +12,7 @@ before_install:
   - . ./env && make deps
   - redis-server --daemonize yes
   - redis-cli info
+  - echo -e "$PWD/deps/root/lib\n$PWD/target/release" | sudo tee /etc/ld.so.conf.d/libzkchannels.conf && sudo ldconfig
   - set +e
 
 rust:
