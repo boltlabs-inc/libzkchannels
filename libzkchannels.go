@@ -172,8 +172,8 @@ func GetSelfDelayBE(channelState ChannelState) (string, error) {
 	return r.SelfDelayBE, err
 }
 
-func ChannelSetup(name string, selfDelay uint16, channelThirdPartySupport bool) (ChannelState, error) {
-	resp := C.GoString(C.mpc_channel_setup(C.CString(name), C.uint16_t(selfDelay), C.uint(btoi(channelThirdPartySupport))))
+func ChannelSetup(name string, selfDelay uint16, dustLimit int64, channelThirdPartySupport bool) (ChannelState, error) {
+	resp := C.GoString(C.mpc_channel_setup(C.CString(name), C.uint16_t(selfDelay), C.longlong(dustLimit), C.uint(btoi(channelThirdPartySupport))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return ChannelState{}, err

@@ -94,9 +94,9 @@ pub struct ChannelMPCState {
 }
 
 impl ChannelMPCState {
-    pub fn new(name: String, self_delay: u16, third_party_support: bool) -> ChannelMPCState {
+    pub fn new(name: String, self_delay: u16, dust_limit: i64, third_party_support: bool) -> ChannelMPCState {
         ChannelMPCState {
-            dust_limit: 546,
+            dust_limit: dust_limit, // 546
             key_com: FixedSizeArray32([0u8; 32]),
             name: name.to_string(),
             third_party: third_party_support,
@@ -1091,7 +1091,6 @@ impl MerchantMPCState {
         let nonce_hex_str = hex::encode(s0.get_nonce());
 
         self.activate_map.insert(channel_id_str, s0);
-        // self.unlink_map.insert(nonce_hex_str.clone());
         db.update_unlink_set(&nonce_hex_str)?;
 
         Ok(true)
@@ -1101,7 +1100,7 @@ impl MerchantMPCState {
         &mut self,
         csprng: &mut R,
         db: &mut dyn StateDatabase,
-        channel_state: &ChannelMPCState,
+        _channel_state: &ChannelMPCState,
         nonce: [u8; NONCE_LEN],
         _rev_lock_com: [u8; 32],
         amount: i64,
@@ -1115,11 +1114,11 @@ impl MerchantMPCState {
             ));
         }
 
-        // if epsilon > 0, check if acceptable (above dust limit).
-        if amount > 0 && amount < channel_state.get_dust_limit() {
-            // if check fails, abort and output an error
-            return Err(String::from("epsilon below dust limit!"));
-        }
+        // if epsilon > 0, check if updated balance is above dust limit.
+        // if amount > 0 && amount < channel_state.get_dust_limit() {
+        //     // if check fails, abort and output an error
+        //     return Err(String::from("epsilon below dust limit!"));
+        // }
 
         // check if n_i not in S_spent
         if db.check_spent_map(&nonce_hex) {
@@ -1299,7 +1298,7 @@ impl MerchantMPCState {
             },
             false => String::new(),
         };
-        println!("Circuit: {}", circuit_file);
+        // println!("Circuit: {}", circuit_file);
         let cf_ptr = match using_ag2pc {
             true => {
                 let cf_ptr = unsafe {
@@ -1324,11 +1323,11 @@ impl MerchantMPCState {
         paytoken_mask_com: [u8; 32],
         amount: i64,
     ) -> Result<bool, String> {
-        // if epsilon > 0, check if acceptable (above dust limit).
-        if amount > 0 && amount < channel_state.get_dust_limit() {
-            // if check fails, abort and output an error
-            return Err(String::from("epsilon below dust limit!"));
-        }
+        // // if epsilon > 0, check if acceptable (above dust limit).
+        // if amount > 0 && amount < channel_state.get_dust_limit() {
+        //     // if check fails, abort and output an error
+        //     return Err(String::from("epsilon below dust limit!"));
+        // }
 
         // check if n_i not in S_spent
         let nonce_hex = hex::encode(nonce);
@@ -1525,7 +1524,7 @@ mod tests {
     rusty_fork_test! {
     #[test]
     fn mpc_channel_util_customer_works() {
-        let mut channel_state = ChannelMPCState::new(String::from("Channel A <-> B"), 1487, false);
+        let mut channel_state = ChannelMPCState::new(String::from("Channel A <-> B"), 1487, 546, false);
         // let rng = &mut rand::thread_rng();
         let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d86);
 
@@ -1677,7 +1676,7 @@ mod tests {
     // rusty_fork_test! {
     #[test]
     fn mpc_channel_util_merchant_works() {
-        let mut channel = ChannelMPCState::new(String::from("Channel A <-> B"), 1487, false);
+        let mut channel = ChannelMPCState::new(String::from("Channel A <-> B"), 1487, 546, false);
         // let rng = &mut rand::thread_rng();
         let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d86);
         let db_url = "redis://127.0.0.1/".to_string();
@@ -1820,7 +1819,7 @@ mod tests {
 
     #[test]
     fn mpc_test_serialization() {
-        let mut channel_state = ChannelMPCState::new(String::from("Channel A <-> B"), 1487, false);
+        let mut channel_state = ChannelMPCState::new(String::from("Channel A <-> B"), 1487, 546, false);
         let mut rng = XorShiftRng::seed_from_u64(0x8d863e545dbe6259);
         let db_url = "redis://127.0.0.1/".to_string();
 

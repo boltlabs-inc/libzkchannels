@@ -1965,8 +1965,9 @@ mod tests {
         // let mut db = RedisDatabase::new("lib", "redis://127.0.0.1/").unwrap();
         let mut db = HashMapDatabase::new("", "".to_string()).unwrap();
 
+        let dust_limit = 546;
         let mut channel_state =
-            mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, false);
+            mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, dust_limit, false);
         let mut merch_state = mpc::init_merchant(rng, "".to_string(), &mut channel_state, "Bob");
 
         let fee_cc = 1000;
@@ -2075,7 +2076,9 @@ mod tests {
         let mut db = RedisDatabase::new("lib", "redis://127.0.0.1/".to_string()).unwrap();
         db.clear_state();
 
-        let mut channel = mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, false);
+        let dust_limit = 546;
+        let mut channel = mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, dust_limit, false);
+
         let mut merch_state = mpc::init_merchant(&mut rng, "".to_string(), &mut channel, "Bob");
 
         let b0_cust = 100000;
@@ -2124,7 +2127,7 @@ mod tests {
         mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
         let (_new_state, revoked_state) =
-            mpc::pay_prepare_customer(&mut rng, &channel, 10, &mut cust_state).unwrap();
+            mpc::pay_prepare_customer(&mut rng, &channel, 600, &mut cust_state).unwrap();
         let rev_lock_com = revoked_state.get_rev_lock_com();
 
         let pay_mask_com = mpc::pay_prepare_merchant(
@@ -2133,7 +2136,7 @@ mod tests {
             &channel,
             s0.get_nonce(),
             rev_lock_com.clone(),
-            10,
+            600,
             &mut merch_state,
         )
         .unwrap();
@@ -2145,7 +2148,7 @@ mod tests {
             s0.get_nonce(),
             pay_mask_com,
             rev_lock_com,
-            10,
+            600,
             &mut merch_state,
         );
         assert!(res_merch.is_ok());
@@ -2187,7 +2190,8 @@ mod tests {
             let mut db = RedisDatabase::new("lib", "redis://127.0.0.1/".to_string()).unwrap();
             db.clear_state();
 
-            let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, false);
+            let dust_limit = 546;
+            let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, dust_limit, false);
             let mut merch_state = mpc::init_merchant(&mut rng, "".to_string(), &mut channel_state, "Bob");
 
             let b0_cust = 100000;
@@ -2219,12 +2223,12 @@ mod tests {
             let orig_funding_tx_info: FundingTxInfo = serde_json::from_str(&ser_tx_info).unwrap();
             assert_eq!(funding_tx_info, orig_funding_tx_info);
 
-            let (state, rev_state) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, 10, &mut cust_state).unwrap();
+            let (state, rev_state) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, 600, &mut cust_state).unwrap();
             let rev_lock_com = rev_state.rev_lock_com.0;
 
-            let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &mut db as &mut dyn StateDatabase, &channel_state, state.get_nonce(), rev_lock_com.clone(), 10, &mut merch_state).unwrap();
+            let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &mut db as &mut dyn StateDatabase, &channel_state, state.get_nonce(), rev_lock_com.clone(), 600, &mut merch_state).unwrap();
 
-            let res_cust = mpc::pay_update_customer(&mut channel_state, &channel_token, s0, state, 150, pay_mask_com, rev_lock_com, 10, &mut cust_state);
+            let res_cust = mpc::pay_update_customer(&mut channel_state, &channel_token, s0, state, 150, pay_mask_com, rev_lock_com, 600, &mut cust_state);
             assert!(res_cust.is_ok() && res_cust.unwrap());
 
             let mut pt_mask = [0u8; 32];

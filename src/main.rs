@@ -1023,7 +1023,7 @@ mod merch {
                 // create a new channel state and merchant state DB
                 let rng = &mut rand::thread_rng();
 
-                let mut channel_state = ChannelMPCState::new(String::from("Channel"), self_delay, false);
+                let mut channel_state = ChannelMPCState::new(String::from("Channel"), self_delay, dust_limit, false);
                 if dust_limit == 0 {
                     let s = format!("Dust limit must be greater than 0!");
                     return Err(s);

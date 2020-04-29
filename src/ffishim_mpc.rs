@@ -91,6 +91,7 @@ pub mod ffishim_mpc {
     pub extern "C" fn mpc_channel_setup(
         channel_name: *const c_char,
         self_delay: u16,
+        dust_limit: i64,
         third_party_support: u32,
     ) -> *mut c_char {
         let bytes = unsafe { CStr::from_ptr(channel_name).to_bytes() };
@@ -100,7 +101,7 @@ pub mod ffishim_mpc {
         if third_party_support >= 1 {
             tps = true;
         }
-        let channel_state = mpc::ChannelMPCState::new(name.to_string(), self_delay, tps);
+        let channel_state = mpc::ChannelMPCState::new(name.to_string(), self_delay, dust_limit, tps);
 
         let ser = [
             "{\'channel_state\':\'",
