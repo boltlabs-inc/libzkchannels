@@ -817,7 +817,7 @@ pub mod ffishim_mpc {
             from_escrow = true;
         }
 
-        let (signed_tx, txid) = handle_errors!(mpc::customer_close(
+        let (signed_tx, txid_be, txid_le) = handle_errors!(mpc::customer_close(
             &channel_state,
             &channel_token,
             from_escrow,
@@ -826,8 +826,10 @@ pub mod ffishim_mpc {
         let ser = [
             "{\'signed_tx\':\'",
             &hex::encode(signed_tx),
-            "\', \'txid\':\'",
-            &hex::encode(txid),
+            "\', \'txid_be\':\'",
+            &hex::encode(txid_be),
+            "\', \'txid_le\':\'",
+            &hex::encode(txid_le),
             "\'}",
         ]
         .concat();
@@ -850,12 +852,14 @@ pub mod ffishim_mpc {
         let merch_state = handle_errors!(merch_state_result);
 
         // use channel token to retrieve initial channel params, then generate the merch-close-tx and sign it
-        let (signed_tx, txid) = handle_errors!(mpc::merchant_close(&escrow_txid, &merch_state));
+        let (signed_tx, txid_be, txid_le) = handle_errors!(mpc::merchant_close(&escrow_txid, &merch_state));
         let ser = [
             "{\'signed_tx\':\'",
             &hex::encode(signed_tx),
-            "\', \'txid\':\'",
-            &hex::encode(txid),
+            "\', \'txid_be\':\'",
+            &hex::encode(txid_be),
+            "\', \'txid_be\':\'",
+            &hex::encode(txid_le),
             "\'}",
         ]
         .concat();
@@ -933,7 +937,7 @@ pub mod ffishim_mpc {
             change_pk_is_hash = true;
         }
 
-        let (signed_tx, txid, prevout) =
+        let (signed_tx, txid_be, prevout) =
             handle_errors!(zkchan_tx::txutil::customer_sign_escrow_transaction(
                 txid,
                 index,
@@ -945,11 +949,15 @@ pub mod ffishim_mpc {
                 Some(change_pk),
                 change_pk_is_hash
             ));
+        let mut txid_le = txid_be.to_vec();
+        txid_le.reverse();
         let ser = [
             "{\'signed_tx\':\'",
             &hex::encode(signed_tx),
-            "\', \'txid\':\'",
-            &hex::encode(txid),
+            "\', \'txid_be\':\'",
+            &hex::encode(txid_be),
+            "\', \'txid_le\':\'",
+            &hex::encode(txid_le),
             "\', \'hash_prevout\':\'",
             &hex::encode(prevout),
             "\'}",

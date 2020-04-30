@@ -1242,15 +1242,15 @@ pub mod mpc {
         channel_token: &ChannelMPCToken,
         from_escrow: bool,
         cust_state: &CustomerMPCState,
-    ) -> Result<(Vec<u8>, Vec<u8>), String> {
-        // (close_tx, close_txid) that spends
+    ) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), String> {
+        // (close_tx, close_txid_be, close_txid_le) that spends from escrow (if from_escrow = true)
         cust_state.customer_close::<Testnet>(&channel_state, &channel_token, from_escrow)
     }
 
     pub fn merchant_close(
         escrow_txid: &Vec<u8>,
         merch_state: &MerchantMPCState,
-    ) -> Result<(Vec<u8>, Vec<u8>), String> {
+    ) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), String> {
         let mut txid = [0u8; 32];
         txid.copy_from_slice(escrow_txid.as_slice());
         merch_state.get_closing_tx::<Testnet>(txid)

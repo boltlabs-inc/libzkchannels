@@ -964,7 +964,7 @@ mod cust {
 
         let from_escrow = !from_merch_close;
 
-        let (signed_tx, txid) = handle_error_result!(mpc::customer_close(
+        let (signed_tx, txid_be, _) = handle_error_result!(mpc::customer_close(
             &channel_state,
             &channel_token,
             from_escrow,
@@ -972,9 +972,9 @@ mod cust {
         ));
 
         if from_escrow {
-            println!("cust-close from escrow txid: {}", hex::encode(txid));
+            println!("cust-close from escrow txid: {}", hex::encode(txid_be));
         } else {
-            println!("cust-close from merch txid: {}", hex::encode(txid));
+            println!("cust-close from merch txid: {}", hex::encode(txid_be));
         }
         // write out to a file
         write_pathfile(out_file, hex::encode(signed_tx))?;
@@ -1445,10 +1445,10 @@ mod merch {
 
         let escrow_txid = channel_token.escrow_txid.0.to_vec();
 
-        let (merch_close_tx, txid) =
+        let (merch_close_tx, txid_be, _) =
             handle_error_result!(mpc::merchant_close(&escrow_txid, &merch_state));
         write_pathfile(out_file, hex::encode(merch_close_tx))?;
-        println!("merch-close-tx signed txid: {}", hex::encode(txid));
+        println!("merch-close-tx signed txid: {}", hex::encode(txid_be));
         Ok(())
     }
 }

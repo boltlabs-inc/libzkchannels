@@ -804,7 +804,7 @@ impl CustomerMPCState {
         channel_state: &ChannelMPCState,
         channel_token: &ChannelMPCToken,
         from_escrow: bool,
-    ) -> Result<(Vec<u8>, Vec<u8>), String> {
+    ) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), String> {
         let (escrow_tx_preimage, merch_tx_preimage, escrow_tx_params, merch_tx_params) =
             self.construct_close_transaction_preimage::<N>(channel_state, channel_token);
         let merch_pk = channel_token.pk_m.serialize().to_vec();
@@ -1242,7 +1242,7 @@ impl MerchantMPCState {
     pub fn get_closing_tx<N: BitcoinNetwork>(
         &self,
         escrow_txid: [u8; 32],
-    ) -> Result<(Vec<u8>, Vec<u8>), String> {
+    ) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), String> {
         let escrow_txid = FixedSizeArray32(escrow_txid);
         let m = match self.close_tx.get(&escrow_txid) {
             Some(t) => t,
@@ -1280,9 +1280,11 @@ impl MerchantMPCState {
             None,
             &sk,
         );
+        let mut txid_le = txid_be.to_vec();
+        txid_le.reverse();
         let signed_merch_close_tx = signed_merch_close_tx.to_transaction_bytes().unwrap();
 
-        Ok((signed_merch_close_tx, txid_be.to_vec()))
+        Ok((signed_merch_close_tx, txid_be.to_vec(), txid_le))
     }
 
     pub fn get_circuit_file(&self) -> *mut c_void {
@@ -1661,15 +1663,15 @@ mod tests {
 
             let result = cust_state.customer_close::<Testnet>(&channel_state, &channel_token, true);
             assert!(result.is_ok(), result.err().unwrap());
-            let (close_escrow_tx, close_escrow_txid) = result.unwrap();
+            let (close_escrow_tx, close_escrow_txid_be, _) = result.unwrap();
 
             // output most recent closing tx
             println!("------------------------------------");
-            println!("Cust-close from escrow tx ID: {}", hex::encode(close_escrow_txid));
+            println!("Cust-close from escrow tx ID: {}", hex::encode(close_escrow_txid_be));
             println!("Cust-close from escrow tx: {}", hex::encode(close_escrow_tx));
-            let (close_merch_tx, close_merch_txid) = cust_state.customer_close::<Testnet>(&channel_state, &channel_token, false).unwrap();
+            let (close_merch_tx, close_merch_txid_be, _) = cust_state.customer_close::<Testnet>(&channel_state, &channel_token, false).unwrap();
             println!("------------------------------------");
-            println!("Cust-close from merch tx ID: {}", hex::encode(close_merch_txid));
+            println!("Cust-close from merch tx ID: {}", hex::encode(close_merch_txid_be));
             println!("Cust-close from merch tx: {}", hex::encode(close_merch_tx));
             println!("------------------------------------");
         }
