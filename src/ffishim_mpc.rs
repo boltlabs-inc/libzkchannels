@@ -101,7 +101,8 @@ pub mod ffishim_mpc {
         if third_party_support >= 1 {
             tps = true;
         }
-        let channel_state = mpc::ChannelMPCState::new(name.to_string(), self_delay, dust_limit, tps);
+        let channel_state =
+            mpc::ChannelMPCState::new(name.to_string(), self_delay, dust_limit, tps);
 
         let ser = [
             "{\'channel_state\':\'",
@@ -852,7 +853,8 @@ pub mod ffishim_mpc {
         let merch_state = handle_errors!(merch_state_result);
 
         // use channel token to retrieve initial channel params, then generate the merch-close-tx and sign it
-        let (signed_tx, txid_be, txid_le) = handle_errors!(mpc::merchant_close(&escrow_txid, &merch_state));
+        let (signed_tx, txid_be, txid_le) =
+            handle_errors!(mpc::merchant_close(&escrow_txid, &merch_state));
         let ser = [
             "{\'signed_tx\':\'",
             &hex::encode(signed_tx),

@@ -25,8 +25,8 @@ use structopt::StructOpt;
 use zkchan_tx::Testnet;
 use zkchannels::database::create_db_connection;
 use zkchannels::mpc;
-use zkchannels::FundingTxInfo;
 use zkchannels::util::VAL_CPFP;
+use zkchannels::FundingTxInfo;
 
 macro_rules! handle_error_result {
     ($e:expr) => {
@@ -45,7 +45,6 @@ macro_rules! handle_error_with_string {
         }
     };
 }
-
 
 macro_rules! print_error_result {
     ($e:expr) => {
@@ -298,8 +297,8 @@ pub fn get_file_from_db(
 #[structopt(name = "zkchannels-mpc")]
 struct Cli {
     #[structopt(
-    subcommand,
-    help = "Options: open, init, activate, unlink, pay, or close"
+        subcommand,
+        help = "Options: open, init, activate, unlink, pay, or close"
     )]
     command: Command,
 }
@@ -393,7 +392,6 @@ impl Conn {
 
         out
     }
-
 }
 
 fn main() {
@@ -429,7 +427,14 @@ fn main() {
             }
         },
         Command::INIT(init) => match init.party {
-            Party::MERCH => match merch::init(create_connection!(init), &db_url, init.fee_cc, init.fee_mc, init.min_fee, init.max_fee) {
+            Party::MERCH => match merch::init(
+                create_connection!(init),
+                &db_url,
+                init.fee_cc,
+                init.fee_mc,
+                init.min_fee,
+                init.max_fee,
+            ) {
                 Err(e) => println!("Initialize phase failed with error: {}", e),
                 _ => (),
             },
@@ -468,7 +473,7 @@ fn main() {
                     &mut channel_state,
                     &mut merch_state,
                 )
-                    .unwrap()
+                .unwrap()
             }
             Party::CUST => cust::pay(
                 0,
@@ -478,7 +483,7 @@ fn main() {
                 unlink.channel_name,
                 unlink.verbose,
             )
-                .unwrap(),
+            .unwrap(),
         },
         Command::PAY(pay) => match pay.party {
             Party::MERCH => {
@@ -566,19 +571,15 @@ mod cust {
         // check cust-bal meets min bal
         let cust_min_bal = fee_cc + channel_state.get_dust_limit() + VAL_CPFP;
         if b0_cust < cust_min_bal {
-            return Err(format!(
-                "cust-bal must be greater than {}.", cust_min_bal
-            ));
+            return Err(format!("cust-bal must be greater than {}.", cust_min_bal));
         }
 
         // check merch-bal meets min bal
         let merch_min_bal = fee_mc + channel_state.get_dust_limit() + VAL_CPFP;
         if b0_merch < merch_min_bal {
-            return Err(format!(
-                "merch-bal must be greater than {}.", merch_min_bal
-            ));
+            return Err(format!("merch-bal must be greater than {}.", merch_min_bal));
         }
-        
+
         let (channel_token, cust_state) = mpc::init_customer(
             rng,
             &pk_m,
@@ -901,7 +902,7 @@ mod cust {
             &mut cust_state,
         ) {
             Ok(n) => n,
-            Err(e) => return Err(e.to_string())
+            Err(e) => return Err(e.to_string()),
         };
 
         let msg1a = [handle_error_result!(serde_json::to_string(&is_ok))];
@@ -912,11 +913,11 @@ mod cust {
         // unmask the closing tx
         is_ok = is_ok
             && mpc::pay_unmask_sigs_customer(
-            &mut channel_state,
-            &mut channel_token,
-            mask_bytes,
-            &mut cust_state,
-        )
+                &mut channel_state,
+                &mut channel_token,
+                mask_bytes,
+                &mut cust_state,
+            )
             .unwrap();
 
         let msg3 = [serde_json::to_string(&rev_state).unwrap()];
@@ -1044,7 +1045,6 @@ mod merch {
         dust_limit: i64,
         self_delay: u16,
     ) -> Result<(), String> {
-
         let merch_state_info = load_merchant_state_info(&db_url);
 
         let (channel_state, merch_state) = match merch_state_info {
@@ -1052,56 +1052,63 @@ mod merch {
                 // create a new channel state and merchant state DB
                 let rng = &mut rand::thread_rng();
 
-                let mut channel_state = ChannelMPCState::new(String::from("Channel"), self_delay, dust_limit, false);
+                let mut channel_state =
+                    ChannelMPCState::new(String::from("Channel"), self_delay, dust_limit, false);
                 if dust_limit == 0 {
                     let s = format!("Dust limit must be greater than 0!");
                     return Err(s);
                 }
                 // set dust limit if it's set above
                 channel_state.set_dust_limit(dust_limit);
-    
+
                 let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
-                
-                let merch_state = mpc::init_merchant(rng, db_url.clone(), &mut channel_state, "Merchant");
+
+                let merch_state =
+                    mpc::init_merchant(rng, db_url.clone(), &mut channel_state, "Merchant");
 
                 merch_save_state_in_db(&mut db.conn, Some(&channel_state), &merch_state)?;
 
                 (channel_state, merch_state)
-            },
-            Ok(n) => (n.0, n.1)
+            }
+            Ok(n) => (n.0, n.1),
         };
 
-        // send initial channel info 
+        // send initial channel info
         let msg1 = [
             handle_error_result!(serde_json::to_string(&channel_state)),
             handle_error_result!(serde_json::to_string(&merch_state.pk_m)),
-            handle_error_result!(serde_json::to_string(&fee_mc))
+            handle_error_result!(serde_json::to_string(&fee_mc)),
         ];
         conn.send(&msg1);
 
         Ok(())
     }
 
-    pub fn init(conn: &mut Conn, db_url: &String, fee_cc: i64, fee_mc: i64, min_fee: i64, max_fee: i64) -> Result<(), String> {
+    pub fn init(
+        conn: &mut Conn,
+        db_url: &String,
+        fee_cc: i64,
+        fee_mc: i64,
+        min_fee: i64,
+        max_fee: i64,
+    ) -> Result<(), String> {
         // build tx and sign it
         let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
         let key = String::from("cli:merch_db");
 
         // load the channel state from DB
-        let ser_channel_state = handle_error_with_string!(get_file_from_db(
-            &mut db.conn,
-            &key,
-            &CHANNEL_STATE_KEY.to_string()
-        ), "Could not load the merchant channel state");
+        let ser_channel_state = handle_error_with_string!(
+            get_file_from_db(&mut db.conn, &key, &CHANNEL_STATE_KEY.to_string()),
+            "Could not load the merchant channel state"
+        );
         let channel_state: ChannelMPCState =
             handle_error_result!(serde_json::from_str(&ser_channel_state));
 
         // load the merchant state from DB
-        let ser_merch_state = handle_error_with_string!(get_file_from_db(
-            &mut db.conn,
-            &key,
-            &MERCH_STATE_KEY.to_string()
-        ), "Could not load the merchant state DB");
+        let ser_merch_state = handle_error_with_string!(
+            get_file_from_db(&mut db.conn, &key, &MERCH_STATE_KEY.to_string()),
+            "Could not load the merchant state DB"
+        );
         let mut merch_state: MerchantMPCState =
             handle_error_result!(serde_json::from_str(&ser_merch_state));
 
@@ -1126,22 +1133,24 @@ mod merch {
         let merch_bal = init_cust_state.merch_bal;
 
         // form the merch-close-tx
-        let (merch_tx_preimage, tx_params) = handle_error_result!(merchant_form_close_transaction::<Testnet>(
-            escrow_txid.to_vec(),
-            cust_pk.clone(),
-            merch_pk,
-            merch_close_pk,
-            cust_bal,
-            merch_bal,
-            to_self_delay_be
-        ));
+        let (merch_tx_preimage, tx_params) =
+            handle_error_result!(merchant_form_close_transaction::<Testnet>(
+                escrow_txid.to_vec(),
+                cust_pk.clone(),
+                merch_pk,
+                merch_close_pk,
+                cust_bal,
+                merch_bal,
+                to_self_delay_be
+            ));
 
         // verify signature from merchant
-        let is_ok = handle_error_result!(zkchan_tx::txutil::merchant_verify_merch_close_transaction(
-            &merch_tx_preimage,
-            &cust_sig,
-            &cust_pk
-        ));
+        let is_ok =
+            handle_error_result!(zkchan_tx::txutil::merchant_verify_merch_close_transaction(
+                &merch_tx_preimage,
+                &cust_sig,
+                &cust_pk
+            ));
         if is_ok {
             merch_state.store_merch_close_tx(
                 &escrow_txid.to_vec(),
@@ -1153,9 +1162,9 @@ mod merch {
             );
         }
 
-        let (merch_txid, merch_prevout) = handle_error_result!(zkchan_tx::txutil::merchant_generate_transaction_id(
-            tx_params
-        ));
+        let (merch_txid, merch_prevout) = handle_error_result!(
+            zkchan_tx::txutil::merchant_generate_transaction_id(tx_params)
+        );
 
         // construct the funding tx info given info available
         let funding_tx = FundingTxInfo {
@@ -1214,11 +1223,10 @@ mod merch {
         let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
         let key = String::from("cli:merch_db");
 
-        let ser_merch_state = handle_error_with_string!(get_file_from_db(
-            &mut db.conn,
-            &key,
-            &MERCH_STATE_KEY.to_string()
-        ), "Could not load the merchant state DB");
+        let ser_merch_state = handle_error_with_string!(
+            get_file_from_db(&mut db.conn, &key, &MERCH_STATE_KEY.to_string()),
+            "Could not load the merchant state DB"
+        );
         let mut merch_state: MerchantMPCState =
             handle_error_result!(serde_json::from_str(&ser_merch_state));
 
@@ -1250,20 +1258,18 @@ mod merch {
         let key = String::from("cli:merch_db");
 
         // load the channel state from DB
-        let ser_channel_state = handle_error_with_string!(get_file_from_db(
-            &mut db.conn,
-            &key,
-            &CHANNEL_STATE_KEY.to_string()
-        ), "Could not load the merchant channel state");
+        let ser_channel_state = handle_error_with_string!(
+            get_file_from_db(&mut db.conn, &key, &CHANNEL_STATE_KEY.to_string()),
+            "Could not load the merchant channel state"
+        );
         let channel_state: ChannelMPCState =
             handle_error_result!(serde_json::from_str(&ser_channel_state));
 
         // load the merchant state from DB
-        let ser_merch_state = handle_error_with_string!(get_file_from_db(
-            &mut db.conn,
-            &key,
-            &MERCH_STATE_KEY.to_string()
-        ), "Could not load the merchant state DB");
+        let ser_merch_state = handle_error_with_string!(
+            get_file_from_db(&mut db.conn, &key, &MERCH_STATE_KEY.to_string()),
+            "Could not load the merchant state DB"
+        );
         let merch_state: MerchantMPCState =
             handle_error_result!(serde_json::from_str(&ser_merch_state));
 
@@ -1352,7 +1358,7 @@ mod merch {
             nonce,
             merch_state,
         )
-            .unwrap();
+        .unwrap();
         let msg3 = [handle_error_result!(serde_json::to_string(&masked_inputs))];
         let msg4 = conn.send_and_wait(&msg3, Some(String::from("Received revoked state")), true);
         let rev_state = serde_json::from_str(msg4.get(0).unwrap()).unwrap();
@@ -1426,9 +1432,7 @@ mod merch {
         Ok(())
     }
 
-    pub fn list_channels(
-        db_conn: &mut redis::Connection
-    ) {
+    pub fn list_channels(db_conn: &mut redis::Connection) {
         let key = String::from("cli:merch_channels");
 
         let channel_ids: Vec<String> = db_conn.hkeys(key).unwrap();
@@ -1448,18 +1452,19 @@ mod merch {
         }
 
         let key1 = String::from("cli:merch_db");
-        let ser_merch_state = handle_error_with_string!(get_file_from_db(
-            &mut db.conn,
-            &key1,
-            &MERCH_STATE_KEY.to_string()
-        ), "Could not load the merchant state DB");
+        let ser_merch_state = handle_error_with_string!(
+            get_file_from_db(&mut db.conn, &key1, &MERCH_STATE_KEY.to_string()),
+            "Could not load the merchant state DB"
+        );
         let merch_state: MerchantMPCState =
             handle_error_result!(serde_json::from_str(&ser_merch_state));
 
         let key2 = String::from("cli:merch_channels");
         let channel_token_key = format!("id:{}", channel_id);
-        let ser_channel_token =
-        handle_error_with_string!(get_file_from_db(&mut db.conn, &key2, &channel_token_key), "Invalid channel ID");
+        let ser_channel_token = handle_error_with_string!(
+            get_file_from_db(&mut db.conn, &key2, &channel_token_key),
+            "Invalid channel ID"
+        );
         let channel_token: ChannelMPCToken =
             handle_error_result!(serde_json::from_str(&ser_channel_token));
 

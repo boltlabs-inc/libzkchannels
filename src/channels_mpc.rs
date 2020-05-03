@@ -35,13 +35,13 @@ pub struct NetworkConfig {
 
 pub enum EstablishStatus {
     Initialized,
-    Activated
+    Activated,
 }
 
 pub enum PayStatus {
     Prepare,
     Update,
-    Complete
+    Complete,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -105,7 +105,12 @@ pub struct ChannelMPCState {
 }
 
 impl ChannelMPCState {
-    pub fn new(name: String, self_delay: u16, dust_limit: i64, third_party_support: bool) -> ChannelMPCState {
+    pub fn new(
+        name: String,
+        self_delay: u16,
+        dust_limit: i64,
+        third_party_support: bool,
+    ) -> ChannelMPCState {
         ChannelMPCState {
             dust_limit: dust_limit, // 546
             key_com: FixedSizeArray32([0u8; 32]),
@@ -480,7 +485,14 @@ impl CustomerMPCState {
         return self.fee_cc;
     }
 
-    pub fn validate_state(&self, old_state: State, new_state: State, amount: i64, fee_cc: i64, dust_limit: i64) {
+    pub fn validate_state(
+        &self,
+        old_state: State,
+        new_state: State,
+        amount: i64,
+        fee_cc: i64,
+        dust_limit: i64,
+    ) {
         assert_eq!(old_state.min_fee, new_state.min_fee);
         assert_eq!(old_state.max_fee, new_state.max_fee);
         assert_eq!(old_state.fee_mc, new_state.fee_mc);
@@ -507,7 +519,6 @@ impl CustomerMPCState {
         rev_lock_com: [u8; 32],
         amount: i64,
     ) -> Result<bool, String> {
-
         let min_cust_bal = channel_state.dust_limit + fee_cc + VAL_CPFP;
         if new_state.bc <= min_cust_bal {
             return Err(format!(
@@ -552,7 +563,13 @@ impl CustomerMPCState {
 
         let cf_ptr = self.get_circuit_file();
 
-        self.validate_state(old_state, new_state, amount, fee_cc, channel_state.dust_limit);
+        self.validate_state(
+            old_state,
+            new_state,
+            amount,
+            fee_cc,
+            channel_state.dust_limit,
+        );
         let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) =
             match mpc_build_masked_tokens_cust(
                 net_conn,
@@ -645,7 +662,9 @@ impl CustomerMPCState {
             &to_self_delay_be,
             self.cust_balance,
             self.merch_balance,
-            self.fee_cc, self.get_current_state().fee_mc, util::VAL_CPFP,
+            self.fee_cc,
+            self.get_current_state().fee_mc,
+            util::VAL_CPFP,
             true,
         );
 
@@ -655,7 +674,9 @@ impl CustomerMPCState {
             &to_self_delay_be,
             self.cust_balance,
             self.merch_balance,
-            self.fee_cc, self.get_current_state().fee_mc, util::VAL_CPFP,
+            self.fee_cc,
+            self.get_current_state().fee_mc,
+            util::VAL_CPFP,
             false,
         );
 
@@ -779,11 +800,17 @@ impl CustomerMPCState {
         let secp = secp256k1::Secp256k1::verification_only();
         let ver_escrow = secp.verify(&msg1, &escrow_sig, &channel_token.pk_m);
         if ver_escrow.is_err() {
-            return Err(format!("Escrow tx signature failed: {}", ver_escrow.err().unwrap().to_string()));
+            return Err(format!(
+                "Escrow tx signature failed: {}",
+                ver_escrow.err().unwrap().to_string()
+            ));
         }
         let ver_merch = secp.verify(&msg2, &merch_sig, &channel_token.pk_m);
         if ver_merch.is_err() {
-            return Err(format!("Merch tx signature failed: {}", ver_merch.err().unwrap().to_string()));
+            return Err(format!(
+                "Merch tx signature failed: {}",
+                ver_merch.err().unwrap().to_string()
+            ));
         }
         let escrow_sig_hex = hex::encode(&escrow_sig.serialize_compact().to_vec());
         let merch_sig_hex = hex::encode(&merch_sig.serialize_compact().to_vec());
@@ -1222,7 +1249,9 @@ impl MerchantMPCState {
             &to_self_delay_be,
             funding_tx.init_cust_bal,
             funding_tx.init_merch_bal,
-            fee_cc, funding_tx.fee_mc, util::VAL_CPFP,
+            fee_cc,
+            funding_tx.fee_mc,
+            util::VAL_CPFP,
             false,
         );
 
@@ -1514,7 +1543,12 @@ mod tests {
     use sha2::Sha256;
     use zkchan_tx::Testnet;
 
-    fn generate_test_txs<R: Rng>(csprng: &mut R, b0_cust: i64, b0_merch: i64, fee_mc: i64) -> FundingTxInfo {
+    fn generate_test_txs<R: Rng>(
+        csprng: &mut R,
+        b0_cust: i64,
+        b0_merch: i64,
+        fee_mc: i64,
+    ) -> FundingTxInfo {
         let mut escrow_txid = [0u8; 32];
         let mut merch_txid = [0u8; 32];
 
@@ -1545,7 +1579,7 @@ mod tests {
             merch_prevout: FixedSizeArray32(merch_prevout),
             fee_mc: fee_mc,
             min_fee: 0,
-            max_fee: 10000
+            max_fee: 10000,
         };
     }
 
@@ -1847,7 +1881,8 @@ mod tests {
 
     #[test]
     fn mpc_test_serialization() {
-        let mut channel_state = ChannelMPCState::new(String::from("Channel A <-> B"), 1487, 546, false);
+        let mut channel_state =
+            ChannelMPCState::new(String::from("Channel A <-> B"), 1487, 546, false);
         let mut rng = XorShiftRng::seed_from_u64(0x8d863e545dbe6259);
         let db_url = "redis://127.0.0.1/".to_string();
 

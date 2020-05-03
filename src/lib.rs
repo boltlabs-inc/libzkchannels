@@ -1978,8 +1978,16 @@ mod tests {
         let fee_mc = 1000;
         let b0_cust = 10000;
         let b0_merch = 10000;
-        let (mut channel_token, mut cust_state) =
-            mpc::init_customer(rng, &merch_state.pk_m, b0_cust, b0_merch, fee_cc, "Alice", None, None);
+        let (mut channel_token, mut cust_state) = mpc::init_customer(
+            rng,
+            &merch_state.pk_m,
+            b0_cust,
+            b0_merch,
+            fee_cc,
+            "Alice",
+            None,
+            None,
+        );
 
         // customer sends pk_c, n_0, rl_0 to the merchant
         //let init_cust_state = cust_state.get_initial_cust_state().unwrap();
@@ -2039,7 +2047,12 @@ mod tests {
         //TODO: test unlinking with a 0-payment of pay protocol
     }
 
-    fn generate_funding_tx<R: Rng>(csprng: &mut R, b0_cust: i64, b0_merch: i64, fee_mc: i64) -> FundingTxInfo {
+    fn generate_funding_tx<R: Rng>(
+        csprng: &mut R,
+        b0_cust: i64,
+        b0_merch: i64,
+        fee_mc: i64,
+    ) -> FundingTxInfo {
         let mut escrow_txid = [0u8; 32];
         let mut merch_txid = [0u8; 32];
 
@@ -2082,7 +2095,8 @@ mod tests {
         db.clear_state();
 
         let dust_limit = 546;
-        let mut channel = mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, dust_limit, false);
+        let mut channel =
+            mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, dust_limit, false);
 
         let mut merch_state = mpc::init_merchant(&mut rng, "".to_string(), &mut channel, "Bob");
 

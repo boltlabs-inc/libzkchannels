@@ -10,12 +10,12 @@ use ecdsa_partial::EcdsaPartialSig;
 use libc::{c_int, c_void};
 // c_uint, c_char
 use rand::Rng;
-use ::{secp256k1, util};
 use std::ffi::{CStr, CString};
 use std::ptr;
 use std::str;
 use std::time::Instant;
 use wallet::State;
+use {secp256k1, util};
 
 static MPC_ERROR: &str = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
 pub static CIRCUIT_FILE: &str = "/include/emp-tool/circuits/files/tokens.circuit.txt";
@@ -443,7 +443,7 @@ mod tests {
     use std::env;
     use std::ffi::CStr;
     use std::str;
-    use util::{hash_to_slice, hmac_sign, compute_hash160};
+    use util::{compute_hash160, hash_to_slice, hmac_sign};
     use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
     use zkchan_tx::transactions::btc::{create_cust_close_transaction, create_reverse_input};
     use zkchan_tx::transactions::ClosePublicKeys;
@@ -754,13 +754,13 @@ mod tests {
                 .unwrap()
                 .as_slice(),
         )
-            .unwrap();
+        .unwrap();
         let cust_payout_pub_key = secp256k1::PublicKey::from_slice(
             hex::decode("03195e272df2310ded35f9958fd0c2847bf73b5b429a716c005d465009bd768641")
                 .unwrap()
                 .as_slice(),
         )
-            .unwrap();
+        .unwrap();
         let cust_pk_input_buf = cust_payout_pub_key.serialize();
         let cust_pub_key_hash = compute_hash160(&cust_pk_input_buf.to_vec());
 
@@ -802,13 +802,13 @@ mod tests {
                 .unwrap()
                 .as_slice(),
         )
-            .unwrap();
+        .unwrap();
         let merch_dispute_key = secp256k1::PublicKey::from_slice(
             hex::decode("0253be79afe84fd9342c1f52024379b6da6299ea98844aee23838e8e678a765f7c")
                 .unwrap()
                 .as_slice(),
         )
-            .unwrap();
+        .unwrap();
         let mut merch_public_key_hash = [0u8; 20];
         merch_public_key_hash.copy_from_slice(
             hex::decode("43e9e81bc632ad9cad48fc23f800021c5769a063")
@@ -820,7 +820,7 @@ mod tests {
                 .unwrap()
                 .as_slice(),
         )
-            .unwrap();
+        .unwrap();
 
         let nc = NetworkConfig {
             conn_type: ConnType_NETIO,
@@ -945,7 +945,6 @@ mod tests {
         let merch_tx_ar = Sha256::digest(&Sha256::digest(merch_preimage.as_slice()));
         let merch_tx = Message::from_slice(merch_tx_ar.as_slice()).unwrap();
 
-
         // automatically generate the escrow_preimage
         let input2 = create_reverse_input(&tx_id_merch, 0, new_state.bc + new_state.bm);
         let (m_tx_preimage, _, _) = create_cust_close_transaction::<Testnet>(
@@ -971,10 +970,7 @@ mod tests {
         let rec_new_paytoken = hmac_sign(hmac_key.to_vec(), &ser_new_state);
         xor_in_place(&mut paytoken_mask_bytes, &pt_masked_ar[..]);
         println!("paytoken cust: {}", hex::encode(paytoken_mask_bytes));
-        assert_eq!(
-            paytoken_mask_bytes,
-            rec_new_paytoken
-        );
+        assert_eq!(paytoken_mask_bytes, rec_new_paytoken);
 
         // 2. Unmask the escrow token, and check the sig
         println!("masked s: {}", hex::encode(&ct_escrow_masked_ar[..]));
@@ -1071,7 +1067,7 @@ mod tests {
                 &hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141")
                     .unwrap(),
             )
-                .to_string()
+            .to_string()
         );
         let mes = secp256k1::Message::from_slice(&msg).unwrap();
         println!("{:?}", mes);
