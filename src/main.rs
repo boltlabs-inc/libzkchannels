@@ -26,6 +26,7 @@ use zkchan_tx::Testnet;
 use zkchannels::database::create_db_connection;
 use zkchannels::mpc;
 use zkchannels::FundingTxInfo;
+use zkchannels::util::VAL_CPFP;
 
 macro_rules! handle_error_result {
     ($e:expr) => {
@@ -82,8 +83,6 @@ pub struct Open {
     cust_bal: i64,
     #[structopt(short = "m", long = "merch-bal", default_value = "0")]
     merch_bal: i64,
-    #[structopt(short = "f", long = "fee-cc", default_value = "0")]
-    fee_cc: i64,
     #[structopt(short = "i", long = "own-ip", default_value = "127.0.0.1")]
     own_ip: String,
     #[structopt(short = "p", long = "own-port")]
@@ -92,10 +91,14 @@ pub struct Open {
     other_ip: String,
     #[structopt(short = "q", long = "other-port")]
     other_port: String,
-    #[structopt(short = "d", long = "dust-limit", default_value = "0")]
+    #[structopt(short = "d", long = "dust-limit", default_value = "546")]
     dust_limit: i64,
     #[structopt(short = "d", long = "self-delay", default_value = "1487")]
     self_delay: u16,
+    #[structopt(short = "f", long = "fee-cc", default_value = "1000")]
+    fee_cc: i64,
+    #[structopt(short = "g", long = "fee-mc", default_value = "1000")]
+    fee_mc: i64,
     #[structopt(short = "n", long = "channel-name", default_value = "")]
     channel_name: String,
 }
@@ -120,11 +123,11 @@ pub struct Init {
     other_ip: String,
     #[structopt(short = "q", long = "other-port")]
     other_port: String,
-    #[structopt(short = "d", long = "dust-limit", default_value = "0")]
+    #[structopt(short = "d", long = "dust-limit", default_value = "546")]
     dust_limit: i64,
-    #[structopt(short = "f", long = "fee-cc", default_value = "0")]
+    #[structopt(short = "f", long = "fee-cc", default_value = "1000")]
     fee_cc: i64,
-    #[structopt(short = "g", long = "fee-mc", default_value = "0")]
+    #[structopt(short = "g", long = "fee-mc", default_value = "1000")]
     fee_mc: i64,
     #[structopt(short = "m", long = "min-fee", default_value = "0")]
     min_fee: i64,
@@ -390,6 +393,7 @@ impl Conn {
 
         out
     }
+
 }
 
 fn main() {
@@ -403,6 +407,7 @@ fn main() {
             Party::MERCH => match merch::open(
                 create_connection!(open),
                 &db_url,
+                open.fee_mc,
                 open.dust_limit,
                 open.self_delay,
             ) {
@@ -467,7 +472,7 @@ fn main() {
             }
             Party::CUST => cust::pay(
                 0,
-                150,
+                1000,
                 create_connection!(unlink),
                 &db_url,
                 unlink.channel_name,
@@ -495,7 +500,7 @@ fn main() {
             Party::CUST => {
                 match cust::pay(
                     pay.amount.unwrap(),
-                    pay.fee_cc.unwrap_or(150),
+                    pay.fee_cc.unwrap_or(1000),
                     create_connection!(pay),
                     &db_url,
                     pay.channel_name,
@@ -556,13 +561,24 @@ mod cust {
         let msg0 = conn.wait_for(None, false);
         let channel_state: ChannelMPCState = serde_json::from_str(&msg0.get(0).unwrap()).unwrap();
         let pk_m: secp256k1::PublicKey = serde_json::from_str(&msg0.get(1).unwrap()).unwrap();
+        let fee_mc: i64 = serde_json::from_str(&msg0.get(2).unwrap()).unwrap();
 
-        if b0_cust == 0 && b0_merch == 0 {
-            return Err(String::from(
-                "cust-bal or merch-bal must be greater than 0.",
+        // check cust-bal meets min bal
+        let cust_min_bal = fee_cc + channel_state.get_dust_limit() + VAL_CPFP;
+        if b0_cust < cust_min_bal {
+            return Err(format!(
+                "cust-bal must be greater than {}.", cust_min_bal
             ));
         }
 
+        // check merch-bal meets min bal
+        let merch_min_bal = fee_mc + channel_state.get_dust_limit() + VAL_CPFP;
+        if b0_merch < merch_min_bal {
+            return Err(format!(
+                "merch-bal must be greater than {}.", merch_min_bal
+            ));
+        }
+        
         let (channel_token, cust_state) = mpc::init_customer(
             rng,
             &pk_m,
@@ -822,7 +838,7 @@ mod cust {
 
         if verbose {
             println!("Payment amount: {}", amount);
-            println!("Current balance: {}", cust_state.cust_balance);
+            println!("Customer balance: {}", cust_state.cust_balance);
             println!("Merchant balance: {}", cust_state.merch_balance);
         }
 
@@ -873,7 +889,7 @@ mod cust {
         cust_state.set_network_config(nc);
 
         // execute the mpc phase
-        let result = mpc::pay_update_customer(
+        let mut is_ok = match mpc::pay_update_customer(
             &mut channel_state,
             &mut channel_token,
             old_state,
@@ -883,8 +899,10 @@ mod cust {
             rev_state.rev_lock_com.0,
             amount,
             &mut cust_state,
-        );
-        let mut is_ok = result.is_ok() && result.unwrap();
+        ) {
+            Ok(n) => n,
+            Err(e) => return Err(e.to_string())
+        };
 
         let msg1a = [handle_error_result!(serde_json::to_string(&is_ok))];
         let msg2 = conn.send_and_wait(&msg1a, None, false);
@@ -1022,6 +1040,7 @@ mod merch {
     pub fn open(
         conn: &mut Conn,
         db_url: &String,
+        fee_mc: i64,
         dust_limit: i64,
         self_delay: u16,
     ) -> Result<(), String> {
@@ -1056,6 +1075,7 @@ mod merch {
         let msg1 = [
             handle_error_result!(serde_json::to_string(&channel_state)),
             handle_error_result!(serde_json::to_string(&merch_state.pk_m)),
+            handle_error_result!(serde_json::to_string(&fee_mc))
         ];
         conn.send(&msg1);
 

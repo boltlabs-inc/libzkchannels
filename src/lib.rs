@@ -884,6 +884,7 @@ pub mod mpc {
     use wallet::{State, NONCE_LEN};
     use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
     use zkchan_tx::Testnet;
+    // use util::VAL_CPFP;
 
     ///
     /// init_merchant() - takes as input the public params, merchant balance and keypair.
@@ -927,7 +928,7 @@ pub mod mpc {
 
         // generate the initial channel token given the funding tx info
         let mut channel_token = cust_state.generate_init_channel_token(pk_m);
-        cust_state.generate_init_state(csprng, &mut channel_token, 0, 100000, 1500);
+        cust_state.generate_init_state(csprng, &mut channel_token, 0, 100000, 0);
 
         (channel_token, cust_state)
     }
@@ -1015,6 +1016,7 @@ pub mod mpc {
             false => cust_state.cust_balance + amount, // negative value
         };
         if new_balance < channel.get_dust_limit() {
+            // TODO: add a lower max to provide a suitable buffer (10% above dust limit)
             let max_payment = cust_state.cust_balance - channel.get_dust_limit();
             let s = format!(
                 "Balance after payment is below dust limit: {}. Max payment: {}",

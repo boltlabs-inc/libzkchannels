@@ -322,8 +322,8 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	custSig, err := CustomerSignMerchCloseTx(custSk, merchTxPreimage)
 	fmt.Println("cust sig for merchCloseTx => ", custSig)
 
-	isOk, merchTxid, merchPrevout, merchState, err := MerchantVerifyMerchCloseTx(escrowTxid_BE, custPk, custBal, merchBal, toSelfDelay, custSig, merchState)
-	fmt.Println("orig merch txid = ", merchTxid)
+	isOk, merchTxid_BE, merchPrevout, merchState, err := MerchantVerifyMerchCloseTx(escrowTxid_BE, custPk, custBal, merchBal, toSelfDelay, custSig, merchState)
+	fmt.Println("orig merch txid = ", merchTxid_BE)
 	fmt.Println("orig merch prevout = ", merchPrevout)
 
 	if isOk {
@@ -339,7 +339,7 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	txInfo := FundingTxInfo{
 		EscrowTxId:    escrowTxid_BE,
 		EscrowPrevout: escrowPrevout,
-		MerchTxId:     merchTxid,
+		MerchTxId:     merchTxid_BE,
 		MerchPrevout:  merchPrevout,
 		InitCustBal:   custBal,
 		InitMerchBal:  merchBal,
@@ -484,7 +484,7 @@ func Test_fullProtocolDummyUTXOs(t *testing.T) {
 	// Merchant can claim tx output from merch-close-tx after timeout
 	fmt.Println("Claim tx from merchant close tx")
 	claim_amount := custBal + merchBal
-	SignedMerchClaimTx, err = MerchantSignMerchClaimTx(merchTxid, index, claim_amount, toSelfDelay, custPk, outputPk, merchState)
+	SignedMerchClaimTx, err = MerchantSignMerchClaimTx(merchTxid_BE, index, claim_amount, toSelfDelay, custPk, outputPk, merchState)
 	fmt.Println("TX2-merch-close-claim-tx: ", SignedMerchClaimTx)
 	fmt.Println("========================================")
 }

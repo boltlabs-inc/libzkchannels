@@ -33,6 +33,17 @@ pub struct NetworkConfig {
 //     ptr: *mut c_void
 // }
 
+pub enum EstablishStatus {
+    Initialized,
+    Activated
+}
+
+pub enum PayStatus {
+    Prepare,
+    Update,
+    Complete
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ChannelMPCToken {
     pub pk_c: Option<secp256k1::PublicKey>,
@@ -465,6 +476,10 @@ impl CustomerMPCState {
         return cf_ptr;
     }
 
+    pub fn get_fee_cc(&self) -> i64 {
+        return self.fee_cc;
+    }
+
     pub fn validate_state(&self, old_state: State, new_state: State, amount: i64, fee_cc: i64, dust_limit: i64) {
         assert_eq!(old_state.min_fee, new_state.min_fee);
         assert_eq!(old_state.max_fee, new_state.max_fee);
@@ -492,6 +507,14 @@ impl CustomerMPCState {
         rev_lock_com: [u8; 32],
         amount: i64,
     ) -> Result<bool, String> {
+
+        let min_cust_bal = channel_state.dust_limit + fee_cc + VAL_CPFP;
+        if new_state.bc <= min_cust_bal {
+            return Err(format!(
+                "customer::execute_mpc_context - customer balance below min balance allowed after payment: {}", min_cust_bal
+            ));
+        }
+
         //assert!(self.channel_initialized);
         // load the key_com from channel state
         let key_com = channel_state.get_key_com();
