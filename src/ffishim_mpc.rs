@@ -818,7 +818,7 @@ pub mod ffishim_mpc {
             from_escrow = true;
         }
 
-        let (signed_tx, txid_be, txid_le) = handle_errors!(mpc::customer_close(
+        let (signed_tx, _, txid_le) = handle_errors!(mpc::customer_close(
             &channel_state,
             &channel_token,
             from_escrow,
@@ -827,8 +827,6 @@ pub mod ffishim_mpc {
         let ser = [
             "{\'signed_tx\':\'",
             &hex::encode(signed_tx),
-            "\', \'txid_be\':\'",
-            &hex::encode(txid_be),
             "\', \'txid_le\':\'",
             &hex::encode(txid_le),
             "\'}",
@@ -1107,7 +1105,7 @@ pub mod ffishim_mpc {
         ));
         let mut txid_le = txid_be.to_vec();
         txid_le.reverse();
-        
+
         let ser = [
             "{\'is_ok\':",
             serde_json::to_string(&is_ok).unwrap().as_str(),

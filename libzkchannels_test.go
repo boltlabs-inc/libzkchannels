@@ -129,7 +129,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("initial close transactions validated: ", isOk)
 
 	fmt.Println("Output initial closing transactions")
-	CloseEscrowTx, _, CloseEscrowTxId_LE, err := CustomerCloseTx(channelState, channelToken, true, custState)
+	CloseEscrowTx, CloseEscrowTxId_LE, err := CustomerCloseTx(channelState, channelToken, true, custState)
 	CloseEscrowTxId_TX3 := CloseEscrowTxId_LE
 	assert.NotNil(t, CloseEscrowTxId_LE)
 	fmt.Println("========================================")
@@ -137,7 +137,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("TX3: Close from EscrowTx => ", string(CloseEscrowTx))
 	fmt.Println("========================================")
 
-	CloseMerchTx, _, CloseMerchTxId_LE, err := CustomerCloseTx(channelState, channelToken, false, custState)
+	CloseMerchTx, CloseMerchTxId_LE, err := CustomerCloseTx(channelState, channelToken, false, custState)
 	assert.NotNil(t, CloseMerchTxId_LE)
 	fmt.Println("TX4: Close MerchTx ID (LE): ", CloseMerchTxId_LE)
 	fmt.Println("TX4: Close from MerchCloseTx => ", string(CloseMerchTx))
@@ -202,7 +202,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 
 	// Customer initiates close and generates cust-close-from-escrow-tx
 	fmt.Println("Get new signed close transactions...")
-	CloseEscrowTx, _, CloseEscrowTxId_LE, err = CustomerCloseTx(channelState, channelToken, true, custState)
+	CloseEscrowTx, CloseEscrowTxId_LE, err = CustomerCloseTx(channelState, channelToken, true, custState)
 	assert.NotNil(t, CloseEscrowTxId_LE)
 	fmt.Println("TX5: Close EscrowTx ID (LE): ", CloseEscrowTxId_LE)
 	fmt.Println("TX5: Close from EscrowTx => ", string(CloseEscrowTx))
@@ -221,7 +221,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("========================================")
 
 	// Customer can also close from merch-close-tx
-	CloseMerchTx, _, CloseMerchTxId_LE, err = CustomerCloseTx(channelState, channelToken, false, custState)
+	CloseMerchTx, CloseMerchTxId_LE, err = CustomerCloseTx(channelState, channelToken, false, custState)
 	assert.NotNil(t, CloseMerchTxId_LE)
 	fmt.Println("TX6: Close MerchTx ID (LE): ", CloseMerchTxId_LE)
 	fmt.Println("TX6: Close from MerchCloseTx => ", string(CloseMerchTx))

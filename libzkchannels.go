@@ -27,7 +27,6 @@ type setupResp struct {
 	PayTokenMaskR   string `json:"pay_token_mask_r"`
 	IsOk            bool   `json:"is_ok"`
 	SignedTx        string `json:"signed_tx"`
-	TxId            string `json:"txid"` // TODO: remove
 	TxIdBe          string `json:"txid_be"`
 	TxIdLe          string `json:"txid_le"`
 	HashPrevOut     string `json:"hash_prevout"`
@@ -265,28 +264,28 @@ func CustomerSignMerchCloseTx(custSk string, merchTxPreimage string) (string, er
 	return r.CustSig, err
 }
 
-func CustomerCloseTx(channelState ChannelState, channelToken ChannelToken, fromEscrow bool, custState CustState) (string, string, string, error) {
+func CustomerCloseTx(channelState ChannelState, channelToken ChannelToken, fromEscrow bool, custState CustState) (string, string, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
-		return "", "", "", err
+		return "", "", err
 	}
 
 	serChannelToken, err := json.Marshal(channelToken)
 	if err != nil {
-		return "", "", "", err
+		return "", "", err
 	}
 
 	serCustState, err := json.Marshal(custState)
 	if err != nil {
-		return "", "", "", err
+		return "", "", err
 	}
 
 	resp := C.GoString(C.customer_close_tx(C.CString(string(serChannelState)), C.CString(string(serChannelToken)), C.uint(btoi(fromEscrow)), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
-		return "", "", "", err
+		return "", "", err
 	}
-	return r.SignedTx, r.TxIdBe, r.TxIdLe, err
+	return r.SignedTx, r.TxIdLe, err
 }
 
 func MerchantVerifyMerchCloseTx(escrowTxId_LE string, custPk string, custBal int64, merchBal int64, toSelfDelay string, custSig string, merchState MerchState) (bool, string, string, string, MerchState, error) {
