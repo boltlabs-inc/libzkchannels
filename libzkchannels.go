@@ -246,8 +246,8 @@ func FormEscrowTx(txid string, index uint32, inputAmt int64, outputAmt int64, cu
 	return r.SignedTx, r.TxIdBe, r.TxIdLe, r.HashPrevOut, err
 }
 
-func FormMerchCloseTx(escrowTxId string, custPk string, merchPk string, merchClosePk string, custBal int64, merchBal int64, toSelfDelay string) (string, error) {
-	resp := C.GoString(C.form_merch_close_transaction(C.CString(escrowTxId), C.CString(custPk), C.CString(merchPk),
+func FormMerchCloseTx(escrowTxId_LE string, custPk string, merchPk string, merchClosePk string, custBal int64, merchBal int64, toSelfDelay string) (string, error) {
+	resp := C.GoString(C.form_merch_close_transaction(C.CString(escrowTxId_LE), C.CString(custPk), C.CString(merchPk),
 		C.CString(merchClosePk), C.longlong(custBal), C.longlong(merchBal), C.CString(toSelfDelay)))
 	r, err := processCResponse(resp)
 	if err != nil {
@@ -289,29 +289,29 @@ func CustomerCloseTx(channelState ChannelState, channelToken ChannelToken, fromE
 	return r.SignedTx, r.TxIdBe, r.TxIdLe, err
 }
 
-func MerchantVerifyMerchCloseTx(escrowTxId string, custPk string, custBal int64, merchBal int64, toSelfDelay string, custSig string, merchState MerchState) (bool, string, string, MerchState, error) {
+func MerchantVerifyMerchCloseTx(escrowTxId_LE string, custPk string, custBal int64, merchBal int64, toSelfDelay string, custSig string, merchState MerchState) (bool, string, string, string, MerchState, error) {
 	serMerchState, err := json.Marshal(merchState)
 	if err != nil {
-		return false, "", "", MerchState{}, err
+		return false, "", "", "", MerchState{}, err
 	}
 
-	resp := C.GoString(C.merchant_verify_merch_close_tx(C.CString(escrowTxId), C.CString(custPk), C.longlong(custBal), C.longlong(merchBal),
+	resp := C.GoString(C.merchant_verify_merch_close_tx(C.CString(escrowTxId_LE), C.CString(custPk), C.longlong(custBal), C.longlong(merchBal),
 		C.CString(toSelfDelay), C.CString(custSig), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
-		return false, "", "", MerchState{}, err
+		return false, "", "", "", MerchState{}, err
 	}
 	err = json.Unmarshal([]byte(r.MerchState), &merchState)
-	return r.IsOk, r.TxId, r.HashPrevOut, merchState, err
+	return r.IsOk, r.TxIdBe, r.TxIdLe, r.HashPrevOut, merchState, err
 }
 
-func MerchantCloseTx(escrowTxId string, merchState MerchState) (string, string, string, error) {
+func MerchantCloseTx(escrowTxId_LE string, merchState MerchState) (string, string, string, error) {
 	serMerchState, err := json.Marshal(merchState)
 	if err != nil {
 		return "", "", "", err
 	}
 
-	resp := C.GoString(C.merchant_close_tx(C.CString(escrowTxId), C.CString(string(serMerchState))))
+	resp := C.GoString(C.merchant_close_tx(C.CString(escrowTxId_LE), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", "", "", err
@@ -700,7 +700,7 @@ func PayUnmaskPayTokenCustomer(ptMask string, ptMaskR string, custState CustStat
 	return r.IsOk, custState, err
 }
 
-func MerchantSignDisputeTx(txid string, index uint32, amount int64, toSelfDelay string, outputPk string,
+func MerchantSignDisputeTx(txid_LE string, index uint32, amount int64, toSelfDelay string, outputPk string,
 	revLock string, revSecret string, custClosePk string, merchState MerchState) (string, error) {
 
 	serMerchState, err := json.Marshal(merchState)
@@ -708,7 +708,7 @@ func MerchantSignDisputeTx(txid string, index uint32, amount int64, toSelfDelay 
 		return "", err
 	}
 
-	resp := C.GoString(C.sign_merch_dispute_tx(C.CString(txid), C.uint(index), C.longlong(amount),
+	resp := C.GoString(C.sign_merch_dispute_tx(C.CString(txid_LE), C.uint(index), C.longlong(amount),
 		C.CString(toSelfDelay), C.CString(outputPk), C.CString(revLock), C.CString(revSecret),
 		C.CString(custClosePk), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
@@ -719,7 +719,7 @@ func MerchantSignDisputeTx(txid string, index uint32, amount int64, toSelfDelay 
 	return r.SignedTx, err
 }
 
-func CustomerSignClaimTx(channelState ChannelState, txid string, index uint32, amount int64, toSelfDelay string, outputPk string, revLock string, custClosePk string, custState CustState) (string, error) {
+func CustomerSignClaimTx(channelState ChannelState, txid_LE string, index uint32, amount int64, toSelfDelay string, outputPk string, revLock string, custClosePk string, custState CustState) (string, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
 		return "", err
@@ -730,7 +730,7 @@ func CustomerSignClaimTx(channelState ChannelState, txid string, index uint32, a
 		return "", err
 	}
 
-	resp := C.GoString(C.cust_claim_tx_from_cust_close(C.CString(string(serChannelState)), C.CString(txid), C.uint(index), C.longlong(amount),
+	resp := C.GoString(C.cust_claim_tx_from_cust_close(C.CString(string(serChannelState)), C.CString(txid_LE), C.uint(index), C.longlong(amount),
 		C.CString(toSelfDelay), C.CString(outputPk), C.CString(revLock), C.CString(custClosePk), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
@@ -756,13 +756,13 @@ func MerchantSignCustClaimTx(txid string, index uint32, amount int64, outputPk s
 	return r.SignedTx, err
 }
 
-func MerchantSignMerchClaimTx(txid string, index uint32, amount int64, toSelfDelay string, custPk string, outputPk string, merchState MerchState) (string, error) {
+func MerchantSignMerchClaimTx(txid_LE string, index uint32, amount int64, toSelfDelay string, custPk string, outputPk string, merchState MerchState) (string, error) {
 	serMerchState, err := json.Marshal(merchState)
 	if err != nil {
 		return "", err
 	}
 
-	resp := C.GoString(C.merch_claim_tx_from_merch_close(C.CString(txid), C.uint(index), C.longlong(amount), C.CString(toSelfDelay),
+	resp := C.GoString(C.merch_claim_tx_from_merch_close(C.CString(txid_LE), C.uint(index), C.longlong(amount), C.CString(toSelfDelay),
 		C.CString(custPk), C.CString(outputPk), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {

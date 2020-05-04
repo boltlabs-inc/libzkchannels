@@ -844,8 +844,9 @@ pub mod ffishim_mpc {
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
         // Deserialize the escrow-txid
-        let escrow_txid_result = deserialize_hex_string(ser_escrow_txid);
-        let escrow_txid = handle_errors!(escrow_txid_result);
+        let escrow_txid_le_result = deserialize_hex_string(ser_escrow_txid);
+        let mut escrow_txid_be = handle_errors!(escrow_txid_le_result);
+        escrow_txid_be.reverse();
 
         // Deserialize the merch_state
         let merch_state_result: ResultSerdeType<MerchantMPCState> =
@@ -854,13 +855,13 @@ pub mod ffishim_mpc {
 
         // use channel token to retrieve initial channel params, then generate the merch-close-tx and sign it
         let (signed_tx, txid_be, txid_le) =
-            handle_errors!(mpc::merchant_close(&escrow_txid, &merch_state));
+            handle_errors!(mpc::merchant_close(&escrow_txid_be, &merch_state));
         let ser = [
             "{\'signed_tx\':\'",
             &hex::encode(signed_tx),
             "\', \'txid_be\':\'",
             &hex::encode(txid_be),
-            "\', \'txid_be\':\'",
+            "\', \'txid_le\':\'",
             &hex::encode(txid_le),
             "\'}",
         ]
@@ -979,8 +980,9 @@ pub mod ffishim_mpc {
         merch_bal_sats: i64,
         ser_self_delay: *mut c_char,
     ) -> *mut c_char {
-        let escrow_txid_result = deserialize_hex_string(ser_escrow_txid);
-        let escrow_txid = handle_errors!(escrow_txid_result);
+        let escrow_txid_le_result = deserialize_hex_string(ser_escrow_txid);
+        let mut escrow_txid_be = handle_errors!(escrow_txid_le_result);
+        escrow_txid_be.reverse(); // now it's in big endian
 
         let cust_pk_result = deserialize_hex_string(ser_cust_pk);
         let cust_pk = handle_errors!(cust_pk_result);
@@ -998,7 +1000,7 @@ pub mod ffishim_mpc {
 
         let (merch_tx_preimage, _) = handle_errors!(
             zkchan_tx::transactions::btc::merchant_form_close_transaction::<Testnet>(
-                escrow_txid,
+                escrow_txid_be,
                 cust_pk,
                 merch_pk,
                 merch_close_pk,
@@ -1049,8 +1051,9 @@ pub mod ffishim_mpc {
         ser_cust_sig: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
-        let escrow_txid_result = deserialize_hex_string(ser_escrow_txid);
-        let escrow_txid = handle_errors!(escrow_txid_result);
+        let escrow_txid_le_result = deserialize_hex_string(ser_escrow_txid);
+        let mut escrow_txid_be = handle_errors!(escrow_txid_le_result);
+        escrow_txid_be.reverse();
 
         let cust_pk_result = deserialize_hex_string(ser_cust_pk);
         let cust_pk = handle_errors!(cust_pk_result);
@@ -1073,7 +1076,7 @@ pub mod ffishim_mpc {
 
         let (merch_tx_preimage, tx_params) = handle_errors!(
             zkchan_tx::transactions::btc::merchant_form_close_transaction::<Testnet>(
-                escrow_txid.clone(),
+                escrow_txid_be.clone(),
                 cust_pk.clone(),
                 merch_pk,
                 merch_close_pk,
@@ -1090,7 +1093,7 @@ pub mod ffishim_mpc {
         ));
         if is_ok {
             merch_state.store_merch_close_tx(
-                &escrow_txid,
+                &escrow_txid_be,
                 &cust_pk,
                 cust_bal_sats,
                 merch_bal_sats,
@@ -1099,15 +1102,19 @@ pub mod ffishim_mpc {
             );
         }
 
-        let (txid, prevout) = handle_errors!(zkchan_tx::txutil::merchant_generate_transaction_id(
+        let (txid_be, prevout) = handle_errors!(zkchan_tx::txutil::merchant_generate_transaction_id(
             tx_params
         ));
-
+        let mut txid_le = txid_be.to_vec();
+        txid_le.reverse();
+        
         let ser = [
             "{\'is_ok\':",
             serde_json::to_string(&is_ok).unwrap().as_str(),
-            ", \'txid\':\'",
-            &hex::encode(txid),
+            ", \'txid_be\':\'",
+            &hex::encode(txid_be),
+            "\', \'txid_le\':\'",
+            &hex::encode(txid_le),
             "\', \'hash_prevout\':\'",
             &hex::encode(prevout),
             "\', \'merch_state\':\'",
@@ -1337,9 +1344,8 @@ pub mod ffishim_mpc {
         ser_output_pk: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
-        let txid_result = deserialize_hex_string(ser_tx_index);
-        let mut txid_be = handle_errors!(txid_result);
-        txid_be.reverse();
+        let txid_le_result = deserialize_hex_string(ser_tx_index);
+        let txid_le = handle_errors!(txid_le_result);
 
         let self_delay_result = deserialize_hex_string(ser_self_delay);
         let self_delay = handle_errors!(self_delay_result);
@@ -1363,7 +1369,7 @@ pub mod ffishim_mpc {
 
         let signed_tx = handle_errors!(
             zkchan_tx::txutil::merchant_sign_merch_close_claim_transaction(
-                txid_be,
+                txid_le,
                 index,
                 amount,
                 output_pk,
