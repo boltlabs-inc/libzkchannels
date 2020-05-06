@@ -13,7 +13,7 @@ use std::{env, ptr};
 use wallet::{State, NONCE_LEN};
 use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32, FixedSizeArray64};
 use zkchan_tx::transactions::btc::{
-    completely_sign_multi_sig_transaction, create_cust_close_transaction, create_reverse_input,
+    completely_sign_multi_sig_transaction, create_cust_close_transaction, create_utxo_input,
     generate_customer_close_tx_helper, generate_signature_for_multi_sig_transaction,
     get_private_key, merchant_form_close_transaction,
 };
@@ -216,6 +216,12 @@ impl fmt::Display for InitCustState {
     }
 }
 
+fn convert_to_little_endian(be: &FixedSizeArray32) -> FixedSizeArray32 {
+    let mut le = be.clone();
+    le.0.reverse();
+    return le;
+}
+
 impl CustomerMPCState {
     pub fn new<R: Rng>(
         csprng: &mut R,
@@ -379,8 +385,8 @@ impl CustomerMPCState {
         s.fee_mc = tx.fee_mc;
         self.state = Some(s);
 
-        channel_token.escrow_txid = tx.escrow_txid.clone();
-        channel_token.merch_txid = tx.merch_txid.clone();
+        channel_token.escrow_txid = convert_to_little_endian(&tx.escrow_txid);
+        channel_token.merch_txid = convert_to_little_endian(&tx.merch_txid);
 
         Ok(())
     }
@@ -652,9 +658,9 @@ impl CustomerMPCState {
 
         let pubkeys = self.get_pubkeys(channel_state, channel_token);
         let escrow_input =
-            create_reverse_input(&channel_token.escrow_txid.0, escrow_index, init_balance);
+            create_utxo_input(&channel_token.escrow_txid.0, escrow_index, init_balance);
         let merch_input =
-            create_reverse_input(&channel_token.merch_txid.0, merch_index, init_balance);
+            create_utxo_input(&channel_token.merch_txid.0, merch_index, init_balance);
 
         let (escrow_tx_preimage, escrow_tx_params, _) = create_cust_close_transaction::<N>(
             &escrow_input,
@@ -1106,8 +1112,10 @@ impl MerchantMPCState {
         let mut escrow_prevout = [0u8; 32];
         let mut merch_prevout = [0u8; 32];
 
-        let escrow_txid_be = channel_token.escrow_txid.0.clone();
-        let merch_txid_be = channel_token.merch_txid.0.clone();
+        let mut escrow_txid_be = channel_token.escrow_txid.0.clone();
+        escrow_txid_be.reverse();
+        let mut merch_txid_be = channel_token.merch_txid.0.clone();
+        merch_txid_be.reverse();
 
         let mut prevout_preimage1: Vec<u8> = Vec::new();
         prevout_preimage1.extend(escrow_txid_be.iter()); // txid1
@@ -1126,9 +1134,9 @@ impl MerchantMPCState {
             bm: init_state.merch_bal,
             nonce: init_state.nonce.clone(),
             rev_lock: init_state.rev_lock.clone(),
-            escrow_txid: channel_token.escrow_txid,
+            escrow_txid: FixedSizeArray32(escrow_txid_be),
             escrow_prevout: FixedSizeArray32(escrow_prevout),
-            merch_txid: channel_token.merch_txid,
+            merch_txid: FixedSizeArray32(merch_txid_be),
             merch_prevout: FixedSizeArray32(merch_prevout),
             min_fee: init_state.min_fee,
             max_fee: init_state.max_fee,
@@ -1217,10 +1225,14 @@ impl MerchantMPCState {
         let init_balance = funding_tx.init_cust_bal + funding_tx.init_merch_bal;
         let escrow_index = 0;
         let merch_index = 0;
+        let mut escrow_txid_le = funding_tx.escrow_txid.0.clone();
+        escrow_txid_le.reverse();
+        let mut merch_txid_le = funding_tx.merch_txid.0.clone();
+        merch_txid_le.reverse();
 
         let escrow_input =
-            create_reverse_input(&funding_tx.escrow_txid.0, escrow_index, init_balance);
-        let merch_input = create_reverse_input(&funding_tx.merch_txid.0, merch_index, init_balance);
+            create_utxo_input(&escrow_txid_le, escrow_index, init_balance);
+        let merch_input = create_utxo_input(&merch_txid_le, merch_index, init_balance);
 
         let pubkeys = ClosePublicKeys {
             cust_pk: cust_pk.clone(),
