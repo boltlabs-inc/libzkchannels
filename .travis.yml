@@ -12,6 +12,7 @@ before_install:
   - . ./env && make deps
   - redis-server --daemonize yes
   - redis-cli info
+  - echo -e "$PWD/deps/root/lib\n$PWD/target/release" | sudo tee /etc/ld.so.conf.d/libzkchannels.conf && sudo ldconfig
   - set +e
 
 rust:
@@ -24,6 +25,7 @@ script:
   - . ./env && cargo test --release --lib mpcwrapper -- --nocapture
   - . ./env && cargo test --release --lib channels_mpc -- --nocapture
   - . ./env && cargo test --release -- --ignored --nocapture
+  - . ./env && ./test_gowrapper.sh
 
 matrix:
   allow_failures:

@@ -1,7 +1,7 @@
 package libzkchannels
 
 // #cgo CFLAGS: -I${SRCDIR}/include -Wno-macro-redefined
-// #cgo LDFLAGS: -lzkchannels
+// #cgo LDFLAGS: -L${SRCDIR}/target/release -lzkchannels
 // #include <cbindings.h>
 import "C"
 import (
