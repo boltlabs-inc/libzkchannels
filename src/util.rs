@@ -8,6 +8,7 @@ use sha2::{Digest, Sha256};
 type HmacSha256 = Hmac<Sha256>;
 
 pub static VAL_CPFP: i64 = 1000;
+pub static DUST_LIMIT: i64 = 546;
 
 #[macro_export]
 macro_rules! handle_error_util {

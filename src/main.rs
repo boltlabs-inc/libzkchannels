@@ -96,6 +96,10 @@ pub struct Open {
     self_delay: u16,
     #[structopt(short = "f", long = "fee-cc", default_value = "1000")]
     fee_cc: i64,
+    #[structopt(short = "m", long = "min-fee", default_value = "0")]
+    min_fee: i64,
+    #[structopt(short = "s", long = "max-fee", default_value = "10000")]
+    max_fee: i64,
     #[structopt(short = "g", long = "fee-mc", default_value = "1000")]
     fee_mc: i64,
     #[structopt(short = "n", long = "channel-name", default_value = "")]
@@ -419,6 +423,8 @@ fn main() {
                     open.cust_bal,
                     open.merch_bal,
                     open.fee_cc,
+                    open.min_fee,
+                    open.max_fee,
                     open.channel_name,
                 ) {
                     Err(e) => println!("Channel opening phase failed with error: {}", e),
@@ -545,6 +551,7 @@ mod cust {
         ChannelMPCState, ChannelMPCToken, CustomerMPCState, NetworkConfig,
     };
     use zkchannels::database::MaskedTxMPCInputs;
+    use zkchannels::util;
     // use std::os::unix::io::AsRawFd;
 
     pub fn open(
@@ -553,6 +560,8 @@ mod cust {
         b0_cust: i64,
         b0_merch: i64,
         fee_cc: i64,
+        min_fee: i64,
+        max_fee: i64,
         channel_name: String,
     ) -> Result<(), String> {
         if channel_name == "" {
@@ -586,6 +595,9 @@ mod cust {
             b0_cust,
             b0_merch,
             fee_cc,
+            min_fee,
+            max_fee,
+            fee_mc,
             channel_name.as_str(),
             None,
             None,
@@ -683,6 +695,8 @@ mod cust {
                 merch_close_pk,
                 cust_bal,
                 merch_bal,
+                fee_mc,
+                util::VAL_CPFP,
                 to_self_delay_be
             ));
 
@@ -1034,6 +1048,7 @@ mod merch {
     };
     use zkchannels::database::{RedisDatabase, StateDatabase};
     use zkchannels::wallet::State;
+    use zkchannels::util;
 
     static MERCH_STATE_KEY: &str = "merch_state";
     static CHANNEL_STATE_KEY: &str = "channel_state";
@@ -1141,6 +1156,8 @@ mod merch {
                 merch_close_pk,
                 cust_bal,
                 merch_bal,
+                fee_mc,
+                util::VAL_CPFP,
                 to_self_delay_be
             ));
 
@@ -1157,6 +1174,7 @@ mod merch {
                 &cust_pk,
                 cust_bal,
                 merch_bal,
+                fee_mc,
                 to_self_delay_be,
                 &cust_sig,
             );

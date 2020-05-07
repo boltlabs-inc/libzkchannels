@@ -8,7 +8,7 @@ pub mod ffishim_mpc {
     use database::{MaskedTxMPCInputs, RedisDatabase, StateDatabase};
     use hex::FromHexError;
     use libc::c_char;
-    use mpc;
+    use ::{mpc, util};
     use mpc::RevokedState;
     use serde::Deserialize;
     use std::ffi::{CStr, CString};
@@ -153,6 +153,9 @@ pub mod ffishim_mpc {
         cust_bal: i64,
         merch_bal: i64,
         fee_cc: i64,
+        min_fee: i64,
+        max_fee: i64,
+        fee_mc: i64,
         name_ptr: *const c_char,
         ser_sk_c: *mut c_char,
         ser_payout_sk: *mut c_char,
@@ -190,7 +193,7 @@ pub mod ffishim_mpc {
 
         // We change the channel state
         let (channel_token, cust_state) =
-            mpc::init_customer(rng, &pk_m, cust_bal, merch_bal, fee_cc, name, sk, payout_sk);
+            mpc::init_customer(rng, &pk_m, cust_bal, merch_bal, fee_cc, min_fee, max_fee, fee_mc, name, sk, payout_sk);
         let ser = [
             "{\'cust_state\':\'",
             serde_json::to_string(&cust_state).unwrap().as_str(),
@@ -976,6 +979,7 @@ pub mod ffishim_mpc {
         ser_merch_close_pk: *mut c_char,
         cust_bal_sats: i64,
         merch_bal_sats: i64,
+        fee_mc: i64,
         ser_self_delay: *mut c_char,
     ) -> *mut c_char {
         let escrow_txid_le_result = deserialize_hex_string(ser_escrow_txid);
@@ -1004,6 +1008,8 @@ pub mod ffishim_mpc {
                 merch_close_pk,
                 cust_bal_sats,
                 merch_bal_sats,
+                fee_mc,
+                util::VAL_CPFP,
                 self_delay_be
             )
         );
@@ -1045,6 +1051,7 @@ pub mod ffishim_mpc {
         ser_cust_pk: *mut c_char,
         cust_bal_sats: i64,
         merch_bal_sats: i64,
+        fee_mc: i64,
         ser_self_delay: *mut c_char,
         ser_cust_sig: *mut c_char,
         ser_merch_state: *mut c_char,
@@ -1080,6 +1087,8 @@ pub mod ffishim_mpc {
                 merch_close_pk,
                 cust_bal_sats,
                 merch_bal_sats,
+                fee_mc,
+                util::VAL_CPFP,
                 self_delay_be
             )
         );
@@ -1095,6 +1104,7 @@ pub mod ffishim_mpc {
                 &cust_pk,
                 cust_bal_sats,
                 merch_bal_sats,
+                fee_mc,
                 self_delay_be,
                 &cust_sig,
             );

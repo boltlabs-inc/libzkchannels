@@ -205,10 +205,10 @@ func InitMerchant(dbUrl string, channelState ChannelState, name string) (Channel
 	return channelState, merchState, err
 }
 
-func InitCustomer(pkM string, custBal int64, merchBal int64, feeCC int64, name string, skC string, payoutSk string) (ChannelToken, CustState, error) {
+func InitCustomer(pkM string, custBal int64, merchBal int64, feeCC int64, minFee int64, maxFee int64, feeMC int64, name string, skC string, payoutSk string) (ChannelToken, CustState, error) {
 	resp := C.GoString(C.mpc_init_customer(C.CString(pkM), C.int64_t(custBal),
-		C.int64_t(merchBal), C.int64_t(feeCC), C.CString(name),
-		C.CString(skC), C.CString(payoutSk)))
+		C.int64_t(merchBal), C.int64_t(feeCC), C.int64_t(minFee), C.int64_t(maxFee), C.int64_t(feeMC),
+		C.CString(name), C.CString(skC), C.CString(payoutSk)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return ChannelToken{}, CustState{}, err
@@ -245,9 +245,9 @@ func FormEscrowTx(txid string, index uint32, inputAmt int64, outputAmt int64, cu
 	return r.SignedTx, r.TxIdBe, r.TxIdLe, r.HashPrevOut, err
 }
 
-func FormMerchCloseTx(escrowTxId_LE string, custPk string, merchPk string, merchClosePk string, custBal int64, merchBal int64, toSelfDelay string) (string, error) {
+func FormMerchCloseTx(escrowTxId_LE string, custPk string, merchPk string, merchClosePk string, custBal int64, merchBal int64, feeMC int64, toSelfDelay string) (string, error) {
 	resp := C.GoString(C.form_merch_close_transaction(C.CString(escrowTxId_LE), C.CString(custPk), C.CString(merchPk),
-		C.CString(merchClosePk), C.int64_t(custBal), C.int64_t(merchBal), C.CString(toSelfDelay)))
+		C.CString(merchClosePk), C.int64_t(custBal), C.int64_t(merchBal), C.int64_t(feeMC), C.CString(toSelfDelay)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", err
@@ -288,14 +288,14 @@ func CustomerCloseTx(channelState ChannelState, channelToken ChannelToken, fromE
 	return r.SignedTx, r.TxIdLe, err
 }
 
-func MerchantVerifyMerchCloseTx(escrowTxId_LE string, custPk string, custBal int64, merchBal int64, toSelfDelay string, custSig string, merchState MerchState) (bool, string, string, string, MerchState, error) {
+func MerchantVerifyMerchCloseTx(escrowTxId_LE string, custPk string, custBal int64, merchBal int64, feeMC int64, toSelfDelay string, custSig string, merchState MerchState) (bool, string, string, string, MerchState, error) {
 	serMerchState, err := json.Marshal(merchState)
 	if err != nil {
 		return false, "", "", "", MerchState{}, err
 	}
 
 	resp := C.GoString(C.merchant_verify_merch_close_tx(C.CString(escrowTxId_LE), C.CString(custPk), C.int64_t(custBal), C.int64_t(merchBal),
-		C.CString(toSelfDelay), C.CString(custSig), C.CString(string(serMerchState))))
+		C.int64_t(feeMC), C.CString(toSelfDelay), C.CString(custSig), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return false, "", "", "", MerchState{}, err

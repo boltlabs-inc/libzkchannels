@@ -884,6 +884,7 @@ pub mod mpc {
     use wallet::{State, NONCE_LEN};
     use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
     use zkchan_tx::Testnet;
+    use util;
     // use util::VAL_CPFP;
 
     ///
@@ -915,6 +916,9 @@ pub mod mpc {
         b0_cust: i64,
         b0_merch: i64,
         fee_cc: i64,
+        min_fee: i64,
+        max_fee: i64,
+        fee_mc: i64,
         name: &str,
         sk: Option<[u8; 32]>,
         payout_sk: Option<[u8; 32]>,
@@ -922,13 +926,23 @@ pub mod mpc {
         assert!(b0_cust > 0);
         assert!(b0_merch >= 0);
 
+        let b0_cust = match b0_merch {
+            0 => b0_cust - util::DUST_LIMIT - fee_mc - util::VAL_CPFP,
+            _ => b0_cust
+        };
+
+        let b0_merch = match b0_merch {
+            0 => util::DUST_LIMIT + fee_mc + util::VAL_CPFP,
+            _ => b0_merch
+        };
+
         let cust_name = String::from(name);
         let mut cust_state =
             CustomerMPCState::new(csprng, b0_cust, b0_merch, fee_cc, cust_name, sk, payout_sk);
 
         // generate the initial channel token given the funding tx info
         let mut channel_token = cust_state.generate_init_channel_token(pk_m);
-        cust_state.generate_init_state(csprng, &mut channel_token, 0, 100000, 0);
+        cust_state.generate_init_state(csprng, &mut channel_token, min_fee, max_fee, fee_mc);
 
         (channel_token, cust_state)
     }
@@ -1975,6 +1989,8 @@ mod tests {
         let mut merch_state = mpc::init_merchant(rng, "".to_string(), &mut channel_state, "Bob");
 
         let fee_cc = 1000;
+        let min_fee = 0;
+        let max_fee = 10000;
         let fee_mc = 1000;
         let b0_cust = 10000;
         let b0_merch = 10000;
@@ -1984,6 +2000,9 @@ mod tests {
             b0_cust,
             b0_merch,
             fee_cc,
+            min_fee,
+            max_fee,
+            fee_mc,
             "Alice",
             None,
             None,
@@ -2103,6 +2122,8 @@ mod tests {
         let b0_cust = 100000;
         let b0_merch = 100000;
         let fee_cc = 1000;
+        let min_fee = 0;
+        let max_fee = 10000;
         let fee_mc = 1000;
         let amount = 1000;
 
@@ -2112,6 +2133,9 @@ mod tests {
             b0_cust,
             b0_merch,
             fee_cc,
+            min_fee,
+            max_fee,
+            fee_mc,
             "Alice",
             None,
             None,

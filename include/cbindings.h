@@ -284,6 +284,7 @@ char *form_merch_close_transaction(char *ser_escrow_txid,
                                    char *ser_merch_close_pk,
                                    int64_t cust_bal_sats,
                                    int64_t merch_bal_sats,
+                                   int64_t fee_mc,
                                    char *ser_self_delay);
 
 extern void *get_gonetio_ptr(void *raw_stream_fd, int party);
@@ -358,6 +359,7 @@ char *merchant_verify_merch_close_tx(char *ser_escrow_txid,
                                      char *ser_cust_pk,
                                      int64_t cust_bal_sats,
                                      int64_t merch_bal_sats,
+                                     int64_t fee_mc,
                                      char *ser_self_delay,
                                      char *ser_cust_sig,
                                      char *ser_merch_state);
@@ -385,6 +387,9 @@ char *mpc_init_customer(char *ser_merch_pk,
                         int64_t cust_bal,
                         int64_t merch_bal,
                         int64_t fee_cc,
+                        int64_t min_fee,
+                        int64_t max_fee,
+                        int64_t fee_mc,
                         const char *name_ptr,
                         char *ser_sk_c,
                         char *ser_payout_sk);

@@ -950,6 +950,7 @@ pub struct MerchCloseTx {
     cust_pk: String,
     bc: i64,
     bm: i64,
+    fee_mc: i64,
     cust_sig: String,
     self_delay: String,
 }
@@ -1286,6 +1287,7 @@ impl MerchantMPCState {
         cust_pk: &Vec<u8>,
         cust_bal_sats: i64,
         merch_bal_sats: i64,
+        fee_mc: i64,
         to_self_delay_be: [u8; 2],
         cust_sig: &Vec<u8>,
     ) {
@@ -1293,6 +1295,7 @@ impl MerchantMPCState {
             cust_pk: hex::encode(cust_pk),
             bc: cust_bal_sats,
             bm: merch_bal_sats,
+            fee_mc,
             cust_sig: hex::encode(cust_sig),
             self_delay: hex::encode(to_self_delay_be),
         };
@@ -1333,6 +1336,8 @@ impl MerchantMPCState {
             merch_close_pk,
             m.bc,
             m.bm,
+            m.fee_mc,
+            util::VAL_CPFP,
             to_self_delay
         ));
 

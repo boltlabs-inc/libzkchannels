@@ -25,9 +25,11 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	custBal := int64(1000000)
 	merchBal := int64(1000000)
 	feeCC := int64(1000)
+	minFee := int64(0)
+	maxFee := int64(10000)
 	feeMC := int64(1000)
 
-	channelToken, custState, err := InitCustomer(fmt.Sprintf("%v", *merchState.PkM), custBal, merchBal, feeCC, "cust", skC, payoutSk)
+	channelToken, custState, err := InitCustomer(fmt.Sprintf("%v", *merchState.PkM), custBal, merchBal, feeCC, minFee, maxFee, feeMC, "cust", skC, payoutSk)
 	assert.Nil(t, err)
 
 	inputSats := int64(50 * 100000000)
@@ -67,14 +69,14 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("TX1: signedEscrowTx => ", signedEscrowTx)
 	fmt.Println("========================================")
 
-	merchTxPreimage, err := FormMerchCloseTx(escrowTxid_LE, custPk, merchPk, merchClosePk, custBal, merchBal, toSelfDelay)
+	merchTxPreimage, err := FormMerchCloseTx(escrowTxid_LE, custPk, merchPk, merchClosePk, custBal, merchBal, feeMC, toSelfDelay)
 
 	fmt.Println("merch TxPreimage => ", merchTxPreimage)
 
 	custSig, err := CustomerSignMerchCloseTx(custSk, merchTxPreimage)
 	fmt.Println("cust sig for merchCloseTx => ", custSig)
 
-	isOk, merchTxid_BE, merchTxid_LE, merchPrevout, merchState, err := MerchantVerifyMerchCloseTx(escrowTxid_LE, custPk, custBal, merchBal, toSelfDelay, custSig, merchState)
+	isOk, merchTxid_BE, merchTxid_LE, merchPrevout, merchState, err := MerchantVerifyMerchCloseTx(escrowTxid_LE, custPk, custBal, merchBal, feeMC, toSelfDelay, custSig, merchState)
 	fmt.Println("orig merch txid (BE) = ", merchTxid_BE)
 	fmt.Println("orig merch txid (LE) = ", merchTxid_LE)
 	fmt.Println("orig merch prevout = ", merchPrevout)
