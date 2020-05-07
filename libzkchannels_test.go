@@ -205,6 +205,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	// Customer initiates close and generates cust-close-from-escrow-tx
 	fmt.Println("Get new signed close transactions...")
 	CloseEscrowTx, CloseEscrowTxId_LE, err = CustomerCloseTx(channelState, channelToken, true, custState)
+	assert.Nil(t, err)
 	assert.NotNil(t, CloseEscrowTxId_LE)
 	fmt.Println("TX5: Close EscrowTx ID (LE): ", CloseEscrowTxId_LE)
 	fmt.Println("TX5: Close from EscrowTx => ", string(CloseEscrowTx))
@@ -214,16 +215,19 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	outputPk := changePk
 	claimAmount := custState.CustBalance - feeCC - feeMC
 	SignedCustClaimTx, err := CustomerSignClaimTx(channelState, CloseEscrowTxId_LE, uint32(0), claimAmount, toSelfDelay, outputPk, custState.RevLock, custClosePk, custState)
+	assert.Nil(t, err)
 	fmt.Println("TX5-cust-claim-tx: ", SignedCustClaimTx)
 
 	// Merchant claim tx to_merchant output from cust-close-from-escrow-tx (spendable immediately)
 	outputPk2 := "03af0530f244a154b278b34de709b84bb85bb39ff3f1302fc51ae275e5a45fb353"
 	SignedMerchClaimTx, err := MerchantSignCustClaimTx(CloseEscrowTxId_LE, uint32(1), custState.MerchBalance, outputPk2, merchState)
+	assert.Nil(t, err)
 	fmt.Println("TX5-merch-claim-tx: ", SignedMerchClaimTx)
 	fmt.Println("========================================")
 
 	// Customer can also close from merch-close-tx
 	CloseMerchTx, CloseMerchTxId_LE, err = CustomerCloseTx(channelState, channelToken, false, custState)
+	assert.Nil(t, err)
 	assert.NotNil(t, CloseMerchTxId_LE)
 	fmt.Println("TX6: Close MerchTx ID (LE): ", CloseMerchTxId_LE)
 	fmt.Println("TX6: Close from MerchCloseTx => ", string(CloseMerchTx))
@@ -246,6 +250,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("custClosePk :=> ", custClosePk)
 	fmt.Println("merchDisputePk :=> ", merchDispPk)
 	disputeTx, err := MerchantSignDisputeTx(CloseEscrowTxId_TX3, index, amount, toSelfDelay, outputPk, revState.RevLock, FoundRevSecret, custClosePk, merchState)
+	assert.Nil(t, err)
 	fmt.Println("========================================")
 	fmt.Println("TX5: disputeCloseEscrowTx: ", disputeTx)
 	fmt.Println("========================================")
@@ -254,6 +259,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("Claim tx from merchant close tx")
 	claim_amount := custBal + merchBal
 	SignedMerchClaimTx, err = MerchantSignMerchClaimTx(merchTxid_LE, index, claim_amount, toSelfDelay, custPk, outputPk, merchState)
+	assert.Nil(t, err)
 	fmt.Println("TX2-merch-close-claim-tx: ", SignedMerchClaimTx)
 	fmt.Println("========================================")
 
