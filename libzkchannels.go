@@ -176,7 +176,7 @@ func GetSelfDelayBE(channelState ChannelState) (string, error) {
 }
 
 func ChannelSetup(name string, selfDelay uint16, dustLimit int64, channelThirdPartySupport bool) (ChannelState, error) {
-	resp := C.GoString(C.mpc_channel_setup(C.CString(name), C.uint16_t(selfDelay), C.longlong(dustLimit), C.uint(btoi(channelThirdPartySupport))))
+	resp := C.GoString(C.mpc_channel_setup(C.CString(name), C.uint16_t(selfDelay), C.int64_t(dustLimit), C.uint(btoi(channelThirdPartySupport))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return ChannelState{}, err
@@ -206,8 +206,8 @@ func InitMerchant(dbUrl string, channelState ChannelState, name string) (Channel
 }
 
 func InitCustomer(pkM string, custBal int64, merchBal int64, feeCC int64, name string, skC string, payoutSk string) (ChannelToken, CustState, error) {
-	resp := C.GoString(C.mpc_init_customer(C.CString(pkM), C.longlong(custBal),
-		C.longlong(merchBal), C.longlong(feeCC), C.CString(name),
+	resp := C.GoString(C.mpc_init_customer(C.CString(pkM), C.int64_t(custBal),
+		C.int64_t(merchBal), C.int64_t(feeCC), C.CString(name),
 		C.CString(skC), C.CString(payoutSk)))
 	r, err := processCResponse(resp)
 	if err != nil {
@@ -234,8 +234,8 @@ func ValidateOpenZkChannel(txid string, prevout string, nonce string, revLock st
 
 func FormEscrowTx(txid string, index uint32, inputAmt int64, outputAmt int64, custSk string, custPk string, merchPk string, changePk string, changePkIsHash bool) (string, string, string, string, error) {
 
-	resp := C.GoString(C.cust_form_escrow_transaction(C.CString(txid), C.uint(index), C.longlong(inputAmt),
-		C.longlong(outputAmt), C.CString(custSk), C.CString(custPk),
+	resp := C.GoString(C.cust_form_escrow_transaction(C.CString(txid), C.uint(index), C.int64_t(inputAmt),
+		C.int64_t(outputAmt), C.CString(custSk), C.CString(custPk),
 		C.CString(merchPk), C.CString(changePk), C.uint(btoi(changePkIsHash))))
 	r, err := processCResponse(resp)
 	if err != nil {
@@ -247,7 +247,7 @@ func FormEscrowTx(txid string, index uint32, inputAmt int64, outputAmt int64, cu
 
 func FormMerchCloseTx(escrowTxId_LE string, custPk string, merchPk string, merchClosePk string, custBal int64, merchBal int64, toSelfDelay string) (string, error) {
 	resp := C.GoString(C.form_merch_close_transaction(C.CString(escrowTxId_LE), C.CString(custPk), C.CString(merchPk),
-		C.CString(merchClosePk), C.longlong(custBal), C.longlong(merchBal), C.CString(toSelfDelay)))
+		C.CString(merchClosePk), C.int64_t(custBal), C.int64_t(merchBal), C.CString(toSelfDelay)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", err
@@ -294,7 +294,7 @@ func MerchantVerifyMerchCloseTx(escrowTxId_LE string, custPk string, custBal int
 		return false, "", "", "", MerchState{}, err
 	}
 
-	resp := C.GoString(C.merchant_verify_merch_close_tx(C.CString(escrowTxId_LE), C.CString(custPk), C.longlong(custBal), C.longlong(merchBal),
+	resp := C.GoString(C.merchant_verify_merch_close_tx(C.CString(escrowTxId_LE), C.CString(custPk), C.int64_t(custBal), C.int64_t(merchBal),
 		C.CString(toSelfDelay), C.CString(custSig), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
@@ -346,7 +346,7 @@ func MerchantSignInitCustCloseTx(tx FundingTxInfo, revLock string, custPk string
 	}
 
 	resp := C.GoString(C.merch_sign_init_cust_close_txs(C.CString(string(serFundingTx)), C.CString(revLock), C.CString(custPk),
-		C.CString(custClosePk), C.CString(toSelfDelay), C.CString(string(serMerchState)), C.longlong(feeCC)))
+		C.CString(custClosePk), C.CString(toSelfDelay), C.CString(string(serMerchState)), C.int64_t(feeCC)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", "", err
@@ -515,7 +515,7 @@ func PreparePaymentCustomer(channelState ChannelState, amount int64, custState C
 	if err != nil {
 		return RevokedState{}, State{}, CustState{}, err
 	}
-	resp := C.GoString(C.mpc_prepare_payment_customer(C.CString(string(serChannelState)), C.longlong(amount), C.CString(string(serCustState))))
+	resp := C.GoString(C.mpc_prepare_payment_customer(C.CString(string(serChannelState)), C.int64_t(amount), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return RevokedState{}, State{}, CustState{}, err
@@ -549,7 +549,7 @@ func PreparePaymentMerchant(channelState ChannelState, nonce string, revLockCom 
 		return "", MerchState{}, err
 	}
 
-	resp := C.GoString(C.mpc_prepare_payment_merchant(C.CString(string(serChannelState)), C.CString(nonce), C.CString(revLockCom), C.longlong(amount), C.CString(string(serMerchState))))
+	resp := C.GoString(C.mpc_prepare_payment_merchant(C.CString(string(serChannelState)), C.CString(nonce), C.CString(revLockCom), C.int64_t(amount), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", MerchState{}, err
@@ -582,7 +582,7 @@ func PayUpdateCustomer(channelState ChannelState, channelToken ChannelToken, sta
 	}
 
 	resp := C.GoString(C.mpc_pay_update_customer(C.CString(string(serChannelState)), C.CString(string(serChannelToken)), C.CString(string(serStartState)),
-		C.CString(string(serEndState)), C.CString(payTokenMaskCom), C.CString(revLockCom), C.longlong(amount), C.longlong(feeCC), C.CString(string(serCustState))))
+		C.CString(string(serEndState)), C.CString(payTokenMaskCom), C.CString(revLockCom), C.int64_t(amount), C.int64_t(feeCC), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return false, CustState{}, err
@@ -603,7 +603,7 @@ func PayUpdateMerchant(channelState ChannelState, nonce string, payTokenMaskCom 
 		return false, MerchState{}, err
 	}
 
-	resp := C.GoString(C.mpc_pay_update_merchant(C.CString(string(serChannelState)), C.CString(nonce), C.CString(payTokenMaskCom), C.CString(revLockCom), C.longlong(amount), C.CString(string(serMerchState))))
+	resp := C.GoString(C.mpc_pay_update_merchant(C.CString(string(serChannelState)), C.CString(nonce), C.CString(payTokenMaskCom), C.CString(revLockCom), C.int64_t(amount), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return false, MerchState{}, err
@@ -707,7 +707,7 @@ func MerchantSignDisputeTx(txid_LE string, index uint32, amount int64, toSelfDel
 		return "", err
 	}
 
-	resp := C.GoString(C.sign_merch_dispute_tx(C.CString(txid_LE), C.uint(index), C.longlong(amount),
+	resp := C.GoString(C.sign_merch_dispute_tx(C.CString(txid_LE), C.uint(index), C.int64_t(amount),
 		C.CString(toSelfDelay), C.CString(outputPk), C.CString(revLock), C.CString(revSecret),
 		C.CString(custClosePk), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
@@ -729,7 +729,7 @@ func CustomerSignClaimTx(channelState ChannelState, txid_LE string, index uint32
 		return "", err
 	}
 
-	resp := C.GoString(C.cust_claim_tx_from_cust_close(C.CString(string(serChannelState)), C.CString(txid_LE), C.uint(index), C.longlong(amount),
+	resp := C.GoString(C.cust_claim_tx_from_cust_close(C.CString(string(serChannelState)), C.CString(txid_LE), C.uint(index), C.int64_t(amount),
 		C.CString(toSelfDelay), C.CString(outputPk), C.CString(revLock), C.CString(custClosePk), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
@@ -745,7 +745,7 @@ func MerchantSignCustClaimTx(txid string, index uint32, amount int64, outputPk s
 		return "", err
 	}
 
-	resp := C.GoString(C.merch_claim_tx_from_cust_close(C.CString(txid), C.uint(index), C.longlong(amount),
+	resp := C.GoString(C.merch_claim_tx_from_cust_close(C.CString(txid), C.uint(index), C.int64_t(amount),
 		C.CString(outputPk), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
@@ -761,7 +761,7 @@ func MerchantSignMerchClaimTx(txid_LE string, index uint32, amount int64, toSelf
 		return "", err
 	}
 
-	resp := C.GoString(C.merch_claim_tx_from_merch_close(C.CString(txid_LE), C.uint(index), C.longlong(amount), C.CString(toSelfDelay),
+	resp := C.GoString(C.merch_claim_tx_from_merch_close(C.CString(txid_LE), C.uint(index), C.int64_t(amount), C.CString(toSelfDelay),
 		C.CString(custPk), C.CString(outputPk), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
