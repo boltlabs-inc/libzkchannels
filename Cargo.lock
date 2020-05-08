@@ -1735,7 +1735,7 @@ dependencies = [
 [[package]]
 name = "zkchan-tx"
 version = "0.1.0"
-source = "git+https://github.com/boltlabs-inc/zkchan-tx#97d48bf62c03603e7a02e735ae0acf00f97343ae"
+source = "git+https://github.com/boltlabs-inc/zkchan-tx#c5f226e8b4b3a0586d1d87a2bcde773ff26d35ad"
 dependencies = [
  "hex 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "libsecp256k1 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",

@@ -264,12 +264,12 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("========================================")
 
 	// Merchant can claim tx output from merch-close-tx after timeout
-	// fmt.Println("Claim tx from merchant close tx")
-	// claim_amount := custBal + merchBal
-	// SignedMerchClaimTx, err = MerchantSignMerchClaimTx(merchTxid_LE, index, claim_amount, toSelfDelay, custPk, outputPk, merchState)
-	// assert.Nil(t, err)
-	// fmt.Println("TX2-merch-close-claim-tx: ", SignedMerchClaimTx)
-	// fmt.Println("========================================")
+	fmt.Println("Claim tx from merchant close tx")
+	claim_amount := custBal + merchBal
+	SignedMerchClaimTx, err = MerchantSignMerchClaimTx(merchTxid_LE, index, claim_amount, toSelfDelay, custPk, outputPk, merchState)
+	assert.Nil(t, err)
+	fmt.Println("TX2-merch-close-claim-tx: ", SignedMerchClaimTx)
+	fmt.Println("========================================")
 
 	return
 }

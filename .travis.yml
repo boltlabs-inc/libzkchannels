@@ -20,12 +20,13 @@ rust:
   - nightly
 
 script:
-  - . ./env && cargo build --all 
-  - . ./env && cargo test --all -- --nocapture
-  - . ./env && cargo test --release --lib mpcwrapper -- --nocapture
-  - . ./env && cargo test --release --lib channels_mpc -- --nocapture
-  - . ./env && cargo test --release -- --ignored --nocapture
-  - . ./env && ./test_gowrapper.sh
+  - . ./env
+  - env
+  - cargo build --release
+  - cargo test --release --lib mpcwrapper -- --nocapture
+  - cargo test --release --lib channels_mpc -- --nocapture
+  - cargo test --release -- --ignored --nocapture
+  - ./test_gowrapper.sh
 
 matrix:
   allow_failures:
