@@ -20,8 +20,11 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	channelState, merchState, err := InitMerchant(dbUrl, channelState, "merch")
 	assert.Nil(t, err)
 
-	skC := "1a1971e1379beec67178509e25b6772c66cb67bb04d70df2b4bcdb8c08a01827"
-	payoutSk := "4157697b6428532758a9d0f9a73ce58befe3fd665797427d1c5bb3d33f6a132e"
+	skM := "e6e0c5310bb03809e1b2a1595a349f002125fa557d481e51f401ddaf3287e6ae"
+	payoutSkM := "5611111111111111111111111111111100000000000000000000000000000000"
+	disputeSkM := "5711111111111111111111111111111100000000000000000000000000000000"
+	channelState, merchState, err = LoadMerchantWallet(merchState, channelState, skM, payoutSkM, disputeSkM)
+
 	custBal := int64(1000000)
 	merchBal := int64(1000000)
 	feeCC := int64(1000)
@@ -29,7 +32,12 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	maxFee := int64(10000)
 	feeMC := int64(1000)
 
-	channelToken, custState, err := InitCustomer(fmt.Sprintf("%v", *merchState.PkM), custBal, merchBal, feeCC, minFee, maxFee, feeMC, "cust", skC, payoutSk)
+	channelToken, custState, err := InitCustomer(fmt.Sprintf("%v", *merchState.PkM), custBal, merchBal, feeCC, minFee, maxFee, feeMC, "cust")
+	assert.Nil(t, err)
+
+	skC := "1a1971e1379beec67178509e25b6772c66cb67bb04d70df2b4bcdb8c08a01827"
+	payoutSk := "4157697b6428532758a9d0f9a73ce58befe3fd665797427d1c5bb3d33f6a132e"
+	channelToken, custState, err = LoadCustomerWallet(custState, channelToken, skC, payoutSk)
 	assert.Nil(t, err)
 
 	inputSats := int64(50 * 100000000)
@@ -256,12 +264,12 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("========================================")
 
 	// Merchant can claim tx output from merch-close-tx after timeout
-	fmt.Println("Claim tx from merchant close tx")
-	claim_amount := custBal + merchBal
-	SignedMerchClaimTx, err = MerchantSignMerchClaimTx(merchTxid_LE, index, claim_amount, toSelfDelay, custPk, outputPk, merchState)
-	assert.Nil(t, err)
-	fmt.Println("TX2-merch-close-claim-tx: ", SignedMerchClaimTx)
-	fmt.Println("========================================")
+	// fmt.Println("Claim tx from merchant close tx")
+	// claim_amount := custBal + merchBal
+	// SignedMerchClaimTx, err = MerchantSignMerchClaimTx(merchTxid_LE, index, claim_amount, toSelfDelay, custPk, outputPk, merchState)
+	// assert.Nil(t, err)
+	// fmt.Println("TX2-merch-close-claim-tx: ", SignedMerchClaimTx)
+	// fmt.Println("========================================")
 
 	return
 }

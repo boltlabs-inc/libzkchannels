@@ -919,9 +919,7 @@ pub mod mpc {
         min_fee: i64,
         max_fee: i64,
         fee_mc: i64,
-        name: &str,
-        sk: Option<[u8; 32]>,
-        payout_sk: Option<[u8; 32]>,
+        name: &str
     ) -> (ChannelMPCToken, CustomerMPCState) {
         assert!(b0_cust > 0);
         assert!(b0_merch >= 0);
@@ -938,7 +936,7 @@ pub mod mpc {
 
         let cust_name = String::from(name);
         let mut cust_state =
-            CustomerMPCState::new(csprng, b0_cust, b0_merch, fee_cc, cust_name, sk, payout_sk);
+            CustomerMPCState::new(csprng, b0_cust, b0_merch, fee_cc, cust_name);
 
         // generate the initial channel token given the funding tx info
         let mut channel_token = cust_state.generate_init_channel_token(pk_m);
@@ -2003,9 +2001,7 @@ mod tests {
             min_fee,
             max_fee,
             fee_mc,
-            "Alice",
-            None,
-            None,
+            "Alice"
         );
 
         // customer sends pk_c, n_0, rl_0 to the merchant
@@ -2136,9 +2132,7 @@ mod tests {
             min_fee,
             max_fee,
             fee_mc,
-            "Alice",
-            None,
-            None,
+            "Alice"
         );
 
         let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch, fee_mc);
@@ -2245,7 +2239,7 @@ mod tests {
             let max_fee = 10000;
             let fee_mc = 1000;
             let amount = 1000;
-            let (mut channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, b0_cust, b0_merch, fee_cc, min_fee, max_fee, fee_mc, "Alice", None, None);
+            let (mut channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, b0_cust, b0_merch, fee_cc, min_fee, max_fee, fee_mc, "Alice");
 
             let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch, fee_mc);
 

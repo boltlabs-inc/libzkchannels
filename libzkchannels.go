@@ -205,10 +205,38 @@ func InitMerchant(dbUrl string, channelState ChannelState, name string) (Channel
 	return channelState, merchState, err
 }
 
-func InitCustomer(pkM string, custBal int64, merchBal int64, feeCC int64, minFee int64, maxFee int64, feeMC int64, name string, skC string, payoutSk string) (ChannelToken, CustState, error) {
+func LoadMerchantWallet(merchState MerchState, channelState ChannelState, skC string, payoutSk string, disputeSk string) (ChannelState, MerchState, error) {
+	serMerchState, err := json.Marshal(merchState)
+	if err != nil {
+		return ChannelState{}, MerchState{}, err
+	}
+
+	serChannelState, err := json.Marshal(channelState)
+	if err != nil {
+		return ChannelState{}, MerchState{}, err
+	}
+
+	resp := C.GoString(C.mpc_load_merchant_wallet(C.CString(string(serMerchState)), C.CString(string(serChannelState)), C.CString(skC), C.CString(payoutSk), C.CString(disputeSk)))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return ChannelState{}, MerchState{}, err
+	}
+
+	channelState = ChannelState{}
+	err = json.Unmarshal([]byte(r.ChannelState), &channelState)
+	if err != nil {
+		return ChannelState{}, MerchState{}, err
+	}
+
+	merchState = MerchState{}
+	err = json.Unmarshal([]byte(r.MerchState), &merchState)
+	return channelState, merchState, err
+}
+
+func InitCustomer(pkM string, custBal int64, merchBal int64, feeCC int64, minFee int64, maxFee int64, feeMC int64, name string) (ChannelToken, CustState, error) {
 	resp := C.GoString(C.mpc_init_customer(C.CString(pkM), C.int64_t(custBal),
 		C.int64_t(merchBal), C.int64_t(feeCC), C.int64_t(minFee), C.int64_t(maxFee), C.int64_t(feeMC),
-		C.CString(name), C.CString(skC), C.CString(payoutSk)))
+		C.CString(name)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return ChannelToken{}, CustState{}, err
@@ -220,6 +248,34 @@ func InitCustomer(pkM string, custBal int64, merchBal int64, feeCC int64, minFee
 	}
 
 	custState := CustState{}
+	err = json.Unmarshal([]byte(r.CustState), &custState)
+	return channelToken, custState, err
+}
+
+func LoadCustomerWallet(custState CustState, channelToken ChannelToken, skC string, payoutSk string) (ChannelToken, CustState, error) {
+	serCustState, err := json.Marshal(custState)
+	if err != nil {
+		return ChannelToken{}, CustState{}, err
+	}
+
+	serChannelToken, err := json.Marshal(channelToken)
+	if err != nil {
+		return ChannelToken{}, CustState{}, err
+	}
+
+	resp := C.GoString(C.mpc_load_customer_wallet(C.CString(string(serCustState)), C.CString(string(serChannelToken)), C.CString(skC), C.CString(payoutSk)))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return ChannelToken{}, CustState{}, err
+	}
+
+	channelToken = ChannelToken{}
+	err = json.Unmarshal([]byte(r.ChannelToken), &channelToken)
+	if err != nil {
+		return ChannelToken{}, CustState{}, err
+	}
+
+	custState = CustState{}
 	err = json.Unmarshal([]byte(r.CustState), &custState)
 	return channelToken, custState, err
 }

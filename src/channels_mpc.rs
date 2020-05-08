@@ -228,23 +228,15 @@ impl CustomerMPCState {
         cust_bal: i64,
         merch_bal: i64,
         fee_cc: i64,
-        name: String,
-        sk: Option<[u8; 32]>,
-        payout_sk: Option<[u8; 32]>,
+        name: String
     ) -> Self {
         let secp = secp256k1::Secp256k1::new();
 
         let mut _sk_c = [0u8; 32];
         let mut _payout_sk = [0u8; 32];
-        match sk {
-            Some(n) => _sk_c.copy_from_slice(&n),
-            None => csprng.fill_bytes(&mut _sk_c),
-        }
+        csprng.fill_bytes(&mut _sk_c);
+        csprng.fill_bytes(&mut _payout_sk);
 
-        match payout_sk {
-            Some(p) => _payout_sk.copy_from_slice(&p),
-            None => csprng.fill_bytes(&mut _payout_sk),
-        }
         // generate the signing keypair for the channel
         let sk_c = secp256k1::SecretKey::from_slice(&_sk_c).unwrap();
         let pk_c = secp256k1::PublicKey::from_secret_key(&secp, &sk_c);
@@ -286,6 +278,26 @@ impl CustomerMPCState {
             channel_initialized: false,
             net_config: None,
         };
+    }
+
+    pub fn load_external_wallet(&mut self, channel_token: &mut ChannelMPCToken, cust_sk: [u8; 32], pay_sk: [u8; 32]) -> Result<(), String> {
+        let secp = secp256k1::Secp256k1::new();
+
+        let sk_c = handle_error_util!(secp256k1::SecretKey::from_slice(&cust_sk));
+        let payout_sk = handle_error_util!(secp256k1::SecretKey::from_slice(&pay_sk));
+
+        let pk_c = secp256k1::PublicKey::from_secret_key(&secp, &sk_c);
+        let payout_pk = secp256k1::PublicKey::from_secret_key(&secp, &payout_sk);
+        
+        channel_token.set_customer_pk(pk_c.clone());
+        
+        self.sk_c = FixedSizeArray32(cust_sk);
+        self.pk_c = pk_c;
+
+        self.payout_sk = FixedSizeArray32(pay_sk);
+        self.payout_pk = payout_pk;
+
+        Ok(())
     }
 
     pub fn get_secret_key(&self) -> Vec<u8> {
@@ -983,10 +995,10 @@ impl MerchantMPCState {
         csprng: &mut R,
         db_url: String,
         channel: &mut ChannelMPCState,
-        id: String,
+        id: String
     ) -> Self {
         let secp = secp256k1::Secp256k1::new();
-        let mut _sk_m = [0u8; 32];
+        let mut _sk_m = [0u8; 32];        
         csprng.fill_bytes(&mut _sk_m);
 
         // generate the signing keypair for the channel
@@ -1032,6 +1044,33 @@ impl MerchantMPCState {
             net_config: None,
             db_url: db_url,
         }
+    }
+
+    pub fn load_external_wallet(&mut self, channel: &mut ChannelMPCState, merch_sk: [u8; 32], pay_sk: [u8; 32], disp_sk: [u8; 32]) -> Result<(), String> {
+        let secp = secp256k1::Secp256k1::new();
+
+        let sk_m = handle_error_util!(secp256k1::SecretKey::from_slice(&merch_sk));
+        let payout_sk = handle_error_util!(secp256k1::SecretKey::from_slice(&pay_sk));
+        let dispute_sk = handle_error_util!(secp256k1::SecretKey::from_slice(&disp_sk));
+
+        let pk_m = secp256k1::PublicKey::from_secret_key(&secp, &sk_m);
+        let payout_pk = secp256k1::PublicKey::from_secret_key(&secp, &payout_sk);
+        let dispute_pk = secp256k1::PublicKey::from_secret_key(&secp, &dispute_sk);
+
+        // update channel state accordingly
+        channel.set_merchant_public_keys(payout_pk.clone(), dispute_pk.clone());
+
+        // merch-pk
+        self.sk_m = FixedSizeArray32(merch_sk);
+        self.pk_m = pk_m;
+        // closing pub key
+        self.payout_sk = FixedSizeArray32(pay_sk);
+        self.payout_pk = payout_pk;
+        // dispute pub key
+        self.dispute_sk = FixedSizeArray32(disp_sk);
+        self.dispute_pk = dispute_pk;
+
+        Ok(())
     }
 
     pub fn get_secret_key(&self) -> Vec<u8> {
@@ -1620,7 +1659,7 @@ mod tests {
         db.clear_state();
 
         // initialize on the customer side with balance: b0_cust
-        let mut cust_state = CustomerMPCState::new(&mut rng, b0_cust, b0_merch, fee_cc, String::from("Customer"), None, None);
+        let mut cust_state = CustomerMPCState::new(&mut rng, b0_cust, b0_merch, fee_cc, String::from("Customer"));
 
         // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
         let funding_tx_info = generate_test_txs(&mut rng, b0_cust, b0_merch, fee_mc);
@@ -1779,9 +1818,7 @@ mod tests {
             b0_cust,
             b0_merch,
             fee_cc,
-            String::from("Customer"),
-            None,
-            None,
+            String::from("Customer")
         );
 
         // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
@@ -1908,12 +1945,18 @@ mod tests {
         let fee_cc = 1000;
         let fee_mc = 1000;
 
-        let merch_state = MerchantMPCState::new(
+        let mut merch_state = MerchantMPCState::new(
             &mut rng,
             db_url,
             &mut channel_state,
             String::from("Merchant"),
         );
+
+        let merch_sk = [1u8; 32];
+        let pay_sk = [2u8; 32];
+        let disp_sk = [3u8; 32];
+        merch_state.load_external_wallet(&mut channel_state, merch_sk, pay_sk, disp_sk).unwrap();
+
         let mut db = RedisDatabase::new("test1", merch_state.db_url.clone()).unwrap();
         db.clear_state();
 
@@ -1934,16 +1977,17 @@ mod tests {
             b0_cust,
             b0_merch,
             fee_cc,
-            String::from("Customer"),
-            None,
-            None,
+            String::from("Customer")
         );
-
-        // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
-        let funding_tx_info = generate_test_txs(&mut rng, b0_cust, b0_merch, fee_mc);
 
         // initialize the channel token on with pks
         let mut channel_token = cust_state.generate_init_channel_token(&merch_state.pk_m);
+
+        let cust_sk = [4u8; 32];
+        let pay_sk = [5u8; 32];
+        cust_state.load_external_wallet(&mut channel_token, cust_sk, pay_sk).unwrap();
+        // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
+        let funding_tx_info = generate_test_txs(&mut rng, b0_cust, b0_merch, fee_mc);
 
         // generate and send initial state to the merchant
         cust_state.generate_init_state(&mut rng, &mut channel_token, 0, 10000, fee_mc);

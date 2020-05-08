@@ -114,7 +114,7 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
-    // INIT
+    // INIT MERCHANT
 
     #[no_mangle]
     pub extern "C" fn mpc_init_merchant(
@@ -142,10 +142,60 @@ pub mod ffishim_mpc {
             "\'}",
         ]
         .concat();
-
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
+
+    // LOAD EXTERNAL WALLET
+
+    #[no_mangle]
+    pub extern "C" fn mpc_load_merchant_wallet(
+        ser_merch_state: *mut c_char,
+        ser_channel_state: *mut c_char,
+        ser_sk_m: *mut c_char,
+        ser_payout_sk: *mut c_char,
+        ser_dispute_sk: *mut c_char
+    ) -> *mut c_char {
+
+        // Deserialize the merch_state
+        let merch_state_result: ResultSerdeType<MerchantMPCState> =
+            deserialize_result_object(ser_merch_state);
+        let mut merch_state = handle_errors!(merch_state_result);
+
+        // Deserialize the channel_state
+        let channel_state_result: ResultSerdeType<ChannelMPCState> =
+            deserialize_result_object(ser_channel_state);
+        let mut channel_state = handle_errors!(channel_state_result);
+
+        let sk = deserialize_hex_string(ser_sk_m);
+        let sk_buf = handle_errors!(sk);
+        let mut merch_sk = [0u8; 32];
+        merch_sk.copy_from_slice(sk_buf.as_slice());
+
+        let psk = deserialize_hex_string(ser_payout_sk);
+        let psk_buf = handle_errors!(psk);
+        let mut payout_sk = [0u8; 32];
+        payout_sk.copy_from_slice(psk_buf.as_slice());
+
+        let dsk = deserialize_hex_string(ser_dispute_sk);
+        let dsk_buf = handle_errors!(dsk);
+        let mut dispute_sk = [0u8; 32];
+        dispute_sk.copy_from_slice(dsk_buf.as_slice());
+
+        let _result = handle_errors!(merch_state.load_external_wallet(&mut channel_state, merch_sk, payout_sk, dispute_sk));
+        let ser = [
+            "{\'merch_state\':\'",
+            serde_json::to_string(&merch_state).unwrap().as_str(),
+            "\', \'channel_state\':\'",
+            serde_json::to_string(&channel_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    // INIT CUSTOMER
 
     #[no_mangle]
     pub extern "C" fn mpc_init_customer(
@@ -156,9 +206,7 @@ pub mod ffishim_mpc {
         min_fee: i64,
         max_fee: i64,
         fee_mc: i64,
-        name_ptr: *const c_char,
-        ser_sk_c: *mut c_char,
-        ser_payout_sk: *mut c_char,
+        name_ptr: *const c_char
     ) -> *mut c_char {
         let rng = &mut rand::thread_rng();
 
@@ -171,29 +219,50 @@ pub mod ffishim_mpc {
         let bytes = unsafe { CStr::from_ptr(name_ptr).to_bytes() };
         let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
 
-        let ser_sk = deserialize_hex_string(ser_sk_c);
-        let sk = match ser_sk {
-            Ok(s) => {
-                let mut buf = [0u8; 32];
-                buf.copy_from_slice(&s);
-                Some(buf)
-            }
-            Err(e) => return error_message(e.to_string()),
-        };
-
-        let psk = deserialize_hex_string(ser_payout_sk);
-        let payout_sk = match psk {
-            Ok(s) => {
-                let mut buf = [0u8; 32];
-                buf.copy_from_slice(&s);
-                Some(buf)
-            }
-            Err(e) => return error_message(e.to_string()),
-        };
-
         // We change the channel state
         let (channel_token, cust_state) =
-            mpc::init_customer(rng, &pk_m, cust_bal, merch_bal, fee_cc, min_fee, max_fee, fee_mc, name, sk, payout_sk);
+            mpc::init_customer(rng, &pk_m, cust_bal, merch_bal, fee_cc, min_fee, max_fee, fee_mc, name);
+        let ser = [
+            "{\'cust_state\':\'",
+            serde_json::to_string(&cust_state).unwrap().as_str(),
+            "\', \'channel_token\':\'",
+            serde_json::to_string(&channel_token).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern "C" fn mpc_load_customer_wallet(
+        ser_cust_state: *mut c_char,
+        ser_channel_token: *mut c_char,
+        ser_sk_c: *mut c_char,
+        ser_payout_sk: *mut c_char
+    ) -> *mut c_char {
+
+        // Deserialize the cust_state
+        let cust_state_result: ResultSerdeType<CustomerMPCState> =
+            deserialize_result_object(ser_cust_state);
+        let mut cust_state = handle_errors!(cust_state_result);
+    
+        // Deserialize the ChannelToken
+        let channel_token_result: ResultSerdeType<ChannelMPCToken> =
+            deserialize_result_object(ser_channel_token);
+        let mut channel_token = handle_errors!(channel_token_result);
+
+        let sk = deserialize_hex_string(ser_sk_c);
+        let sk_buf = handle_errors!(sk);
+        let mut cust_sk = [0u8; 32];
+        cust_sk.copy_from_slice(sk_buf.as_slice());
+
+        let psk = deserialize_hex_string(ser_payout_sk);
+        let psk_buf = handle_errors!(psk);
+        let mut payout_sk = [0u8; 32];
+        payout_sk.copy_from_slice(psk_buf.as_slice());
+
+        let _result = handle_errors!(cust_state.load_external_wallet(&mut channel_token, cust_sk, payout_sk));
         let ser = [
             "{\'cust_state\':\'",
             serde_json::to_string(&cust_state).unwrap().as_str(),

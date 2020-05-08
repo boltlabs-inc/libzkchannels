@@ -598,9 +598,7 @@ mod cust {
             min_fee,
             max_fee,
             fee_mc,
-            channel_name.as_str(),
-            None,
-            None,
+            channel_name.as_str()
         );
 
         println!("Saving the initial customer state...");

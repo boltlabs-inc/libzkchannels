@@ -3,7 +3,17 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define _LIBCPP_HAS_MERGED_TYPEINFO_NAMES_DEFAULT 0
+#define INTMAX_MAX 9223372036854775807
+
+#define INTMAX_MIN -9223372036854775808ULL
+
+#define PTRDIFF_MAX 9223372036854775807
+
+#define PTRDIFF_MIN -9223372036854775808ULL
+
+#define UINTMAX_MAX -1
+
+#define _LIBCPP_HAS_MERGED_TYPEINFO_NAMES_DEFAULT 1
 
 typedef struct {
   uint32_t nonce[4];
@@ -390,11 +400,20 @@ char *mpc_init_customer(char *ser_merch_pk,
                         int64_t min_fee,
                         int64_t max_fee,
                         int64_t fee_mc,
-                        const char *name_ptr,
-                        char *ser_sk_c,
-                        char *ser_payout_sk);
+                        const char *name_ptr);
 
 char *mpc_init_merchant(char *db_url_str, char *ser_channel_state, const char *name_ptr);
+
+char *mpc_load_customer_wallet(char *ser_cust_state,
+                               char *ser_channel_token,
+                               char *ser_sk_c,
+                               char *ser_payout_sk);
+
+char *mpc_load_merchant_wallet(char *ser_merch_state,
+                               char *ser_channel_state,
+                               char *ser_sk_m,
+                               char *ser_payout_sk,
+                               char *ser_dispute_sk);
 
 char *mpc_pay_unmask_pay_token_customer(char *ser_pt_mask_bytes,
                                         char *ser_pt_mask_r,
