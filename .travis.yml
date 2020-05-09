@@ -17,7 +17,6 @@ before_install:
 
 rust:
   - stable
-  - nightly
 
 script:
   - . ./env
@@ -28,6 +27,3 @@ script:
   - cargo test --release -- --ignored --nocapture
   - ./test_gowrapper.sh
 
-matrix:
-  allow_failures:
-    - rust: nightly

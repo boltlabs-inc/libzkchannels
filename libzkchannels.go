@@ -841,8 +841,8 @@ func processCResponse(resp string) (*setupResp, error) {
 }
 
 func cleanJson(in string) string {
-	resp := strings.ReplaceAll(in, "\"", "\\\"")
-	resp = strings.ReplaceAll(resp, "'", "\"")
+	resp := strings.Replace(in, "\"", "\\\"", -1)
+	resp = strings.Replace(resp, "'", "\"", -1)
 	return resp
 }
 
