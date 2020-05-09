@@ -14,7 +14,7 @@ import (
 
 func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	dbUrl := "redis://127.0.0.1/"
-	channelState, err := ChannelSetup("channel", uint16(1487), 546, false) // uint16(1487)
+	channelState, err := ChannelSetup("channel", 546, false)
 	assert.Nil(t, err)
 
 	channelState, merchState, err := InitMerchant(dbUrl, channelState, "merch")
