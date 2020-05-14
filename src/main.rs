@@ -543,7 +543,7 @@ mod cust {
     use zkchan_tx::fixed_size_array::FixedSizeArray32;
     use zkchan_tx::transactions::btc::merchant_form_close_transaction;
     use zkchan_tx::txutil::{
-        customer_sign_escrow_transaction, customer_sign_merch_close_transaction,
+        customer_form_escrow_transaction, customer_sign_escrow_transaction, customer_sign_merch_close_transaction,
     };
     use zkchannels::bindings::ConnType_NETIO;
     // ConnType_CUSTOM
@@ -668,16 +668,16 @@ mod cust {
         let input_txid = handle_error_result!(hex::decode(txid));
 
         // form the escrow transaction
-        let (signed_tx, escrow_txid, escrow_prevout) =
-            handle_error_result!(customer_sign_escrow_transaction(
-                input_txid,
+        let (escrow_txid_be, _, escrow_prevout) =
+            handle_error_result!(customer_form_escrow_transaction(
+                input_txid.clone(),
                 index,
+                cust_sk.clone(),
                 input_sats,
                 output_sats,
-                cust_sk.clone(),
                 cust_pk.clone(),
                 merch_pk.clone(),
-                Some(change_pk_vec),
+                Some(change_pk_vec.clone()),
                 false
             ));
 
@@ -687,9 +687,9 @@ mod cust {
         let merch_close_pk = channel_state.merch_payout_pk.unwrap().serialize().to_vec();
         let (merch_tx_preimage, _) =
             handle_error_result!(merchant_form_close_transaction::<Testnet>(
-                escrow_txid.to_vec(),
-                cust_pk,
-                merch_pk,
+                escrow_txid_be.to_vec(),
+                cust_pk.clone(),
+                merch_pk.clone(),
                 merch_close_pk,
                 cust_bal,
                 merch_bal,
@@ -700,7 +700,7 @@ mod cust {
 
         // get the cust-sig on the merch-close-tx
         let cust_sig = handle_error_result!(customer_sign_merch_close_transaction(
-            cust_sk,
+            cust_sk.clone(),
             merch_tx_preimage
         ));
 
@@ -708,7 +708,7 @@ mod cust {
         // customer sends pk_c, n_0, rl_0, B_c, B_m, and escrow_txid/prevout to the merchant
         let msg0 = [
             handle_error_result!(serde_json::to_string(&cust_sig)),
-            handle_error_result!(serde_json::to_string(&escrow_txid)),
+            handle_error_result!(serde_json::to_string(&escrow_txid_be)),
             handle_error_result!(serde_json::to_string(&escrow_prevout)),
             handle_error_result!(serde_json::to_string(&init_cust_state)),
         ];
@@ -730,7 +730,7 @@ mod cust {
             min_fee: min_fee,
             max_fee: max_fee,
             fee_mc: fee_mc,
-            escrow_txid: FixedSizeArray32(escrow_txid),
+            escrow_txid: FixedSizeArray32(escrow_txid_be),
             escrow_prevout: FixedSizeArray32(escrow_prevout),
             merch_txid: FixedSizeArray32(merch_txid),
             merch_prevout: FixedSizeArray32(merch_prevout),
@@ -772,6 +772,20 @@ mod cust {
                 cust_state,
             )?;
         }
+
+        // proceed to sign the escrow-tx after initial closing tx signed
+        let (signed_tx, _, _, _) =
+            handle_error_result!(customer_sign_escrow_transaction(
+                input_txid,
+                index,
+                cust_sk.clone(),
+                input_sats,
+                output_sats,
+                cust_pk.clone(),
+                merch_pk.clone(),
+                Some(change_pk_vec),
+                false
+            ));
 
         println!("Can now broadcast the signed escrow transaction");
         write_file("signed_escrow_tx.txt", hex::encode(&signed_tx))?;

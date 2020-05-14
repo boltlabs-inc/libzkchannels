@@ -90,15 +90,16 @@ char *cust_claim_tx_from_cust_close(char *ser_channel_state,
                                     char *ser_cust_close_pk,
                                     char *ser_cust_state);
 
-char *cust_form_escrow_transaction(char *ser_txid,
-                                   uint32_t index,
-                                   int64_t input_sats,
-                                   int64_t output_sats,
-                                   char *ser_cust_sk,
-                                   char *ser_cust_pk,
-                                   char *ser_merch_pk,
-                                   char *ser_change_pk,
-                                   uint32_t ser_change_pk_is_hash);
+char *cust_create_escrow_transaction(char *ser_txid,
+                                     uint32_t index,
+                                     char *ser_cust_sk,
+                                     int64_t input_sats,
+                                     int64_t output_sats,
+                                     char *ser_cust_pk,
+                                     char *ser_merch_pk,
+                                     char *ser_change_pk,
+                                     uint32_t ser_change_pk_is_hash,
+                                     uint32_t ser_should_sign);
 
 char *cust_verify_init_cust_close_txs(char *ser_funding_tx,
                                       char *ser_channel_state,

@@ -977,16 +977,17 @@ pub mod ffishim_mpc {
     }
 
     #[no_mangle]
-    pub extern "C" fn cust_form_escrow_transaction(
+    pub extern "C" fn cust_create_escrow_transaction(
         ser_txid: *mut c_char,
         index: u32,
+        ser_cust_sk: *mut c_char,
         input_sats: i64,
         output_sats: i64,
-        ser_cust_sk: *mut c_char,
         ser_cust_pk: *mut c_char,
         ser_merch_pk: *mut c_char,
         ser_change_pk: *mut c_char,
         ser_change_pk_is_hash: u32,
+        ser_should_sign: u32
     ) -> *mut c_char {
         let txid_result = deserialize_hex_string(ser_txid);
         let txid = handle_errors!(txid_result);
@@ -1010,36 +1011,69 @@ pub mod ffishim_mpc {
             change_pk_is_hash = true;
         }
 
-        let (signed_tx, txid_be, prevout) =
-            handle_errors!(zkchan_tx::txutil::customer_sign_escrow_transaction(
-                txid,
-                index,
-                input_sats,
-                output_sats,
-                cust_sk,
-                cust_pk,
-                merch_pk,
-                Some(change_pk),
-                change_pk_is_hash
-            ));
-        let mut txid_le = txid_be.to_vec();
-        txid_le.reverse();
-        let ser = [
-            "{\'signed_tx\':\'",
-            &hex::encode(signed_tx),
-            "\', \'txid_be\':\'",
-            &hex::encode(txid_be),
-            "\', \'txid_le\':\'",
-            &hex::encode(txid_le),
-            "\', \'hash_prevout\':\'",
-            &hex::encode(prevout),
-            "\'}",
-        ]
-        .concat();
+        let mut should_sign = false;
+        if ser_should_sign >= 1 {
+            should_sign = true;
+        }
+
+        let ser = match should_sign {
+            true => { // proceed to sign
+                let (signed_tx, txid_be, txid_le, prevout) =
+                    handle_errors!(zkchan_tx::txutil::customer_sign_escrow_transaction(
+                        txid,
+                        index,
+                        cust_sk,
+                        input_sats,
+                        output_sats,
+                        cust_pk,
+                        merch_pk,
+                        Some(change_pk),
+                        change_pk_is_hash
+                    ));
+                let ser = [
+                    "{\'signed_tx\':\'",
+                    &hex::encode(signed_tx),
+                    "\', \'txid_be\':\'",
+                    &hex::encode(txid_be),
+                    "\', \'txid_le\':\'",
+                    &hex::encode(txid_le),
+                    "\', \'hash_prevout\':\'",
+                    &hex::encode(prevout),
+                    "\'}",
+                ]
+                .concat();
+                ser
+            },
+            false => { // proceed to form and return the txid/prevout
+                let (txid_be, txid_le, prevout) =
+                    handle_errors!(zkchan_tx::txutil::customer_form_escrow_transaction(
+                        txid,
+                        index,
+                        cust_sk,
+                        input_sats,
+                        output_sats,
+                        cust_pk,
+                        merch_pk,
+                        Some(change_pk),
+                        change_pk_is_hash
+                    ));
+                let ser = [
+                    "{\'txid_be\':\'",
+                    &hex::encode(txid_be),
+                    "\', \'txid_le\':\'",
+                    &hex::encode(txid_le),
+                    "\', \'hash_prevout\':\'",
+                    &hex::encode(prevout),
+                    "\'}",
+                ]
+                .concat();
+                ser
+            },
+        };    
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
-
+    
     #[no_mangle]
     pub extern "C" fn form_merch_close_transaction(
         ser_escrow_txid: *mut c_char,
