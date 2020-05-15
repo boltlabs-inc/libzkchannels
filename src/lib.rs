@@ -1027,12 +1027,12 @@ pub mod mpc {
             true => cust_state.cust_balance - amount,  // positive value
             false => cust_state.cust_balance + amount, // negative value
         };
-        if new_balance < channel.get_dust_limit() {
+        if new_balance < channel.get_min_threshold() {
             // TODO: add a lower max to provide a suitable buffer (10% above dust limit)
-            let max_payment = cust_state.cust_balance - channel.get_dust_limit();
+            let max_payment = cust_state.cust_balance - channel.get_min_threshold();
             let s = format!(
                 "Balance after payment is below dust limit: {}. Max payment: {}",
-                channel.get_dust_limit(),
+                channel.get_min_threshold(),
                 max_payment
             );
             return Err(s);
@@ -1112,6 +1112,7 @@ pub mod mpc {
                 peer_raw_fd: 0,
             });
         }
+        let circuit = cust_state.get_circuit_file();
         cust_state.execute_mpc_context(
             &channel_state,
             &channel_token,
@@ -1121,6 +1122,7 @@ pub mod mpc {
             pay_token_mask_com,
             rev_lock_com,
             amount,
+            circuit
         )
     }
 
@@ -1150,7 +1152,7 @@ pub mod mpc {
                 peer_raw_fd: 0,
             });
         }
-
+        let circuit = merch_state.get_circuit_file();
         return merch_state.execute_mpc_context(
             csprng,
             db,
@@ -1159,6 +1161,7 @@ pub mod mpc {
             rev_lock_com,
             pay_token_mask_com,
             amount,
+            circuit
         );
     }
 
@@ -1981,9 +1984,9 @@ mod tests {
         // let mut db = RedisDatabase::new("lib", "redis://127.0.0.1/").unwrap();
         let mut db = HashMapDatabase::new("", "".to_string()).unwrap();
 
-        let dust_limit = 546;
+        let min_threshold = 546;
         let mut channel_state =
-            mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, dust_limit, false);
+            mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, min_threshold, false);
         let mut merch_state = mpc::init_merchant(rng, "".to_string(), &mut channel_state, "Bob");
 
         let fee_cc = 1000;
@@ -2107,11 +2110,10 @@ mod tests {
     fn test_payment_mpc_channel_merch() {
         let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d76);
         let mut db = RedisDatabase::new("lib", "redis://127.0.0.1/".to_string()).unwrap();
-        db.clear_state();
 
-        let dust_limit = 546;
+        let min_threshold = 546;
         let mut channel =
-            mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, dust_limit, false);
+            mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, min_threshold, false);
 
         let mut merch_state = mpc::init_merchant(&mut rng, "".to_string(), &mut channel, "Bob");
 
@@ -2218,6 +2220,7 @@ mod tests {
             hex::encode(pay_token_mask_r),
             "e1b863eabe75342a427d8e1954787822"
         );
+        // db.clear_state();
     }
 
     rusty_fork_test! {
@@ -2226,10 +2229,9 @@ mod tests {
         fn test_payment_mpc_channel_cust() {
             let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d76);
             let mut db = RedisDatabase::new("lib", "redis://127.0.0.1/".to_string()).unwrap();
-            db.clear_state();
 
-            let dust_limit = 546;
-            let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, dust_limit, false);
+            let min_threshold = 546;
+            let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, min_threshold, false);
             let mut merch_state = mpc::init_merchant(&mut rng, "".to_string(), &mut channel_state, "Bob");
 
             let b0_cust = 100000;
@@ -2300,8 +2302,7 @@ mod tests {
 
             let is_ok = mpc::pay_unmask_pay_token_customer(pt_mask, pt_mask_r, &mut cust_state);
             assert!(is_ok);
-
-
+            // db.clear_state();
         }
     }
 }

@@ -124,12 +124,6 @@ pub fn mpc_build_masked_tokens_cust(
         peer_raw_fd: ptr::null_mut(),
     };
 
-    // let file = "/Users/ayo/Projects/libzkchannels/deps/root/include/emp-tool/circuits/files/tokens.circuit.txt";
-    // let cf_ptr = unsafe {
-    //     let c_str = CString::new(file).unwrap();
-    //     load_circuit_file(c_str.as_ptr() as *const i8)
-    // };
-
     let timer = Instant::now();
     unsafe {
         build_masked_tokens_cust(
@@ -160,7 +154,7 @@ pub fn mpc_build_masked_tokens_cust(
         );
     };
     let stop = timer.elapsed();
-    println!("Execute MPC: {} ms", stop.as_millis());
+    println!("Time to execute MPC: {} ms", stop.as_millis());
 
     let mut pt_masked_ar = [0u8; 32];
     pt_masked_ar.copy_from_slice(u32_to_bytes(&pt_return.paytoken[..]).as_slice());
@@ -425,7 +419,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(
         );
     };
     let stop = timer.elapsed();
-    println!("Execute MPC: {} ms", stop.as_millis());
+    println!("Time to execute MPC: {} ms", stop.as_millis());
 
     (pp1.getK(), pp2.getK())
 }

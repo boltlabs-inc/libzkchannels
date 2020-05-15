@@ -43,7 +43,7 @@ To open a zkChannel, the customer runs the `open` command with the initial balan
 
 Similarly, the merchant executes following command to accept the channel request:
 
-    zkchannels-mpc open --party MERCH --own-port 12347 --other-port 12346 --dust-limit 100
+    zkchannels-mpc open --party MERCH --own-port 12347 --other-port 12346 --min-threshold 546
 
 # Init
 

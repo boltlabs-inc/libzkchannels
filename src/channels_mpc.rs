@@ -95,7 +95,7 @@ impl fmt::Display for ChannelMPCToken {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ChannelMPCState {
-    dust_limit: i64,
+    min_threshold: i64,
     key_com: FixedSizeArray32,
     pub name: String,
     pub third_party: bool,
@@ -108,11 +108,11 @@ impl ChannelMPCState {
     pub fn new(
         name: String,
         self_delay: u16,
-        dust_limit: i64,
+        min_threshold: i64,
         third_party_support: bool,
     ) -> ChannelMPCState {
         ChannelMPCState {
-            dust_limit: dust_limit, // 546
+            min_threshold: min_threshold, // dust limit (546)
             key_com: FixedSizeArray32([0u8; 32]),
             name: name.to_string(),
             third_party: third_party_support,
@@ -122,13 +122,13 @@ impl ChannelMPCState {
         }
     }
 
-    pub fn set_dust_limit(&mut self, dust_amount: i64) {
+    pub fn set_min_threshold(&mut self, dust_amount: i64) {
         assert!(dust_amount >= 0);
-        self.dust_limit = dust_amount;
+        self.min_threshold = dust_amount;
     }
 
-    pub fn get_dust_limit(&self) -> i64 {
-        return self.dust_limit;
+    pub fn get_min_threshold(&self) -> i64 {
+        return self.min_threshold;
     }
 
     pub fn get_key_com(&self) -> [u8; 32] {
@@ -509,7 +509,7 @@ impl CustomerMPCState {
         new_state: State,
         amount: i64,
         fee_cc: i64,
-        dust_limit: i64,
+        min_threshold: i64,
     ) {
         assert_eq!(old_state.min_fee, new_state.min_fee);
         assert_eq!(old_state.max_fee, new_state.max_fee);
@@ -521,8 +521,8 @@ impl CustomerMPCState {
         assert_eq!(new_state.bm, old_state.bm + amount);
         assert_eq!(new_state.bc, old_state.bc - amount);
 
-        assert!(new_state.bm >= dust_limit + new_state.fee_mc + VAL_CPFP);
-        assert!(new_state.bc >= dust_limit + fee_cc + VAL_CPFP);
+        assert!(new_state.bm >= min_threshold + new_state.fee_mc + VAL_CPFP);
+        assert!(new_state.bc >= min_threshold + fee_cc + VAL_CPFP);
     }
 
     // customer side of mpc
@@ -536,8 +536,9 @@ impl CustomerMPCState {
         paytoken_mask_com: [u8; 32],
         rev_lock_com: [u8; 32],
         amount: i64,
+        circuit: *mut c_void
     ) -> Result<bool, String> {
-        let min_cust_bal = channel_state.dust_limit + fee_cc + VAL_CPFP;
+        let min_cust_bal = channel_state.min_threshold + fee_cc + VAL_CPFP;
         if new_state.bc <= min_cust_bal {
             return Err(format!(
                 "customer::execute_mpc_context - customer balance below min balance allowed after payment: {}", min_cust_bal
@@ -579,19 +580,19 @@ impl CustomerMPCState {
             }
         };
 
-        let cf_ptr = self.get_circuit_file();
+        // let cf_ptr = self.get_circuit_file();
 
         self.validate_state(
             old_state,
             new_state,
             amount,
             fee_cc,
-            channel_state.dust_limit,
+            channel_state.min_threshold,
         );
         let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) =
             match mpc_build_masked_tokens_cust(
                 net_conn,
-                cf_ptr,
+                circuit,
                 amount,
                 &paytoken_mask_com,
                 &rev_lock_com,
@@ -1215,7 +1216,7 @@ impl MerchantMPCState {
         }
 
         // if epsilon > 0, check if updated balance is above dust limit.
-        // if amount > 0 && amount < channel_state.get_dust_limit() {
+        // if amount > 0 && amount < channel_state.get_min_threshold() {
         //     // if check fails, abort and output an error
         //     return Err(String::from("epsilon below dust limit!"));
         // }
@@ -1433,9 +1434,10 @@ impl MerchantMPCState {
         rev_lock_com: [u8; 32],
         paytoken_mask_com: [u8; 32],
         amount: i64,
+        circuit: *mut c_void
     ) -> Result<bool, String> {
         // // if epsilon > 0, check if acceptable (above dust limit).
-        // if amount > 0 && amount < channel_state.get_dust_limit() {
+        // if amount > 0 && amount < channel_state.get_min_threshold() {
         //     // if check fails, abort and output an error
         //     return Err(String::from("epsilon below dust limit!"));
         // }
@@ -1486,13 +1488,13 @@ impl MerchantMPCState {
             }
         };
 
-        let cf_ptr = self.get_circuit_file();
+        // let cf_ptr = self.get_circuit_file();
         let sk_m = secp256k1::SecretKey::from_slice(&self.sk_m.0).unwrap();
 
         let (r_merch, r_esc) = mpc_build_masked_tokens_merch(
             csprng,
             net_conn,
-            cf_ptr,
+            circuit,
             amount,
             &paytoken_mask_com,
             &rev_lock_com,
@@ -1673,6 +1675,7 @@ mod tests {
         cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info).unwrap();
         // get initial state
         let s_0 = cust_state.get_current_state();
+        println!("s_0.Nonce => {}", hex::encode(&s_0.nonce.0));
 
         // retrieve the initial state from cust state
         let init_cust_state = cust_state.get_initial_cust_state().unwrap();
@@ -1717,7 +1720,8 @@ mod tests {
         let s1 = s_1.clone();
 
         println!("hello, customer!");
-        let res = cust_state.execute_mpc_context(&channel_state, &channel_token, s0, s1, fee_cc, pay_token_mask_com, r_com, amount);
+        let circuit = cust_state.get_circuit_file();
+        let res = cust_state.execute_mpc_context(&channel_state, &channel_token, s0, s1, fee_cc, pay_token_mask_com, r_com, amount, circuit);
         assert!(res.is_ok(), res.err().unwrap());
 
         println!("completed mpc execution!");
@@ -1791,7 +1795,7 @@ mod tests {
     }
     }
 
-    // rusty_fork_test! {
+    rusty_fork_test! {
     #[test]
     fn mpc_channel_util_merchant_works() {
         let mut channel = ChannelMPCState::new(String::from("Channel A <-> B"), 1487, 546, false);
@@ -1820,7 +1824,7 @@ mod tests {
             fee_cc,
             String::from("Customer")
         );
-
+        println!("foo 1");
         // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
         let funding_tx_info = generate_test_txs(&mut rng, b0_cust, b0_merch, fee_mc);
 
@@ -1838,6 +1842,7 @@ mod tests {
 
         // retrieve the initial state from cust state
         let init_cust_state = cust_state.get_initial_cust_state().unwrap();
+        println!("foo 2: {}", hex::encode(&init_cust_state.nonce.0));
 
         // validate the initial state with merchant
         let res = merch_state.validate_initial_state(
@@ -1846,7 +1851,9 @@ mod tests {
             &init_cust_state,
             s_0.compute_hash(),
         );
+        println!("foo 3");
         assert!(res.is_ok(), res.err().unwrap());
+        println!("foo 4");
 
         println!("Begin activate phase for channel");
         println!(
@@ -1907,6 +1914,7 @@ mod tests {
         let nonce = s_0.get_nonce().clone();
 
         println!("hello, merchant!");
+        let circuit = merch_state.get_circuit_file(); // can be preloaded and cached
         let res = merch_state.execute_mpc_context(
             &mut rng,
             &mut db as &mut dyn StateDatabase,
@@ -1915,6 +1923,7 @@ mod tests {
             rev_lock_com,
             pay_token_mask_com,
             amount,
+            circuit
         );
         assert!(res.is_ok(), res.err().unwrap());
 
@@ -1931,7 +1940,7 @@ mod tests {
         println!("pt_masked: {:?}", hex::encode(&pt_mask));
         println!("pt_mask_r: {:?}", hex::encode(&pt_mask_r));
     }
-    // }
+    }
 
     #[test]
     fn mpc_test_serialization() {

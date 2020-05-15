@@ -91,7 +91,7 @@ pub struct Open {
     #[structopt(short = "q", long = "other-port")]
     other_port: String,
     #[structopt(short = "d", long = "dust-limit", default_value = "546")]
-    dust_limit: i64,
+    min_threshold: i64,
     #[structopt(short = "d", long = "self-delay", default_value = "1487")]
     self_delay: u16,
     #[structopt(short = "f", long = "fee-cc", default_value = "1000")]
@@ -127,7 +127,7 @@ pub struct Init {
     #[structopt(short = "q", long = "other-port")]
     other_port: String,
     #[structopt(short = "d", long = "dust-limit", default_value = "546")]
-    dust_limit: i64,
+    min_threshold: i64,
     #[structopt(short = "f", long = "fee-cc", default_value = "1000")]
     fee_cc: i64,
     #[structopt(short = "g", long = "fee-mc", default_value = "1000")]
@@ -410,7 +410,7 @@ fn main() {
                 create_connection!(open),
                 &db_url,
                 open.fee_mc,
-                open.dust_limit,
+                open.min_threshold,
                 open.self_delay,
             ) {
                 Err(e) => println!("Channel opening phase failed with error: {}", e),
@@ -578,13 +578,13 @@ mod cust {
         let fee_mc: i64 = serde_json::from_str(&msg0.get(2).unwrap()).unwrap();
 
         // check cust-bal meets min bal
-        let cust_min_bal = fee_cc + channel_state.get_dust_limit() + VAL_CPFP;
+        let cust_min_bal = fee_cc + channel_state.get_min_threshold() + VAL_CPFP;
         if b0_cust < cust_min_bal {
             return Err(format!("cust-bal must be greater than {}.", cust_min_bal));
         }
 
         // check merch-bal meets min bal
-        let merch_min_bal = fee_mc + channel_state.get_dust_limit() + VAL_CPFP;
+        let merch_min_bal = fee_mc + channel_state.get_min_threshold() + VAL_CPFP;
         if b0_merch < merch_min_bal {
             return Err(format!("merch-bal must be greater than {}.", merch_min_bal));
         }
@@ -1069,7 +1069,7 @@ mod merch {
         conn: &mut Conn,
         db_url: &String,
         fee_mc: i64,
-        dust_limit: i64,
+        min_threshold: i64,
         self_delay: u16,
     ) -> Result<(), String> {
         let merch_state_info = load_merchant_state_info(&db_url);
@@ -1080,13 +1080,13 @@ mod merch {
                 let rng = &mut rand::thread_rng();
 
                 let mut channel_state =
-                    ChannelMPCState::new(String::from("Channel"), self_delay, dust_limit, false);
-                if dust_limit == 0 {
+                    ChannelMPCState::new(String::from("Channel"), self_delay, min_threshold, false);
+                if min_threshold == 0 {
                     let s = format!("Dust limit must be greater than 0!");
                     return Err(s);
                 }
                 // set dust limit if it's set above
-                channel_state.set_dust_limit(dust_limit);
+                channel_state.set_min_threshold(min_threshold);
 
                 let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
 

@@ -42,7 +42,7 @@ type setupResp struct {
 }
 
 type ChannelState struct {
-	DustLimit      int64   `json:"dust_limit"`
+	MinThreshold   int64   `json:"min_threshold"`
 	KeyCom         string  `json:"key_com"`
 	Name           string  `json:"name"`
 	ThirdParty     bool    `json:"third_party"`
@@ -175,9 +175,9 @@ func GetSelfDelayBE(channelState ChannelState) (string, error) {
 	return r.SelfDelayBE, err
 }
 
-func ChannelSetup(name string, dustLimit int64, channelThirdPartySupport bool) (ChannelState, error) {
+func ChannelSetup(name string, minThreshold int64, channelThirdPartySupport bool) (ChannelState, error) {
 	selfDelay := uint16(1487) // fixed and not configurable in current version of MPC func
-	resp := C.GoString(C.mpc_channel_setup(C.CString(name), C.uint16_t(selfDelay), C.int64_t(dustLimit), C.uint(btoi(channelThirdPartySupport))))
+	resp := C.GoString(C.mpc_channel_setup(C.CString(name), C.uint16_t(selfDelay), C.int64_t(minThreshold), C.uint(btoi(channelThirdPartySupport))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return ChannelState{}, err
@@ -285,7 +285,7 @@ func ValidateOpenZkChannel(txid string, prevout string, nonce string, revLock st
 	// check the txid/prevout is consistent
 	// check nonce/revLock is right length
 	// check custPk is valid
-	// check custBal/merchBal
+	// check custBal/merchBal is above min-threshold
 	return true, nil
 }
 
