@@ -938,9 +938,8 @@ pub mod mpc {
         let mut cust_state =
             CustomerMPCState::new(csprng, b0_cust, b0_merch, fee_cc, cust_name);
 
-        // generate the initial channel token given the funding tx info
-        let mut channel_token = cust_state.generate_init_channel_token(pk_m);
-        cust_state.generate_init_state(csprng, &mut channel_token, min_fee, max_fee, fee_mc);
+        // generate the initial channel token and initial state
+        let channel_token = cust_state.generate_init_state(csprng, &pk_m, min_fee, max_fee, fee_mc);
 
         (channel_token, cust_state)
     }
@@ -961,17 +960,17 @@ pub mod mpc {
     }
 
     ///
-    /// validate_initial_state() - takes as input the channel token, initial state and verifies that they are well-formed
+    /// validate_channel_params() - takes as input the channel token, initial state and verifies that they are well-formed
     /// output: true or false
     ///
-    pub fn validate_initial_state(
+    pub fn validate_channel_params(
         db: &mut dyn StateDatabase,
         channel_token: &ChannelMPCToken,
         init_state: &InitCustState,
         init_hash: [u8; 32],
         merch_state: &mut MerchantMPCState,
     ) -> Result<bool, String> {
-        merch_state.validate_initial_state(db, channel_token, init_state, init_hash)
+        merch_state.validate_channel_params(db, channel_token, init_state, init_hash)
     }
 
     ///
@@ -2041,7 +2040,7 @@ mod tests {
         let (init_cust_state, init_hash) = mpc::get_initial_state(&cust_state).unwrap();
 
         // at this point, the escrow-tx can be broadcast and confirmed
-        let res2 = mpc::validate_initial_state(
+        let res2 = mpc::validate_channel_params(
             &mut db as &mut dyn StateDatabase,
             &channel_token,
             &init_cust_state,
@@ -2145,14 +2144,14 @@ mod tests {
 
         let (init_cust_state, init_hash) = mpc::get_initial_state(&cust_state).unwrap();
 
-        let res2 = mpc::validate_initial_state(
+        let res2 = mpc::validate_channel_params(
             &mut db as &mut dyn StateDatabase,
             &channel_token,
             &init_cust_state,
             init_hash,
             &mut merch_state,
         );
-        println!("mpc::validate_initial_state: {}", res2.is_ok());
+        println!("mpc::validate_channel_params: {}", res2.is_ok());
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
 
@@ -2252,8 +2251,8 @@ mod tests {
                 Err(e) => panic!(e)
             };
 
-            let res2 = mpc::validate_initial_state(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, init_hash, &mut merch_state);
-            println!("mpc::validate_initial_state: {}", res2.is_ok());
+            let res2 = mpc::validate_channel_params(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, init_hash, &mut merch_state);
+            println!("mpc::validate_channel_params: {}", res2.is_ok());
 
             let s0 = mpc::activate_customer(&mut rng, &mut cust_state);
 

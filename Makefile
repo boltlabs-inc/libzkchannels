@@ -24,6 +24,7 @@ mpctest:
 	cargo build --release
 	./test_mpcwrapper.sh
 	./test_channels_mpc.sh
+	redis-cli flushdb
 	cargo test --release -- --ignored --nocapture
 
 update:

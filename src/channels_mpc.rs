@@ -33,12 +33,20 @@ pub struct NetworkConfig {
 //     ptr: *mut c_void
 // }
 
-pub enum EstablishStatus {
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum ChannelStatus {
+    Opened,
     Initialized,
     Activated,
+    Established,
+    MerchantInitClose,
+    CustomerInitClose,
+    Disputed,
+    PendingClose,
+    ConfirmedClose
 }
 
-pub enum PayStatus {
+pub enum PaymentStatus {
     Prepare,
     Update,
     Complete,
@@ -186,7 +194,7 @@ pub struct CustomerMPCState {
     payout_pk: secp256k1::PublicKey,
     close_escrow_signature: Option<String>,
     close_merch_signature: Option<String>,
-    channel_initialized: bool,
+    channel_status: ChannelStatus,
     pub net_config: Option<NetworkConfig>,
 }
 
@@ -275,7 +283,7 @@ impl CustomerMPCState {
             payout_pk: payout_pk,
             close_escrow_signature: None,
             close_merch_signature: None,
-            channel_initialized: false,
+            channel_status: ChannelStatus::Opened,
             net_config: None,
         };
     }
@@ -318,17 +326,15 @@ impl CustomerMPCState {
     pub fn generate_init_state<R: Rng>(
         &mut self,
         csprng: &mut R,
-        channel_token: &mut ChannelMPCToken,
+        pk_m: &secp256k1::PublicKey,
         min_fee: i64,
         max_fee: i64,
         fee_mc: i64,
-    ) {
+    ) -> ChannelMPCToken {
         assert!(self.state.is_none());
 
         let mut nonce: [u8; NONCE_LEN] = [0; NONCE_LEN];
         csprng.fill_bytes(&mut nonce);
-
-        channel_token.set_customer_pk(self.pk_c.clone());
 
         let state = State {
             nonce: FixedSizeArray16(nonce),
@@ -344,8 +350,13 @@ impl CustomerMPCState {
             fee_mc,
         };
 
-        // assert!(channel_token.is_init());
         self.state = Some(state);
+        return ChannelMPCToken {
+            pk_c: Some(self.pk_c.clone()),
+            pk_m: pk_m.clone(),
+            escrow_txid: FixedSizeArray32([0u8; 32]),
+            merch_txid: FixedSizeArray32([0u8; 32]),
+        };
     }
 
     pub fn generate_rev_lock_commitment<R: Rng>(&mut self, csprng: &mut R) -> [u8; 32] {
@@ -453,15 +464,6 @@ impl CustomerMPCState {
         self.state = Some(new_state);
     }
 
-    pub fn generate_init_channel_token(&self, pk_m: &secp256k1::PublicKey) -> ChannelMPCToken {
-        return ChannelMPCToken {
-            pk_c: Some(self.pk_c.clone()),
-            pk_m: pk_m.clone(),
-            escrow_txid: FixedSizeArray32([0u8; 32]),
-            merch_txid: FixedSizeArray32([0u8; 32]),
-        };
-    }
-
     pub fn has_tokens(&self) -> bool {
         let index = self.index;
         let is_pt = self.pay_tokens.get(&index).is_some();
@@ -545,7 +547,8 @@ impl CustomerMPCState {
             ));
         }
 
-        //assert!(self.channel_initialized);
+        // TODO: add channel_status check: 
+
         // load the key_com from channel state
         let key_com = channel_state.get_key_com();
 
@@ -758,7 +761,7 @@ impl CustomerMPCState {
             let merch_sig_hex = hex::encode(&merch_sig.serialize_compact().to_vec());
             self.close_escrow_signature = Some(escrow_sig_hex);
             self.close_merch_signature = Some(merch_sig_hex);
-            self.channel_initialized = true;
+            self.channel_status = ChannelStatus::Initialized;
             Ok(true)
         } else {
             let s = String::from(
@@ -1092,6 +1095,7 @@ impl MerchantMPCState {
         channel_token: &ChannelMPCToken,
         s0: &State,
     ) -> Result<[u8; 32], String> {
+
         // refer to the state stored inside ActivateBucket by the channel_id
         let channel_id = channel_token.compute_channel_id().unwrap();
         let channel_id_str = hex::encode(channel_id.to_vec());
@@ -1121,7 +1125,7 @@ impl MerchantMPCState {
         Ok(init_pay_token)
     }
 
-    pub fn validate_initial_state(
+    pub fn validate_channel_params(
         &mut self,
         db: &mut dyn StateDatabase,
         channel_token: &ChannelMPCToken,
@@ -1652,6 +1656,8 @@ mod tests {
         let b0_merch = 200000;
         let fee_cc = 1000;
         let fee_mc = 1000;
+        let min_fee = 0;
+        let max_fee = 10000;
         // each party executes the init algorithm on the agreed initial challenge balance
         // in order to derive the channel tokens
         // initialize on the merchant side with balance: b0_merch
@@ -1663,25 +1669,31 @@ mod tests {
         // initialize on the customer side with balance: b0_cust
         let mut cust_state = CustomerMPCState::new(&mut rng, b0_cust, b0_merch, fee_cc, String::from("Customer"));
 
-        // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
-        let funding_tx_info = generate_test_txs(&mut rng, b0_cust, b0_merch, fee_mc);
+        // // initialize the channel token on with pks
+        // let mut channel_token = cust_state.generate_init_channel_token(&merch_state.pk_m);
+        // generate and send initial state to the merchant
+        // cust_state.generate_init_state(&mut rng, &mut channel_token, min_fee, max_fee, fee_mc);
 
         // initialize the channel token on with pks
-        let mut channel_token = cust_state.generate_init_channel_token(&merch_state.pk_m);
-
         // generate and send initial state to the merchant
-        cust_state.generate_init_state(&mut rng, &mut channel_token, 0, 10000, fee_mc);
+        let mut channel_token = cust_state.generate_init_state(&mut rng, &merch_state.pk_m, min_fee, max_fee, fee_mc);
+
+        // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
+        let funding_tx_info = generate_test_txs(&mut rng, b0_cust, b0_merch, fee_mc);
+        
         // set escrow-tx and merch-close-tx info
         cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info).unwrap();
-        // get initial state
+
+
+        // activate - get initial state (which should include the funding tx info)
         let s_0 = cust_state.get_current_state();
         println!("s_0.Nonce => {}", hex::encode(&s_0.nonce.0));
 
         // retrieve the initial state from cust state
         let init_cust_state = cust_state.get_initial_cust_state().unwrap();
 
-        // validate the initial state with merchant
-        let v = merch_state.validate_initial_state(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, s_0.compute_hash());
+        // merchant validates the channel token and init cust state
+        let v = merch_state.validate_channel_params(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, s_0.compute_hash());
         assert!(v.is_ok());
 
         println!("Begin activate phase for channel");
@@ -1807,6 +1819,9 @@ mod tests {
         let b0_merch = 200000;
         let fee_cc = 1000;
         let fee_mc = 1000;
+        let min_fee = 0;
+        let max_fee = 10000;
+
         // each party executes the init algorithm on the agreed initial challenge balance
         // in order to derive the channel tokens
 
@@ -1824,15 +1839,14 @@ mod tests {
             fee_cc,
             String::from("Customer")
         );
-        println!("foo 1");
+
+        // initialize the channel token on with pks
+        // generate and send initial state to the merchant
+        let mut channel_token = cust_state.generate_init_state(&mut rng, &merch_state.pk_m, min_fee, max_fee, fee_mc);
+
         // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
         let funding_tx_info = generate_test_txs(&mut rng, b0_cust, b0_merch, fee_mc);
 
-        // initialize the channel token on with pks
-        let mut channel_token = cust_state.generate_init_channel_token(&merch_state.pk_m);
-
-        // generate and send initial state to the merchant
-        cust_state.generate_init_state(&mut rng, &mut channel_token, 0, 10000, fee_mc);
         // set escrow-tx and merch-close-tx info
         cust_state
             .set_funding_tx_info(&mut channel_token, &funding_tx_info)
@@ -1842,18 +1856,15 @@ mod tests {
 
         // retrieve the initial state from cust state
         let init_cust_state = cust_state.get_initial_cust_state().unwrap();
-        println!("foo 2: {}", hex::encode(&init_cust_state.nonce.0));
 
         // validate the initial state with merchant
-        let res = merch_state.validate_initial_state(
+        let res = merch_state.validate_channel_params(
             &mut db as &mut dyn StateDatabase,
             &channel_token,
             &init_cust_state,
             s_0.compute_hash(),
         );
-        println!("foo 3");
         assert!(res.is_ok(), res.err().unwrap());
-        println!("foo 4");
 
         println!("Begin activate phase for channel");
         println!(
@@ -1990,7 +2001,8 @@ mod tests {
         );
 
         // initialize the channel token on with pks
-        let mut channel_token = cust_state.generate_init_channel_token(&merch_state.pk_m);
+        // generate and send initial state to the merchant
+        let mut channel_token = cust_state.generate_init_state(&mut rng, &merch_state.pk_m, 0, 10000, fee_mc);
 
         let cust_sk = [4u8; 32];
         let pay_sk = [5u8; 32];
@@ -1998,8 +2010,7 @@ mod tests {
         // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
         let funding_tx_info = generate_test_txs(&mut rng, b0_cust, b0_merch, fee_mc);
 
-        // generate and send initial state to the merchant
-        cust_state.generate_init_state(&mut rng, &mut channel_token, 0, 10000, fee_mc);
+        // start activate phase
         let s_0 = cust_state.get_current_state();
 
         cust_state

@@ -1232,7 +1232,7 @@ mod merch {
         let init_cust_state: InitCustState = serde_json::from_str(&msg4.get(1).unwrap()).unwrap();
         let init_hash: [u8; 32] = serde_json::from_str(&msg4.get(2).unwrap()).unwrap();
 
-        let res = handle_error_result!(mpc::validate_initial_state(
+        let res = handle_error_result!(mpc::validate_channel_params(
             &mut db as &mut dyn StateDatabase,
             &channel_token,
             &init_cust_state,

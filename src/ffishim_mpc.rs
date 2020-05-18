@@ -297,7 +297,7 @@ pub mod ffishim_mpc {
     }
 
     #[no_mangle]
-    pub extern "C" fn mpc_validate_initial_state(
+    pub extern "C" fn mpc_validate_channel_params(
         ser_channel_token: *mut c_char,
         ser_init_state: *mut c_char,
         ser_init_hash: *mut c_char,
@@ -328,7 +328,7 @@ pub mod ffishim_mpc {
         let mut db: RedisDatabase =
             handle_errors!(RedisDatabase::new("mpc", merch_state.db_url.clone()));
 
-        let is_ok = handle_errors!(mpc::validate_initial_state(
+        let is_ok = handle_errors!(mpc::validate_channel_params(
             &mut db as &mut dyn StateDatabase,
             &channel_token,
             &init_state,

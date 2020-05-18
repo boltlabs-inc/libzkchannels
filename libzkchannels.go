@@ -491,7 +491,7 @@ func MerchantValidateInitialState(channelToken ChannelToken, initCustState InitC
 		return false, MerchState{}, err
 	}
 
-	resp := C.GoString(C.mpc_validate_initial_state(C.CString(string(serChannelToken)), C.CString(string(serInitCustState)), C.CString(initHash), C.CString(string(serMerchState))))
+	resp := C.GoString(C.mpc_validate_channel_params(C.CString(string(serChannelToken)), C.CString(string(serInitCustState)), C.CString(initHash), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return false, MerchState{}, err
