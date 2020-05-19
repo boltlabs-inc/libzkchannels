@@ -1324,6 +1324,7 @@ mod tests {
     use database::{HashMapDatabase, MaskedTxMPCInputs, RedisDatabase, StateDatabase};
     use zkchan_tx::fixed_size_array::FixedSizeArray32;
     use zkchan_tx::Testnet;
+    use channels_mpc::ChannelStatus;
 
     fn setup_new_channel_helper(
         channel_state: &mut zkproofs::ChannelState<Bls12>,
@@ -2182,6 +2183,9 @@ mod tests {
         );
         println!("mpc::validate_channel_params: {}", res2.is_ok());
 
+        // TODO: add cust-close tx signing API
+        cust_state.channel_status = ChannelStatus::Initialized;
+
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state).unwrap();
 
         let pay_token = mpc::activate_merchant(
@@ -2283,6 +2287,7 @@ mod tests {
             let res2 = mpc::validate_channel_params(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, init_hash, &mut merch_state);
             println!("mpc::validate_channel_params: {}", res2.is_ok());
 
+            cust_state.channel_status = ChannelStatus::Initialized;
             let s0 = mpc::activate_customer(&mut rng, &mut cust_state).unwrap();
 
             let pay_token = mpc::activate_merchant(&mut db as &mut dyn StateDatabase, channel_token.clone(), &s0, &mut merch_state).unwrap();
