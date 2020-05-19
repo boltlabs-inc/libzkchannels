@@ -373,7 +373,7 @@ char *mpc_activate_merchant(char *ser_channel_token, char *ser_state, char *ser_
 
 char *mpc_channel_setup(const char *channel_name,
                         uint16_t self_delay,
-                        int64_t dust_limit,
+                        int64_t min_threshold,
                         uint32_t third_party_support);
 
 void mpc_free_string(char *pointer);
@@ -442,10 +442,10 @@ char *mpc_prepare_payment_merchant(char *ser_channel_state,
                                    int64_t amount,
                                    char *ser_merch_state);
 
-char *mpc_validate_initial_state(char *ser_channel_token,
-                                 char *ser_init_state,
-                                 char *ser_init_hash,
-                                 char *ser_merch_state);
+char *mpc_validate_channel_params(char *ser_channel_token,
+                                  char *ser_init_state,
+                                  char *ser_init_hash,
+                                  char *ser_merch_state);
 
 char *sign_merch_dispute_tx(char *ser_tx_index,
                             uint32_t index,

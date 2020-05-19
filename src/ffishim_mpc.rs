@@ -372,7 +372,7 @@ pub mod ffishim_mpc {
         let mut cust_state = handle_errors!(cust_state_result);
 
         // We change the channel state
-        let state = mpc::activate_customer(rng, &mut cust_state);
+        let state = handle_errors!(mpc::activate_customer(rng, &mut cust_state));
         let ser = [
             "{\'state\':\'",
             serde_json::to_string(&state).unwrap().as_str(),
@@ -445,7 +445,7 @@ pub mod ffishim_mpc {
         pay_token_0.copy_from_slice(pay_token.as_slice());
 
         // We change the channel state
-        mpc::activate_customer_finalize(pay_token_0, &mut cust_state);
+        handle_errors!(mpc::activate_customer_finalize(pay_token_0, &mut cust_state));
         let ser = [
             "{\'cust_state\':\'",
             serde_json::to_string(&cust_state).unwrap().as_str(),
@@ -847,7 +847,7 @@ pub mod ffishim_mpc {
 
         // We change the channel state
         let is_ok =
-            mpc::pay_unmask_pay_token_customer(pt_mask_bytes_ar, pt_mask_r_ar, &mut cust_state);
+            handle_errors!(mpc::pay_unmask_pay_token_customer(pt_mask_bytes_ar, pt_mask_r_ar, &mut cust_state));
         let ser = [
             "{\'is_ok\':",
             &is_ok.to_string(),

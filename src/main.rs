@@ -816,7 +816,7 @@ mod cust {
         let channel_token: ChannelMPCToken =
             handle_error_result!(serde_json::from_str(&ser_channel_token));
 
-        let s0 = mpc::activate_customer(rng, &mut cust_state);
+        let s0 = handle_error_result!(mpc::activate_customer(rng, &mut cust_state));
 
         // send the channel token and initial state
         let msg1 = [
@@ -828,7 +828,7 @@ mod cust {
 
         let pay_token: [u8; 32] = serde_json::from_str(&msg2.get(0).unwrap()).unwrap();
         println!("Obtained pay token (p0): {}", hex::encode(&pay_token));
-        mpc::activate_customer_finalize(pay_token, &mut cust_state);
+        handle_error_result!(mpc::activate_customer_finalize(pay_token, &mut cust_state));
 
         let cust_state_key = format!("cust:{}:cust_state", channel_name);
         let cust_state_json_str = handle_error_result!(serde_json::to_string(&cust_state));
@@ -960,7 +960,7 @@ mod cust {
 
         // unmask the pay token
         is_ok =
-            is_ok && mpc::pay_unmask_pay_token_customer(pt_mask_bytes, pt_mask_r, &mut cust_state);
+            is_ok && handle_error_result!(mpc::pay_unmask_pay_token_customer(pt_mask_bytes, pt_mask_r, &mut cust_state));
 
         conn.send(&[is_ok.to_string()]);
         match is_ok {

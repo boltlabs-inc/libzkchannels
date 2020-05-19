@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -68,26 +69,26 @@ type MerchState struct {
 }
 
 type CustState struct {
-	Name               string                  `json:"name"`
-	PkC                string                  `json:"pk_c"`
-	SkC                string                  `json:"sk_c"`
-	CustBalance        int64                   `json:"cust_balance"`
-	MerchBalance       int64                   `json:"merch_balance"`
-	FeeCC              int64                   `json:"fee_cc"`
-	RevLock            string                  `json:"rev_lock"`
-	RevSecret          string                  `json:"rev_secret"`
-	T                  string                  `json:"t"`
-	State              *State                  `json:"state"`
-	Index              int                     `json:"index"`
-	MaskedOutputs      *map[string]interface{} `json:"masked_outputs"`
-	PayTokens          *map[string]interface{} `json:"pay_tokens"`
-	PayTokenMaskCom    string                  `json:"pay_token_mask_com"`
-	PayoutSk           string                  `json:"payout_sk"`
-	PayoutPk           string                  `json:"payout_pk"`
-	EscrowSignature    string                  `json:"close_escrow_signature"`
-	MerchSignature     string                  `json:"close_merch_signature"`
-	ChannelInitialized bool                    `json:"channel_initialized"`
-	NetConfig          *map[string]interface{} `json:"net_config"`
+	Name            string                  `json:"name"`
+	PkC             string                  `json:"pk_c"`
+	SkC             string                  `json:"sk_c"`
+	CustBalance     int64                   `json:"cust_balance"`
+	MerchBalance    int64                   `json:"merch_balance"`
+	FeeCC           int64                   `json:"fee_cc"`
+	RevLock         string                  `json:"rev_lock"`
+	RevSecret       string                  `json:"rev_secret"`
+	T               string                  `json:"t"`
+	State           *State                  `json:"state"`
+	Index           int                     `json:"index"`
+	MaskedOutputs   *map[string]interface{} `json:"masked_outputs"`
+	PayTokens       *map[string]interface{} `json:"pay_tokens"`
+	PayTokenMaskCom string                  `json:"pay_token_mask_com"`
+	PayoutSk        string                  `json:"payout_sk"`
+	PayoutPk        string                  `json:"payout_pk"`
+	EscrowSignature string                  `json:"close_escrow_signature"`
+	MerchSignature  string                  `json:"close_merch_signature"`
+	ChannelStatus   string                  `json:"channel_status"`
+	NetConfig       *map[string]interface{} `json:"net_config"`
 }
 
 type State struct {
@@ -588,6 +589,7 @@ func PreparePaymentCustomer(channelState ChannelState, amount int64, custState C
 	resp := C.GoString(C.mpc_prepare_payment_customer(C.CString(string(serChannelState)), C.int64_t(amount), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
+		fmt.Println("Got an error here: ", err)
 		return RevokedState{}, State{}, CustState{}, err
 	}
 

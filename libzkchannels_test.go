@@ -12,6 +12,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func DebugError(err error) {
+	if err != nil {
+		fmt.Println("ERROR: ", err)
+	}
+}
+
 func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	dbUrl := "redis://127.0.0.1/"
 	channelState, err := ChannelSetup("channel", 546, false)
@@ -183,6 +189,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	assert.NotNil(t, custState)
 
 	fmt.Println("Nonce: ", state.Nonce)
+	fmt.Println("RevLockCom: ", revState.RevLockCom)
 
 	payTokenMaskCom, merchState, err := PreparePaymentMerchant(channelState, state.Nonce, revState.RevLockCom, 10, merchState)
 	assert.Nil(t, err)

@@ -19,7 +19,7 @@ use zkchan_tx::transactions::btc::{
 };
 use zkchan_tx::transactions::ClosePublicKeys;
 use zkchan_tx::{BitcoinNetwork, BitcoinTransactionParameters, Transaction};
-
+use std::fmt::Display;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct NetworkConfig {
     pub conn_type: ConnType,
@@ -33,7 +33,7 @@ pub struct NetworkConfig {
 //     ptr: *mut c_void
 // }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Display, Serialize, Deserialize)]
 pub enum ChannelStatus {
     Opened,
     Initialized,
@@ -194,7 +194,7 @@ pub struct CustomerMPCState {
     payout_pk: secp256k1::PublicKey,
     close_escrow_signature: Option<String>,
     close_merch_signature: Option<String>,
-    channel_status: ChannelStatus,
+    pub channel_status: ChannelStatus,
     pub net_config: Option<NetworkConfig>,
 }
 
@@ -383,8 +383,14 @@ impl CustomerMPCState {
         return self.state.unwrap();
     }
 
-    pub fn store_initial_pay_token(&mut self, pay_token: [u8; 32]) {
+    pub fn store_initial_pay_token(&mut self, pay_token: [u8; 32]) -> Result<(), String> {
+        if self.channel_status != ChannelStatus::Initialized {
+            return Err(format!("Invalid channel status for store_initial_pay_token(): {}", self.channel_status));
+        }
+
         self.pay_tokens.insert(0, FixedSizeArray32(pay_token));
+        self.channel_status = ChannelStatus::Activated;
+        Ok(())
     }
 
     pub fn set_funding_tx_info(
@@ -868,6 +874,10 @@ impl CustomerMPCState {
 
         self.pay_tokens
             .insert(self.index, FixedSizeArray32(pt_mask_bytes));
+
+        if self.channel_status == ChannelStatus::Activated {
+            self.channel_status = ChannelStatus::Established;
+        }
         return true;
     }
 
@@ -1709,9 +1719,12 @@ mod tests {
             Err(e) => panic!(e)
         };
 
+        // at this point, should have the signed cust-close-txs
+        // so can update channel status to Initialized
+        cust_state.channel_status = ChannelStatus::Initialized;
         println!("Pay Token on s_0 => {:?}", pay_token_0);
 
-        cust_state.store_initial_pay_token(pay_token_0);
+        cust_state.store_initial_pay_token(pay_token_0).unwrap();
 
         // let (rev_lock, rev_secret) = cust_state.get_rev_pair();
         // let t = cust_state.get_randomness();
@@ -1887,9 +1900,11 @@ mod tests {
             Err(e) => panic!(e),
         };
 
+        // at this point, should have the signed cust-close-txs
+        // so can update channel status to Initialized
+        cust_state.channel_status = ChannelStatus::Initialized;
         println!("Pay Token on s_0 => {:?}", hex::encode(&pay_token_0));
-
-        cust_state.store_initial_pay_token(pay_token_0);
+        cust_state.store_initial_pay_token(pay_token_0).unwrap();
 
         let (rev_lock, rev_secret) = cust_state.get_rev_pair();
         let t = cust_state.get_randomness();
