@@ -180,8 +180,9 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	// unlink should happen at this point (0-value payment)
 	fmt.Println("proceed with pay protocol...")
 
-	revState, newState, custState, err := PreparePaymentCustomer(channelState, 10, custState)
+	revState, newState, sessionId, custState, err := PreparePaymentCustomer(channelState, 10, custState)
 	assert.Nil(t, err)
+	fmt.Println("New session ID: ", sessionId)
 
 	assert.NotNil(t, revState)
 	assert.NotNil(t, newState)
@@ -191,7 +192,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("Nonce: ", state.Nonce)
 	fmt.Println("RevLockCom: ", revState.RevLockCom)
 
-	payTokenMaskCom, merchState, err := PreparePaymentMerchant(channelState, state.Nonce, revState.RevLockCom, 10, merchState)
+	payTokenMaskCom, merchState, err := PreparePaymentMerchant(channelState, sessionId, state.Nonce, revState.RevLockCom, 10, merchState)
 	assert.Nil(t, err)
 
 	go runPayCust(channelState, channelToken, state, newState, payTokenMaskCom, revState.RevLockCom, custState)

@@ -879,7 +879,7 @@ mod cust {
         let old_state = cust_state.get_current_state();
 
         // prepare phase
-        let (new_state, rev_state) =
+        let (new_state, rev_state, session_id) =
             match mpc::pay_prepare_customer(rng, &mut channel_state, amount, &mut cust_state) {
                 Ok(n) => n,
                 Err(e) => return Err(e),
@@ -892,11 +892,12 @@ mod cust {
             println!("new state: {}", &new_state);
             println!("====================================");
         }
+        let session_id_str = hex::encode(&session_id);
         let amount_str = hex::encode(amount.to_be_bytes());
         let old_nonce_str = hex::encode(&old_state.get_nonce());
         let rev_lock_com_str = hex::encode(&rev_state.rev_lock_com.0);
 
-        let msg = [old_nonce_str, rev_lock_com_str, amount_str];
+        let msg = [session_id_str, old_nonce_str, rev_lock_com_str, amount_str];
         let msg1 = conn.send_and_wait(
             &msg,
             Some(String::from("amount, nonce and rev_lock com")),
@@ -1317,11 +1318,16 @@ mod merch {
         let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
 
         let msg0 = conn.wait_for(None, false);
-        let nonce_vec = hex::decode(msg0.get(0).unwrap()).unwrap();
+        // get the session id
+        let session_id_vec = hex::decode(msg0.get(0).unwrap()).unwrap();
+        let mut session_id = [0u8; 16];
+        session_id.copy_from_slice(session_id_vec.as_slice());
+        // get the nonce
+        let nonce_vec = hex::decode(msg0.get(1).unwrap()).unwrap();
         let mut nonce = [0u8; 16];
         nonce.copy_from_slice(nonce_vec.as_slice());
-
-        let rev_lock_com_vec = hex::decode(msg0.get(1).unwrap()).unwrap();
+        // get the 
+        let rev_lock_com_vec = hex::decode(msg0.get(2).unwrap()).unwrap();
         let mut rev_lock_com = [0u8; 32];
         rev_lock_com.copy_from_slice(rev_lock_com_vec.as_slice());
 
@@ -1329,7 +1335,7 @@ mod merch {
         let amount = match cmd_amount {
             Some(a) => a,
             None => {
-                let amount_vec = hex::decode(msg0.get(2).unwrap()).unwrap();
+                let amount_vec = hex::decode(msg0.get(3).unwrap()).unwrap();
                 let mut amount_buf = [0u8; 8];
                 amount_buf.copy_from_slice(amount_vec.as_slice());
                 i64::from_be_bytes(amount_buf)
@@ -1345,6 +1351,7 @@ mod merch {
             rng,
             &mut db as &mut dyn StateDatabase,
             &channel_state,
+            session_id,
             nonce,
             rev_lock_com.clone(),
             amount,

@@ -1026,7 +1026,7 @@ pub mod mpc {
         channel: &ChannelMPCState,
         amount: i64,
         cust_state: &mut CustomerMPCState,
-    ) -> Result<(State, RevokedState), String> {
+    ) -> Result<(State, RevokedState, [u8; 16]), String> {
         // verify that channel status is already activated or established (unlink)
         if (cust_state.channel_status == ChannelStatus::Activated && amount >= 0) || 
             (cust_state.channel_status == ChannelStatus::Established && amount > 0) {
@@ -1055,7 +1055,9 @@ pub mod mpc {
 
             cust_state.generate_new_state(csprng, amount);
             let new_state = cust_state.get_current_state();
-
+            // pick new session ID
+            let mut session_id = [0u8; 16];
+            csprng.fill_bytes(&mut session_id);
             Ok((
                 new_state,
                 RevokedState {
@@ -1065,6 +1067,7 @@ pub mod mpc {
                     rev_secret: FixedSizeArray32(cur_rev_secret),
                     t: FixedSizeArray16(cur_t),
                 },
+                session_id
             ))
         } else {
             return Err(format!("Invalid channel status for pay_prepare_customer(): {}", cust_state.channel_status));
@@ -1080,15 +1083,18 @@ pub mod mpc {
         csprng: &mut R,
         db: &mut dyn StateDatabase,
         channel_state: &ChannelMPCState,
+        session_id: [u8; 16],
         nonce: [u8; NONCE_LEN],
         rev_lock_com: [u8; 32],
         amount: i64,
         merch_state: &mut MerchantMPCState,
     ) -> Result<[u8; 32], String> {
+        // TODO: verify that no existing session with the specified session_id/nonce combo
         merch_state.generate_pay_mask_commitment(
             csprng,
             db,
             channel_state,
+            session_id,
             nonce,
             rev_lock_com,
             amount,
@@ -1321,7 +1327,7 @@ mod tests {
     use rand_xorshift::XorShiftRng;
     use sha2::{Digest, Sha256};
 
-    use database::{HashMapDatabase, MaskedTxMPCInputs, RedisDatabase, StateDatabase};
+    use database::{MaskedTxMPCInputs, HashMapDatabase, RedisDatabase, StateDatabase};
     use zkchan_tx::fixed_size_array::FixedSizeArray32;
     use zkchan_tx::Testnet;
     use channels_mpc::ChannelStatus;
@@ -2198,7 +2204,7 @@ mod tests {
 
         mpc::activate_customer_finalize(pay_token, &mut cust_state).unwrap();
 
-        let (_new_state, revoked_state) =
+        let (_new_state, revoked_state, session_id) =
             mpc::pay_prepare_customer(&mut rng, &channel, amount, &mut cust_state).unwrap();
         let rev_lock_com = revoked_state.get_rev_lock_com();
 
@@ -2206,6 +2212,7 @@ mod tests {
             &mut rng,
             &mut db as &mut dyn StateDatabase,
             &channel,
+            session_id,
             s0.get_nonce(),
             rev_lock_com.clone(),
             amount,
@@ -2234,6 +2241,11 @@ mod tests {
         );
         assert!(masked_inputs.is_ok(), masked_inputs.err().unwrap());
         // println!("Masked Tx Inputs: {:#?}", masked_inputs.unwrap());
+        let mask_in = masked_inputs.unwrap();
+        println!("escrow_mask: {}", hex::encode(mask_in.escrow_mask.0));
+        println!("merch_mask: {}", hex::encode(mask_in.merch_mask.0));
+        println!("r_escrow_sig: {}", hex::encode(mask_in.r_escrow_sig.0));
+        println!("r_merch_sig: {}", hex::encode(mask_in.r_merch_sig.0));
 
         let (pay_token_mask, pay_token_mask_r) = match mpc::pay_validate_rev_lock_merchant(
             &mut db as &mut dyn StateDatabase,
@@ -2246,11 +2258,11 @@ mod tests {
         println!("pt_mask_r => {}", hex::encode(&pay_token_mask_r));
         assert_eq!(
             hex::encode(pay_token_mask),
-            "f53a27a851a43c7843c4781962a54fa36cd32e3254e7adaf3e742870ecab92ae"
+            "6cd32e3254e7adaf3e742870ecab92aee1b863eabe75342a427d8e1954787822"
         );
         assert_eq!(
             hex::encode(pay_token_mask_r),
-            "e1b863eabe75342a427d8e1954787822"
+            "4a682bd5d46e3b5c7c6c353636086ed7"
         );
         // db.clear_state();
     }
@@ -2299,24 +2311,22 @@ mod tests {
             let orig_funding_tx_info: FundingTxInfo = serde_json::from_str(&ser_tx_info).unwrap();
             assert_eq!(funding_tx_info, orig_funding_tx_info);
 
-            let (state, rev_state) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, amount, &mut cust_state).unwrap();
+            let (state, rev_state, session_id) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, amount, &mut cust_state).unwrap();
             let rev_lock_com = rev_state.rev_lock_com.0;
 
-            let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &mut db as &mut dyn StateDatabase, &channel_state, state.get_nonce(), rev_lock_com.clone(), amount, &mut merch_state).unwrap();
+            let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &mut db as &mut dyn StateDatabase, &channel_state, session_id, state.get_nonce(), rev_lock_com.clone(), amount, &mut merch_state).unwrap();
 
             let res_cust = mpc::pay_update_customer(&mut channel_state, &channel_token, s0, state, fee_cc, pay_mask_com, rev_lock_com, amount, &mut cust_state);
             assert!(res_cust.is_ok() && res_cust.unwrap());
 
-            let mut pt_mask = [0u8; 32];
-            pt_mask.copy_from_slice(hex::decode("f53a27a851a43c7843c4781962a54fa36cd32e3254e7adaf3e742870ecab92ae").unwrap().as_slice());
             let mut escrow_mask = [0u8; 32];
-            escrow_mask.copy_from_slice(hex::decode("671687f7cecc583745cd86342ddcccd4fddc371be95df8ea164916e88dcd895a").unwrap().as_slice());
+            escrow_mask.copy_from_slice(hex::decode("fddc371be95df8ea164916e88dcd895a1522fcff163fc3d70182c78d91d33699").unwrap().as_slice());
             let mut merch_mask = [0u8; 32];
-            merch_mask.copy_from_slice(hex::decode("4a682bd5d46e3b5c7c6c353636086ed7a943895982cb43deba0a8843459500e4").unwrap().as_slice());
+            merch_mask.copy_from_slice(hex::decode("a943895982cb43deba0a8843459500e4671687f7cecc583745cd86342ddcccd4").unwrap().as_slice());
             let mut r_escrow_sig = [0u8; 32];
-            r_escrow_sig.copy_from_slice(hex::decode("1c242c510c2e11e8b00e0198cb6a58c42b83465004190ddf39ed6cfc5be26257").unwrap().as_slice());
+            r_escrow_sig.copy_from_slice(hex::decode("c1270ef7f78f7f8f208eb28da447d2e5820c9b7b9e37aee7f2f60af454d7ca31").unwrap().as_slice());
             let mut r_merch_sig = [0u8; 32];
-            r_merch_sig.copy_from_slice(hex::decode("6f1badfa1b06afb2129e36d331919d445c48698d6a838619aa3239075c21dd5c").unwrap().as_slice());
+            r_merch_sig.copy_from_slice(hex::decode("4bdedb34faa1b5374e86d5276cbb6fe31449252e3e959ff86a8506944d8d29d2").unwrap().as_slice());
 
             let masks = MaskedTxMPCInputs::new(
                 escrow_mask,
@@ -2329,13 +2339,12 @@ mod tests {
             assert!(is_ok.is_ok(), is_ok.err().unwrap());
 
             let mut pt_mask = [0u8; 32];
-            pt_mask.copy_from_slice(hex::decode("f53a27a851a43c7843c4781962a54fa36cd32e3254e7adaf3e742870ecab92ae").unwrap().as_slice());
+            pt_mask.copy_from_slice(hex::decode("6cd32e3254e7adaf3e742870ecab92aee1b863eabe75342a427d8e1954787822").unwrap().as_slice());
             let mut pt_mask_r = [0u8; 16];
-            pt_mask_r.copy_from_slice(hex::decode("e1b863eabe75342a427d8e1954787822").unwrap().as_slice());
+            pt_mask_r.copy_from_slice(hex::decode("4a682bd5d46e3b5c7c6c353636086ed7").unwrap().as_slice());
 
             let is_ok = mpc::pay_unmask_pay_token_customer(pt_mask, pt_mask_r, &mut cust_state).unwrap();
-            assert!(is_ok);
-            // db.clear_state();
+            assert!(is_ok);            
         }
     }
 }

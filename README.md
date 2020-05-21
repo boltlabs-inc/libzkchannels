@@ -174,7 +174,7 @@ Prepare/Update State phase
 	let rev_lock_com = revoked_state.get_rev_lock_com();
 
 	// merchant generates a pay token mask and return a commitment to the customer
-	let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, channel_state, rev_lock_com, old_state.get_nonce(), rev_lock_com, 10, &mut merch_state).unwrap();
+	let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, channel_state, old_state.get_nonce(), rev_lock_com, 10, &mut merch_state).unwrap();
 
 Now proceed with executing the MPC if successful
 

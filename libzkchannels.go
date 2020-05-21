@@ -8,7 +8,6 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 )
 
@@ -21,6 +20,7 @@ type setupResp struct {
 	PayToken        string `json:"pay_token"`
 	State           string `json:"state"`
 	RevState        string `json:"rev_state"`
+	SessionId       string `json:"session_id"`
 	FoundRevSecret  string `json:"found_rev_secret"`
 	PayTokenMaskCom string `json:"pay_token_mask_com"`
 	MaskedTxInputs  string `json:"masked_tx_inputs"`
@@ -577,40 +577,39 @@ func ActivateCustomerFinalize(payToken string, custState CustState) (CustState, 
 	return custState, err
 }
 
-func PreparePaymentCustomer(channelState ChannelState, amount int64, custState CustState) (RevokedState, State, CustState, error) {
+func PreparePaymentCustomer(channelState ChannelState, amount int64, custState CustState) (RevokedState, State, string, CustState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
-		return RevokedState{}, State{}, CustState{}, err
+		return RevokedState{}, State{}, "", CustState{}, err
 	}
 	serCustState, err := json.Marshal(custState)
 	if err != nil {
-		return RevokedState{}, State{}, CustState{}, err
+		return RevokedState{}, State{}, "", CustState{}, err
 	}
 	resp := C.GoString(C.mpc_prepare_payment_customer(C.CString(string(serChannelState)), C.int64_t(amount), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
-		fmt.Println("Got an error here: ", err)
-		return RevokedState{}, State{}, CustState{}, err
+		return RevokedState{}, State{}, "", CustState{}, err
 	}
 
 	state := State{}
 	err = json.Unmarshal([]byte(r.State), &state)
 	if err != nil {
-		return RevokedState{}, State{}, CustState{}, err
+		return RevokedState{}, State{}, "", CustState{}, err
 	}
 
 	newCustState := CustState{}
 	err = json.Unmarshal([]byte(r.CustState), &newCustState)
 	if err != nil {
-		return RevokedState{}, State{}, CustState{}, err
+		return RevokedState{}, State{}, "", CustState{}, err
 	}
 	revState := RevokedState{}
 	err = json.Unmarshal([]byte(r.RevState), &revState)
 
-	return revState, state, newCustState, err
+	return revState, state, r.SessionId, newCustState, err
 }
 
-func PreparePaymentMerchant(channelState ChannelState, nonce string, revLockCom string, amount int64, merchState MerchState) (string, MerchState, error) {
+func PreparePaymentMerchant(channelState ChannelState, sessionId string, nonce string, revLockCom string, amount int64, merchState MerchState) (string, MerchState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
 		return "", MerchState{}, err
@@ -621,7 +620,7 @@ func PreparePaymentMerchant(channelState ChannelState, nonce string, revLockCom 
 		return "", MerchState{}, err
 	}
 
-	resp := C.GoString(C.mpc_prepare_payment_merchant(C.CString(string(serChannelState)), C.CString(nonce), C.CString(revLockCom), C.int64_t(amount), C.CString(string(serMerchState))))
+	resp := C.GoString(C.mpc_prepare_payment_merchant(C.CString(string(serChannelState)), C.CString(sessionId), C.CString(nonce), C.CString(revLockCom), C.int64_t(amount), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", MerchState{}, err

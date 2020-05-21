@@ -2,7 +2,7 @@ use super::*;
 use util::{compute_hash160, hash_to_slice, hmac_sign, VAL_CPFP};
 
 use bindings::{load_circuit_file, ConnType};
-use database::{MaskedMPCInputs, MaskedTxMPCInputs, StateDatabase};
+use database::{MaskedMPCInputs, MaskedTxMPCInputs, SessionState, StateDatabase};
 use mpcwrapper::{mpc_build_masked_tokens_cust, mpc_build_masked_tokens_merch, CIRCUIT_FILE};
 use rand::Rng;
 use sha2::{Digest, Sha256};
@@ -45,7 +45,7 @@ pub enum ChannelStatus {
     PendingClose,
     ConfirmedClose
 }
-
+#[derive(Clone, Debug, PartialEq, Display, Serialize, Deserialize)]
 pub enum PaymentStatus {
     Prepare,
     Update,
@@ -1216,11 +1216,13 @@ impl MerchantMPCState {
         csprng: &mut R,
         db: &mut dyn StateDatabase,
         _channel_state: &ChannelMPCState,
+        session_id: [u8; 16],
         nonce: [u8; NONCE_LEN],
-        _rev_lock_com: [u8; 32],
+        rev_lock_com: [u8; 32],
         amount: i64,
     ) -> Result<[u8; 32], String> {
         let nonce_hex = hex::encode(nonce);
+        let session_id_hex = hex::encode(session_id);
 
         // check if n_i in S_unlink and amount == 0. if so, proceed since this is the unlink protocol
         if amount == 0 && !db.is_member_unlink_set(&nonce_hex) {
@@ -1253,6 +1255,12 @@ impl MerchantMPCState {
 
         // store pay_mask for use in mpc protocol later
         db.update_nonce_mask_map(&nonce_hex, pay_mask, pay_mask_r)?;
+
+        // save session state
+        let sess_state = SessionState { nonce: nonce_hex, rev_lock_com: hex::encode(rev_lock_com), amount: amount, stage: PaymentStatus::Prepare };
+        if !db.save_session_state(&session_id_hex, &sess_state) {
+            println!("ERROR: Could not save session state for: {}", &session_id_hex);
+        }
 
         Ok(paytoken_mask_com)
     }
@@ -1679,11 +1687,6 @@ mod tests {
         // initialize on the customer side with balance: b0_cust
         let mut cust_state = CustomerMPCState::new(&mut rng, b0_cust, b0_merch, fee_cc, String::from("Customer"));
 
-        // // initialize the channel token on with pks
-        // let mut channel_token = cust_state.generate_init_channel_token(&merch_state.pk_m);
-        // generate and send initial state to the merchant
-        // cust_state.generate_init_state(&mut rng, &mut channel_token, min_fee, max_fee, fee_mc);
-
         // initialize the channel token on with pks
         // generate and send initial state to the merchant
         let mut channel_token = cust_state.generate_init_state(&mut rng, &merch_state.pk_m, min_fee, max_fee, fee_mc);
@@ -1735,7 +1738,10 @@ mod tests {
         let s_1 = cust_state.get_current_state();
         println!("Updated state: {}", s_1);
 
-        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, &mut db as &mut dyn StateDatabase, &channel_state, s_0.get_nonce(), r_com.clone(), amount).unwrap();
+        // pick session id
+        let session_id = [1u8; 16];
+
+        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, &mut db as &mut dyn StateDatabase, &channel_state, session_id, s_0.get_nonce(), r_com.clone(), amount).unwrap();
         cust_state.update_pay_com(pay_token_mask_com);
 
         // cust_state.set_mpc_connect_type(2);
@@ -1914,11 +1920,14 @@ mod tests {
         cust_state.generate_new_state(&mut rng, amount);
         let s_1 = cust_state.get_current_state();
         println!("Updated state: {}", s_1);
+        let session_id = [1u8; 16];
+
         let pay_token_mask_com = merch_state
             .generate_pay_mask_commitment(
                 &mut rng,
                 &mut db as &mut dyn StateDatabase,
                 &channel,
+                session_id,
                 s_0.get_nonce(),
                 r_com.clone(),
                 amount,

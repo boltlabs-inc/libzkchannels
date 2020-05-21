@@ -477,7 +477,7 @@ pub mod ffishim_mpc {
         let mut cust_state = handle_errors!(cust_state_result);
 
         // We change the channel state
-        let (state, rev_state) =
+        let (state, rev_state, session_id) =
             match mpc::pay_prepare_customer(rng, &channel_state, amount, &mut cust_state) {
                 Ok(n) => n,
                 Err(e) => return error_message(e),
@@ -487,6 +487,8 @@ pub mod ffishim_mpc {
             serde_json::to_string(&rev_state).unwrap().as_str(),
             "\', \'state\':\'",
             serde_json::to_string(&state).unwrap().as_str(),
+            "\', \'session_id\':\'",
+            &hex::encode(session_id),
             "\', \'cust_state\':\'",
             serde_json::to_string(&cust_state).unwrap().as_str(),
             "\'}",
@@ -499,6 +501,7 @@ pub mod ffishim_mpc {
     #[no_mangle]
     pub extern "C" fn mpc_prepare_payment_merchant(
         ser_channel_state: *mut c_char,
+        ser_session_id: *mut c_char,
         ser_nonce: *mut c_char,
         ser_rev_lock_com: *mut c_char,
         amount: i64,
@@ -516,6 +519,12 @@ pub mod ffishim_mpc {
         let rev_lock_com = handle_errors!(rev_lock_com_result);
         let mut rev_lock_com_ar = [0u8; 32];
         rev_lock_com_ar.copy_from_slice(rev_lock_com.as_slice());
+
+        // Deserialize session_id
+        let sess_id_result = deserialize_hex_string(ser_session_id);
+        let session_id = handle_errors!(sess_id_result);
+        let mut session_id_ar = [0u8; 16];
+        session_id_ar.copy_from_slice(session_id.as_slice());
 
         // Deserialize nonce
         let nonce_result = deserialize_hex_string(ser_nonce);
@@ -537,6 +546,7 @@ pub mod ffishim_mpc {
             rng,
             &mut db as &mut dyn StateDatabase,
             &channel_state,
+            session_id_ar,
             nonce_ar,
             rev_lock_com_ar,
             amount,
