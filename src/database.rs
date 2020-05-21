@@ -80,10 +80,10 @@ impl MaskedTxMPCInputs {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SessionState {
-    pub nonce: String,
-    pub rev_lock_com: String,
+    pub nonce: FixedSizeArray16,
+    pub rev_lock_com: FixedSizeArray32,
     pub amount: i64,
-    pub stage: PaymentStatus 
+    pub status: PaymentStatus 
 }
 
 pub trait StateDatabase {
@@ -92,8 +92,10 @@ pub trait StateDatabase {
     where
         Self: Sized;
 
-    fn save_session_state(&mut self, session_id_hex: &String, session_state: &SessionState) -> bool;
+    fn check_session_id(&mut self, session_id_hex: &String) -> Result<bool, String>;
+    fn save_new_session_state(&mut self, session_id_hex: &String, session_state: &SessionState) -> bool;
     fn load_session_state(&mut self, session_id_hex: &String) -> Result<SessionState, String>;
+    fn update_session_state(&mut self, session_id_hex: &String, session_state: &SessionState) -> bool;
     fn clear_session_state(&mut self, session_id_hex: &String) -> bool;
     // spent rev_lock map methods
     fn update_spent_map(
@@ -162,21 +164,56 @@ impl StateDatabase for RedisDatabase {
         })
     }
 
-    fn save_session_state(&mut self, session_id_hex: &String, session_state: &SessionState) -> bool {
+    fn check_session_id(&mut self, session_id_hex: &String) -> Result<bool, String> {
+        match self
+            .conn
+            .hexists(self.session_map_key.clone(), session_id_hex.clone())
+        {
+            Ok(s) => Ok(s),
+            Err(e) => return Err(format!("check_session_id: {}", e.to_string())),
+        }    
+    }
+
+    fn save_new_session_state(&mut self, session_id_hex: &String, session_state: &SessionState) -> bool {
         let ser_session_state = match serde_json::to_string(session_state) {
             Ok(s) => s,
             Err(_) => return false,
         };
 
+        // Sets field in the hash stored at key to value, only if field does not yet exist. 
+        // If key does not exist, a new key holding a hash is created. 
+        // If field already exists, this operation has no effect.
+        match self.conn.hset_nx::<String, String, String, i32>(
+            self.session_map_key.clone(),
+            session_id_hex.clone(),
+            ser_session_state,
+        ) {
+            // 1 if field is a new field and value was set.
+            // 0 if field already exists in the hash and no operation was performed
+            Ok(c) => c != 0,  
+            Err(_) => false,
+        }
+    }
+
+    fn update_session_state(&mut self, session_id_hex: &String, session_state: &SessionState) -> bool {
+        let ser_session_state = match serde_json::to_string(session_state) {
+            Ok(s) => s,
+            Err(_) => return false,
+        };
+
+        // Sets field in the hash stored at key to value. 
+        // If key does not exist, a new key holding a hash is created. 
+        // If field already exists in the hash, it is overwritten.
         match self.conn.hset::<String, String, String, i32>(
             self.session_map_key.clone(),
             session_id_hex.clone(),
             ser_session_state,
         ) {
-            Ok(c) => c != 0,
+            Ok(c) => c >= 0,
             Err(_) => false,
         }
     }
+
 
     fn load_session_state(&mut self, session_id_hex: &String) -> Result<SessionState, String> {
         let ser_session_data = match self
@@ -469,11 +506,19 @@ impl StateDatabase for HashMapDatabase {
         })
     }
 
-    fn save_session_state(&mut self, session_id_hex: &String, session_state: &SessionState) -> bool {
+    fn check_session_id(&mut self, session_id_hex: &String) -> Result<bool, String> {
+        Ok(self.session_state_map.get(session_id_hex).is_some())
+    }
+
+    fn save_new_session_state(&mut self, session_id_hex: &String, session_state: &SessionState) -> bool {
         match self.session_state_map.insert(session_id_hex.clone(), session_state.clone()) {
             Some(_) => true,
             None => false,
         }        
+    }
+
+    fn update_session_state(&mut self, session_id_hex: &String, session_state: &SessionState) -> bool {
+        return self.save_new_session_state(session_id_hex, session_state)
     }
 
     fn load_session_state(&mut self, session_id_hex: &String) -> Result<SessionState, String> {
@@ -771,13 +816,13 @@ mod tests {
         db.clear_state();
 
         let session_id = hex::encode([1u8; 16]);
-        let nonce_hex = hex::encode([2u8; 16]);
+        let nonce = [2u8; 16];
         let amount = 10000;
-        let rev_lock_com = hex::encode(hash_to_slice(&[1u8; 32].to_vec()));
+        let rev_lock_com = hash_to_slice(&[1u8; 32].to_vec());
 
-        let session_state = SessionState { nonce: nonce_hex, rev_lock_com: rev_lock_com, amount: amount, stage: PaymentStatus::Prepare };
+        let mut session_state = SessionState { nonce: FixedSizeArray16(nonce), rev_lock_com: FixedSizeArray32(rev_lock_com), amount: amount, status: PaymentStatus::Prepare };
 
-        let result = db.save_session_state(&session_id, &session_state);
+        let result = db.update_session_state(&session_id, &session_state);
         assert!(result);
 
         let session_state_result = db.load_session_state(&session_id);
@@ -785,5 +830,13 @@ mod tests {
 
         let rec_session_state = session_state_result.unwrap();
         assert_eq!(session_state, rec_session_state);
+
+        session_state.status = PaymentStatus::Error; // change error status
+        let result = db.update_session_state(&session_id, &session_state);
+        assert!(result);
+
+        // check for existing session
+        let result = db.check_session_id(&session_id).unwrap();
+        assert!(result);
     }
 }

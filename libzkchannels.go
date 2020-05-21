@@ -663,7 +663,7 @@ func PayUpdateCustomer(channelState ChannelState, channelToken ChannelToken, sta
 	return r.IsOk, custState, err
 }
 
-func PayUpdateMerchant(channelState ChannelState, nonce string, payTokenMaskCom string, revLockCom string, amount int64, merchState MerchState) (bool, MerchState, error) {
+func PayUpdateMerchant(channelState ChannelState, sessionId string, payTokenMaskCom string, merchState MerchState) (bool, MerchState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
 		return false, MerchState{}, err
@@ -674,7 +674,7 @@ func PayUpdateMerchant(channelState ChannelState, nonce string, payTokenMaskCom 
 		return false, MerchState{}, err
 	}
 
-	resp := C.GoString(C.mpc_pay_update_merchant(C.CString(string(serChannelState)), C.CString(nonce), C.CString(payTokenMaskCom), C.CString(revLockCom), C.int64_t(amount), C.CString(string(serMerchState))))
+	resp := C.GoString(C.mpc_pay_update_merchant(C.CString(string(serChannelState)), C.CString(sessionId), C.CString(payTokenMaskCom), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return false, MerchState{}, err

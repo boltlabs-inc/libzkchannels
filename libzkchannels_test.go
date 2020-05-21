@@ -41,10 +41,13 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	channelToken, custState, err := InitCustomer(fmt.Sprintf("%v", *merchState.PkM), custBal, merchBal, feeCC, minFee, maxFee, feeMC, "cust")
 	assert.Nil(t, err)
 
-	skC := "1a1971e1379beec67178509e25b6772c66cb67bb04d70df2b4bcdb8c08a01827"
-	payoutSk := "4157697b6428532758a9d0f9a73ce58befe3fd665797427d1c5bb3d33f6a132e"
-	channelToken, custState, err = LoadCustomerWallet(custState, channelToken, skC, payoutSk)
-	assert.Nil(t, err)
+	fix_customer_wallet := os.Getenv("FIX_CUSTOMER_WALLET")
+	if fix_customer_wallet != "" {
+		skC := "1a1971e1379beec67178509e25b6772c66cb67bb04d70df2b4bcdb8c08a01827"
+		payoutSk := "4157697b6428532758a9d0f9a73ce58befe3fd665797427d1c5bb3d33f6a132e"
+		channelToken, custState, err = LoadCustomerWallet(custState, channelToken, skC, payoutSk)
+		assert.Nil(t, err)
+	}
 
 	inputSats := int64(50 * 100000000)
 	cust_utxo_txid := os.Getenv("UTXO_TXID")
@@ -196,7 +199,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	assert.Nil(t, err)
 
 	go runPayCust(channelState, channelToken, state, newState, payTokenMaskCom, revState.RevLockCom, custState)
-	isOk, merchState, err = PayUpdateMerchant(channelState, state.Nonce, payTokenMaskCom, revState.RevLockCom, 10, merchState)
+	isOk, merchState, err = PayUpdateMerchant(channelState, sessionId, payTokenMaskCom, merchState)
 	assert.Nil(t, err)
 	time.Sleep(time.Second * 5)
 

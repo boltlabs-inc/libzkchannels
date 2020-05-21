@@ -1159,10 +1159,8 @@ pub mod mpc {
         csprng: &mut R,
         db: &mut dyn StateDatabase,
         channel: &mut ChannelMPCState,
-        nonce: [u8; NONCE_LEN],
+        session_id: [u8; 16],
         pay_token_mask_com: [u8; 32],
-        rev_lock_com: [u8; 32],
-        amount: i64,
         merch_state: &mut MerchantMPCState,
     ) -> Result<bool, String> {
         if merch_state.net_config.is_none() {
@@ -1175,15 +1173,14 @@ pub mod mpc {
                 peer_raw_fd: 0,
             });
         }
+        // TODO: add better error handling here
         let circuit = merch_state.get_circuit_file();
         return merch_state.execute_mpc_context(
             csprng,
             db,
             &channel,
-            nonce,
-            rev_lock_com,
+            session_id,
             pay_token_mask_com,
-            amount,
             circuit
         );
     }
@@ -2224,10 +2221,8 @@ mod tests {
             &mut rng,
             &mut db as &mut dyn StateDatabase,
             &mut channel,
-            s0.get_nonce(),
+            session_id,
             pay_mask_com,
-            rev_lock_com,
-            amount,
             &mut merch_state,
         );
         assert!(res_merch.is_ok(), res_merch.err().unwrap());

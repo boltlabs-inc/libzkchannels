@@ -1375,10 +1375,8 @@ mod merch {
             rng,
             &mut db as &mut dyn StateDatabase,
             channel_state,
-            nonce.clone(),
+            session_id,
             pay_token_mask_com,
-            rev_lock_com,
-            amount,
             merch_state
         ));
 

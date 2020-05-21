@@ -639,10 +639,8 @@ pub mod ffishim_mpc {
     #[no_mangle]
     pub extern "C" fn mpc_pay_update_merchant(
         ser_channel_state: *mut c_char,
-        ser_nonce: *mut c_char,
+        ser_session_id: *mut c_char,
         ser_pay_token_mask_com: *mut c_char,
-        ser_rev_lock_com: *mut c_char,
-        amount: i64,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
         let rng = &mut rand::thread_rng();
@@ -652,23 +650,17 @@ pub mod ffishim_mpc {
             deserialize_result_object(ser_channel_state);
         let mut channel_state = handle_errors!(channel_state_result);
 
-        // Deserialize nonce
-        let nonce_result = deserialize_hex_string(ser_nonce);
-        let nonce = handle_errors!(nonce_result);
-        let mut nonce_ar = [0u8; 16];
-        nonce_ar.copy_from_slice(nonce.as_slice());
+        // Deserialize session_id
+        let sess_id_result = deserialize_hex_string(ser_session_id);
+        let session_id = handle_errors!(sess_id_result);
+        let mut session_id_ar = [0u8; 16];
+        session_id_ar.copy_from_slice(session_id.as_slice());
 
         // Deserialize pay_token_mask_com
         let pay_token_mask_com_result = deserialize_hex_string(ser_pay_token_mask_com);
         let pay_token_mask_com = handle_errors!(pay_token_mask_com_result);
         let mut pay_token_mask_com_ar = [0u8; 32];
         pay_token_mask_com_ar.copy_from_slice(pay_token_mask_com.as_slice());
-
-        // Deserialize rev_lock_com
-        let rev_lock_com_result = deserialize_hex_string(ser_rev_lock_com);
-        let rev_lock_com = handle_errors!(rev_lock_com_result);
-        let mut rev_lock_com_ar = [0u8; 32];
-        rev_lock_com_ar.copy_from_slice(rev_lock_com.as_slice());
 
         // Deserialize the merch_state
         let merch_state_result: ResultSerdeType<MerchantMPCState> =
@@ -684,10 +676,8 @@ pub mod ffishim_mpc {
             rng,
             &mut db as &mut dyn StateDatabase,
             &mut channel_state,
-            nonce_ar,
+            session_id_ar,
             pay_token_mask_com_ar,
-            rev_lock_com_ar,
-            amount,
             &mut merch_state,
         );
         let is_ok = handle_errors!(result);

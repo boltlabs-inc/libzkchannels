@@ -426,10 +426,8 @@ char *mpc_pay_update_customer(char *ser_channel_state,
                               char *ser_cust_state);
 
 char *mpc_pay_update_merchant(char *ser_channel_state,
-                              char *ser_nonce,
+                              char *ser_session_id,
                               char *ser_pay_token_mask_com,
-                              char *ser_rev_lock_com,
-                              int64_t amount,
                               char *ser_merch_state);
 
 char *mpc_pay_validate_rev_lock_merchant(char *ser_revoked_state, char *ser_merch_state);

@@ -49,7 +49,7 @@ pub enum ChannelStatus {
 pub enum PaymentStatus {
     Prepare,
     Update,
-    Complete,
+    Error
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1257,9 +1257,9 @@ impl MerchantMPCState {
         db.update_nonce_mask_map(&nonce_hex, pay_mask, pay_mask_r)?;
 
         // save session state
-        let sess_state = SessionState { nonce: nonce_hex, rev_lock_com: hex::encode(rev_lock_com), amount: amount, stage: PaymentStatus::Prepare };
-        if !db.save_session_state(&session_id_hex, &sess_state) {
-            println!("ERROR: Could not save session state for: {}", &session_id_hex);
+        let sess_state = SessionState { nonce: FixedSizeArray16(nonce), rev_lock_com: FixedSizeArray32(rev_lock_com), amount: amount, status: PaymentStatus::Prepare };
+        if !db.update_session_state(&session_id_hex, &sess_state) {
+            println!("ERROR: Could not cache session state for: {}", &session_id_hex);
         }
 
         Ok(paytoken_mask_com)
@@ -1452,10 +1452,8 @@ impl MerchantMPCState {
         csprng: &mut R,
         db: &mut dyn StateDatabase,
         channel_state: &ChannelMPCState,
-        nonce: [u8; NONCE_LEN],
-        rev_lock_com: [u8; 32],
+        session_id: [u8; 16],
         paytoken_mask_com: [u8; 32],
-        amount: i64,
         circuit: *mut c_void
     ) -> Result<bool, String> {
         // // if epsilon > 0, check if acceptable (above dust limit).
@@ -1464,10 +1462,20 @@ impl MerchantMPCState {
         //     return Err(String::from("epsilon below dust limit!"));
         // }
 
+        let session_id_hex = hex::encode(&session_id);
+        let session_state = match db.load_session_state(&session_id_hex) {
+            Ok(s) => s,
+            Err(e) => return Err(e.to_string())
+        };
+
+        let amount = session_state.amount;
+        let nonce = session_state.nonce.0;
+        let rev_lock_com = session_state.rev_lock_com.0;
+
         // check if n_i not in S_spent
         let nonce_hex = hex::encode(nonce);
         if db.check_spent_map(&nonce_hex) {
-            return Err(format!("nonce {} has been spent already.", &nonce_hex));
+            return Err(format!("merch::execute_mpc_context - nonce {} has been spent already.", &nonce_hex));
         }
 
         // retrieve the paytoken_mask & randomness (based on the given nonce)
@@ -1478,7 +1486,7 @@ impl MerchantMPCState {
 
         let pay_mask_com = self.recompute_commitmment(&pay_mask_bytes, &pay_mask_r);
         if pay_mask_com != paytoken_mask_com {
-            return Err(String::from("specified invalid pay mask commitment"));
+            return Err(String::from("merch::execute_mpc_context - specified invalid pay mask commitment"));
         }
 
         // generate masks for close-escrow and close-merch txs
@@ -1505,12 +1513,11 @@ impl MerchantMPCState {
             Some(nc) => nc,
             None => {
                 return Err(String::from(
-                    "merchant::execute_mpc_context - net config not specified",
+                    "merch::execute_mpc_context - net config not specified",
                 ));
             }
         };
 
-        // let cf_ptr = self.get_circuit_file();
         let sk_m = secp256k1::SecretKey::from_slice(&self.sk_m.0).unwrap();
 
         let (r_merch, r_esc) = mpc_build_masked_tokens_merch(
@@ -1954,10 +1961,8 @@ mod tests {
             &mut rng,
             &mut db as &mut dyn StateDatabase,
             &channel,
-            nonce,
-            rev_lock_com,
+            session_id,
             pay_token_mask_com,
-            amount,
             circuit
         );
         assert!(res.is_ok(), res.err().unwrap());
