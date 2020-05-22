@@ -2141,7 +2141,7 @@ mod tests {
     #[ignore]
     fn test_payment_mpc_channel_merch() {
         let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d76);
-        let mut db = RedisDatabase::new("lib", "redis://127.0.0.1/".to_string()).unwrap();
+        let mut db = RedisDatabase::new("merch.lib", "redis://127.0.0.1/".to_string()).unwrap();
 
         let min_threshold = 546;
         let mut channel =
@@ -2267,7 +2267,7 @@ mod tests {
         #[ignore]
         fn test_payment_mpc_channel_cust() {
             let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d76);
-            let mut db = RedisDatabase::new("lib", "redis://127.0.0.1/".to_string()).unwrap();
+            let mut db = RedisDatabase::new("cust.lib", "redis://127.0.0.1/".to_string()).unwrap();
 
             let min_threshold = 546;
             let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, min_threshold, false);
