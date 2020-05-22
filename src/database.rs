@@ -475,7 +475,7 @@ impl StateDatabase for RedisDatabase {
             .hget::<String, String, String>(self.masked_bytes_key.clone(), nonce_hex.clone())
         {
             Ok(s) => s,
-            Err(e) => return Err(format!("get_masked_mpc_inputs: {}", e.to_string())),
+            Err(e) => return Err(format!("get_masked_mpc_inputs: key({}) field({}) => {}", &self.masked_bytes_key, nonce_hex, e.to_string())),
         };
 
         let t: MaskedMPCInputs = handle_error_util!(serde_json::from_str(&ser_masked_bytes));

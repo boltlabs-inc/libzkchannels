@@ -1258,8 +1258,8 @@ impl MerchantMPCState {
 
         // save session state
         let sess_state = SessionState { nonce: FixedSizeArray16(nonce), rev_lock_com: FixedSizeArray32(rev_lock_com), amount: amount, status: PaymentStatus::Prepare };
-        if !db.update_session_state(&session_id_hex, &sess_state) {
-            println!("ERROR: Could not cache session state for: {}", &session_id_hex);
+        if !db.save_new_session_state(&session_id_hex, &sess_state) {
+            println!("Save-new-session-state failed: Could not cache new session state for id: {}", &session_id_hex);
         }
 
         Ok(paytoken_mask_com)
