@@ -170,7 +170,7 @@ We now describe the high-level protocol API implemented in module `zkchannels::m
 
 Prepare/Update State phase
 
-	// customer prepares payment by generating a new state, new revocation lock and secret, and
+	// customer prepares payment by generating a new state, new revocation lock and secret
 	let (state, revoked_state, session_id) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, 10, &mut cust_state).unwrap();
 	let rev_lock_com = revoked_state.get_rev_lock_com();
 

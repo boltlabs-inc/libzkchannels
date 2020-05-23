@@ -52,6 +52,13 @@ pub enum PaymentStatus {
     Error
 }
 
+#[derive(Clone, Debug, PartialEq, Display, Serialize, Deserialize)]
+pub enum NegativePayment {
+    ALLOW, // allow negative payments
+    REJECT, // only positive payments are allowed in this mode
+    CHECK_AUTHORIZATION // allow negative payments, if authorization/justification presented
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ChannelMPCToken {
     pub pk_c: Option<secp256k1::PublicKey>,
@@ -1002,6 +1009,7 @@ pub struct MerchantMPCState {
     pub close_tx: HashMap<FixedSizeArray32, MerchCloseTx>,
     pub net_config: Option<NetworkConfig>,
     pub db_url: String,
+    refund_option: NegativePayment
 }
 
 impl MerchantMPCState {
@@ -1057,6 +1065,7 @@ impl MerchantMPCState {
             close_tx: HashMap::new(),
             net_config: None,
             db_url: db_url,
+            refund_option: NegativePayment::ALLOW
         }
     }
 
@@ -1085,6 +1094,10 @@ impl MerchantMPCState {
         self.dispute_pk = dispute_pk;
 
         Ok(())
+    }
+
+    pub fn set_refund_policy(&mut self, option: NegativePayment) {
+        self.refund_option = option;
     }
 
     pub fn get_secret_key(&self) -> Vec<u8> {
@@ -1211,6 +1224,12 @@ impl MerchantMPCState {
         Ok(true)
     }
 
+    pub fn check_justification(&self, amount: i64) -> Result<(), String> {
+        // TODO: figure out how to check this
+        println!("Verify justification for negative payment: {}", amount);
+        Ok(())
+    }
+
     pub fn generate_pay_mask_commitment<R: Rng>(
         &mut self,
         csprng: &mut R,
@@ -1223,6 +1242,16 @@ impl MerchantMPCState {
     ) -> Result<[u8; 32], String> {
         let nonce_hex = hex::encode(nonce);
         let session_id_hex = hex::encode(session_id);
+        let is_existing_session = match db.check_session_id(&session_id_hex) {
+            Ok(s) => s,
+            Err(e) => return Err(e.to_string())
+        };
+
+        if is_existing_session {
+            return Err(format!(
+                "specified an existing session id: {}", session_id_hex
+            ));
+        }
 
         // check if n_i in S_unlink and amount == 0. if so, proceed since this is the unlink protocol
         if amount == 0 && !db.is_member_unlink_set(&nonce_hex) {
@@ -1236,6 +1265,13 @@ impl MerchantMPCState {
         //     // if check fails, abort and output an error
         //     return Err(String::from("epsilon below dust limit!"));
         // }
+        if amount < 0 {
+            match self.refund_option {
+                NegativePayment::ALLOW => (),
+                NegativePayment::REJECT => return Err(format!("sorry, refunds are not supported for this channel")),
+                NegativePayment::CHECK_AUTHORIZATION => self.check_justification(amount)?
+            }
+        }
 
         // check if n_i not in S_spent
         if db.check_spent_map(&nonce_hex) {
@@ -1688,7 +1724,7 @@ mod tests {
         // initialize on the merchant side with balance: b0_merch
         let db_url = "redis://127.0.0.1/".to_string();
         let mut merch_state = MerchantMPCState::new(&mut rng, db_url, &mut channel_state, String::from("Merchant B"));
-        let mut db = RedisDatabase::new("test1", merch_state.db_url.clone()).unwrap();
+        let mut db = RedisDatabase::new("cust.test1", merch_state.db_url.clone()).unwrap();
         db.clear_state();
 
         // initialize on the customer side with balance: b0_cust
@@ -1854,7 +1890,7 @@ mod tests {
         // initialize on the merchant side with balance: b0_merch
         let mut merch_state =
             MerchantMPCState::new(&mut rng, db_url, &mut channel, String::from("Merchant"));
-        let mut db = RedisDatabase::new("test1", merch_state.db_url.clone()).unwrap();
+        let mut db = RedisDatabase::new("merch.test1", merch_state.db_url.clone()).unwrap();
         db.clear_state();
 
         // initialize on the customer side with balance: b0_cust

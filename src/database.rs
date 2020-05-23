@@ -358,6 +358,13 @@ impl StateDatabase for RedisDatabase {
     }
 
     fn clear_state(&mut self) -> bool {
+        match self.conn.del(self.session_map_key.clone()) {
+            Ok(c) => c,
+            Err(e) => {
+                println!("could not delete: {} => {}", self.session_map_key, e);
+                return false;
+            }
+        }
         match self.conn.del(self.unlink_set_key.clone()) {
             Ok(c) => c,
             Err(e) => {
@@ -820,9 +827,12 @@ mod tests {
         let amount = 10000;
         let rev_lock_com = hash_to_slice(&[1u8; 32].to_vec());
 
+        let result = db.check_session_id(&session_id).unwrap();
+        assert!(!result);
+
         let mut session_state = SessionState { nonce: FixedSizeArray16(nonce), rev_lock_com: FixedSizeArray32(rev_lock_com), amount: amount, status: PaymentStatus::Prepare };
 
-        let result = db.update_session_state(&session_id, &session_state);
+        let result = db.save_new_session_state(&session_id, &session_state);
         assert!(result);
 
         let session_state_result = db.load_session_state(&session_id);
@@ -838,5 +848,9 @@ mod tests {
         // check for existing session
         let result = db.check_session_id(&session_id).unwrap();
         assert!(result);
+
+        let bad_session_id = hex::encode([2u8; 16]);
+        let result = db.check_session_id(&bad_session_id).unwrap();
+        assert!(!result);
     }
 }
