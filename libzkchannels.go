@@ -53,19 +53,20 @@ type ChannelState struct {
 }
 
 type MerchState struct {
-	Id          *string                 `json:"id"`
-	PkM         *string                 `json:"pk_m"`
-	SkM         *string                 `json:"sk_m"`
-	HmacKey     string                  `json:"hmac_key"`
-	HmacKeyR    string                  `json:"hmac_key_r"`
-	PayoutSk    *string                 `json:"payout_sk"`
-	PayoutPk    *string                 `json:"payout_pk"`
-	DisputeSk   *string                 `json:"dispute_sk"`
-	DisputePk   *string                 `json:"dispute_pk"`
-	ActivateMap *map[string]interface{} `json:"activate_map"`
-	CloseTxMap  *map[string]interface{} `json:"close_tx"`
-	NetConfig   *map[string]interface{} `json:"net_config"`
-	DbUrl       string                  `json:"db_url"`
+	Id           *string                 `json:"id"`
+	PkM          *string                 `json:"pk_m"`
+	SkM          *string                 `json:"sk_m"`
+	HmacKey      string                  `json:"hmac_key"`
+	HmacKeyR     string                  `json:"hmac_key_r"`
+	PayoutSk     *string                 `json:"payout_sk"`
+	PayoutPk     *string                 `json:"payout_pk"`
+	DisputeSk    *string                 `json:"dispute_sk"`
+	DisputePk    *string                 `json:"dispute_pk"`
+	ActivateMap  *map[string]interface{} `json:"activate_map"`
+	CloseTxMap   *map[string]interface{} `json:"close_tx"`
+	NetConfig    *map[string]interface{} `json:"net_config"`
+	DbUrl        string                  `json:"db_url"`
+	RefundOption string                  `json:"refund_option"`
 }
 
 type CustState struct {

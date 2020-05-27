@@ -560,7 +560,15 @@ impl CustomerMPCState {
             ));
         }
 
-        // TODO: add channel_status check: 
+        // add channel_status check: 
+        if self.channel_status == ChannelStatus::Activated && amount >= 0 {
+            // executing unlnik and can proceed
+            ()
+        } else if self.channel_status != ChannelStatus::Established && amount > 0 {
+            return Err(format!(
+                "customer::execute_mpc_context - channel not established yet: {}", self.channel_status
+            ));
+        } 
 
         // load the key_com from channel state
         let key_com = channel_state.get_key_com();
@@ -680,7 +688,6 @@ impl CustomerMPCState {
         BitcoinTransactionParameters<N>,
     ) {
         let init_balance = self.cust_balance + self.merch_balance;
-        // TODO: should be configurable via a tx_config
         let escrow_index = 0;
         let merch_index = 0;
         let to_self_delay_be: [u8; 2] = channel_state.get_self_delay_be(); // big-endian format
