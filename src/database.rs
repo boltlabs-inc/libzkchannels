@@ -92,11 +92,13 @@ pub trait StateDatabase {
     where
         Self: Sized;
 
+    // manage session state
     fn check_session_id(&mut self, session_id_hex: &String) -> Result<bool, String>;
     fn save_new_session_state(&mut self, session_id_hex: &String, session_state: &SessionState) -> bool;
     fn load_session_state(&mut self, session_id_hex: &String) -> Result<SessionState, String>;
     fn update_session_state(&mut self, session_id_hex: &String, session_state: &SessionState) -> bool;
     fn clear_session_state(&mut self, session_id_hex: &String) -> bool;
+
     // spent rev_lock map methods
     fn update_spent_map(
         &mut self,
@@ -117,6 +119,9 @@ pub trait StateDatabase {
     fn get_unlink_set(&mut self) -> Result<HashSet<String>, String>;
     fn is_member_unlink_set(&mut self, nonce: &String) -> bool;
     fn remove_from_unlink_set(&mut self, nonce: &String) -> bool;
+    // nonce to session ids
+    fn check_dup_nonce_to_session_id(&mut self, nonce_hex: &String, session_id_hex: &String) -> Result<bool, String>;
+    fn update_nonce_to_session_id(&mut self, nonce_hex: &String, session_id_hex: &String) -> Result<bool, String>;
     // nonce to pay mask methods
     fn update_nonce_mask_map(
         &mut self,
@@ -139,6 +144,7 @@ pub trait StateDatabase {
 pub struct RedisDatabase {
     pub conn: redis::Connection,
     session_map_key: String,
+    nonce_to_session_key: String,
     unlink_set_key: String,
     spent_map_key: String,
     rev_lock_map_key: String,
@@ -158,6 +164,7 @@ impl StateDatabase for RedisDatabase {
             unlink_set_key: format!("{}:hashset:unlink", prefix),
             spent_map_key: format!("{}:hashmap:spent", prefix),
             rev_lock_map_key: format!("{}:hashmap:revlock", prefix),
+            nonce_to_session_key: format!("{}:hashmap:nonce_session", prefix),
             nonce_mask_map_key: format!("{}:hashmap:nonce_paymasks", prefix),
             masked_bytes_key: format!("{}:hashmap:masked_bytes", prefix),
 
@@ -213,7 +220,6 @@ impl StateDatabase for RedisDatabase {
             Err(_) => false,
         }
     }
-
 
     fn load_session_state(&mut self, session_id_hex: &String) -> Result<SessionState, String> {
         let ser_session_data = match self
@@ -403,6 +409,23 @@ impl StateDatabase for RedisDatabase {
         return true;
     }
 
+    // nonce -> session id
+
+    fn update_nonce_to_session_id(&mut self, session_id_hex: &String, nonce_hex: &String) -> Result<bool, String> {
+        match self.conn.hset::<String, String, String, i32>(self.nonce_to_session_key.clone(), session_id_hex.clone(), nonce_hex.clone()) {
+            Ok(s) => Ok(s != 0),
+            Err(e) => return Err(e.to_string())
+        }
+    }
+
+    fn check_dup_nonce_to_session_id(&mut self, session_id_hex: &String, nonce_hex: &String) -> Result<bool, String> {
+        match self.conn.hget::<String, String, String>(self.nonce_to_session_key.clone(), session_id_hex.clone()) {
+            Ok(n) => Ok(n.eq_ignore_ascii_case(nonce_hex)),
+            Err(e) => return Err(e.to_string())
+        }
+    }
+
+
     // nonce -> masks calls
     fn update_nonce_mask_map(
         &mut self,
@@ -494,6 +517,7 @@ impl StateDatabase for RedisDatabase {
 #[derive(Debug)]
 pub struct HashMapDatabase {
     pub session_state_map: HashMap<String, SessionState>,
+    pub nonce_session_map: HashMap<String, String>,
     pub nonce_mask_map: HashMap<String, PayMaskMap>,
     pub unlink_map: HashSet<String>,
     pub spent_lock_map: HashMap<String, String>,
@@ -505,6 +529,7 @@ impl StateDatabase for HashMapDatabase {
     fn new(_prefix: &'static str, _url: String) -> Result<Self, String> {
         Ok(HashMapDatabase {
             session_state_map: HashMap::new(),
+            nonce_session_map: HashMap::new(),
             nonce_mask_map: HashMap::new(),
             unlink_map: HashSet::new(),
             spent_lock_map: HashMap::new(),
@@ -607,9 +632,22 @@ impl StateDatabase for HashMapDatabase {
         self.unlink_map.clear();
         self.spent_lock_map.clear();
         self.rev_lock_map.clear();
+        self.nonce_session_map.clear();
         self.nonce_mask_map.clear();
         self.mask_mpc_bytes.clear();
         return true;
+    }
+
+    fn check_dup_nonce_to_session_id(&mut self, session_id_hex: &String, nonce_hex: &String) -> Result<bool, String> {
+        match self.nonce_session_map.get(session_id_hex) {
+            Some(n) => Ok(n.eq_ignore_ascii_case(nonce_hex)),
+            _ => return Err(format!("failed to find session id <-> nonce"))
+        }
+    }
+
+    fn update_nonce_to_session_id(&mut self, session_id_hex: &String, nonce_hex: &String) -> Result<bool, String> {
+        self.nonce_session_map.insert(session_id_hex.clone(), nonce_hex.clone());
+        Ok(true)
     }
 
     fn update_nonce_mask_map(
