@@ -1027,7 +1027,7 @@ pub mod mpc {
         amount: i64,
         cust_state: &mut CustomerMPCState,
     ) -> Result<(State, RevokedState, [u8; 16]), String> {
-        // verify that channel status is already activated or established (unlink)
+        // verify that channel status is already activated or established
         if (cust_state.channel_status == ChannelStatus::Activated && amount >= 0) || 
             (cust_state.channel_status == ChannelStatus::Established && amount > 0) {
             // check if payment on current balance is greater than dust limit
@@ -1089,7 +1089,7 @@ pub mod mpc {
         amount: i64,
         merch_state: &mut MerchantMPCState,
     ) -> Result<[u8; 32], String> {
-        // TODO: verify that no existing session with the specified session_id/nonce combo
+        // verify that no existing session with the specified session_id/nonce combo
         merch_state.generate_pay_mask_commitment(
             csprng,
             db,

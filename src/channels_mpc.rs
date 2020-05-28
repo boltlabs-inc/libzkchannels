@@ -1249,6 +1249,7 @@ impl MerchantMPCState {
     ) -> Result<[u8; 32], String> {
         let nonce_hex = hex::encode(nonce);
         let session_id_hex = hex::encode(session_id);
+        // if there's an existing session with the same id
         let is_existing_session = match db.check_session_id(&session_id_hex) {
             Ok(s) => s,
             Err(e) => return Err(e.to_string())
@@ -1256,14 +1257,21 @@ impl MerchantMPCState {
 
         if is_existing_session {
             return Err(format!(
-                "specified an existing session id: {}", session_id_hex
+                "Specified an existing session id: {}", session_id_hex
+            ));
+        }
+
+        // if specified nonce is part of an existing active session
+        if db.check_dup_nonce_to_session_id(&nonce_hex, &session_id_hex) {
+            return Err(format!(
+                "Cannot reuse nonce with a different session id: {} {}", session_id_hex, nonce_hex
             ));
         }
 
         // check if n_i in S_unlink and amount == 0. if so, proceed since this is the unlink protocol
         if amount == 0 && !db.is_member_unlink_set(&nonce_hex) {
             return Err(String::from(
-                "can only run unlink with previously known nonce",
+                "Can only run unlink with previously known nonce",
             ));
         }
 
@@ -1275,7 +1283,7 @@ impl MerchantMPCState {
         if amount < 0 {
             match self.refund_option {
                 NegativePayment::ALLOW => (),
-                NegativePayment::REJECT => return Err(format!("sorry, refunds are not supported for this channel")),
+                NegativePayment::REJECT => return Err(format!("Sorry, refunds are not supported for this channel")),
                 NegativePayment::CHECK_AUTHORIZATION => self.check_justification(amount)?
             }
         }
@@ -1303,6 +1311,11 @@ impl MerchantMPCState {
         let sess_state = SessionState { nonce: FixedSizeArray16(nonce), rev_lock_com: FixedSizeArray32(rev_lock_com), amount: amount, status: PaymentStatus::Prepare };
         if !db.save_new_session_state(&session_id_hex, &sess_state) {
             println!("Save-new-session-state failed: Could not cache new session state for id: {}", &session_id_hex);
+        }
+
+        let is_ok = db.update_nonce_to_session_id(&nonce_hex, &session_id_hex);
+        if (is_ok.is_err()) {
+            println!("Could not completely save state: {}", is_ok.unwrap_err());
         }
 
         Ok(paytoken_mask_com)
