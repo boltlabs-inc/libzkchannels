@@ -1,8 +1,8 @@
 use super::*;
+use channels_mpc::PaymentStatus;
 use redis::{Commands, Connection};
 use std::collections::hash_map::RandomState;
 use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
-use channels_mpc::PaymentStatus;
 
 pub fn create_db_connection(url: String) -> redis::RedisResult<Connection> {
     let client = redis::Client::open(url.as_str())?;
@@ -83,7 +83,7 @@ pub struct SessionState {
     pub nonce: FixedSizeArray16,
     pub rev_lock_com: FixedSizeArray32,
     pub amount: i64,
-    pub status: PaymentStatus 
+    pub status: PaymentStatus,
 }
 
 pub trait StateDatabase {
@@ -94,9 +94,17 @@ pub trait StateDatabase {
 
     // manage session state
     fn check_session_id(&mut self, session_id_hex: &String) -> Result<bool, String>;
-    fn save_new_session_state(&mut self, session_id_hex: &String, session_state: &SessionState) -> bool;
+    fn save_new_session_state(
+        &mut self,
+        session_id_hex: &String,
+        session_state: &SessionState,
+    ) -> bool;
     fn load_session_state(&mut self, session_id_hex: &String) -> Result<SessionState, String>;
-    fn update_session_state(&mut self, session_id_hex: &String, session_state: &SessionState) -> bool;
+    fn update_session_state(
+        &mut self,
+        session_id_hex: &String,
+        session_state: &SessionState,
+    ) -> bool;
     fn clear_session_state(&mut self, session_id_hex: &String) -> bool;
 
     // spent rev_lock map methods
@@ -120,8 +128,16 @@ pub trait StateDatabase {
     fn is_member_unlink_set(&mut self, nonce: &String) -> bool;
     fn remove_from_unlink_set(&mut self, nonce: &String) -> bool;
     // nonce to session ids
-    fn check_dup_nonce_to_session_id(&mut self, nonce_hex: &String, session_id_hex: &String) -> bool;
-    fn update_nonce_to_session_id(&mut self, nonce_hex: &String, session_id_hex: &String) -> Result<bool, String>;
+    fn check_dup_nonce_to_session_id(
+        &mut self,
+        nonce_hex: &String,
+        session_id_hex: &String,
+    ) -> bool;
+    fn update_nonce_to_session_id(
+        &mut self,
+        nonce_hex: &String,
+        session_id_hex: &String,
+    ) -> Result<bool, String>;
     // nonce to pay mask methods
     fn update_nonce_mask_map(
         &mut self,
@@ -167,7 +183,6 @@ impl StateDatabase for RedisDatabase {
             nonce_to_session_key: format!("{}:hashmap:nonce_session", prefix),
             nonce_mask_map_key: format!("{}:hashmap:nonce_paymasks", prefix),
             masked_bytes_key: format!("{}:hashmap:masked_bytes", prefix),
-
         })
     }
 
@@ -178,17 +193,21 @@ impl StateDatabase for RedisDatabase {
         {
             Ok(s) => Ok(s),
             Err(e) => return Err(format!("check_session_id: {}", e.to_string())),
-        }    
+        }
     }
 
-    fn save_new_session_state(&mut self, session_id_hex: &String, session_state: &SessionState) -> bool {
+    fn save_new_session_state(
+        &mut self,
+        session_id_hex: &String,
+        session_state: &SessionState,
+    ) -> bool {
         let ser_session_state = match serde_json::to_string(session_state) {
             Ok(s) => s,
             Err(_) => return false,
         };
 
-        // Sets field in the hash stored at key to value, only if field does not yet exist. 
-        // If key does not exist, a new key holding a hash is created. 
+        // Sets field in the hash stored at key to value, only if field does not yet exist.
+        // If key does not exist, a new key holding a hash is created.
         // If field already exists, this operation has no effect.
         match self.conn.hset_nx::<String, String, String, i32>(
             self.session_map_key.clone(),
@@ -197,20 +216,23 @@ impl StateDatabase for RedisDatabase {
         ) {
             // 1 if field is a new field and value was set.
             // 0 if field already exists in the hash and no operation was performed
-            Ok(c) => c != 0,  
+            Ok(c) => c != 0,
             Err(_) => false,
         }
-
     }
 
-    fn update_session_state(&mut self, session_id_hex: &String, session_state: &SessionState) -> bool {
+    fn update_session_state(
+        &mut self,
+        session_id_hex: &String,
+        session_state: &SessionState,
+    ) -> bool {
         let ser_session_state = match serde_json::to_string(session_state) {
             Ok(s) => s,
             Err(_) => return false,
         };
 
-        // Sets field in the hash stored at key to value. 
-        // If key does not exist, a new key holding a hash is created. 
+        // Sets field in the hash stored at key to value.
+        // If key does not exist, a new key holding a hash is created.
         // If field already exists in the hash, it is overwritten.
         match self.conn.hset::<String, String, String, i32>(
             self.session_map_key.clone(),
@@ -233,14 +255,20 @@ impl StateDatabase for RedisDatabase {
 
         let t: SessionState = handle_error_util!(serde_json::from_str(&ser_session_data));
 
-        Ok(t)        
+        Ok(t)
     }
 
     fn clear_session_state(&mut self, session_id_hex: &String) -> bool {
-        match self.conn.hdel(self.session_map_key.clone(), session_id_hex.clone()) {
+        match self
+            .conn
+            .hdel(self.session_map_key.clone(), session_id_hex.clone())
+        {
             Ok(c) => return c,
             Err(e) => {
-                println!("clear_session_state: failed to delete key: {} => {}", session_id_hex, e);
+                println!(
+                    "clear_session_state: failed to delete key: {} => {}",
+                    session_id_hex, e
+                );
                 return false;
             }
         }
@@ -418,20 +446,34 @@ impl StateDatabase for RedisDatabase {
     }
 
     // nonce -> session id
-    fn update_nonce_to_session_id(&mut self, nonce_hex: &String, session_id_hex: &String) -> Result<bool, String> {
-        match self.conn.hset_nx::<String, String, String, i32>(self.nonce_to_session_key.clone(), nonce_hex.clone(), session_id_hex.clone()) {
+    fn update_nonce_to_session_id(
+        &mut self,
+        nonce_hex: &String,
+        session_id_hex: &String,
+    ) -> Result<bool, String> {
+        match self.conn.hset_nx::<String, String, String, i32>(
+            self.nonce_to_session_key.clone(),
+            nonce_hex.clone(),
+            session_id_hex.clone(),
+        ) {
             Ok(s) => Ok(s != 0),
-            Err(e) => return Err(e.to_string())
+            Err(e) => return Err(e.to_string()),
         }
     }
 
-    fn check_dup_nonce_to_session_id(&mut self, nonce_hex: &String, session_id_hex: &String) -> bool {
-        match self.conn.hget::<String, String, String>(self.nonce_to_session_key.clone(), nonce_hex.clone()) {
+    fn check_dup_nonce_to_session_id(
+        &mut self,
+        nonce_hex: &String,
+        session_id_hex: &String,
+    ) -> bool {
+        match self
+            .conn
+            .hget::<String, String, String>(self.nonce_to_session_key.clone(), nonce_hex.clone())
+        {
             Ok(s) => !s.eq_ignore_ascii_case(session_id_hex),
-            Err(_) => return false
+            Err(_) => return false,
         }
     }
-
 
     // nonce -> masks calls
     fn update_nonce_mask_map(
@@ -512,7 +554,14 @@ impl StateDatabase for RedisDatabase {
             .hget::<String, String, String>(self.masked_bytes_key.clone(), nonce_hex.clone())
         {
             Ok(s) => s,
-            Err(e) => return Err(format!("get_masked_mpc_inputs: key({}) field({}) => {}", &self.masked_bytes_key, nonce_hex, e.to_string())),
+            Err(e) => {
+                return Err(format!(
+                    "get_masked_mpc_inputs: key({}) field({}) => {}",
+                    &self.masked_bytes_key,
+                    nonce_hex,
+                    e.to_string()
+                ))
+            }
         };
 
         let t: MaskedMPCInputs = handle_error_util!(serde_json::from_str(&ser_masked_bytes));
@@ -549,15 +598,26 @@ impl StateDatabase for HashMapDatabase {
         Ok(self.session_state_map.get(session_id_hex).is_some())
     }
 
-    fn save_new_session_state(&mut self, session_id_hex: &String, session_state: &SessionState) -> bool {
-        match self.session_state_map.insert(session_id_hex.clone(), session_state.clone()) {
+    fn save_new_session_state(
+        &mut self,
+        session_id_hex: &String,
+        session_state: &SessionState,
+    ) -> bool {
+        match self
+            .session_state_map
+            .insert(session_id_hex.clone(), session_state.clone())
+        {
             Some(_) => true,
             None => false,
-        }        
+        }
     }
 
-    fn update_session_state(&mut self, session_id_hex: &String, session_state: &SessionState) -> bool {
-        return self.save_new_session_state(session_id_hex, session_state)
+    fn update_session_state(
+        &mut self,
+        session_id_hex: &String,
+        session_state: &SessionState,
+    ) -> bool {
+        return self.save_new_session_state(session_id_hex, session_state);
     }
 
     fn load_session_state(&mut self, session_id_hex: &String) -> Result<SessionState, String> {
@@ -569,7 +629,7 @@ impl StateDatabase for HashMapDatabase {
                     session_id_hex
                 ))
             }
-        }        
+        }
     }
 
     fn clear_session_state(&mut self, session_id_hex: &String) -> bool {
@@ -645,15 +705,24 @@ impl StateDatabase for HashMapDatabase {
         return true;
     }
 
-    fn check_dup_nonce_to_session_id(&mut self, nonce_hex: &String, session_id_hex: &String) -> bool {
+    fn check_dup_nonce_to_session_id(
+        &mut self,
+        nonce_hex: &String,
+        session_id_hex: &String,
+    ) -> bool {
         match self.nonce_session_map.get(nonce_hex) {
             Some(s) => !s.eq_ignore_ascii_case(session_id_hex),
-            _ => return false
+            _ => return false,
         }
     }
 
-    fn update_nonce_to_session_id(&mut self, nonce_hex: &String, session_id_hex: &String) -> Result<bool, String> {
-        self.nonce_session_map.insert(nonce_hex.clone(), session_id_hex.clone());
+    fn update_nonce_to_session_id(
+        &mut self,
+        nonce_hex: &String,
+        session_id_hex: &String,
+    ) -> Result<bool, String> {
+        self.nonce_session_map
+            .insert(nonce_hex.clone(), session_id_hex.clone());
         Ok(true)
     }
 
@@ -875,7 +944,12 @@ mod tests {
         let result = db.check_session_id(&session_id).unwrap();
         assert!(!result);
 
-        let mut session_state = SessionState { nonce: FixedSizeArray16(nonce), rev_lock_com: FixedSizeArray32(rev_lock_com), amount: amount, status: PaymentStatus::Prepare };
+        let mut session_state = SessionState {
+            nonce: FixedSizeArray16(nonce),
+            rev_lock_com: FixedSizeArray32(rev_lock_com),
+            amount: amount,
+            status: PaymentStatus::Prepare,
+        };
 
         let result = db.save_new_session_state(&session_id, &session_state);
         assert!(result);
@@ -919,10 +993,8 @@ mod tests {
 
         let result = db.check_dup_nonce_to_session_id(&nonce, &session_id1);
         assert!(!result); // should be false, there's the same session id with this nonce
-        
+
         let result = db.check_dup_nonce_to_session_id(&nonce, &session_id2);
         assert!(result); // should be true, there's a different existing session id with same nonce
-        
-
     }
 }

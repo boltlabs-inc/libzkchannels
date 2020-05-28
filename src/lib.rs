@@ -71,11 +71,11 @@ pub mod wallet;
 pub mod test_e2e;
 
 use ff::{Field, Rand};
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::str;
 use zkchan_tx::fixed_size_array::FixedSizeArray32;
-use serde::{Deserialize, Serialize};
 
 ////////////////////////////////// Utilities //////////////////////////////////
 
@@ -879,14 +879,14 @@ pub mod mpc {
     pub use channels_mpc::{
         ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState, RevokedState,
     };
-    use channels_mpc::{InitCustState, ChannelStatus, NetworkConfig};
+    use channels_mpc::{ChannelStatus, InitCustState, NetworkConfig};
     use database::{MaskedTxMPCInputs, StateDatabase};
     use rand::Rng;
     use secp256k1::PublicKey;
+    use util;
     use wallet::{State, NONCE_LEN};
     use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
     use zkchan_tx::Testnet;
-    use util;
     // use util::VAL_CPFP;
 
     ///
@@ -921,24 +921,23 @@ pub mod mpc {
         min_fee: i64,
         max_fee: i64,
         fee_mc: i64,
-        name: &str
+        name: &str,
     ) -> (ChannelMPCToken, CustomerMPCState) {
         assert!(b0_cust > 0);
         assert!(b0_merch >= 0);
 
         let b0_cust = match b0_merch {
             0 => b0_cust - util::DUST_LIMIT - fee_mc - util::VAL_CPFP,
-            _ => b0_cust
+            _ => b0_cust,
         };
 
         let b0_merch = match b0_merch {
             0 => util::DUST_LIMIT + fee_mc + util::VAL_CPFP,
-            _ => b0_merch
+            _ => b0_merch,
         };
 
         let cust_name = String::from(name);
-        let mut cust_state =
-            CustomerMPCState::new(csprng, b0_cust, b0_merch, fee_cc, cust_name);
+        let mut cust_state = CustomerMPCState::new(csprng, b0_cust, b0_merch, fee_cc, cust_name);
 
         // generate the initial channel token and initial state
         let channel_token = cust_state.generate_init_state(csprng, &pk_m, min_fee, max_fee, fee_mc);
@@ -980,10 +979,16 @@ pub mod mpc {
     /// Prepare to activate the channel for the customer (call activate_customer_finalize to finalize activation)
     /// output: initial state
     ///
-    pub fn activate_customer<R: Rng>(csprng: &mut R, cust_state: &mut CustomerMPCState) -> Result<State, String> {
+    pub fn activate_customer<R: Rng>(
+        csprng: &mut R,
+        cust_state: &mut CustomerMPCState,
+    ) -> Result<State, String> {
         // check that customer already in the Initialized state
         if cust_state.channel_status != ChannelStatus::Initialized {
-            return Err(format!("Invalid channel status for activate_customer(): {}", cust_state.channel_status));
+            return Err(format!(
+                "Invalid channel status for activate_customer(): {}",
+                cust_state.channel_status
+            ));
         }
         let _r_com = cust_state.generate_rev_lock_commitment(csprng);
         let _t0 = cust_state.get_randomness();
@@ -1011,7 +1016,10 @@ pub mod mpc {
     /// Finalize activation of the channel for customer
     /// no output
     ///
-    pub fn activate_customer_finalize(pay_token_0: [u8; 32], cust_state: &mut CustomerMPCState) -> Result<(), String> {
+    pub fn activate_customer_finalize(
+        pay_token_0: [u8; 32],
+        cust_state: &mut CustomerMPCState,
+    ) -> Result<(), String> {
         cust_state.store_initial_pay_token(pay_token_0)
     }
 
@@ -1028,8 +1036,9 @@ pub mod mpc {
         cust_state: &mut CustomerMPCState,
     ) -> Result<(State, RevokedState, [u8; 16]), String> {
         // verify that channel status is already activated or established
-        if (cust_state.channel_status == ChannelStatus::Activated && amount >= 0) || 
-            (cust_state.channel_status == ChannelStatus::Established && amount > 0) {
+        if (cust_state.channel_status == ChannelStatus::Activated && amount >= 0)
+            || (cust_state.channel_status == ChannelStatus::Established && amount > 0)
+        {
             // check if payment on current balance is greater than dust limit
             let new_balance = match amount > 0 {
                 true => cust_state.cust_balance - amount,  // positive value
@@ -1067,10 +1076,13 @@ pub mod mpc {
                     rev_secret: FixedSizeArray32(cur_rev_secret),
                     t: FixedSizeArray16(cur_t),
                 },
-                session_id
+                session_id,
             ))
         } else {
-            return Err(format!("Invalid channel status for pay_prepare_customer(): {}", cust_state.channel_status));
+            return Err(format!(
+                "Invalid channel status for pay_prepare_customer(): {}",
+                cust_state.channel_status
+            ));
         }
     }
 
@@ -1089,7 +1101,7 @@ pub mod mpc {
         amount: i64,
         merch_state: &mut MerchantMPCState,
     ) -> Result<[u8; 32], String> {
-        // verify that no existing session with the specified session_id/nonce combo
+        // checks that no existing session with the specified session_id/nonce combo
         merch_state.generate_pay_mask_commitment(
             csprng,
             db,
@@ -1119,8 +1131,9 @@ pub mod mpc {
         cust_state: &mut CustomerMPCState,
     ) -> Result<bool, String> {
         // verify that channel status is already activated or established (unlink)
-        if (cust_state.channel_status == ChannelStatus::Activated && amount >= 0) || 
-            (cust_state.channel_status == ChannelStatus::Established && amount > 0) {
+        if (cust_state.channel_status == ChannelStatus::Activated && amount >= 0)
+            || (cust_state.channel_status == ChannelStatus::Established && amount > 0)
+        {
             cust_state.update_pay_com(pay_token_mask_com);
             if cust_state.net_config.is_none() {
                 // use default
@@ -1142,10 +1155,13 @@ pub mod mpc {
                 pay_token_mask_com,
                 rev_lock_com,
                 amount,
-                circuit
+                circuit,
             )
         } else {
-            return Err(format!("Invalid channel status for pay_update_customer(): {}", cust_state.channel_status));
+            return Err(format!(
+                "Invalid channel status for pay_update_customer(): {}",
+                cust_state.channel_status
+            ));
         }
     }
 
@@ -1181,7 +1197,7 @@ pub mod mpc {
             &channel,
             session_id,
             pay_token_mask_com,
-            circuit
+            circuit,
         );
     }
 
@@ -1224,16 +1240,19 @@ pub mod mpc {
         mask_bytes: MaskedTxMPCInputs,
         cust_state: &mut CustomerMPCState,
     ) -> Result<bool, String> {
-        if (cust_state.channel_status == ChannelStatus::Activated || 
-            cust_state.channel_status == ChannelStatus::Established) {
-        
+        if (cust_state.channel_status == ChannelStatus::Activated
+            || cust_state.channel_status == ChannelStatus::Established)
+        {
             cust_state.unmask_and_verify_transactions::<Testnet>(
                 channel_state,
                 channel_token,
                 mask_bytes,
             )
         } else {
-            return Err(format!("Invalid channel status for pay_unmask_sigs_customer(): {}", cust_state.channel_status));
+            return Err(format!(
+                "Invalid channel status for pay_unmask_sigs_customer(): {}",
+                cust_state.channel_status
+            ));
         }
     }
 
@@ -1272,11 +1291,15 @@ pub mod mpc {
         pt_mask_r: [u8; 16],
         cust_state: &mut CustomerMPCState,
     ) -> Result<bool, String> {
-        if (cust_state.channel_status == ChannelStatus::Activated || 
-            cust_state.channel_status == ChannelStatus::Established) {
+        if (cust_state.channel_status == ChannelStatus::Activated
+            || cust_state.channel_status == ChannelStatus::Established)
+        {
             Ok(cust_state.unmask_and_verify_pay_token(pt_mask_bytes, pt_mask_r))
         } else {
-            return Err(format!("Invalid channel status for pay_unmask_pay_token_customer(): {}", cust_state.channel_status));
+            return Err(format!(
+                "Invalid channel status for pay_unmask_pay_token_customer(): {}",
+                cust_state.channel_status
+            ));
         }
     }
 
@@ -1324,10 +1347,10 @@ mod tests {
     use rand_xorshift::XorShiftRng;
     use sha2::{Digest, Sha256};
 
-    use database::{MaskedTxMPCInputs, HashMapDatabase, RedisDatabase, StateDatabase};
+    use channels_mpc::ChannelStatus;
+    use database::{HashMapDatabase, MaskedTxMPCInputs, RedisDatabase, StateDatabase};
     use zkchan_tx::fixed_size_array::FixedSizeArray32;
     use zkchan_tx::Testnet;
-    use channels_mpc::ChannelStatus;
 
     fn setup_new_channel_helper(
         channel_state: &mut zkproofs::ChannelState<Bls12>,
@@ -2039,7 +2062,7 @@ mod tests {
             min_fee,
             max_fee,
             fee_mc,
-            "Alice"
+            "Alice",
         );
 
         // form all of the escrow and merch-close-tx transactions
@@ -2166,7 +2189,7 @@ mod tests {
             min_fee,
             max_fee,
             fee_mc,
-            "Alice"
+            "Alice",
         );
 
         let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch, fee_mc);
@@ -2339,7 +2362,7 @@ mod tests {
             pt_mask_r.copy_from_slice(hex::decode("4a682bd5d46e3b5c7c6c353636086ed7").unwrap().as_slice());
 
             let is_ok = mpc::pay_unmask_pay_token_customer(pt_mask, pt_mask_r, &mut cust_state).unwrap();
-            assert!(is_ok);            
+            assert!(is_ok);
         }
     }
 }

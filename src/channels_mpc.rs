@@ -8,6 +8,7 @@ use rand::Rng;
 use sha2::{Digest, Sha256};
 use std::ffi::{c_void, CString};
 use std::fmt::Debug;
+use std::fmt::Display;
 use std::os::unix::io::RawFd;
 use std::{env, ptr};
 use wallet::{State, NONCE_LEN};
@@ -19,7 +20,6 @@ use zkchan_tx::transactions::btc::{
 };
 use zkchan_tx::transactions::ClosePublicKeys;
 use zkchan_tx::{BitcoinNetwork, BitcoinTransactionParameters, Transaction};
-use std::fmt::Display;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct NetworkConfig {
     pub conn_type: ConnType,
@@ -43,20 +43,20 @@ pub enum ChannelStatus {
     CustomerInitClose,
     Disputed,
     PendingClose,
-    ConfirmedClose
+    ConfirmedClose,
 }
 #[derive(Clone, Debug, PartialEq, Display, Serialize, Deserialize)]
 pub enum PaymentStatus {
     Prepare,
     Update,
-    Error
+    Error,
 }
 
 #[derive(Clone, Debug, PartialEq, Display, Serialize, Deserialize)]
 pub enum NegativePayment {
-    ALLOW, // allow negative payments
-    REJECT, // only positive payments are allowed in this mode
-    CHECK_AUTHORIZATION // allow negative payments, if authorization/justification presented
+    ALLOW,               // allow negative payments
+    REJECT,              // only positive payments are allowed in this mode
+    CHECK_AUTHORIZATION, // allow negative payments, if authorization/justification presented
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -243,7 +243,7 @@ impl CustomerMPCState {
         cust_bal: i64,
         merch_bal: i64,
         fee_cc: i64,
-        name: String
+        name: String,
     ) -> Self {
         let secp = secp256k1::Secp256k1::new();
 
@@ -295,7 +295,12 @@ impl CustomerMPCState {
         };
     }
 
-    pub fn load_external_wallet(&mut self, channel_token: &mut ChannelMPCToken, cust_sk: [u8; 32], pay_sk: [u8; 32]) -> Result<(), String> {
+    pub fn load_external_wallet(
+        &mut self,
+        channel_token: &mut ChannelMPCToken,
+        cust_sk: [u8; 32],
+        pay_sk: [u8; 32],
+    ) -> Result<(), String> {
         let secp = secp256k1::Secp256k1::new();
 
         let sk_c = handle_error_util!(secp256k1::SecretKey::from_slice(&cust_sk));
@@ -303,9 +308,9 @@ impl CustomerMPCState {
 
         let pk_c = secp256k1::PublicKey::from_secret_key(&secp, &sk_c);
         let payout_pk = secp256k1::PublicKey::from_secret_key(&secp, &payout_sk);
-        
+
         channel_token.set_customer_pk(pk_c.clone());
-        
+
         self.sk_c = FixedSizeArray32(cust_sk);
         self.pk_c = pk_c;
 
@@ -392,7 +397,10 @@ impl CustomerMPCState {
 
     pub fn store_initial_pay_token(&mut self, pay_token: [u8; 32]) -> Result<(), String> {
         if self.channel_status != ChannelStatus::Initialized {
-            return Err(format!("Invalid channel status for store_initial_pay_token(): {}", self.channel_status));
+            return Err(format!(
+                "Invalid channel status for store_initial_pay_token(): {}",
+                self.channel_status
+            ));
         }
 
         self.pay_tokens.insert(0, FixedSizeArray32(pay_token));
@@ -551,7 +559,7 @@ impl CustomerMPCState {
         paytoken_mask_com: [u8; 32],
         rev_lock_com: [u8; 32],
         amount: i64,
-        circuit: *mut c_void
+        circuit: *mut c_void,
     ) -> Result<bool, String> {
         let min_cust_bal = channel_state.min_threshold + fee_cc + VAL_CPFP;
         if new_state.bc <= min_cust_bal {
@@ -560,15 +568,16 @@ impl CustomerMPCState {
             ));
         }
 
-        // add channel_status check: 
+        // add channel_status check:
         if self.channel_status == ChannelStatus::Activated && amount >= 0 {
             // executing unlnik and can proceed
             ()
         } else if self.channel_status != ChannelStatus::Established && amount > 0 {
             return Err(format!(
-                "customer::execute_mpc_context - channel not established yet: {}", self.channel_status
+                "customer::execute_mpc_context - channel not established yet: {}",
+                self.channel_status
             ));
-        } 
+        }
 
         // load the key_com from channel state
         let key_com = channel_state.get_key_com();
@@ -695,8 +704,7 @@ impl CustomerMPCState {
         let pubkeys = self.get_pubkeys(channel_state, channel_token);
         let escrow_input =
             create_utxo_input(&channel_token.escrow_txid.0, escrow_index, init_balance);
-        let merch_input =
-            create_utxo_input(&channel_token.merch_txid.0, merch_index, init_balance);
+        let merch_input = create_utxo_input(&channel_token.merch_txid.0, merch_index, init_balance);
 
         let (escrow_tx_preimage, escrow_tx_params, _) = create_cust_close_transaction::<N>(
             &escrow_input,
@@ -1016,7 +1024,7 @@ pub struct MerchantMPCState {
     pub close_tx: HashMap<FixedSizeArray32, MerchCloseTx>,
     pub net_config: Option<NetworkConfig>,
     pub db_url: String,
-    refund_option: NegativePayment
+    refund_option: NegativePayment,
 }
 
 impl MerchantMPCState {
@@ -1024,10 +1032,10 @@ impl MerchantMPCState {
         csprng: &mut R,
         db_url: String,
         channel: &mut ChannelMPCState,
-        id: String
+        id: String,
     ) -> Self {
         let secp = secp256k1::Secp256k1::new();
-        let mut _sk_m = [0u8; 32];        
+        let mut _sk_m = [0u8; 32];
         csprng.fill_bytes(&mut _sk_m);
 
         // generate the signing keypair for the channel
@@ -1072,11 +1080,17 @@ impl MerchantMPCState {
             close_tx: HashMap::new(),
             net_config: None,
             db_url: db_url,
-            refund_option: NegativePayment::ALLOW
+            refund_option: NegativePayment::ALLOW,
         }
     }
 
-    pub fn load_external_wallet(&mut self, channel: &mut ChannelMPCState, merch_sk: [u8; 32], pay_sk: [u8; 32], disp_sk: [u8; 32]) -> Result<(), String> {
+    pub fn load_external_wallet(
+        &mut self,
+        channel: &mut ChannelMPCState,
+        merch_sk: [u8; 32],
+        pay_sk: [u8; 32],
+        disp_sk: [u8; 32],
+    ) -> Result<(), String> {
         let secp = secp256k1::Secp256k1::new();
 
         let sk_m = handle_error_util!(secp256k1::SecretKey::from_slice(&merch_sk));
@@ -1125,7 +1139,6 @@ impl MerchantMPCState {
         channel_token: &ChannelMPCToken,
         s0: &State,
     ) -> Result<[u8; 32], String> {
-
         // refer to the state stored inside ActivateBucket by the channel_id
         let channel_id = channel_token.compute_channel_id().unwrap();
         let channel_id_str = hex::encode(channel_id.to_vec());
@@ -1252,19 +1265,21 @@ impl MerchantMPCState {
         // if there's an existing session with the same id
         let is_existing_session = match db.check_session_id(&session_id_hex) {
             Ok(s) => s,
-            Err(e) => return Err(e.to_string())
+            Err(e) => return Err(e.to_string()),
         };
 
         if is_existing_session {
             return Err(format!(
-                "Specified an existing session id: {}", session_id_hex
+                "Specified an existing session id: {}",
+                session_id_hex
             ));
         }
 
         // if specified nonce is part of an existing active session
         if db.check_dup_nonce_to_session_id(&nonce_hex, &session_id_hex) {
             return Err(format!(
-                "Cannot reuse nonce with a different session id: {} {}", session_id_hex, nonce_hex
+                "Cannot reuse nonce with a different session id: {} {}",
+                session_id_hex, nonce_hex
             ));
         }
 
@@ -1283,8 +1298,10 @@ impl MerchantMPCState {
         if amount < 0 {
             match self.refund_option {
                 NegativePayment::ALLOW => (),
-                NegativePayment::REJECT => return Err(format!("Sorry, refunds are not supported for this channel")),
-                NegativePayment::CHECK_AUTHORIZATION => self.check_justification(amount)?
+                NegativePayment::REJECT => {
+                    return Err(format!("Sorry, refunds are not supported for this channel"))
+                }
+                NegativePayment::CHECK_AUTHORIZATION => self.check_justification(amount)?,
             }
         }
 
@@ -1308,9 +1325,17 @@ impl MerchantMPCState {
         db.update_nonce_mask_map(&nonce_hex, pay_mask, pay_mask_r)?;
 
         // save session state
-        let sess_state = SessionState { nonce: FixedSizeArray16(nonce), rev_lock_com: FixedSizeArray32(rev_lock_com), amount: amount, status: PaymentStatus::Prepare };
+        let sess_state = SessionState {
+            nonce: FixedSizeArray16(nonce),
+            rev_lock_com: FixedSizeArray32(rev_lock_com),
+            amount: amount,
+            status: PaymentStatus::Prepare,
+        };
         if !db.save_new_session_state(&session_id_hex, &sess_state) {
-            println!("Save-new-session-state failed: Could not cache new session state for id: {}", &session_id_hex);
+            println!(
+                "Save-new-session-state failed: Could not cache new session state for id: {}",
+                &session_id_hex
+            );
         }
 
         let is_ok = db.update_nonce_to_session_id(&nonce_hex, &session_id_hex);
@@ -1349,8 +1374,7 @@ impl MerchantMPCState {
         let mut merch_txid_le = funding_tx.merch_txid.0.clone();
         merch_txid_le.reverse();
 
-        let escrow_input =
-            create_utxo_input(&escrow_txid_le, escrow_index, init_balance);
+        let escrow_input = create_utxo_input(&escrow_txid_le, escrow_index, init_balance);
         let merch_input = create_utxo_input(&merch_txid_le, merch_index, init_balance);
 
         let pubkeys = ClosePublicKeys {
@@ -1510,7 +1534,7 @@ impl MerchantMPCState {
         channel_state: &ChannelMPCState,
         session_id: [u8; 16],
         paytoken_mask_com: [u8; 32],
-        circuit: *mut c_void
+        circuit: *mut c_void,
     ) -> Result<bool, String> {
         // // if epsilon > 0, check if acceptable (above dust limit).
         // if amount > 0 && amount < channel_state.get_min_threshold() {
@@ -1521,7 +1545,7 @@ impl MerchantMPCState {
         let session_id_hex = hex::encode(&session_id);
         let session_state = match db.load_session_state(&session_id_hex) {
             Ok(s) => s,
-            Err(e) => return Err(e.to_string())
+            Err(e) => return Err(e.to_string()),
         };
 
         let amount = session_state.amount;
@@ -1531,7 +1555,10 @@ impl MerchantMPCState {
         // check if n_i not in S_spent
         let nonce_hex = hex::encode(nonce);
         if db.check_spent_map(&nonce_hex) {
-            return Err(format!("merch::execute_mpc_context - nonce {} has been spent already.", &nonce_hex));
+            return Err(format!(
+                "merch::execute_mpc_context - nonce {} has been spent already.",
+                &nonce_hex
+            ));
         }
 
         // retrieve the paytoken_mask & randomness (based on the given nonce)
@@ -1542,7 +1569,9 @@ impl MerchantMPCState {
 
         let pay_mask_com = self.recompute_commitmment(&pay_mask_bytes, &pay_mask_r);
         if pay_mask_com != paytoken_mask_com {
-            return Err(String::from("merch::execute_mpc_context - specified invalid pay mask commitment"));
+            return Err(String::from(
+                "merch::execute_mpc_context - specified invalid pay mask commitment",
+            ));
         }
 
         // generate masks for close-escrow and close-merch txs
@@ -1756,7 +1785,7 @@ mod tests {
 
         // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
         let funding_tx_info = generate_test_txs(&mut rng, b0_cust, b0_merch, fee_mc);
-        
+
         // set escrow-tx and merch-close-tx info
         cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info).unwrap();
 
@@ -2060,7 +2089,9 @@ mod tests {
         let merch_sk = [1u8; 32];
         let pay_sk = [2u8; 32];
         let disp_sk = [3u8; 32];
-        merch_state.load_external_wallet(&mut channel_state, merch_sk, pay_sk, disp_sk).unwrap();
+        merch_state
+            .load_external_wallet(&mut channel_state, merch_sk, pay_sk, disp_sk)
+            .unwrap();
 
         let mut db = RedisDatabase::new("test1", merch_state.db_url.clone()).unwrap();
         db.clear_state();
@@ -2082,16 +2113,19 @@ mod tests {
             b0_cust,
             b0_merch,
             fee_cc,
-            String::from("Customer")
+            String::from("Customer"),
         );
 
         // initialize the channel token on with pks
         // generate and send initial state to the merchant
-        let mut channel_token = cust_state.generate_init_state(&mut rng, &merch_state.pk_m, 0, 10000, fee_mc);
+        let mut channel_token =
+            cust_state.generate_init_state(&mut rng, &merch_state.pk_m, 0, 10000, fee_mc);
 
         let cust_sk = [4u8; 32];
         let pay_sk = [5u8; 32];
-        cust_state.load_external_wallet(&mut channel_token, cust_sk, pay_sk).unwrap();
+        cust_state
+            .load_external_wallet(&mut channel_token, cust_sk, pay_sk)
+            .unwrap();
         // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
         let funding_tx_info = generate_test_txs(&mut rng, b0_cust, b0_merch, fee_mc);
 

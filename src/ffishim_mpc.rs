@@ -8,7 +8,6 @@ pub mod ffishim_mpc {
     use database::{MaskedTxMPCInputs, RedisDatabase, StateDatabase};
     use hex::FromHexError;
     use libc::c_char;
-    use ::{mpc, util};
     use mpc::RevokedState;
     use serde::Deserialize;
     use std::ffi::{CStr, CString};
@@ -16,6 +15,7 @@ pub mod ffishim_mpc {
     use wallet::State;
     use zkchan_tx::Testnet;
     use FundingTxInfo;
+    use {mpc, util};
 
     fn error_message(s: String) -> *mut c_char {
         let ser = ["{\'error\':\'", &s, "\'}"].concat();
@@ -154,9 +154,8 @@ pub mod ffishim_mpc {
         ser_channel_state: *mut c_char,
         ser_sk_m: *mut c_char,
         ser_payout_sk: *mut c_char,
-        ser_dispute_sk: *mut c_char
+        ser_dispute_sk: *mut c_char,
     ) -> *mut c_char {
-
         // Deserialize the merch_state
         let merch_state_result: ResultSerdeType<MerchantMPCState> =
             deserialize_result_object(ser_merch_state);
@@ -182,7 +181,12 @@ pub mod ffishim_mpc {
         let mut dispute_sk = [0u8; 32];
         dispute_sk.copy_from_slice(dsk_buf.as_slice());
 
-        let _result = handle_errors!(merch_state.load_external_wallet(&mut channel_state, merch_sk, payout_sk, dispute_sk));
+        let _result = handle_errors!(merch_state.load_external_wallet(
+            &mut channel_state,
+            merch_sk,
+            payout_sk,
+            dispute_sk
+        ));
         let ser = [
             "{\'merch_state\':\'",
             serde_json::to_string(&merch_state).unwrap().as_str(),
@@ -206,7 +210,7 @@ pub mod ffishim_mpc {
         min_fee: i64,
         max_fee: i64,
         fee_mc: i64,
-        name_ptr: *const c_char
+        name_ptr: *const c_char,
     ) -> *mut c_char {
         let rng = &mut rand::thread_rng();
 
@@ -220,8 +224,9 @@ pub mod ffishim_mpc {
         let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
 
         // We change the channel state
-        let (channel_token, cust_state) =
-            mpc::init_customer(rng, &pk_m, cust_bal, merch_bal, fee_cc, min_fee, max_fee, fee_mc, name);
+        let (channel_token, cust_state) = mpc::init_customer(
+            rng, &pk_m, cust_bal, merch_bal, fee_cc, min_fee, max_fee, fee_mc, name,
+        );
         let ser = [
             "{\'cust_state\':\'",
             serde_json::to_string(&cust_state).unwrap().as_str(),
@@ -239,14 +244,13 @@ pub mod ffishim_mpc {
         ser_cust_state: *mut c_char,
         ser_channel_token: *mut c_char,
         ser_sk_c: *mut c_char,
-        ser_payout_sk: *mut c_char
+        ser_payout_sk: *mut c_char,
     ) -> *mut c_char {
-
         // Deserialize the cust_state
         let cust_state_result: ResultSerdeType<CustomerMPCState> =
             deserialize_result_object(ser_cust_state);
         let mut cust_state = handle_errors!(cust_state_result);
-    
+
         // Deserialize the ChannelToken
         let channel_token_result: ResultSerdeType<ChannelMPCToken> =
             deserialize_result_object(ser_channel_token);
@@ -262,7 +266,8 @@ pub mod ffishim_mpc {
         let mut payout_sk = [0u8; 32];
         payout_sk.copy_from_slice(psk_buf.as_slice());
 
-        let _result = handle_errors!(cust_state.load_external_wallet(&mut channel_token, cust_sk, payout_sk));
+        let _result =
+            handle_errors!(cust_state.load_external_wallet(&mut channel_token, cust_sk, payout_sk));
         let ser = [
             "{\'cust_state\':\'",
             serde_json::to_string(&cust_state).unwrap().as_str(),
@@ -445,7 +450,10 @@ pub mod ffishim_mpc {
         pay_token_0.copy_from_slice(pay_token.as_slice());
 
         // We change the channel state
-        handle_errors!(mpc::activate_customer_finalize(pay_token_0, &mut cust_state));
+        handle_errors!(mpc::activate_customer_finalize(
+            pay_token_0,
+            &mut cust_state
+        ));
         let ser = [
             "{\'cust_state\':\'",
             serde_json::to_string(&cust_state).unwrap().as_str(),
@@ -846,8 +854,11 @@ pub mod ffishim_mpc {
         let mut cust_state = handle_errors!(cust_state_result);
 
         // We change the channel state
-        let is_ok =
-            handle_errors!(mpc::pay_unmask_pay_token_customer(pt_mask_bytes_ar, pt_mask_r_ar, &mut cust_state));
+        let is_ok = handle_errors!(mpc::pay_unmask_pay_token_customer(
+            pt_mask_bytes_ar,
+            pt_mask_r_ar,
+            &mut cust_state
+        ));
         let ser = [
             "{\'is_ok\':",
             &is_ok.to_string(),
@@ -987,7 +998,7 @@ pub mod ffishim_mpc {
         ser_merch_pk: *mut c_char,
         ser_change_pk: *mut c_char,
         ser_change_pk_is_hash: u32,
-        ser_should_sign: u32
+        ser_should_sign: u32,
     ) -> *mut c_char {
         let txid_result = deserialize_hex_string(ser_txid);
         let txid = handle_errors!(txid_result);
@@ -1017,7 +1028,8 @@ pub mod ffishim_mpc {
         }
 
         let ser = match should_sign {
-            true => { // proceed to sign
+            true => {
+                // proceed to sign
                 let (signed_tx, txid_be, txid_le, prevout) =
                     handle_errors!(zkchan_tx::txutil::customer_sign_escrow_transaction(
                         txid,
@@ -1043,8 +1055,9 @@ pub mod ffishim_mpc {
                 ]
                 .concat();
                 ser
-            },
-            false => { // proceed to form and return the txid/prevout
+            }
+            false => {
+                // proceed to form and return the txid/prevout
                 let (txid_be, txid_le, prevout) =
                     handle_errors!(zkchan_tx::txutil::customer_form_escrow_transaction(
                         txid,
@@ -1068,12 +1081,12 @@ pub mod ffishim_mpc {
                 ]
                 .concat();
                 ser
-            },
-        };    
+            }
+        };
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
-    
+
     #[no_mangle]
     pub extern "C" fn form_merch_close_transaction(
         ser_escrow_txid: *mut c_char,
@@ -1213,9 +1226,9 @@ pub mod ffishim_mpc {
             );
         }
 
-        let (txid_be, prevout) = handle_errors!(zkchan_tx::txutil::merchant_generate_transaction_id(
-            tx_params
-        ));
+        let (txid_be, prevout) = handle_errors!(
+            zkchan_tx::txutil::merchant_generate_transaction_id(tx_params)
+        );
         let mut txid_le = txid_be.to_vec();
         txid_le.reverse();
 

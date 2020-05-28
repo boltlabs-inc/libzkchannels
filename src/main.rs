@@ -543,7 +543,8 @@ mod cust {
     use zkchan_tx::fixed_size_array::FixedSizeArray32;
     use zkchan_tx::transactions::btc::merchant_form_close_transaction;
     use zkchan_tx::txutil::{
-        customer_form_escrow_transaction, customer_sign_escrow_transaction, customer_sign_merch_close_transaction,
+        customer_form_escrow_transaction, customer_sign_escrow_transaction,
+        customer_sign_merch_close_transaction,
     };
     use zkchannels::bindings::ConnType_NETIO;
     // ConnType_CUSTOM
@@ -598,7 +599,7 @@ mod cust {
             min_fee,
             max_fee,
             fee_mc,
-            channel_name.as_str()
+            channel_name.as_str(),
         );
 
         println!("Saving the initial customer state...");
@@ -774,18 +775,17 @@ mod cust {
         }
 
         // proceed to sign the escrow-tx after initial closing tx signed
-        let (signed_tx, _, _, _) =
-            handle_error_result!(customer_sign_escrow_transaction(
-                input_txid,
-                index,
-                cust_sk.clone(),
-                input_sats,
-                output_sats,
-                cust_pk.clone(),
-                merch_pk.clone(),
-                Some(change_pk_vec),
-                false
-            ));
+        let (signed_tx, _, _, _) = handle_error_result!(customer_sign_escrow_transaction(
+            input_txid,
+            index,
+            cust_sk.clone(),
+            input_sats,
+            output_sats,
+            cust_pk.clone(),
+            merch_pk.clone(),
+            Some(change_pk_vec),
+            false
+        ));
 
         println!("Can now broadcast the signed escrow transaction");
         write_file("signed_escrow_tx.txt", hex::encode(&signed_tx))?;
@@ -960,8 +960,12 @@ mod cust {
         pt_mask_r.copy_from_slice(pt_mask_r_vec.as_slice());
 
         // unmask the pay token
-        is_ok =
-            is_ok && handle_error_result!(mpc::pay_unmask_pay_token_customer(pt_mask_bytes, pt_mask_r, &mut cust_state));
+        is_ok = is_ok
+            && handle_error_result!(mpc::pay_unmask_pay_token_customer(
+                pt_mask_bytes,
+                pt_mask_r,
+                &mut cust_state
+            ));
 
         conn.send(&[is_ok.to_string()]);
         match is_ok {
@@ -1060,8 +1064,8 @@ mod merch {
         ChannelMPCState, ChannelMPCToken, InitCustState, MerchantMPCState, NetworkConfig,
     };
     use zkchannels::database::{RedisDatabase, StateDatabase};
-    use zkchannels::wallet::State;
     use zkchannels::util;
+    use zkchannels::wallet::State;
 
     static MERCH_STATE_KEY: &str = "merch_state";
     static CHANNEL_STATE_KEY: &str = "channel_state";
@@ -1326,7 +1330,7 @@ mod merch {
         let nonce_vec = hex::decode(msg0.get(1).unwrap()).unwrap();
         let mut nonce = [0u8; 16];
         nonce.copy_from_slice(nonce_vec.as_slice());
-        // get the 
+        // get the rev_lock_com
         let rev_lock_com_vec = hex::decode(msg0.get(2).unwrap()).unwrap();
         let mut rev_lock_com = [0u8; 32];
         rev_lock_com.copy_from_slice(rev_lock_com_vec.as_slice());
