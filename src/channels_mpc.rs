@@ -53,7 +53,7 @@ pub enum PaymentStatus {
 }
 
 #[derive(Clone, Debug, PartialEq, Display, Serialize, Deserialize)]
-pub enum NegativePayment {
+pub enum NegativePaymentPolicy {
     ALLOW,               // allow negative payments
     REJECT,              // only positive payments are allowed in this mode
     CHECK_AUTHORIZATION, // allow negative payments, if authorization/justification presented
@@ -1024,7 +1024,7 @@ pub struct MerchantMPCState {
     pub close_tx: HashMap<FixedSizeArray32, MerchCloseTx>,
     pub net_config: Option<NetworkConfig>,
     pub db_url: String,
-    refund_option: NegativePayment,
+    refund_policy: NegativePaymentPolicy,
 }
 
 impl MerchantMPCState {
@@ -1080,7 +1080,7 @@ impl MerchantMPCState {
             close_tx: HashMap::new(),
             net_config: None,
             db_url: db_url,
-            refund_option: NegativePayment::ALLOW,
+            refund_policy: NegativePaymentPolicy::ALLOW,
         }
     }
 
@@ -1117,8 +1117,8 @@ impl MerchantMPCState {
         Ok(())
     }
 
-    pub fn set_refund_policy(&mut self, option: NegativePayment) {
-        self.refund_option = option;
+    pub fn set_refund_policy(&mut self, policy: NegativePaymentPolicy) {
+        self.refund_policy = policy;
     }
 
     pub fn get_secret_key(&self) -> Vec<u8> {
@@ -1245,7 +1245,7 @@ impl MerchantMPCState {
     }
 
     pub fn check_justification(&self, amount: i64) -> Result<(), String> {
-        // TODO: figure out how to check this
+        // TODO: ZKC-17 verify justification for negative payments
         println!("Verify justification for negative payment: {}", amount);
         Ok(())
     }
@@ -1262,7 +1262,7 @@ impl MerchantMPCState {
     ) -> Result<[u8; 32], String> {
         let nonce_hex = hex::encode(nonce);
         let session_id_hex = hex::encode(session_id);
-        // if there's an existing session with the same id
+        // check if there's an existing active session with the same session id
         let is_existing_session = match db.check_session_id(&session_id_hex) {
             Ok(s) => s,
             Err(e) => return Err(e.to_string()),
@@ -1290,18 +1290,13 @@ impl MerchantMPCState {
             ));
         }
 
-        // if epsilon > 0, check if updated balance is above dust limit.
-        // if amount > 0 && amount < channel_state.get_min_threshold() {
-        //     // if check fails, abort and output an error
-        //     return Err(String::from("epsilon below dust limit!"));
-        // }
         if amount < 0 {
-            match self.refund_option {
-                NegativePayment::ALLOW => (),
-                NegativePayment::REJECT => {
+            match self.refund_policy {
+                NegativePaymentPolicy::ALLOW => (),
+                NegativePaymentPolicy::REJECT => {
                     return Err(format!("Sorry, refunds are not supported for this channel"))
                 }
-                NegativePayment::CHECK_AUTHORIZATION => self.check_justification(amount)?,
+                NegativePaymentPolicy::CHECK_AUTHORIZATION => self.check_justification(amount)?,
             }
         }
 
