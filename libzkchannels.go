@@ -66,7 +66,7 @@ type MerchState struct {
 	CloseTxMap   *map[string]interface{} `json:"close_tx"`
 	NetConfig    *map[string]interface{} `json:"net_config"`
 	DbUrl        string                  `json:"db_url"`
-	RefundOption string                  `json:"refund_option"`
+	RefundPolicy string                  `json:"refund_policy"`
 }
 
 type CustState struct {
@@ -610,7 +610,7 @@ func PreparePaymentCustomer(channelState ChannelState, amount int64, custState C
 	return revState, state, r.SessionId, newCustState, err
 }
 
-func PreparePaymentMerchant(channelState ChannelState, sessionId string, nonce string, revLockCom string, amount int64, merchState MerchState) (string, MerchState, error) {
+func PreparePaymentMerchant(channelState ChannelState, sessionId string, nonce string, revLockCom string, amount int64, justification string, merchState MerchState) (string, MerchState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
 		return "", MerchState{}, err
@@ -621,7 +621,7 @@ func PreparePaymentMerchant(channelState ChannelState, sessionId string, nonce s
 		return "", MerchState{}, err
 	}
 
-	resp := C.GoString(C.mpc_prepare_payment_merchant(C.CString(string(serChannelState)), C.CString(sessionId), C.CString(nonce), C.CString(revLockCom), C.int64_t(amount), C.CString(string(serMerchState))))
+	resp := C.GoString(C.mpc_prepare_payment_merchant(C.CString(string(serChannelState)), C.CString(sessionId), C.CString(nonce), C.CString(revLockCom), C.int64_t(amount), C.CString(justification), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", MerchState{}, err

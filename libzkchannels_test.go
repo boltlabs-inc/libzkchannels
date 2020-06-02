@@ -195,7 +195,8 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("Nonce: ", state.Nonce)
 	fmt.Println("RevLockCom: ", revState.RevLockCom)
 
-	payTokenMaskCom, merchState, err := PreparePaymentMerchant(channelState, sessionId, state.Nonce, revState.RevLockCom, 10, merchState)
+	justification := ""
+	payTokenMaskCom, merchState, err := PreparePaymentMerchant(channelState, sessionId, state.Nonce, revState.RevLockCom, 10, justification, merchState)
 	assert.Nil(t, err)
 
 	go runPayCust(channelState, channelToken, state, newState, payTokenMaskCom, revState.RevLockCom, custState)

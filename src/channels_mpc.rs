@@ -54,9 +54,8 @@ pub enum PaymentStatus {
 
 #[derive(Clone, Debug, PartialEq, Display, Serialize, Deserialize)]
 pub enum NegativePaymentPolicy {
-    ALLOW,               // allow negative payments
     REJECT,              // only positive payments are allowed in this mode
-    CHECK_AUTHORIZATION, // allow negative payments, if authorization/justification presented
+    CHECK_JUSTIFICATION, // allow negative payments, if authorization/justification presented
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1080,7 +1079,7 @@ impl MerchantMPCState {
             close_tx: HashMap::new(),
             net_config: None,
             db_url: db_url,
-            refund_policy: NegativePaymentPolicy::ALLOW,
+            refund_policy: NegativePaymentPolicy::REJECT,
         }
     }
 
@@ -1244,10 +1243,13 @@ impl MerchantMPCState {
         Ok(true)
     }
 
-    pub fn check_justification(&self, amount: i64) -> Result<(), String> {
+    pub fn process_justification(&self, amount: i64, signature: Option<String>) -> Result<bool, String> {
         // TODO: ZKC-17 verify justification for negative payments
-        println!("Verify justification for negative payment: {}", amount);
-        Ok(())
+        if signature.is_some() {
+            println!("Verify justification for negative payment: {}", amount);
+            return Ok(true);
+        } 
+        return Ok(false);
     }
 
     pub fn generate_pay_mask_commitment<R: Rng>(
@@ -1259,6 +1261,7 @@ impl MerchantMPCState {
         nonce: [u8; NONCE_LEN],
         rev_lock_com: [u8; 32],
         amount: i64,
+        justification: Option<String>
     ) -> Result<[u8; 32], String> {
         let nonce_hex = hex::encode(nonce);
         let session_id_hex = hex::encode(session_id);
@@ -1291,12 +1294,16 @@ impl MerchantMPCState {
         }
 
         if amount < 0 {
-            match self.refund_policy {
-                NegativePaymentPolicy::ALLOW => (),
-                NegativePaymentPolicy::REJECT => {
-                    return Err(format!("Sorry, refunds are not supported for this channel"))
+            let payment_result = match self.refund_policy {
+                NegativePaymentPolicy::REJECT => false,
+                NegativePaymentPolicy::CHECK_JUSTIFICATION => match self.process_justification(amount, justification) {
+                    Ok(s) => s,
+                    Err(e) => return Err(e.to_string())
                 }
-                NegativePaymentPolicy::CHECK_AUTHORIZATION => self.check_justification(amount)?,
+            };
+
+            if !payment_result {
+                return Err(format!("Sorry, refunds are not allowed for this channel"))
             }
         }
 
@@ -1828,7 +1835,7 @@ mod tests {
         // pick session id
         let session_id = [1u8; 16];
 
-        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, &mut db as &mut dyn StateDatabase, &channel_state, session_id, s_0.get_nonce(), r_com.clone(), amount).unwrap();
+        let pay_token_mask_com = merch_state.generate_pay_mask_commitment(&mut rng, &mut db as &mut dyn StateDatabase, &channel_state, session_id, s_0.get_nonce(), r_com.clone(), amount, None).unwrap();
         cust_state.update_pay_com(pay_token_mask_com);
 
         // cust_state.set_mpc_connect_type(2);
@@ -2018,6 +2025,7 @@ mod tests {
                 s_0.get_nonce(),
                 r_com.clone(),
                 amount,
+                None
             )
             .unwrap();
         cust_state.update_pay_com(pay_token_mask_com);

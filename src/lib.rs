@@ -1099,6 +1099,7 @@ pub mod mpc {
         nonce: [u8; NONCE_LEN],
         rev_lock_com: [u8; 32],
         amount: i64,
+        justification: Option<String>,
         merch_state: &mut MerchantMPCState,
     ) -> Result<[u8; 32], String> {
         // checks that no existing session with the specified session_id/nonce combo
@@ -1110,6 +1111,7 @@ pub mod mpc {
             nonce,
             rev_lock_com,
             amount,
+            justification
         )
     }
 
@@ -2265,6 +2267,7 @@ mod tests {
             s0.get_nonce(),
             rev_lock_com.clone(),
             amount,
+            None,
             &mut merch_state,
         )
         .unwrap();
@@ -2361,7 +2364,7 @@ mod tests {
             let (state, rev_state, session_id) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, amount, &mut cust_state).unwrap();
             let rev_lock_com = rev_state.rev_lock_com.0;
 
-            let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &mut db as &mut dyn StateDatabase, &channel_state, session_id, state.get_nonce(), rev_lock_com.clone(), amount, &mut merch_state).unwrap();
+            let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &mut db as &mut dyn StateDatabase, &channel_state, session_id, state.get_nonce(), rev_lock_com.clone(), amount, None, &mut merch_state).unwrap();
 
             let res_cust = mpc::pay_update_customer(&channel_state, &channel_token, s0, state, fee_cc, pay_mask_com, rev_lock_com, amount, &mut cust_state);
             assert!(res_cust.is_ok() && res_cust.unwrap());
@@ -2447,9 +2450,6 @@ mod tests {
     // run pay prepare between customer and merchant
     fn pay_prepare_helper<R: Rng>(rng: &mut R, db: &mut RedisDatabase, channel_state: &mpc::ChannelMPCState, cust_state: &mut mpc::CustomerMPCState, amount: i64, merch_state: &mut mpc::MerchantMPCState) -> ([u8; 16], mpc::State, mpc::State, mpc::RevokedState, [u8; 32], [u8; 32])
     {
-        // let mut db = RedisDatabase::new("mpclib", "redis://127.0.0.1/".to_string()).unwrap();
-        // let mut rng = &mut rand::thread_rng();
-
         // get the old state
         let cur_state = cust_state.get_current_state();
         // let's prepare a new payment
@@ -2457,7 +2457,11 @@ mod tests {
         let rev_lock_com = rev_state.rev_lock_com.0;
 
         // println!("Old Nonce: {}", hex::encode(&cur_state.get_nonce()));
-        let pay_mask_com = mpc::pay_prepare_merchant(rng, db as &mut dyn StateDatabase, channel_state, session_id, cur_state.get_nonce(), rev_lock_com.clone(), amount, merch_state).unwrap();
+        let justification = match amount < 0 {
+            true => Some(format!("empty-sig")),
+            false => None,
+        };
+        let pay_mask_com = mpc::pay_prepare_merchant(rng, db as &mut dyn StateDatabase, channel_state, session_id, cur_state.get_nonce(), rev_lock_com.clone(), amount, justification, merch_state).unwrap();
 
         return (session_id, cur_state, new_state, rev_state, rev_lock_com, pay_mask_com);
     }

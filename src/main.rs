@@ -1351,6 +1351,11 @@ mod merch {
             amount
         );
 
+        let justification = match amount < 0 {
+            true => Some(format!("empty-sig")),
+            false => None
+        };
+
         let pay_token_mask_com = handle_error_result!(mpc::pay_prepare_merchant(
             rng,
             &mut db as &mut dyn StateDatabase,
@@ -1359,6 +1364,7 @@ mod merch {
             nonce,
             rev_lock_com.clone(),
             amount,
+            justification,
             merch_state
         ));
 

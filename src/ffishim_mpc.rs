@@ -513,6 +513,7 @@ pub mod ffishim_mpc {
         ser_nonce: *mut c_char,
         ser_rev_lock_com: *mut c_char,
         amount: i64,
+        ser_justification: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
         let rng = &mut rand::thread_rng();
@@ -540,6 +541,9 @@ pub mod ffishim_mpc {
         let mut nonce_ar = [0u8; 16];
         nonce_ar.copy_from_slice(nonce.as_slice());
 
+        // Deserialize justification (if negative payment)
+        let justification = handle_errors!(deserialize_string(ser_justification));
+
         // Deserialize the merch_state
         let merch_state_result: ResultSerdeType<MerchantMPCState> =
             deserialize_result_object(ser_merch_state);
@@ -558,6 +562,7 @@ pub mod ffishim_mpc {
             nonce_ar,
             rev_lock_com_ar,
             amount,
+            Some(justification),
             &mut merch_state
         ));
         let ser = [

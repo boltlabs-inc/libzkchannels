@@ -439,6 +439,7 @@ char *mpc_prepare_payment_merchant(char *ser_channel_state,
                                    char *ser_nonce,
                                    char *ser_rev_lock_com,
                                    int64_t amount,
+                                   char *ser_justification,
                                    char *ser_merch_state);
 
 char *mpc_validate_channel_params(char *ser_channel_token,
