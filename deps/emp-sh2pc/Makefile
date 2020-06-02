@@ -15,7 +15,7 @@ emp-sh2pc-$(VERSION)/.built: emp-sh2pc-${VERSION}
 	../fix_rpath_osx.sh libtoken-utils && \
 	../../root/bin/generate-circuit && \
 	cp tokens.circuit.txt $(ZK_DEPS_INSTALL)/include/emp-tool/circuits/files/ && \
-	chmod 440 $(ZK_DEPS_INSTALL)/include/emp-tool/circuits/files/tokens.circuit.txt
+	chmod 640 $(ZK_DEPS_INSTALL)/include/emp-tool/circuits/files/tokens.circuit.txt
 
 emp-sh2pc-$(VERSION): emp-sh2pc-$(VERSION).tar.gz
 	tar xf $^
