@@ -1351,7 +1351,6 @@ mod tests {
     use database::{HashMapDatabase, MaskedTxMPCInputs, RedisDatabase, StateDatabase};
     use zkchan_tx::fixed_size_array::FixedSizeArray32;
     use zkchan_tx::Testnet;
-    //use std::thread;
 
     fn setup_new_channel_helper(
         channel_state: &mut zkproofs::ChannelState<Bls12>,
@@ -2482,12 +2481,10 @@ mod tests {
 
         assert!(cust_state.channel_status == ChannelStatus::Initialized);
 
-        println!("channel_token: {:?}", cust_state);
-
         // merchant validates the initial state
         validate_initial_channel_state_helper(&mut db, &channel_token, &mut cust_state, &mut merch_state);
         println!("initial channel state validated!");
-        println!("cust_state channel status: {}", cust_state.channel_status);
+        // println!("cust_state channel status: {}", cust_state.channel_status);
 
         activate_channel_helper(&mut rng, &mut db, &channel_token, &mut cust_state, &mut merch_state);
         assert!(cust_state.channel_status == ChannelStatus::Activated);
@@ -2547,7 +2544,7 @@ rusty_fork_test! {
         let fee_cc = 1000;
         let (channel_state, _channel_token, mut cust_state, mut merch_state) = zkchannel_full_establish_setup_helper(&mut rng, &mut db, fee_cc);
 
-        let (session_id, _cur_state, _new_state, _rev_state, _rev_lock_com, pay_mask_com) = pay_prepare_helper(&mut rng, &mut db, &channel_state, &mut cust_state, 0, &mut merch_state);
+        let (session_id, _, _, _, _, pay_mask_com) = pay_prepare_helper(&mut rng, &mut db, &channel_state, &mut cust_state, 0, &mut merch_state);
         println!("merchant session id: {}", hex::encode(&session_id));
 
         let res_merch = mpc::pay_update_merchant(
@@ -2561,7 +2558,5 @@ rusty_fork_test! {
         assert!(res_merch.is_ok(), res_merch.err().unwrap());
     }
 }
-    // #[test]
-    // fn test_mpc_failure_scenarios() {        
-    // }
+
 }
