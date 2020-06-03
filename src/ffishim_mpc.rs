@@ -1373,7 +1373,8 @@ pub mod ffishim_mpc {
     pub extern "C" fn sign_merch_dispute_tx(
         ser_tx_index: *mut c_char,
         index: u32,
-        amount: i64,
+        input_amount: i64,
+        output_amount: i64,
         ser_self_delay: *mut c_char,
         ser_output_pk: *mut c_char,
         ser_rev_lock: *mut c_char,
@@ -1412,7 +1413,8 @@ pub mod ffishim_mpc {
         let signed_tx = handle_errors!(zkchan_tx::txutil::merchant_sign_merch_dispute_transaction(
             txid_le,
             index,
-            amount,
+            input_amount,
+            output_amount,
             self_delay_be,
             output_pk,
             rev_lock,
@@ -1431,7 +1433,8 @@ pub mod ffishim_mpc {
     pub extern "C" fn merch_claim_tx_from_cust_close(
         ser_tx_index: *mut c_char,
         index: u32,
-        amount: i64,
+        input_amount: i64,
+        output_amount: i64,
         ser_output_pk: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
@@ -1452,7 +1455,8 @@ pub mod ffishim_mpc {
             zkchan_tx::txutil::merchant_sign_cust_close_claim_transaction(
                 txid_le,
                 index,
-                amount,
+                input_amount,
+                output_amount,
                 output_pk,
                 merch_close_sk
             )
@@ -1467,7 +1471,8 @@ pub mod ffishim_mpc {
     pub extern "C" fn merch_claim_tx_from_merch_close(
         ser_tx_index: *mut c_char,
         index: u32,
-        amount: i64,
+        input_amount: i64,
+        output_amount: i64,
         ser_self_delay: *mut c_char,
         ser_cust_pk: *mut c_char,
         ser_output_pk: *mut c_char,
@@ -1500,7 +1505,8 @@ pub mod ffishim_mpc {
             zkchan_tx::txutil::merchant_sign_merch_close_claim_transaction(
                 txid_le,
                 index,
-                amount,
+                input_amount,
+                output_amount,
                 output_pk,
                 self_delay_be,
                 cust_pk,
@@ -1519,7 +1525,8 @@ pub mod ffishim_mpc {
         ser_channel_state: *mut c_char,
         ser_tx_index: *mut c_char,
         index: u32,
-        amount: i64,
+        input_amount: i64,
+        output_amount: i64,
         ser_self_delay: *mut c_char,
         ser_output_pk: *mut c_char,
         ser_rev_lock: *mut c_char,
@@ -1567,7 +1574,8 @@ pub mod ffishim_mpc {
             zkchan_tx::txutil::customer_sign_cust_close_claim_transaction(
                 txid_le,
                 index,
-                amount,
+                input_amount,
+                output_amount,
                 self_delay_be,
                 output_pk,
                 rev_lock,

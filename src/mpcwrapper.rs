@@ -125,6 +125,8 @@ pub fn mpc_build_masked_tokens_cust(
     };
 
     let timer = Instant::now();
+    let self_delay_int: i32 = 1487;
+    let self_delay = bytes_to_u32(&self_delay_int.to_le_bytes(), 4)[0];
     unsafe {
         build_masked_tokens_cust(
             Some(io_callback),
@@ -140,6 +142,7 @@ pub fn mpc_build_masked_tokens_cust(
             merch_payout_pub_key_c,
             nonce,
             val_cpfp_c,
+            self_delay,
             rl_rand_c,
             new_state_c,
             old_state_c,
@@ -393,6 +396,8 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(
     };
 
     let timer = Instant::now();
+    let self_delay_int: i32 = 1487;
+    let self_delay = bytes_to_u32(&self_delay_int.to_le_bytes(), 4)[0];
     unsafe {
         build_masked_tokens_merch(
             Some(io_callback),
@@ -408,6 +413,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(
             merch_payout_pub_key_c,
             nonce_c,
             val_cpfp_c,
+            self_delay,
             hmac_key,
             merch_mask,
             escrow_mask,

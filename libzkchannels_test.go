@@ -236,14 +236,17 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	// Customer claim tx from cust-close-from-escrow-tx
 	fmt.Println("========================================")
 	outputPk := changePk
-	claimAmount := custState.CustBalance - feeCC - feeMC
-	SignedCustClaimTx, err := CustomerSignClaimTx(channelState, CloseEscrowTxId_LE, uint32(0), claimAmount, toSelfDelay, outputPk, custState.RevLock, custClosePk, custState)
+	inputAmount := custState.CustBalance - feeCC - feeMC
+	claimAmount := inputAmount
+	SignedCustClaimTx, err := CustomerSignClaimTx(channelState, CloseEscrowTxId_LE, uint32(0), inputAmount, claimAmount, toSelfDelay, outputPk, custState.RevLock, custClosePk, custState)
 	assert.Nil(t, err)
 	fmt.Println("TX5-cust-claim-tx: ", SignedCustClaimTx)
 
 	// Merchant claim tx to_merchant output from cust-close-from-escrow-tx (spendable immediately)
 	outputPk2 := "03af0530f244a154b278b34de709b84bb85bb39ff3f1302fc51ae275e5a45fb353"
-	SignedMerchClaimTx, err := MerchantSignCustClaimTx(CloseEscrowTxId_LE, uint32(1), custState.MerchBalance, outputPk2, merchState)
+	txFee := int64(100)
+	claimAmount = custState.MerchBalance - txFee // with some fee
+	SignedMerchClaimTx, err := MerchantSignCustClaimTx(CloseEscrowTxId_LE, uint32(1), custState.MerchBalance, claimAmount, outputPk2, merchState)
 	assert.Nil(t, err)
 	fmt.Println("TX5-merch-claim-tx: ", SignedMerchClaimTx)
 	fmt.Println("========================================")
@@ -272,7 +275,8 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("========================================")
 	fmt.Println("custClosePk :=> ", custClosePk)
 	fmt.Println("merchDisputePk :=> ", merchDispPk)
-	disputeTx, err := MerchantSignDisputeTx(CloseEscrowTxId_TX3, index, amount, toSelfDelay, outputPk, revState.RevLock, FoundRevSecret, custClosePk, merchState)
+	claimAmount = amount
+	disputeTx, err := MerchantSignDisputeTx(CloseEscrowTxId_TX3, index, amount, claimAmount, toSelfDelay, outputPk, revState.RevLock, FoundRevSecret, custClosePk, merchState)
 	assert.Nil(t, err)
 	fmt.Println("========================================")
 	fmt.Println("TX5: disputeCloseEscrowTx: ", disputeTx)
@@ -280,8 +284,9 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 
 	// Merchant can claim tx output from merch-close-tx after timeout
 	fmt.Println("Claim tx from merchant close tx")
-	claim_amount := custBal + merchBal
-	SignedMerchClaimTx, err = MerchantSignMerchClaimTx(merchTxid_LE, index, claim_amount, toSelfDelay, custPk, outputPk, merchState)
+	claimAmount = custBal + merchBal
+	outputAmount := claimAmount - txFee
+	SignedMerchClaimTx, err = MerchantSignMerchClaimTx(merchTxid_LE, index, claimAmount, outputAmount, toSelfDelay, custPk, outputPk, merchState)
 	assert.Nil(t, err)
 	fmt.Println("TX2-merch-close-claim-tx: ", SignedMerchClaimTx)
 	fmt.Println("========================================")
