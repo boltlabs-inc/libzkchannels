@@ -83,7 +83,8 @@ typedef struct {
 char *cust_claim_tx_from_cust_close(char *ser_channel_state,
                                     char *ser_tx_index,
                                     uint32_t index,
-                                    int64_t amount,
+                                    int64_t input_amount,
+                                    int64_t output_amount,
                                     char *ser_self_delay,
                                     char *ser_output_pk,
                                     char *ser_rev_lock,
@@ -314,6 +315,7 @@ extern void issue_tokens(State_l old_state_l,
                          RevLockCommitment_l rlc_l,
                          Nonce_l nonce_l,
                          Balance_l val_cpfp,
+                         uint32_t self_delay,
                          BitcoinPublicKey_l merch_escrow_pub_key_l,
                          BitcoinPublicKey_l merch_dispute_key_l,
                          BitcoinPublicKey_l merch_payout_pub_key_l,
@@ -329,7 +331,8 @@ extern void *load_circuit_file(const char *path);
  */
 char *merch_claim_tx_from_cust_close(char *ser_tx_index,
                                      uint32_t index,
-                                     int64_t amount,
+                                     int64_t input_amount,
+                                     int64_t output_amount,
                                      char *ser_output_pk,
                                      char *ser_merch_state);
 
@@ -338,7 +341,8 @@ char *merch_claim_tx_from_cust_close(char *ser_tx_index,
  */
 char *merch_claim_tx_from_merch_close(char *ser_tx_index,
                                       uint32_t index,
-                                      int64_t amount,
+                                      int64_t input_amount,
+                                      int64_t output_amount,
                                       char *ser_self_delay,
                                       char *ser_cust_pk,
                                       char *ser_output_pk,
@@ -373,7 +377,7 @@ char *mpc_activate_merchant(char *ser_channel_token, char *ser_state, char *ser_
 
 char *mpc_channel_setup(const char *channel_name,
                         uint16_t self_delay,
-                        int64_t dust_limit,
+                        int64_t min_threshold,
                         uint32_t third_party_support);
 
 void mpc_free_string(char *pointer);
@@ -449,7 +453,8 @@ char *mpc_validate_initial_state(char *ser_channel_token,
 
 char *sign_merch_dispute_tx(char *ser_tx_index,
                             uint32_t index,
-                            int64_t amount,
+                            int64_t input_amount,
+                            int64_t output_amount,
                             char *ser_self_delay,
                             char *ser_output_pk,
                             char *ser_rev_lock,
