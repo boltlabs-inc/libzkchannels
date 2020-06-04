@@ -1353,6 +1353,7 @@ mod tests {
     use database::{HashMapDatabase, MaskedTxMPCInputs, RedisDatabase, StateDatabase};
     use zkchan_tx::fixed_size_array::FixedSizeArray32;
     use zkchan_tx::Testnet;
+    use bindings::ConnType_NETIO;
 
     fn setup_new_channel_helper(
         channel_state: &mut zkproofs::ChannelState<Bls12>,
@@ -2723,7 +2724,6 @@ mod tests {
         let mpc_result_ok = res_cust.unwrap();
         assert!(mpc_result_ok);
 
-        // wait until we get the mask_bytes from the DB
         let mut db2 = RedisDatabase::new("mpclib2", "redis://127.0.0.1/".to_string()).unwrap();
         complete_pay_helper(
             &mut db2,
@@ -2754,6 +2754,104 @@ mod tests {
             let (session_id, _, _, _, _, pay_mask_com) = pay_prepare_helper(&mut rng, &mut db, &channel_state, &mut cust_state, 0, &mut merch_state);
             println!("merchant session id (unlink): {}", hex::encode(&session_id));
 
+            // execute the merchant side
+            let res_merch = mpc::pay_update_merchant(
+                &mut rng,
+                &mut db as &mut dyn StateDatabase,
+                &channel_state,
+                session_id,
+                pay_mask_com,
+                &mut merch_state,
+            );
+            assert!(res_merch.is_ok(), res_merch.err().unwrap());
+        }
+    }
+
+    #[test]
+    fn test_customer_unlink_and_pay_correct() {
+        let mut rng = XorShiftRng::seed_from_u64(0x26d5070a3c6c62c8);
+        let mut db = RedisDatabase::new("mpclib3", "redis://127.0.0.1/".to_string()).unwrap();
+        db.clear_state();
+
+        // full channel setup
+        let fee_cc = 1000;
+        let (channel_state, channel_token, mut cust_state, mut merch_state) =
+            zkchannel_full_establish_setup_helper(&mut rng, &mut db, fee_cc);
+
+        let (_session_id, cur_state, new_state, rev_state, rev_lock_com, pay_mask_com) =
+            pay_prepare_helper(
+                &mut rng,
+                &mut db,
+                &channel_state,
+                &mut cust_state,
+                100,
+                &mut merch_state,
+            );
+
+        let nc = channels_mpc::NetworkConfig {
+            conn_type: ConnType_NETIO,
+            path: String::new(),
+            dest_ip: String::from("127.0.0.1"),
+            dest_port: 5000,
+            peer_raw_fd: 0,
+        };
+        cust_state.set_network_config(nc);
+    
+        // pay update
+        let res_cust = mpc::pay_update_customer(
+            &channel_state,
+            &channel_token,
+            cur_state,
+            new_state,
+            fee_cc,
+            pay_mask_com,
+            rev_lock_com,
+            100,
+            &mut cust_state,
+        );
+        assert!(res_cust.is_ok());
+        let mpc_result_ok = res_cust.unwrap();
+        assert!(mpc_result_ok);
+
+        let mut db2 = RedisDatabase::new("mpclib4", "redis://127.0.0.1/".to_string()).unwrap();
+        complete_pay_helper(
+            &mut db2,
+            rev_state,
+            &channel_state,
+            &channel_token,
+            &mut cust_state,
+            &mut merch_state,
+        );
+
+        println!("cust state: {:?}", cust_state.get_current_state());
+        println!("customer's channel status: {}", cust_state.channel_status);
+
+        assert!(cust_state.channel_status == ChannelStatus::Established);
+    }
+
+    rusty_fork_test! {
+        #[test]
+        fn test_merchant_unlink_and_pay_correct() {
+            let mut rng = XorShiftRng::seed_from_u64(0x26d5070a3c6c62c8);
+            let mut db = RedisDatabase::new("mpclib4", "redis://127.0.0.1/".to_string()).unwrap();
+            db.clear_state();
+
+            // full channel setup
+            let fee_cc = 1000;
+            let (channel_state, _channel_token, mut cust_state, mut merch_state) = zkchannel_full_establish_setup_helper(&mut rng, &mut db, fee_cc);
+
+            let (session_id, _, _, _, _, pay_mask_com) = pay_prepare_helper(&mut rng, &mut db, &channel_state, &mut cust_state, 100, &mut merch_state);
+            println!("merchant session id (unlink): {}", hex::encode(&session_id));
+
+            let nc = channels_mpc::NetworkConfig {
+                conn_type: ConnType_NETIO,
+                path: String::new(),
+                dest_ip: String::from("127.0.0.1"),
+                dest_port: 5000,
+                peer_raw_fd: 0,
+            };
+            merch_state.set_network_config(nc);
+    
             // execute the merchant side
             let res_merch = mpc::pay_update_merchant(
                 &mut rng,
