@@ -1111,7 +1111,7 @@ pub mod mpc {
             nonce,
             rev_lock_com,
             amount,
-            justification
+            justification,
         )
     }
 
@@ -2162,19 +2162,30 @@ mod tests {
         };
     }
 
-    fn setup_new_zkchannel_helper<R: Rng>(rng: &mut R, cust_bal: i64, merch_bal: i64, fee_cc: i64, fee_mc: i64) -> (mpc::ChannelMPCState, mpc::ChannelMPCToken, mpc::CustomerMPCState, mpc::MerchantMPCState) {
+    fn setup_new_zkchannel_helper<R: Rng>(
+        rng: &mut R,
+        cust_bal: i64,
+        merch_bal: i64,
+        fee_cc: i64,
+        fee_mc: i64,
+    ) -> (
+        mpc::ChannelMPCState,
+        mpc::ChannelMPCToken,
+        mpc::CustomerMPCState,
+        mpc::MerchantMPCState,
+    ) {
         // init channel state
         let min_threshold = 546;
         let mut channel_state =
             mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, min_threshold, false);
         // init merchant
         let merch_state = mpc::init_merchant(rng, "".to_string(), &mut channel_state, "Bob");
-    
+
         let min_fee = 0;
         let max_fee = 10000;
         let b0_cust = cust_bal;
         let b0_merch = merch_bal;
-    
+
         // init customer
         let (channel_token, cust_state) = mpc::init_customer(
             rng,
@@ -2187,10 +2198,10 @@ mod tests {
             fee_mc,
             "Alice",
         );
-    
+
         return (channel_state, channel_token, cust_state, merch_state);
     }
-    
+
     #[test]
     #[ignore]
     fn test_payment_mpc_channel_merch() {
@@ -2399,8 +2410,17 @@ mod tests {
     }
 
     // establish the funding tx and sign initial closing tx
-    fn establish_funding_tx_helper(funding_tx: &FundingTxInfo, channel_state: &mpc::ChannelMPCState, channel_token: &mut mpc::ChannelMPCToken, cust_state: &mut mpc::CustomerMPCState, merch_state: &mut mpc::MerchantMPCState, fee_cc: i64) {
-        cust_state.set_funding_tx_info(channel_token, funding_tx).unwrap();
+    fn establish_funding_tx_helper(
+        funding_tx: &FundingTxInfo,
+        channel_state: &mpc::ChannelMPCState,
+        channel_token: &mut mpc::ChannelMPCToken,
+        cust_state: &mut mpc::CustomerMPCState,
+        merch_state: &mut mpc::MerchantMPCState,
+        fee_cc: i64,
+    ) {
+        cust_state
+            .set_funding_tx_info(channel_token, funding_tx)
+            .unwrap();
         let pubkeys = cust_state.get_pubkeys(&channel_state, &channel_token);
 
         // merchant signs and returns initial close sigs to customer
@@ -2427,19 +2447,42 @@ mod tests {
     }
 
     // validate the initial state of the channel
-    fn validate_initial_channel_state_helper(db: &mut RedisDatabase, channel_token: &mpc::ChannelMPCToken, cust_state: &mut mpc::CustomerMPCState, merch_state: &mut mpc::MerchantMPCState) {
+    fn validate_initial_channel_state_helper(
+        db: &mut RedisDatabase,
+        channel_token: &mpc::ChannelMPCToken,
+        cust_state: &mut mpc::CustomerMPCState,
+        merch_state: &mut mpc::MerchantMPCState,
+    ) {
         let (init_state, init_hash) = mpc::get_initial_state(&cust_state).unwrap();
 
-        assert!(mpc::validate_channel_params(db as &mut dyn StateDatabase, &channel_token, &init_state, init_hash, merch_state).unwrap());
+        assert!(mpc::validate_channel_params(
+            db as &mut dyn StateDatabase,
+            &channel_token,
+            &init_state,
+            init_hash,
+            merch_state
+        )
+        .unwrap());
     }
 
     // run activate sub protocol between customer/merchant
-    fn activate_channel_helper<R: Rng>(rng: &mut R, db: &mut RedisDatabase, channel_token: &mpc::ChannelMPCToken, cust_state: &mut mpc::CustomerMPCState, merch_state: &mut mpc::MerchantMPCState) {
+    fn activate_channel_helper<R: Rng>(
+        rng: &mut R,
+        db: &mut RedisDatabase,
+        channel_token: &mpc::ChannelMPCToken,
+        cust_state: &mut mpc::CustomerMPCState,
+        merch_state: &mut mpc::MerchantMPCState,
+    ) {
         let s0_result = mpc::activate_customer(rng, cust_state);
         assert!(s0_result.is_ok());
         let s0 = s0_result.unwrap();
 
-        let pay_token_result = mpc::activate_merchant(db as &mut dyn StateDatabase, channel_token.clone(), &s0, merch_state);
+        let pay_token_result = mpc::activate_merchant(
+            db as &mut dyn StateDatabase,
+            channel_token.clone(),
+            &s0,
+            merch_state,
+        );
         assert!(pay_token_result.is_ok());
         let pay_token = pay_token_result.unwrap();
 
@@ -2448,12 +2491,26 @@ mod tests {
     }
 
     // run pay prepare between customer and merchant
-    fn pay_prepare_helper<R: Rng>(rng: &mut R, db: &mut RedisDatabase, channel_state: &mpc::ChannelMPCState, cust_state: &mut mpc::CustomerMPCState, amount: i64, merch_state: &mut mpc::MerchantMPCState) -> ([u8; 16], mpc::State, mpc::State, mpc::RevokedState, [u8; 32], [u8; 32])
-    {
+    fn pay_prepare_helper<R: Rng>(
+        rng: &mut R,
+        db: &mut RedisDatabase,
+        channel_state: &mpc::ChannelMPCState,
+        cust_state: &mut mpc::CustomerMPCState,
+        amount: i64,
+        merch_state: &mut mpc::MerchantMPCState,
+    ) -> (
+        [u8; 16],
+        mpc::State,
+        mpc::State,
+        mpc::RevokedState,
+        [u8; 32],
+        [u8; 32],
+    ) {
         // get the old state
         let cur_state = cust_state.get_current_state();
         // let's prepare a new payment
-        let (new_state, rev_state, session_id) = mpc::pay_prepare_customer( rng, channel_state, amount, cust_state).unwrap();
+        let (new_state, rev_state, session_id) =
+            mpc::pay_prepare_customer(rng, channel_state, amount, cust_state).unwrap();
         let rev_lock_com = rev_state.rev_lock_com.0;
 
         // println!("Old Nonce: {}", hex::encode(&cur_state.get_nonce()));
@@ -2461,9 +2518,27 @@ mod tests {
             true => Some(format!("empty-sig")),
             false => None,
         };
-        let pay_mask_com = mpc::pay_prepare_merchant(rng, db as &mut dyn StateDatabase, channel_state, session_id, cur_state.get_nonce(), rev_lock_com.clone(), amount, justification, merch_state).unwrap();
+        let pay_mask_com = mpc::pay_prepare_merchant(
+            rng,
+            db as &mut dyn StateDatabase,
+            channel_state,
+            session_id,
+            cur_state.get_nonce(),
+            rev_lock_com.clone(),
+            amount,
+            justification,
+            merch_state,
+        )
+        .unwrap();
 
-        return (session_id, cur_state, new_state, rev_state, rev_lock_com, pay_mask_com);
+        return (
+            session_id,
+            cur_state,
+            new_state,
+            rev_state,
+            rev_lock_com,
+            pay_mask_com,
+        );
     }
 
     #[test]
@@ -2476,41 +2551,82 @@ mod tests {
         let b0_merch = 10000;
         let fee_cc = 1000;
         let fee_mc = 1000;
-        let (channel_state, mut channel_token, mut cust_state, mut merch_state) = setup_new_zkchannel_helper(&mut rng, b0_cust, b0_merch, fee_cc, fee_mc);
+        let (channel_state, mut channel_token, mut cust_state, mut merch_state) =
+            setup_new_zkchannel_helper(&mut rng, b0_cust, b0_merch, fee_cc, fee_mc);
 
-        // create funding txs 
+        // create funding txs
         let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch, fee_mc);
 
-        establish_funding_tx_helper(&funding_tx_info, &channel_state, &mut channel_token, &mut cust_state, &mut merch_state, fee_cc);
+        establish_funding_tx_helper(
+            &funding_tx_info,
+            &channel_state,
+            &mut channel_token,
+            &mut cust_state,
+            &mut merch_state,
+            fee_cc,
+        );
 
         assert!(cust_state.channel_status == ChannelStatus::Initialized);
 
         // merchant validates the initial state
-        validate_initial_channel_state_helper(&mut db, &channel_token, &mut cust_state, &mut merch_state);
+        validate_initial_channel_state_helper(
+            &mut db,
+            &channel_token,
+            &mut cust_state,
+            &mut merch_state,
+        );
         println!("initial channel state validated!");
         // println!("cust_state channel status: {}", cust_state.channel_status);
 
-        activate_channel_helper(&mut rng, &mut db, &channel_token, &mut cust_state, &mut merch_state);
+        activate_channel_helper(
+            &mut rng,
+            &mut db,
+            &channel_token,
+            &mut cust_state,
+            &mut merch_state,
+        );
         assert!(cust_state.channel_status == ChannelStatus::Activated);
         println!("cust_state channel status: {}", cust_state.channel_status);
     }
 
-    fn zkchannel_full_establish_setup_helper<R: Rng>(rng: &mut R, db: &mut RedisDatabase, fee_cc: i64) -> (mpc::ChannelMPCState, mpc::ChannelMPCToken, mpc::CustomerMPCState, mpc::MerchantMPCState) {        
+    fn zkchannel_full_establish_setup_helper<R: Rng>(
+        rng: &mut R,
+        db: &mut RedisDatabase,
+        fee_cc: i64,
+    ) -> (
+        mpc::ChannelMPCState,
+        mpc::ChannelMPCToken,
+        mpc::CustomerMPCState,
+        mpc::MerchantMPCState,
+    ) {
         let b0_cust = 10000;
         let b0_merch = 10000;
         let fee_mc = 1000;
-        let (channel_state, mut channel_token, mut cust_state, mut merch_state) = setup_new_zkchannel_helper(rng, b0_cust, b0_merch, fee_cc, fee_mc);
+        let (channel_state, mut channel_token, mut cust_state, mut merch_state) =
+            setup_new_zkchannel_helper(rng, b0_cust, b0_merch, fee_cc, fee_mc);
 
-        // create funding txs 
+        // create funding txs
         let funding_tx_info = generate_funding_tx(rng, b0_cust, b0_merch, fee_mc);
 
-        establish_funding_tx_helper(&funding_tx_info, &channel_state, &mut channel_token, &mut cust_state, &mut merch_state, fee_cc);
+        establish_funding_tx_helper(
+            &funding_tx_info,
+            &channel_state,
+            &mut channel_token,
+            &mut cust_state,
+            &mut merch_state,
+            fee_cc,
+        );
         assert!(cust_state.channel_status == ChannelStatus::Initialized);
 
         //println!("channel_token: {:?}", cust_state);
 
         // merchant validates the initial state
-        validate_initial_channel_state_helper(db, &channel_token, &mut cust_state, &mut merch_state);
+        validate_initial_channel_state_helper(
+            db,
+            &channel_token,
+            &mut cust_state,
+            &mut merch_state,
+        );
         // customer/merchant activate the channel
         activate_channel_helper(rng, db, &channel_token, &mut cust_state, &mut merch_state);
         assert!(cust_state.channel_status == ChannelStatus::Activated);
@@ -2519,48 +2635,135 @@ mod tests {
         return (channel_state, channel_token, cust_state, merch_state);
     }
 
+    fn complete_pay_helper(
+        merch_db: &mut RedisDatabase,
+        rev_state: mpc::RevokedState,
+        channel_state: &mpc::ChannelMPCState,
+        channel_token: &mpc::ChannelMPCToken,
+        cust_state: &mut mpc::CustomerMPCState,
+        merch_state: &mut mpc::MerchantMPCState,
+    ) {
+        let mask_bytes = mpc::pay_confirm_mpc_result(
+            merch_db as &mut dyn StateDatabase,
+            true,
+            rev_state.nonce.0.clone(),
+            merch_state,
+        )
+        .unwrap();
+
+        println!("complete_pay_helper - got the mask bytes: {:?}", mask_bytes);
+
+        // unmask the closing tx
+        let is_sigs_ok =
+            mpc::pay_unmask_sigs_customer(&channel_state, &channel_token, mask_bytes, cust_state)
+                .unwrap();
+        assert!(is_sigs_ok);
+
+        // merchant validates the old state
+        let (pt_mask, pt_mask_r) = match mpc::pay_validate_rev_lock_merchant(
+            merch_db as &mut dyn StateDatabase,
+            rev_state,
+            merch_state,
+        ) {
+            Ok(n) => (n.0, n.1),
+            Err(e) => {
+                println!("Could not get pay token mask and randomness: {}", e);
+                return;
+            }
+        };
+
+        println!(
+            "complete_pay_helper - new pay token: {}",
+            hex::encode(&pt_mask)
+        );
+
+        // unmask pay_token
+        let is_ok = mpc::pay_unmask_pay_token_customer(pt_mask, pt_mask_r, cust_state).unwrap();
+        assert!(is_ok);
+    }
+
     #[test]
     fn test_customer_activated_and_unlinked_correctly() {
         let mut rng = XorShiftRng::seed_from_u64(0xc7175992415de87a);
         let mut db = RedisDatabase::new("mpclib1", "redis://127.0.0.1/".to_string()).unwrap();
         db.clear_state();
 
-        // full setup channel
+        // full channel setup
         let fee_cc = 1000;
-        let (channel_state, channel_token, mut cust_state, mut merch_state) = zkchannel_full_establish_setup_helper(&mut rng, &mut db, fee_cc);
+        let (channel_state, channel_token, mut cust_state, mut merch_state) =
+            zkchannel_full_establish_setup_helper(&mut rng, &mut db, fee_cc);
 
-        let (_session_id, cur_state, new_state, _rev_state, rev_lock_com, pay_mask_com) = pay_prepare_helper(&mut rng, &mut db, &channel_state, &mut cust_state, 0, &mut merch_state);
-        println!("customer session id: {}", hex::encode(&_session_id));
+        let (_session_id, cur_state, new_state, rev_state, rev_lock_com, pay_mask_com) =
+            pay_prepare_helper(
+                &mut rng,
+                &mut db,
+                &channel_state,
+                &mut cust_state,
+                0,
+                &mut merch_state,
+            );
+        println!(
+            "customer session id (unlink): {}",
+            hex::encode(&_session_id)
+        );
 
-        // TODO: run inside a self-contained shell
-        let res_cust = mpc::pay_update_customer(&channel_state, &channel_token, cur_state, new_state, fee_cc, pay_mask_com, rev_lock_com, 0, &mut cust_state);
-        assert!(res_cust.is_ok() && res_cust.unwrap());
-    }
-
-rusty_fork_test! {
-    #[test]
-    fn test_merchant_activated_and_unlinked_correctly() {
-        let mut rng = XorShiftRng::seed_from_u64(0xc7175992415de87a);
-        let mut db = RedisDatabase::new("mpclib2", "redis://127.0.0.1/".to_string()).unwrap();
-        db.clear_state();
-
-        // full setup channel
-        let fee_cc = 1000;
-        let (channel_state, _channel_token, mut cust_state, mut merch_state) = zkchannel_full_establish_setup_helper(&mut rng, &mut db, fee_cc);
-
-        let (session_id, _, _, _, _, pay_mask_com) = pay_prepare_helper(&mut rng, &mut db, &channel_state, &mut cust_state, 0, &mut merch_state);
-        println!("merchant session id: {}", hex::encode(&session_id));
-
-        let res_merch = mpc::pay_update_merchant(
-            &mut rng,
-            &mut db as &mut dyn StateDatabase,
+        // pay update
+        let res_cust = mpc::pay_update_customer(
             &channel_state,
-            session_id,
+            &channel_token,
+            cur_state,
+            new_state,
+            fee_cc,
             pay_mask_com,
+            rev_lock_com,
+            0,
+            &mut cust_state,
+        );
+        assert!(res_cust.is_ok());
+        let mpc_result_ok = res_cust.unwrap();
+        assert!(mpc_result_ok);
+
+        // wait until we get the mask_bytes from the DB
+        let mut db2 = RedisDatabase::new("mpclib2", "redis://127.0.0.1/".to_string()).unwrap();
+        complete_pay_helper(
+            &mut db2,
+            rev_state,
+            &channel_state,
+            &channel_token,
+            &mut cust_state,
             &mut merch_state,
         );
-        assert!(res_merch.is_ok(), res_merch.err().unwrap());
-    }
-}
 
+        println!("cust state: {:?}", cust_state.get_current_state());
+        println!("customer's channel status: {}", cust_state.channel_status);
+
+        assert!(cust_state.channel_status == ChannelStatus::Established);
+    }
+
+    rusty_fork_test! {
+        #[test]
+        fn test_merchant_activated_and_unlinked_correctly() {
+            let mut rng = XorShiftRng::seed_from_u64(0xc7175992415de87a);
+            let mut db = RedisDatabase::new("mpclib2", "redis://127.0.0.1/".to_string()).unwrap();
+            db.clear_state();
+
+            // full channel setup
+            let fee_cc = 1000;
+            let (channel_state, _channel_token, mut cust_state, mut merch_state) = zkchannel_full_establish_setup_helper(&mut rng, &mut db, fee_cc);
+
+            let (session_id, _, _, _, _, pay_mask_com) = pay_prepare_helper(&mut rng, &mut db, &channel_state, &mut cust_state, 0, &mut merch_state);
+            println!("merchant session id (unlink): {}", hex::encode(&session_id));
+
+            // execute the merchant side
+            let res_merch = mpc::pay_update_merchant(
+                &mut rng,
+                &mut db as &mut dyn StateDatabase,
+                &channel_state,
+                session_id,
+                pay_mask_com,
+                &mut merch_state,
+            );
+            assert!(res_merch.is_ok(), res_merch.err().unwrap());
+        }
+    }
 }

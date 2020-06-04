@@ -1243,12 +1243,16 @@ impl MerchantMPCState {
         Ok(true)
     }
 
-    pub fn process_justification(&self, amount: i64, signature: Option<String>) -> Result<bool, String> {
+    pub fn process_justification(
+        &self,
+        amount: i64,
+        signature: Option<String>,
+    ) -> Result<bool, String> {
         // TODO: ZKC-17 verify justification for negative payments
         if signature.is_some() {
             println!("Verify justification for negative payment: {}", amount);
             return Ok(true);
-        } 
+        }
         return Ok(false);
     }
 
@@ -1261,7 +1265,7 @@ impl MerchantMPCState {
         nonce: [u8; NONCE_LEN],
         rev_lock_com: [u8; 32],
         amount: i64,
-        justification: Option<String>
+        justification: Option<String>,
     ) -> Result<[u8; 32], String> {
         let nonce_hex = hex::encode(nonce);
         let session_id_hex = hex::encode(session_id);
@@ -1296,14 +1300,16 @@ impl MerchantMPCState {
         if amount < 0 {
             let payment_result = match self.refund_policy {
                 NegativePaymentPolicy::REJECT => false,
-                NegativePaymentPolicy::CHECK_JUSTIFICATION => match self.process_justification(amount, justification) {
-                    Ok(s) => s,
-                    Err(e) => return Err(e.to_string())
+                NegativePaymentPolicy::CHECK_JUSTIFICATION => {
+                    match self.process_justification(amount, justification) {
+                        Ok(s) => s,
+                        Err(e) => return Err(e.to_string()),
+                    }
                 }
             };
 
             if !payment_result {
-                return Err(format!("Sorry, refunds are not allowed for this channel"))
+                return Err(format!("Sorry, refunds are not allowed for this channel"));
             }
         }
 

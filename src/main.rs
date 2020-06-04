@@ -1353,7 +1353,7 @@ mod merch {
 
         let justification = match amount < 0 {
             true => Some(format!("empty-sig")),
-            false => None
+            false => None,
         };
 
         let pay_token_mask_com = handle_error_result!(mpc::pay_prepare_merchant(
