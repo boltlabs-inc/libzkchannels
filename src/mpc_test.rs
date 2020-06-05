@@ -8,27 +8,10 @@ extern crate structopt;
 extern crate zkchan_tx;
 extern crate zkchannels;
 
-use rand::Rng;
-use redis::Commands;
-use serde::Deserialize;
 use structopt::StructOpt;
+use zkchannels::database::{get_file_from_db, store_file_in_db, RedisDatabase, StateDatabase};
 use zkchannels::mpc;
-use zkchannels::mpc::{ChannelMPCState, MerchantMPCState, NetworkConfig};
-use zkchannels::database::{RedisDatabase, StateDatabase, get_file_from_db, store_file_in_db};
-use zkchannels::bindings::ConnType_NETIO;
-
-// #[derive(Clone, Debug, Deserialize)]
-// enum Party {
-//     MERCH,
-//     CUST,
-// }
-
-// impl FromStr for Party {
-//     type Err = serde_json::error::Error;
-//     fn from_str(s: &str) -> Result<Party, serde_json::error::Error> {
-//         Ok(serde_json::from_str(&format!("\"{}\"", s))?)
-//     }
-// }
+use zkchannels::mpc::{ChannelMPCState, MerchantMPCState};
 
 macro_rules! handle_error_result {
     ($e:expr) => {
@@ -118,12 +101,11 @@ struct Cli {
 }
 
 fn main() {
-
     let args = Cli::from_args();
 
-    let db_url = "redis://127.0.0.1/".to_string(); // make constant
+    let db_url = "redis://127.0.0.1/".to_string();
     let mut db = RedisDatabase::new("mpctest", db_url.clone()).unwrap();
-    let db_key = args.db_key; // // String::from("mpclib3:merch_db");
+    let db_key = args.db_key;
 
     let session_id_buf = hex::decode(args.session_id).unwrap();
     let mut session_id = [0u8; 16];
@@ -138,10 +120,9 @@ fn main() {
 
     let (channel_state, mut merch_state) = load_merchant_state_info(&mut db.conn, &db_key).unwrap();
 
-    println!("channel_state: {:?}", channel_state);
+    // println!("channel_state: {:?}", channel_state);
     // println!("merch_state: {:?}", merch_state);
 
-    println!("executing the mpc for merchant...");
     let mut rng = &mut rand::thread_rng();
 
     let res_merch = mpc::pay_update_merchant(
@@ -157,5 +138,5 @@ fn main() {
     println!("MPC executed successfully");
 
     // save updated merch_state
-    save_merchant_state_info(&mut db.conn, &db_key, None, &merch_state);
+    save_merchant_state_info(&mut db.conn, &db_key, None, &merch_state).unwrap();
 }

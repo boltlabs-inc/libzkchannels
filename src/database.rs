@@ -806,7 +806,6 @@ pub fn store_file_in_db(
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
