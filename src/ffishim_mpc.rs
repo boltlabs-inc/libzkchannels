@@ -32,6 +32,14 @@ pub mod ffishim_mpc {
         };
     }
 
+    macro_rules! check_vec_length {
+        ($x: expr, $y: expr) => {
+            if $x.len() != $y {
+                return error_message(format!("{} does not have expected length: {}", stringify!($x), $y));
+            }
+        };
+    }
+
     pub type ResultSerdeType<T> = Result<T, serde_json::error::Error>;
 
     fn deserialize_result_object<'a, T>(serialized: *mut c_char) -> ResultSerdeType<T>
@@ -168,16 +176,19 @@ pub mod ffishim_mpc {
 
         let sk = deserialize_hex_string(ser_sk_m);
         let sk_buf = handle_errors!(sk);
+        check_vec_length!(sk_buf, 32);
         let mut merch_sk = [0u8; 32];
         merch_sk.copy_from_slice(sk_buf.as_slice());
 
         let psk = deserialize_hex_string(ser_payout_sk);
         let psk_buf = handle_errors!(psk);
+        check_vec_length!(psk_buf, 32);
         let mut payout_sk = [0u8; 32];
         payout_sk.copy_from_slice(psk_buf.as_slice());
 
         let dsk = deserialize_hex_string(ser_dispute_sk);
         let dsk_buf = handle_errors!(dsk);
+        check_vec_length!(dsk_buf, 32);
         let mut dispute_sk = [0u8; 32];
         dispute_sk.copy_from_slice(dsk_buf.as_slice());
 
@@ -258,11 +269,13 @@ pub mod ffishim_mpc {
 
         let sk = deserialize_hex_string(ser_sk_c);
         let sk_buf = handle_errors!(sk);
+        check_vec_length!(sk_buf, 32);
         let mut cust_sk = [0u8; 32];
         cust_sk.copy_from_slice(sk_buf.as_slice());
 
         let psk = deserialize_hex_string(ser_payout_sk);
         let psk_buf = handle_errors!(psk);
+        check_vec_length!(psk_buf, 32);
         let mut payout_sk = [0u8; 32];
         payout_sk.copy_from_slice(psk_buf.as_slice());
 
@@ -321,6 +334,7 @@ pub mod ffishim_mpc {
         // Deserialize init hash
         let init_hash_result = deserialize_hex_string(ser_init_hash);
         let hash_buf = handle_errors!(init_hash_result);
+        check_vec_length!(hash_buf, 32);
         let mut init_hash = [0u8; 32];
         init_hash.copy_from_slice(hash_buf.as_slice());
 
@@ -446,6 +460,7 @@ pub mod ffishim_mpc {
         // Deserialize pay token
         let pay_token_result = deserialize_hex_string(ser_pay_token);
         let pay_token = handle_errors!(pay_token_result);
+        check_vec_length!(pay_token, 32);
         let mut pay_token_0 = [0u8; 32];
         pay_token_0.copy_from_slice(pay_token.as_slice());
 
@@ -526,18 +541,21 @@ pub mod ffishim_mpc {
         // Deserialize rev_lock_com
         let rev_lock_com_result = deserialize_hex_string(ser_rev_lock_com);
         let rev_lock_com = handle_errors!(rev_lock_com_result);
+        check_vec_length!(rev_lock_com, 32);
         let mut rev_lock_com_ar = [0u8; 32];
         rev_lock_com_ar.copy_from_slice(rev_lock_com.as_slice());
 
         // Deserialize session_id
         let sess_id_result = deserialize_hex_string(ser_session_id);
         let session_id = handle_errors!(sess_id_result);
+        check_vec_length!(session_id, 16);
         let mut session_id_ar = [0u8; 16];
         session_id_ar.copy_from_slice(session_id.as_slice());
 
         // Deserialize nonce
         let nonce_result = deserialize_hex_string(ser_nonce);
         let nonce = handle_errors!(nonce_result);
+        check_vec_length!(nonce, 16);
         let mut nonce_ar = [0u8; 16];
         nonce_ar.copy_from_slice(nonce.as_slice());
 
@@ -616,6 +634,7 @@ pub mod ffishim_mpc {
         // Deserialize rev_lock_com
         let rev_lock_com_result = deserialize_hex_string(ser_rev_lock_com);
         let rev_lock_com = handle_errors!(rev_lock_com_result);
+        check_vec_length!(rev_lock_com, 32);
         let mut rev_lock_com_ar = [0u8; 32];
         rev_lock_com_ar.copy_from_slice(rev_lock_com.as_slice());
 
@@ -666,12 +685,14 @@ pub mod ffishim_mpc {
         // Deserialize session_id
         let sess_id_result = deserialize_hex_string(ser_session_id);
         let session_id = handle_errors!(sess_id_result);
+        check_vec_length!(session_id, 16);
         let mut session_id_ar = [0u8; 16];
         session_id_ar.copy_from_slice(session_id.as_slice());
 
         // Deserialize pay_token_mask_com
         let pay_token_mask_com_result = deserialize_hex_string(ser_pay_token_mask_com);
         let pay_token_mask_com = handle_errors!(pay_token_mask_com_result);
+        check_vec_length!(pay_token_mask_com, 32);
         let mut pay_token_mask_com_ar = [0u8; 32];
         pay_token_mask_com_ar.copy_from_slice(pay_token_mask_com.as_slice());
 
@@ -720,6 +741,7 @@ pub mod ffishim_mpc {
         // Deserialize nonce
         let nonce_result = deserialize_hex_string(ser_nonce);
         let nonce = handle_errors!(nonce_result);
+        check_vec_length!(nonce, 16);
         let mut nonce_ar = [0u8; 16];
         nonce_ar.copy_from_slice(nonce.as_slice());
 
@@ -844,12 +866,14 @@ pub mod ffishim_mpc {
         // Deserialize pt_mask_bytes
         let pt_mask_bytes_result = deserialize_hex_string(ser_pt_mask_bytes);
         let pt_mask_bytes = handle_errors!(pt_mask_bytes_result);
+        check_vec_length!(pt_mask_bytes, 32);
         let mut pt_mask_bytes_ar = [0u8; 32];
         pt_mask_bytes_ar.copy_from_slice(pt_mask_bytes.as_slice());
 
         // Deserialize pt_mask_bytes
         let pt_mask_r_result = deserialize_hex_string(ser_pt_mask_r);
         let pt_mask_r = handle_errors!(pt_mask_r_result);
+        check_vec_length!(pt_mask_r, 16);
         let mut pt_mask_r_ar = [0u8; 16];
         pt_mask_r_ar.copy_from_slice(pt_mask_r.as_slice());
 
@@ -1118,6 +1142,7 @@ pub mod ffishim_mpc {
 
         let self_delay_result = deserialize_hex_string(ser_self_delay);
         let self_delay = handle_errors!(self_delay_result);
+        check_vec_length!(self_delay, 2);
         let mut self_delay_be = [0u8; 2];
         self_delay_be.copy_from_slice(&self_delay);
 
@@ -1186,6 +1211,7 @@ pub mod ffishim_mpc {
 
         let self_delay_result = deserialize_hex_string(ser_self_delay);
         let self_delay = handle_errors!(self_delay_result);
+        check_vec_length!(self_delay, 2);
         let mut self_delay_be = [0u8; 2];
         self_delay_be.copy_from_slice(&self_delay);
 
@@ -1270,9 +1296,10 @@ pub mod ffishim_mpc {
         let funding_tx = handle_errors!(tx_result);
 
         let rev_lock_result = deserialize_hex_string(ser_rev_lock);
-        let _rev_lock = handle_errors!(rev_lock_result);
+        let rev_lock = handle_errors!(rev_lock_result);
+        check_vec_length!(rev_lock, 32);
         let mut rl = [0u8; 32];
-        rl.copy_from_slice(_rev_lock.as_slice());
+        rl.copy_from_slice(rev_lock.as_slice());
 
         let cust_pk_result = deserialize_hex_string(ser_cust_pk);
         let cust_pk = handle_errors!(cust_pk_result);
@@ -1282,6 +1309,7 @@ pub mod ffishim_mpc {
 
         let self_delay_result = deserialize_hex_string(ser_self_delay);
         let self_delay = handle_errors!(self_delay_result);
+        check_vec_length!(self_delay, 2);
         let mut self_delay_be = [0u8; 2];
         self_delay_be.copy_from_slice(&self_delay);
 
@@ -1399,6 +1427,7 @@ pub mod ffishim_mpc {
 
         let self_delay_result = deserialize_hex_string(ser_self_delay);
         let self_delay = handle_errors!(self_delay_result);
+        check_vec_length!(self_delay, 2);
         let mut self_delay_be = [0u8; 2];
         self_delay_be.copy_from_slice(&self_delay);
 
@@ -1483,6 +1512,7 @@ pub mod ffishim_mpc {
 
         let self_delay_result = deserialize_hex_string(ser_self_delay);
         let self_delay = handle_errors!(self_delay_result);
+        check_vec_length!(self_delay, 2);
         let mut self_delay_be = [0u8; 2];
         self_delay_be.copy_from_slice(&self_delay);
 
@@ -1552,6 +1582,7 @@ pub mod ffishim_mpc {
 
         let self_delay_result = deserialize_hex_string(ser_self_delay);
         let self_delay = handle_errors!(self_delay_result);
+        check_vec_length!(self_delay, 2);
         let mut self_delay_be = [0u8; 2];
         self_delay_be.copy_from_slice(&self_delay);
 

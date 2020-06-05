@@ -2741,7 +2741,7 @@ mod tests {
             profile = "debug";
         }
         let mpc_test_bin = format!("{}/target/{}/mpctest", cur_dir, profile);
-        println!("mpc_test path: {}", mpc_test_bin);
+        println!("mpctest path: {}", mpc_test_bin);
 
         let session_id_arg = format!("{}", hex::encode(session_id));
         let pay_mask_com_arg = format!("{}", hex::encode(pay_mask_com));
