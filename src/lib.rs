@@ -879,7 +879,7 @@ pub mod mpc {
     pub use channels_mpc::{
         ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState, RevokedState,
     };
-    use channels_mpc::{ChannelStatus, InitCustState, NetworkConfig};
+    pub use channels_mpc::{ChannelStatus, InitCustState, NetworkConfig};
     use database::{MaskedTxMPCInputs, StateDatabase};
     use rand::Rng;
     use secp256k1::PublicKey;
@@ -1350,10 +1350,12 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     use channels_mpc::ChannelStatus;
-    use database::{HashMapDatabase, MaskedTxMPCInputs, RedisDatabase, StateDatabase};
+    use database::{HashMapDatabase, MaskedTxMPCInputs, RedisDatabase, StateDatabase, get_file_from_db, store_file_in_db};
     use zkchan_tx::fixed_size_array::FixedSizeArray32;
     use zkchan_tx::Testnet;
-    use bindings::ConnType_NETIO;
+    use bindings::{ConnType_NETIO};
+    use std::env;
+    use std::process::Command;
 
     fn setup_new_channel_helper(
         channel_state: &mut zkproofs::ChannelState<Bls12>,
@@ -2683,6 +2685,67 @@ mod tests {
         assert!(is_ok);
     }
 
+    fn load_merchant_state_info(
+        db_conn: &mut redis::Connection,
+        db_key: &String,
+        merch_state_key: &String,
+    ) -> Result<mpc::MerchantMPCState, String> {
+        // load the merchant state from DB
+        let ser_merch_state = get_file_from_db(db_conn, &db_key, &merch_state_key).unwrap();
+        let merch_state: mpc::MerchantMPCState = serde_json::from_str(&ser_merch_state).unwrap();
+        Ok(merch_state)
+    }
+    
+    fn save_merchant_state_info(
+        db_conn: &mut redis::Connection,
+        db_key: &String,
+        channel_state_key: &String,
+        channel_state: Option<&mpc::ChannelMPCState>,
+        merch_state_key: &String,
+        merch_state: &mpc::MerchantMPCState,
+    ) -> Result<(), String> {
+        // let key = String::from("cli:merch_db");
+        match channel_state {
+            Some(n) => {
+                let channel_state_json_str = serde_json::to_string(n).unwrap();
+                store_file_in_db(
+                    db_conn,
+                    &db_key,
+                    &channel_state_key,
+                    &channel_state_json_str,
+                )?
+            }
+            None => false, // do nothing
+        };
+    
+        let merch_state_json_str = serde_json::to_string(merch_state).unwrap();
+        store_file_in_db(
+            db_conn,
+            &db_key,
+            &merch_state_key,
+            &merch_state_json_str,
+        )?;
+        Ok(())
+    }
+
+    fn run_mpctest_as_merchant(db: &mut RedisDatabase, db_key: &String, session_id: [u8; 16], pay_mask_com: [u8; 32], channel_state: &mpc::ChannelMPCState, merch_state_key: &String, merch_state: &mpc::MerchantMPCState) -> std::process::Child {
+        let cur_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+        let profile = "release"; // or debug
+        let mpc_test_bin = format!("{}/target/{}/mpctest", cur_dir, profile);
+        println!("mpc_test path: {}", mpc_test_bin);
+
+        let session_id_arg = format!("{}", hex::encode(session_id));
+        let pay_mask_com_arg = format!("{}", hex::encode(pay_mask_com));
+
+        // let's start a thread but block until we get to pay_update_customer()
+        let channel_state_key = "channel_state".to_string();
+        save_merchant_state_info(&mut db.conn, db_key, &channel_state_key, Some(&channel_state), &merch_state_key, &merch_state).unwrap();
+
+        let child = Command::new(mpc_test_bin).arg("--db-key").arg(db_key.clone()).arg("--pay-mask-com").arg(pay_mask_com_arg).arg("--session-id").arg(session_id_arg).spawn().expect("failed to execute mpctest");
+
+        return child;
+    }
+
     #[test]
     fn test_customer_activated_and_unlinked_correctly() {
         let mut rng = XorShiftRng::seed_from_u64(0xc7175992415de87a);
@@ -2766,38 +2829,45 @@ mod tests {
             assert!(res_merch.is_ok(), res_merch.err().unwrap());
         }
     }
-
+    
     #[test]
-    fn test_customer_unlink_and_pay_correct() {
-        let mut rng = XorShiftRng::seed_from_u64(0x26d5070a3c6c62c8);
-        let mut db = RedisDatabase::new("mpclib3", "redis://127.0.0.1/".to_string()).unwrap();
+    fn test_unlink_and_pay_is_correct() {
+        // let mut rng = XorShiftRng::seed_from_u64(0x26d5070a3c6c62c8);
+        let mut rng = &mut rand::thread_rng();
+        let mut db = RedisDatabase::new("mpctest", "redis://127.0.0.1/".to_string()).unwrap();
         db.clear_state();
 
         // full channel setup
         let fee_cc = 1000;
         let (channel_state, channel_token, mut cust_state, mut merch_state) =
             zkchannel_full_establish_setup_helper(&mut rng, &mut db, fee_cc);
-
-        let (_session_id, cur_state, new_state, rev_state, rev_lock_com, pay_mask_com) =
+        
+        // UNLINK PROTOCOL
+        let (session_id, cur_state, new_state, rev_state, rev_lock_com, pay_mask_com) =
             pay_prepare_helper(
                 &mut rng,
                 &mut db,
                 &channel_state,
                 &mut cust_state,
-                100,
+                0,
                 &mut merch_state,
             );
 
         let nc = channels_mpc::NetworkConfig {
             conn_type: ConnType_NETIO,
-            path: String::new(),
+            path: String::from("tmpsock"),
             dest_ip: String::from("127.0.0.1"),
             dest_port: 5000,
             peer_raw_fd: 0,
         };
-        cust_state.set_network_config(nc);
-    
-        // pay update
+        cust_state.set_network_config(nc.clone());
+        merch_state.set_network_config(nc.clone());
+
+        let db_key = "mpctest:merch_db".to_string();
+        let merch_state_key = "merch_state".to_string();
+        let mut mpc_child = run_mpctest_as_merchant(&mut db, &db_key, session_id, pay_mask_com, &channel_state, &merch_state_key, &merch_state);
+
+        // pay update for customer
         let res_cust = mpc::pay_update_customer(
             &channel_state,
             &channel_token,
@@ -2806,16 +2876,22 @@ mod tests {
             fee_cc,
             pay_mask_com,
             rev_lock_com,
-            100,
+            0,
             &mut cust_state,
         );
         assert!(res_cust.is_ok());
         let mpc_result_ok = res_cust.unwrap();
         assert!(mpc_result_ok);
 
-        let mut db2 = RedisDatabase::new("mpclib4", "redis://127.0.0.1/".to_string()).unwrap();
+        let ecode = mpc_child.wait().expect("failed to wait on mpctest");
+        assert!(ecode.success());
+
+        // load the updated merchant state
+        let mut merch_state = load_merchant_state_info(&mut db.conn, &db_key, &merch_state_key).unwrap();
+
+        // complete the rest of unlink
         complete_pay_helper(
-            &mut db2,
+            &mut db,
             rev_state,
             &channel_state,
             &channel_token,
@@ -2827,41 +2903,52 @@ mod tests {
         println!("customer's channel status: {}", cust_state.channel_status);
 
         assert!(cust_state.channel_status == ChannelStatus::Established);
-    }
 
-    rusty_fork_test! {
-        #[test]
-        fn test_merchant_unlink_and_pay_correct() {
-            let mut rng = XorShiftRng::seed_from_u64(0x26d5070a3c6c62c8);
-            let mut db = RedisDatabase::new("mpclib4", "redis://127.0.0.1/".to_string()).unwrap();
-            db.clear_state();
+        // PAY PROTOCOL
+        let (session_id1, cur_state1, new_state1, rev_state1, rev_lock_com1, pay_mask_com1) =
+        pay_prepare_helper(
+            &mut rng,
+            &mut db,
+            &channel_state,
+            &mut cust_state,
+            200,
+            &mut merch_state,
+        );
 
-            // full channel setup
-            let fee_cc = 1000;
-            let (channel_state, _channel_token, mut cust_state, mut merch_state) = zkchannel_full_establish_setup_helper(&mut rng, &mut db, fee_cc);
+        let mut mpc_child = run_mpctest_as_merchant(&mut db, &db_key, session_id1, pay_mask_com1, &channel_state, &merch_state_key, &merch_state);
 
-            let (session_id, _, _, _, _, pay_mask_com) = pay_prepare_helper(&mut rng, &mut db, &channel_state, &mut cust_state, 100, &mut merch_state);
-            println!("merchant session id (unlink): {}", hex::encode(&session_id));
+        // pay update for customer
+        let res_cust = mpc::pay_update_customer(
+            &channel_state,
+            &channel_token,
+            cur_state1,
+            new_state1,
+            fee_cc,
+            pay_mask_com1,
+            rev_lock_com1,
+            200,
+            &mut cust_state,
+        );
+        assert!(res_cust.is_ok());
+        let mpc_result_ok = res_cust.unwrap();
+        assert!(mpc_result_ok);
 
-            let nc = channels_mpc::NetworkConfig {
-                conn_type: ConnType_NETIO,
-                path: String::new(),
-                dest_ip: String::from("127.0.0.1"),
-                dest_port: 5000,
-                peer_raw_fd: 0,
-            };
-            merch_state.set_network_config(nc);
-    
-            // execute the merchant side
-            let res_merch = mpc::pay_update_merchant(
-                &mut rng,
-                &mut db as &mut dyn StateDatabase,
-                &channel_state,
-                session_id,
-                pay_mask_com,
-                &mut merch_state,
-            );
-            assert!(res_merch.is_ok(), res_merch.err().unwrap());
-        }
+        let ecode = mpc_child.wait().expect("failed to wait on mpctest");
+        assert!(ecode.success());
+
+        // load the updated merchant state
+        let merch_state_key = "merch_state".to_string();
+        let mut merch_state = load_merchant_state_info(&mut db.conn, &db_key, &merch_state_key).unwrap();
+
+        // complete the rest of unlink
+        complete_pay_helper(
+            &mut db,
+            rev_state1,
+            &channel_state,
+            &channel_token,
+            &mut cust_state,
+            &mut merch_state,
+        );
+
     }
 }

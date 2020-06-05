@@ -779,6 +779,34 @@ impl StateDatabase for HashMapDatabase {
     }
 }
 
+pub fn get_file_from_db(
+    conn: &mut redis::Connection,
+    key: &String,
+    field_name: &String,
+) -> Result<String, String> {
+    match conn.hget::<String, String, String>(key.clone(), field_name.clone()) {
+        Ok(s) => Ok(s),
+        Err(e) => return Err(e.to_string()),
+    }
+}
+
+pub fn store_file_in_db(
+    conn: &mut redis::Connection,
+    key: &String,
+    field_name: &String,
+    json_blob: &String,
+) -> Result<bool, String> {
+    match conn.hset::<String, String, String, i32>(
+        key.clone(),
+        field_name.clone(),
+        json_blob.clone(),
+    ) {
+        Ok(s) => Ok(s != 0),
+        Err(e) => return Err(e.to_string()),
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
