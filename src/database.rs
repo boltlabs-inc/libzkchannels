@@ -150,8 +150,11 @@ pub trait StateDatabase {
         nonce_hex: &String,
     ) -> Result<([u8; 32], [u8; 16]), String>;
     // masked mpc input methods
-    fn update_masked_mpc_inputs(&mut self, nonce_hex: &String, mask_bytes: MaskedMPCInputs)
-        -> bool;
+    fn update_masked_mpc_inputs(
+        &mut self,
+        session_id_hex: &String,
+        mask_bytes: MaskedMPCInputs,
+    ) -> bool;
     fn get_masked_mpc_inputs(&mut self, nonce_hex: &String) -> Result<MaskedMPCInputs, String>;
     // helper methods
     fn clear_state(&mut self) -> bool;
@@ -530,7 +533,7 @@ impl StateDatabase for RedisDatabase {
     // rev-lock -> masked inputs calls
     fn update_masked_mpc_inputs(
         &mut self,
-        nonce_hex: &String,
+        session_id_hex: &String,
         mask_bytes: MaskedMPCInputs,
     ) -> bool {
         let ser_mask_bytes = match serde_json::to_string(&mask_bytes) {
@@ -540,7 +543,7 @@ impl StateDatabase for RedisDatabase {
 
         match self.conn.hset::<String, String, String, i32>(
             self.masked_bytes_key.clone(),
-            nonce_hex.clone(),
+            session_id_hex.clone(),
             ser_mask_bytes,
         ) {
             Ok(c) => c != 0,
@@ -548,17 +551,20 @@ impl StateDatabase for RedisDatabase {
         }
     }
 
-    fn get_masked_mpc_inputs(&mut self, nonce_hex: &String) -> Result<MaskedMPCInputs, String> {
+    fn get_masked_mpc_inputs(
+        &mut self,
+        session_id_hex: &String,
+    ) -> Result<MaskedMPCInputs, String> {
         let ser_masked_bytes = match self
             .conn
-            .hget::<String, String, String>(self.masked_bytes_key.clone(), nonce_hex.clone())
+            .hget::<String, String, String>(self.masked_bytes_key.clone(), session_id_hex.clone())
         {
             Ok(s) => s,
             Err(e) => {
                 return Err(format!(
                     "get_masked_mpc_inputs: key({}) field({}) => {}",
                     &self.masked_bytes_key,
-                    nonce_hex,
+                    session_id_hex,
                     e.to_string()
                 ))
             }
@@ -938,7 +944,7 @@ mod tests {
         let mut db = RedisDatabase::new("test", db_url).unwrap();
         db.clear_state();
 
-        let nonce_hex = hex::encode([0u8; 16]);
+        let session_id_hex = hex::encode([1u8; 16]);
         let mask_bytes = MaskedMPCInputs {
             pt_mask: FixedSizeArray32([1u8; 32]),
             pt_mask_r: FixedSizeArray16([2u8; 16]),
@@ -947,10 +953,10 @@ mod tests {
             r_escrow_sig: FixedSizeArray32([5u8; 32]),
             r_merch_sig: FixedSizeArray32([6u8; 32]),
         };
-        let result = db.update_masked_mpc_inputs(&nonce_hex, mask_bytes);
+        let result = db.update_masked_mpc_inputs(&session_id_hex, mask_bytes);
         assert!(result);
 
-        let mask_bytes_result = db.get_masked_mpc_inputs(&nonce_hex);
+        let mask_bytes_result = db.get_masked_mpc_inputs(&session_id_hex);
         assert!(mask_bytes_result.is_ok());
 
         let rec_mask_bytes = mask_bytes_result.unwrap();

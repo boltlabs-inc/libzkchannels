@@ -23,6 +23,7 @@ type setupResp struct {
 	SessionId       string `json:"session_id"`
 	FoundRevSecret  string `json:"found_rev_secret"`
 	PayTokenMaskCom string `json:"pay_token_mask_com"`
+	RevLockCom      string `json:"rev_lock_com"`
 	MaskedTxInputs  string `json:"masked_tx_inputs"`
 	PayTokenMask    string `json:"pay_token_mask"`
 	PayTokenMaskR   string `json:"pay_token_mask_r"`
@@ -123,11 +124,9 @@ type MaskedTxInputs struct {
 }
 
 type RevokedState struct {
-	Nonce      string `json:"nonce"`
-	RevLock    string `json:"rev_lock"`
-	RevLockCom string `json:"rev_lock_com"`
-	RevSecret  string `json:"rev_secret"`
-	T          string `json:"t"`
+	RevLock   string `json:"rev_lock"`
+	RevSecret string `json:"rev_secret"`
+	T         string `json:"t"`
 }
 
 type FundingTxInfo struct {
@@ -578,36 +577,36 @@ func ActivateCustomerFinalize(payToken string, custState CustState) (CustState, 
 	return custState, err
 }
 
-func PreparePaymentCustomer(channelState ChannelState, amount int64, custState CustState) (RevokedState, State, string, CustState, error) {
+func PreparePaymentCustomer(channelState ChannelState, amount int64, custState CustState) (RevokedState, State, string, string, CustState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
-		return RevokedState{}, State{}, "", CustState{}, err
+		return RevokedState{}, State{}, "", "", CustState{}, err
 	}
 	serCustState, err := json.Marshal(custState)
 	if err != nil {
-		return RevokedState{}, State{}, "", CustState{}, err
+		return RevokedState{}, State{}, "", "", CustState{}, err
 	}
 	resp := C.GoString(C.mpc_prepare_payment_customer(C.CString(string(serChannelState)), C.int64_t(amount), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
-		return RevokedState{}, State{}, "", CustState{}, err
+		return RevokedState{}, State{}, "", "", CustState{}, err
 	}
 
 	state := State{}
 	err = json.Unmarshal([]byte(r.State), &state)
 	if err != nil {
-		return RevokedState{}, State{}, "", CustState{}, err
+		return RevokedState{}, State{}, "", "", CustState{}, err
 	}
 
 	newCustState := CustState{}
 	err = json.Unmarshal([]byte(r.CustState), &newCustState)
 	if err != nil {
-		return RevokedState{}, State{}, "", CustState{}, err
+		return RevokedState{}, State{}, "", "", CustState{}, err
 	}
 	revState := RevokedState{}
 	err = json.Unmarshal([]byte(r.RevState), &revState)
 
-	return revState, state, r.SessionId, newCustState, err
+	return revState, state, r.RevLockCom, r.SessionId, newCustState, err
 }
 
 func PreparePaymentMerchant(channelState ChannelState, sessionId string, nonce string, revLockCom string, amount int64, justification string, merchState MerchState) (string, MerchState, error) {
@@ -685,13 +684,13 @@ func PayUpdateMerchant(channelState ChannelState, sessionId string, payTokenMask
 	return r.IsOk, merchState, err
 }
 
-func PayConfirmMPCResult(mpcResult bool, nonce string, merchState MerchState) (MaskedTxInputs, error) {
+func PayConfirmMPCResult(sessionId string, mpcResult bool, merchState MerchState) (MaskedTxInputs, error) {
 	serMerchState, err := json.Marshal(merchState)
 	if err != nil {
 		return MaskedTxInputs{}, err
 	}
 
-	resp := C.GoString(C.mpc_get_masked_tx_inputs(C.uint(btoi(mpcResult)), C.CString(nonce), C.CString(string(serMerchState))))
+	resp := C.GoString(C.mpc_get_masked_tx_inputs(C.CString(sessionId), C.uint(btoi(mpcResult)), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return MaskedTxInputs{}, err
@@ -735,7 +734,7 @@ func PayUnmaskSigsCustomer(channelState ChannelState, channelToken ChannelToken,
 	return r.IsOk, custState, err
 }
 
-func PayValidateRevLockMerchant(revokedState RevokedState, merchState MerchState) (string, string, MerchState, error) {
+func PayValidateRevLockMerchant(sessionId string, revokedState RevokedState, merchState MerchState) (string, string, MerchState, error) {
 	serRevokedState, err := json.Marshal(revokedState)
 	if err != nil {
 		return "", "", MerchState{}, err
@@ -745,7 +744,7 @@ func PayValidateRevLockMerchant(revokedState RevokedState, merchState MerchState
 		return "", "", MerchState{}, err
 	}
 
-	resp := C.GoString(C.mpc_pay_validate_rev_lock_merchant(C.CString(string(serRevokedState)), C.CString(string(serMerchState))))
+	resp := C.GoString(C.mpc_pay_validate_rev_lock_merchant(C.CString(sessionId), C.CString(string(serRevokedState)), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", "", MerchState{}, err

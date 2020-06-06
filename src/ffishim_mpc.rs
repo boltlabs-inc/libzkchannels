@@ -35,7 +35,11 @@ pub mod ffishim_mpc {
     macro_rules! check_vec_length {
         ($x: expr, $y: expr) => {
             if $x.len() != $y {
-                return error_message(format!("{} does not have expected length: {}", stringify!($x), $y));
+                return error_message(format!(
+                    "{} does not have expected length: {}",
+                    stringify!($x),
+                    $y
+                ));
             }
         };
     }
@@ -500,7 +504,7 @@ pub mod ffishim_mpc {
         let mut cust_state = handle_errors!(cust_state_result);
 
         // We change the channel state
-        let (state, rev_state, session_id) =
+        let (state, rev_state, rev_lock_com, session_id) =
             match mpc::pay_prepare_customer(rng, &channel_state, amount, &mut cust_state) {
                 Ok(n) => n,
                 Err(e) => return error_message(e),
@@ -510,6 +514,8 @@ pub mod ffishim_mpc {
             serde_json::to_string(&rev_state).unwrap().as_str(),
             "\', \'state\':\'",
             serde_json::to_string(&state).unwrap().as_str(),
+            "\', \'rev_lock_com\':\'",
+            &hex::encode(rev_lock_com),
             "\', \'session_id\':\'",
             &hex::encode(session_id),
             "\', \'cust_state\':\'",
@@ -729,8 +735,8 @@ pub mod ffishim_mpc {
 
     #[no_mangle]
     pub extern "C" fn mpc_get_masked_tx_inputs(
+        ser_session_id: *mut c_char,
         mpc_result: u32,
-        ser_nonce: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
         let mut mpc_success = false;
@@ -738,12 +744,12 @@ pub mod ffishim_mpc {
             mpc_success = true;
         }
 
-        // Deserialize nonce
-        let nonce_result = deserialize_hex_string(ser_nonce);
-        let nonce = handle_errors!(nonce_result);
-        check_vec_length!(nonce, 16);
-        let mut nonce_ar = [0u8; 16];
-        nonce_ar.copy_from_slice(nonce.as_slice());
+        // Deserialize session_id
+        let sess_id_result = deserialize_hex_string(ser_session_id);
+        let session_id = handle_errors!(sess_id_result);
+        check_vec_length!(session_id, 16);
+        let mut session_id_ar = [0u8; 16];
+        session_id_ar.copy_from_slice(session_id.as_slice());
 
         // Deserialize the merch_state
         let merch_state_result: ResultSerdeType<MerchantMPCState> =
@@ -756,8 +762,8 @@ pub mod ffishim_mpc {
 
         let result = mpc::pay_confirm_mpc_result(
             &mut db as &mut dyn StateDatabase,
+            session_id_ar,
             mpc_success,
-            nonce_ar,
             &mut merch_state,
         );
         let masked_tx_inputs = handle_errors!(result);
@@ -819,9 +825,17 @@ pub mod ffishim_mpc {
 
     #[no_mangle]
     pub extern "C" fn mpc_pay_validate_rev_lock_merchant(
+        ser_session_id: *mut c_char,
         ser_revoked_state: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
+        // Deserialize session_id
+        let sess_id_result = deserialize_hex_string(ser_session_id);
+        let session_id = handle_errors!(sess_id_result);
+        check_vec_length!(session_id, 16);
+        let mut session_id_ar = [0u8; 16];
+        session_id_ar.copy_from_slice(session_id.as_slice());
+
         // Deserialize masked_tx_inputs
         let revoked_state_result: ResultSerdeType<RevokedState> =
             deserialize_result_object(ser_revoked_state);
@@ -839,6 +853,7 @@ pub mod ffishim_mpc {
         // We change the channel state
         let pay_token_mask_result = mpc::pay_validate_rev_lock_merchant(
             &mut db as &mut dyn StateDatabase,
+            session_id_ar,
             revoked_state,
             &mut merch_state,
         );

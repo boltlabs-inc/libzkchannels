@@ -941,36 +941,18 @@ fn xor_in_place(a: &mut [u8], b: &[u8]) {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RevokedState {
-    pub nonce: FixedSizeArray16,
-    pub rev_lock_com: FixedSizeArray32,
     pub rev_lock: FixedSizeArray32,
     pub rev_secret: FixedSizeArray32,
     pub t: FixedSizeArray16,
 }
 
 impl RevokedState {
-    pub fn new(
-        nonce: [u8; NONCE_LEN],
-        rev_lock_com: [u8; 32],
-        rev_lock: [u8; 32],
-        rev_secret: [u8; 32],
-        t: [u8; 16],
-    ) -> Self {
+    pub fn new(rev_lock: [u8; 32], rev_secret: [u8; 32], t: [u8; 16]) -> Self {
         RevokedState {
-            nonce: FixedSizeArray16(nonce),
-            rev_lock_com: FixedSizeArray32(rev_lock_com),
             rev_lock: FixedSizeArray32(rev_lock),
             rev_secret: FixedSizeArray32(rev_secret),
             t: FixedSizeArray16(t),
         }
-    }
-
-    pub fn get_nonce(&self) -> [u8; NONCE_LEN] {
-        self.nonce.0
-    }
-
-    pub fn get_rev_lock_com(&self) -> [u8; 32] {
-        self.rev_lock_com.0
     }
 
     pub fn get_rev_lock(&self) -> [u8; 32] {
@@ -1653,8 +1635,8 @@ impl MerchantMPCState {
             r_merch_sig: FixedSizeArray32(r_merch),
         };
 
-        let nonce_hex = hex::encode(nonce);
-        db.update_masked_mpc_inputs(&nonce_hex, mask_bytes);
+        // let nonce_hex = hex::encode(nonce);
+        db.update_masked_mpc_inputs(&session_id_hex, mask_bytes);
 
         Ok(true)
     }
@@ -1662,12 +1644,23 @@ impl MerchantMPCState {
     pub fn verify_revoked_state(
         &mut self,
         db: &mut dyn StateDatabase,
-        nonce: [u8; NONCE_LEN],
-        rev_lock_com: [u8; 32],
+        session_id: [u8; 16],
         rev_lock: [u8; 32],
         rev_sec: [u8; 32],
         t: [u8; 16],
     ) -> Result<([u8; 32], [u8; 16]), String> {
+        // TODO: check that db is connected
+
+        let session_id_hex = hex::encode(session_id);
+        // retrieve session_state
+        let session_state = match db.load_session_state(&session_id_hex) {
+            Ok(s) => s,
+            Err(e) => return Err(e.to_string()),
+        };
+
+        let nonce_hex = hex::encode(session_state.nonce.0);
+        let rev_lock_com = session_state.rev_lock_com.0;
+
         // check rev_lock_com opens to RL_i / t_i
         // check that RL_i is derived from RS_i
         if compute_rev_lock_commitment(&rev_lock, &t) != rev_lock_com
@@ -1679,8 +1672,7 @@ impl MerchantMPCState {
         }
 
         // retrieve masked bytes from rev_lock_com (output error, if not)
-        let nonce_hex = hex::encode(nonce);
-        let (pt_mask, pt_mask_r) = match db.get_masked_mpc_inputs(&nonce_hex) {
+        let (pt_mask, pt_mask_r) = match db.get_masked_mpc_inputs(&session_id_hex) {
             Ok(n) => (n.pt_mask.0, n.pt_mask_r.0),
             _ => {
                 return Err(String::from(
@@ -1861,7 +1853,7 @@ mod tests {
         // let rev_lock_com = r_com.clone();
         // let nonce = s_0.get_nonce().clone();
 
-        // let _mask_bytes = match merch_state.verify_revoked_state(&mut db as &mut dyn StateDatabase, nonce, rev_lock_com, rev_lock, rev_secret, t) {
+        // let _mask_bytes = match merch_state.verify_revoked_state(&mut db as &mut dyn StateDatabase, session_id, rev_lock, rev_secret, t) {
         //     Ok(n) => Some(n),
         //     Err(e) => None
         // };
@@ -2046,16 +2038,13 @@ mod tests {
         });
 
         // prepare the merchant inputs
-        let rev_lock_com = r_com.clone();
-        let nonce = s_0.get_nonce().clone();
-
         println!("hello, merchant!");
         let circuit = merch_state.get_circuit_file(); // can be preloaded and cached
         let res = merch_state.execute_mpc_context(
             &mut rng,
             &mut db as &mut dyn StateDatabase,
             &channel,
-            session_id,
+            session_id.clone(),
             pay_token_mask_com,
             circuit
         );
@@ -2064,8 +2053,7 @@ mod tests {
         let (pt_mask, pt_mask_r) = merch_state
             .verify_revoked_state(
                 &mut db as &mut dyn StateDatabase,
-                nonce,
-                rev_lock_com,
+                session_id,
                 rev_lock,
                 rev_secret,
                 t,

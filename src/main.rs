@@ -879,7 +879,7 @@ mod cust {
         let old_state = cust_state.get_current_state();
 
         // prepare phase
-        let (new_state, rev_state, session_id) =
+        let (new_state, rev_state, rev_lock_com, session_id) =
             match mpc::pay_prepare_customer(rng, &mut channel_state, amount, &mut cust_state) {
                 Ok(n) => n,
                 Err(e) => return Err(e),
@@ -894,8 +894,8 @@ mod cust {
         }
         let session_id_str = hex::encode(&session_id);
         let amount_str = hex::encode(amount.to_be_bytes());
+        let rev_lock_com_str = hex::encode(&rev_lock_com);
         let old_nonce_str = hex::encode(&old_state.get_nonce());
-        let rev_lock_com_str = hex::encode(&rev_state.rev_lock_com.0);
 
         let msg = [session_id_str, old_nonce_str, rev_lock_com_str, amount_str];
         let msg1 = conn.send_and_wait(
@@ -924,7 +924,7 @@ mod cust {
             new_state,
             fee_cc,
             pay_token_mask_com,
-            rev_state.rev_lock_com.0,
+            rev_lock_com,
             amount,
             &mut cust_state,
         ) {
@@ -1360,7 +1360,7 @@ mod merch {
             rng,
             &mut db as &mut dyn StateDatabase,
             &channel_state,
-            session_id,
+            session_id.clone(),
             nonce,
             rev_lock_com.clone(),
             amount,
@@ -1385,7 +1385,7 @@ mod merch {
             rng,
             &mut db as &mut dyn StateDatabase,
             channel_state,
-            session_id,
+            session_id.clone(),
             pay_token_mask_com,
             merch_state
         ));
@@ -1399,8 +1399,8 @@ mod merch {
 
         let masked_inputs = mpc::pay_confirm_mpc_result(
             &mut db as &mut dyn StateDatabase,
+            session_id,
             cust_mpc_ok,
-            nonce,
             merch_state,
         )
         .unwrap();
@@ -1410,6 +1410,7 @@ mod merch {
 
         let (pt_mask_bytes, pt_mask_r) = match mpc::pay_validate_rev_lock_merchant(
             &mut db as &mut dyn StateDatabase,
+            session_id,
             rev_state,
             merch_state,
         ) {

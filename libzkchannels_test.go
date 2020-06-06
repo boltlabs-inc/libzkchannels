@@ -183,7 +183,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	// unlink should happen at this point (0-value payment)
 	fmt.Println("proceed with pay protocol...")
 
-	revState, newState, sessionId, custState, err := PreparePaymentCustomer(channelState, 10, custState)
+	revState, newState, revLockCom, sessionId, custState, err := PreparePaymentCustomer(channelState, 10, custState)
 	assert.Nil(t, err)
 	fmt.Println("New session ID: ", sessionId)
 
@@ -193,13 +193,13 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	assert.NotNil(t, custState)
 
 	fmt.Println("Nonce: ", state.Nonce)
-	fmt.Println("RevLockCom: ", revState.RevLockCom)
+	fmt.Println("RevLockCom: ", revLockCom)
 
 	justification := ""
-	payTokenMaskCom, merchState, err := PreparePaymentMerchant(channelState, sessionId, state.Nonce, revState.RevLockCom, 10, justification, merchState)
+	payTokenMaskCom, merchState, err := PreparePaymentMerchant(channelState, sessionId, state.Nonce, revLockCom, 10, justification, merchState)
 	assert.Nil(t, err)
 
-	go runPayCust(channelState, channelToken, state, newState, payTokenMaskCom, revState.RevLockCom, custState)
+	go runPayCust(channelState, channelToken, state, newState, payTokenMaskCom, revLockCom, custState)
 	isOk, merchState, err = PayUpdateMerchant(channelState, sessionId, payTokenMaskCom, merchState)
 	assert.Nil(t, err)
 	time.Sleep(time.Second * 5)
@@ -208,7 +208,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 		fmt.Println("MPC execution failed for merchant!")
 	}
 	assert.True(t, isOk)
-	maskedTxInputs, err := PayConfirmMPCResult(isOk, state.Nonce, merchState)
+	maskedTxInputs, err := PayConfirmMPCResult(sessionId, isOk, merchState)
 	assert.Nil(t, err)
 
 	serCustState := os.Getenv("custStateRet")
@@ -218,7 +218,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	assert.Nil(t, err)
 	assert.True(t, isOk)
 
-	payTokenMask, payTokenMaskR, merchState, err := PayValidateRevLockMerchant(revState, merchState)
+	payTokenMask, payTokenMaskR, merchState, err := PayValidateRevLockMerchant(sessionId, revState, merchState)
 	assert.Nil(t, err)
 
 	isOk, custState, err = PayUnmaskPayTokenCustomer(payTokenMask, payTokenMaskR, custState)

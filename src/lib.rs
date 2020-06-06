@@ -1034,7 +1034,7 @@ pub mod mpc {
         channel: &ChannelMPCState,
         amount: i64,
         cust_state: &mut CustomerMPCState,
-    ) -> Result<(State, RevokedState, [u8; 16]), String> {
+    ) -> Result<(State, RevokedState, [u8; 32], [u8; 16]), String> {
         // verify that channel status is already activated or established
         if (cust_state.channel_status == ChannelStatus::Activated && amount >= 0)
             || (cust_state.channel_status == ChannelStatus::Established && amount > 0)
@@ -1057,8 +1057,6 @@ pub mod mpc {
             let (cur_rev_lock, cur_rev_secret) = cust_state.get_rev_pair();
             // get current rev lock commitment
             let cur_rev_lock_com = cust_state.generate_rev_lock_commitment(csprng);
-            // get old state
-            let cur_state = cust_state.get_current_state();
             // randomness for old rev lock commitment
             let cur_t = cust_state.get_randomness();
 
@@ -1070,12 +1068,11 @@ pub mod mpc {
             Ok((
                 new_state,
                 RevokedState {
-                    nonce: cur_state.nonce,
-                    rev_lock_com: FixedSizeArray32(cur_rev_lock_com),
                     rev_lock: FixedSizeArray32(cur_rev_lock),
                     rev_secret: FixedSizeArray32(cur_rev_secret),
                     t: FixedSizeArray16(cur_t),
                 },
+                cur_rev_lock_com,
                 session_id,
             ))
         } else {
@@ -1204,19 +1201,19 @@ pub mod mpc {
     }
 
     ///
-    /// pay_confirm_mpc_result() - takes as input a db,
-    /// output: masked input if the mpc result was successful and there is a masked input for a given nonce
+    /// pay_confirm_mpc_result() - takes as input a db, session identifier, mpc result and merch state
+    /// output: masked input if the mpc result was successful and there is a masked input for a given session_id
     ///
     pub fn pay_confirm_mpc_result(
         db: &mut dyn StateDatabase,
+        session_id: [u8; 16],
         mpc_result: bool,
-        nonce: [u8; NONCE_LEN],
         _merch_state: &mut MerchantMPCState,
     ) -> Result<MaskedTxMPCInputs, String> {
+        let session_id_hex = hex::encode(session_id);
         match mpc_result {
             true => {
-                let nonce_hex = hex::encode(nonce);
-                let mask_bytes = match db.get_masked_mpc_inputs(&nonce_hex) {
+                let mask_bytes = match db.get_masked_mpc_inputs(&session_id_hex) {
                     Ok(n) => Some(n),
                     Err(e) => return Err(e.to_string()),
                 };
@@ -1266,13 +1263,13 @@ pub mod mpc {
     ///
     pub fn pay_validate_rev_lock_merchant(
         db: &mut dyn StateDatabase,
+        session_id: [u8; 16],
         rev_state: RevokedState,
         merch_state: &mut MerchantMPCState,
     ) -> Result<([u8; 32], [u8; 16]), String> {
         let (pt_mask, pt_mask_r) = match merch_state.verify_revoked_state(
             db,
-            rev_state.get_nonce(),
-            rev_state.get_rev_lock_com(),
+            session_id,
             rev_state.get_rev_lock(),
             rev_state.get_rev_secret(),
             rev_state.get_randomness(),
@@ -2272,9 +2269,8 @@ mod tests {
 
         mpc::activate_customer_finalize(pay_token, &mut cust_state).unwrap();
 
-        let (_new_state, revoked_state, session_id) =
+        let (_new_state, revoked_state, rev_lock_com, session_id) =
             mpc::pay_prepare_customer(&mut rng, &channel, amount, &mut cust_state).unwrap();
-        let rev_lock_com = revoked_state.get_rev_lock_com();
 
         let pay_mask_com = mpc::pay_prepare_merchant(
             &mut rng,
@@ -2302,8 +2298,8 @@ mod tests {
         let mpc_result = res_merch.unwrap();
         let masked_inputs = mpc::pay_confirm_mpc_result(
             &mut db as &mut dyn StateDatabase,
+            session_id.clone(),
             mpc_result,
-            s0.get_nonce(),
             &mut merch_state,
         );
         assert!(masked_inputs.is_ok(), masked_inputs.err().unwrap());
@@ -2316,6 +2312,7 @@ mod tests {
 
         let (pay_token_mask, pay_token_mask_r) = match mpc::pay_validate_rev_lock_merchant(
             &mut db as &mut dyn StateDatabase,
+            session_id,
             revoked_state,
             &mut merch_state,
         ) {
@@ -2378,8 +2375,7 @@ mod tests {
             let orig_funding_tx_info: FundingTxInfo = serde_json::from_str(&ser_tx_info).unwrap();
             assert_eq!(funding_tx_info, orig_funding_tx_info);
 
-            let (state, rev_state, session_id) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, amount, &mut cust_state).unwrap();
-            let rev_lock_com = rev_state.rev_lock_com.0;
+            let (state, _rev_state, rev_lock_com, session_id) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, amount, &mut cust_state).unwrap();
 
             let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &mut db as &mut dyn StateDatabase, &channel_state, session_id, state.get_nonce(), rev_lock_com.clone(), amount, None, &mut merch_state).unwrap();
 
@@ -2515,9 +2511,8 @@ mod tests {
         // get the old state
         let cur_state = cust_state.get_current_state();
         // let's prepare a new payment
-        let (new_state, rev_state, session_id) =
+        let (new_state, rev_state, rev_lock_com, session_id) =
             mpc::pay_prepare_customer(rng, channel_state, amount, cust_state).unwrap();
-        let rev_lock_com = rev_state.rev_lock_com.0;
 
         // println!("Old Nonce: {}", hex::encode(&cur_state.get_nonce()));
         let justification = match amount < 0 {
@@ -2643,6 +2638,7 @@ mod tests {
 
     fn complete_pay_helper(
         merch_db: &mut RedisDatabase,
+        session_id: [u8; 16],
         rev_state: mpc::RevokedState,
         channel_state: &mpc::ChannelMPCState,
         channel_token: &mpc::ChannelMPCToken,
@@ -2651,8 +2647,8 @@ mod tests {
     ) {
         let mask_bytes = mpc::pay_confirm_mpc_result(
             merch_db as &mut dyn StateDatabase,
+            session_id.clone(),
             true,
-            rev_state.nonce.0.clone(),
             merch_state,
         )
         .unwrap();
@@ -2668,6 +2664,7 @@ mod tests {
         // merchant validates the old state
         let (pt_mask, pt_mask_r) = match mpc::pay_validate_rev_lock_merchant(
             merch_db as &mut dyn StateDatabase,
+            session_id,
             rev_state,
             merch_state,
         ) {
@@ -2808,7 +2805,7 @@ mod tests {
         let mut mpc_child = run_mpctest_as_merchant(
             &mut db,
             &db_key,
-            session_id,
+            session_id.clone(),
             pay_mask_com,
             &channel_state,
             &merch_state_key,
@@ -2842,6 +2839,7 @@ mod tests {
         // complete the rest of unlink
         complete_pay_helper(
             &mut db,
+            session_id,
             rev_state,
             &channel_state,
             &channel_token,
@@ -2868,7 +2866,7 @@ mod tests {
         let mut mpc_child = run_mpctest_as_merchant(
             &mut db,
             &db_key,
-            session_id1,
+            session_id1.clone(),
             pay_mask_com1,
             &channel_state,
             &merch_state_key,
@@ -2902,11 +2900,84 @@ mod tests {
         // complete the rest of unlink
         complete_pay_helper(
             &mut db,
+            session_id1,
             rev_state1,
             &channel_state,
             &channel_token,
             &mut cust_state,
             &mut merch_state,
         );
+    }
+
+    #[test]
+    fn test_unlink_fail_as_expected() {
+        let mut rng = &mut rand::thread_rng();
+        let mut db = RedisDatabase::new("mpctest", "redis://127.0.0.1/".to_string()).unwrap();
+        db.clear_state();
+
+        // full channel setup
+        let fee_cc = 1000;
+        let (channel_state, channel_token, mut cust_state, mut merch_state) =
+            zkchannel_full_establish_setup_helper(&mut rng, &mut db, fee_cc);
+
+        // UNLINK PROTOCOL
+        let (session_id, cur_state, new_state, _rev_state, rev_lock_com, pay_mask_com) =
+            pay_prepare_helper(
+                &mut rng,
+                &mut db,
+                &channel_state,
+                &mut cust_state,
+                0,
+                &mut merch_state,
+            );
+
+        let nc = channels_mpc::NetworkConfig {
+            conn_type: ConnType_NETIO,
+            path: String::from("tmpsock"),
+            dest_ip: String::from("127.0.0.1"),
+            dest_port: 5000,
+            peer_raw_fd: 0,
+        };
+        cust_state.set_network_config(nc.clone());
+        merch_state.set_network_config(nc.clone());
+
+        let db_key = "mpctest:merch_db".to_string();
+        let merch_state_key = "merch_state".to_string();
+        let mut mpc_child = run_mpctest_as_merchant(
+            &mut db,
+            &db_key,
+            session_id,
+            pay_mask_com,
+            &channel_state,
+            &merch_state_key,
+            &merch_state,
+        );
+
+        // pay update for customer
+        let res_cust = mpc::pay_update_customer(
+            &channel_state,
+            &channel_token,
+            cur_state,
+            new_state,
+            fee_cc,
+            [11u8; 32], // bad pay-token-mask commitment
+            rev_lock_com,
+            0,
+            &mut cust_state,
+        );
+        assert!(res_cust.is_err());
+
+        // wait for mpctest to complete execution
+        let ecode = mpc_child.wait().expect("failed to wait on mpctest");
+        assert!(ecode.success());
+
+        // load the updated merchant state
+        let _merch_state =
+            load_merchant_state_info(&mut db.conn, &db_key, &merch_state_key).unwrap();
+
+        // TODO: check that merchant records the MPC failure for the given session
+        let session_id_hex = hex::encode(session_id);
+        let session_state = db.load_session_state(&session_id_hex).unwrap();
+        print!("Session State: {:?}\n", session_state);
     }
 }

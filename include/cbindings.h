@@ -386,7 +386,7 @@ char *mpc_get_channel_id(char *ser_channel_token);
 
 char *mpc_get_initial_state(char *ser_cust_state);
 
-char *mpc_get_masked_tx_inputs(uint32_t mpc_result, char *ser_nonce, char *ser_merch_state);
+char *mpc_get_masked_tx_inputs(char *ser_session_id, uint32_t mpc_result, char *ser_merch_state);
 
 char *mpc_init_customer(char *ser_merch_pk,
                         int64_t cust_bal,
@@ -434,7 +434,9 @@ char *mpc_pay_update_merchant(char *ser_channel_state,
                               char *ser_pay_token_mask_com,
                               char *ser_merch_state);
 
-char *mpc_pay_validate_rev_lock_merchant(char *ser_revoked_state, char *ser_merch_state);
+char *mpc_pay_validate_rev_lock_merchant(char *ser_session_id,
+                                         char *ser_revoked_state,
+                                         char *ser_merch_state);
 
 char *mpc_prepare_payment_customer(char *ser_channel_state, int64_t amount, char *ser_cust_state);
 
