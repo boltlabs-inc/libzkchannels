@@ -879,7 +879,7 @@ pub mod mpc {
     pub use channels_mpc::{
         ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState, RevokedState,
     };
-    pub use channels_mpc::{ChannelStatus, InitCustState, NetworkConfig};
+    pub use channels_mpc::{ChannelStatus, InitCustState, NetworkConfig, PaymentStatus};
     use database::{MaskedTxMPCInputs, StateDatabase};
     use rand::Rng;
     use secp256k1::PublicKey;
@@ -1221,9 +1221,15 @@ pub mod mpc {
                 return Ok(mask_bytes_unwrapped.get_tx_masks());
             }
             false => {
+                let mut session_state = match db.load_session_state(&session_id_hex) {
+                    Ok(s) => s,
+                    Err(e) => return Err(e.to_string()),
+                };
+                session_state.status = PaymentStatus::Error;
+                db.update_session_state(&session_id_hex, &session_state);
                 return Err(format!(
                     "pay_confirm_mpc_result: will need to restart MPC session"
-                ))
+                ));
             }
         }
     }
@@ -1347,7 +1353,7 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     use bindings::ConnType_NETIO;
-    use channels_mpc::ChannelStatus;
+    use channels_mpc::{ChannelStatus, PaymentStatus};
     use database::{
         get_file_from_db, store_file_in_db, HashMapDatabase, MaskedTxMPCInputs, RedisDatabase,
         StateDatabase,
@@ -2972,12 +2978,19 @@ mod tests {
         assert!(ecode.success());
 
         // load the updated merchant state
-        let _merch_state =
+        let mut merch_state =
             load_merchant_state_info(&mut db.conn, &db_key, &merch_state_key).unwrap();
+        let mask = mpc::pay_confirm_mpc_result(
+            &mut db as &mut dyn StateDatabase,
+            session_id.clone(),
+            res_cust.is_ok(),
+            &mut merch_state,
+        );
+        assert!(mask.is_err());
 
-        // TODO: check that merchant records the MPC failure for the given session
         let session_id_hex = hex::encode(session_id);
         let session_state = db.load_session_state(&session_id_hex).unwrap();
         print!("Session State: {:?}\n", session_state);
+        assert!(session_state.status == PaymentStatus::Error);
     }
 }
