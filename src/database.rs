@@ -11,6 +11,14 @@ pub fn create_db_connection(url: String) -> redis::RedisResult<Connection> {
     Ok(con)
 }
 
+pub fn ensure_db_connected(con: &mut Connection) -> Result<bool, String> {
+    let ping = match redis::cmd("PING").query::<String>(con) {
+        Ok(n) => n,
+        Err(e) => return Err(format!("Connection Error: {}", e.to_string())),
+    };
+    Ok(ping.eq("PONG"))
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PayMaskMap {
     pub mask: FixedSizeArray32,
@@ -91,7 +99,8 @@ pub trait StateDatabase {
     fn new(prefix: &'static str, url: String) -> Result<Self, String>
     where
         Self: Sized;
-
+    // check db connection
+    fn is_connected(&mut self) -> Result<bool, String>;
     // manage session state
     fn check_session_id(&mut self, session_id_hex: &String) -> Result<bool, String>;
     fn save_new_session_state(
@@ -189,6 +198,10 @@ impl StateDatabase for RedisDatabase {
         })
     }
 
+    fn is_connected(&mut self) -> Result<bool, String> {
+        ensure_db_connected(&mut self.conn)
+    }
+
     fn check_session_id(&mut self, session_id_hex: &String) -> Result<bool, String> {
         match self
             .conn
@@ -268,7 +281,7 @@ impl StateDatabase for RedisDatabase {
         {
             Ok(c) => return c,
             Err(e) => {
-                println!(
+                eprintln!(
                     "clear_session_state: failed to delete key: {} => {}",
                     session_id_hex, e
                 );
@@ -300,7 +313,7 @@ impl StateDatabase for RedisDatabase {
         {
             Ok(s) => s,
             Err(e) => {
-                println!("check_spent_map: {}", e.to_string());
+                eprintln!("check_spent_map: {}", e.to_string());
                 false
             }
         }
@@ -329,7 +342,7 @@ impl StateDatabase for RedisDatabase {
         {
             Ok(s) => s,
             Err(e) => {
-                println!("check_rev_lock_map: {}", e.to_string());
+                eprintln!("check_rev_lock_map: {}", e.to_string());
                 false
             }
         }
@@ -352,7 +365,7 @@ impl StateDatabase for RedisDatabase {
             .sadd::<String, String, i32>(self.unlink_set_key.clone(), nonce.clone())
         {
             Ok(_) => Ok(true),
-            Err(e) => Err(format!("ERROR: update_unlink_set => {}", e.to_string())),
+            Err(e) => Err(format!("update_unlink_set: {}", e.to_string())),
         }
     }
 
@@ -371,7 +384,7 @@ impl StateDatabase for RedisDatabase {
         {
             Ok(s) => s,
             Err(e) => {
-                println!("is_member_unlink_set: {}", e);
+                eprintln!("is_member_unlink_set: {}", e);
                 false
             }
         }
@@ -384,7 +397,7 @@ impl StateDatabase for RedisDatabase {
         {
             Ok(s) => s,
             Err(e) => {
-                println!(
+                eprintln!(
                     "remove_from_unlink_set: {} {} {}",
                     self.unlink_set_key.clone(),
                     e.to_string(),
@@ -399,49 +412,49 @@ impl StateDatabase for RedisDatabase {
         match self.conn.del(self.session_map_key.clone()) {
             Ok(c) => c,
             Err(e) => {
-                println!("could not delete: {} => {}", self.session_map_key, e);
+                eprintln!("could not delete: {} => {}", self.session_map_key, e);
                 return false;
             }
         }
         match self.conn.del(self.unlink_set_key.clone()) {
             Ok(c) => c,
             Err(e) => {
-                println!("could not delete: {} => {}", self.unlink_set_key, e);
+                eprintln!("could not delete: {} => {}", self.unlink_set_key, e);
                 return false;
             }
         }
         match self.conn.del(self.spent_map_key.clone()) {
             Ok(c) => c,
             Err(e) => {
-                println!("could not delete: {} => {}", self.spent_map_key, e);
+                eprintln!("could not delete: {} => {}", self.spent_map_key, e);
                 return false;
             }
         }
         match self.conn.del(self.rev_lock_map_key.clone()) {
             Ok(c) => c,
             Err(e) => {
-                println!("could not delete: {} => {}", self.rev_lock_map_key, e);
+                eprintln!("could not delete: {} => {}", self.rev_lock_map_key, e);
                 return false;
             }
         }
         match self.conn.del(self.nonce_to_session_key.clone()) {
             Ok(c) => c,
             Err(e) => {
-                println!("could not delete: {} => {}", self.nonce_to_session_key, e);
+                eprintln!("could not delete: {} => {}", self.nonce_to_session_key, e);
                 return false;
             }
         }
         match self.conn.del(self.nonce_mask_map_key.clone()) {
             Ok(c) => c,
             Err(e) => {
-                println!("could not delete: {} => {}", self.nonce_mask_map_key, e);
+                eprintln!("could not delete: {} => {}", self.nonce_mask_map_key, e);
                 return false;
             }
         }
         match self.conn.del(self.masked_bytes_key.clone()) {
             Ok(c) => c,
             Err(e) => {
-                println!("could not delete: {} => {}", self.masked_bytes_key, e);
+                eprintln!("could not delete: {} => {}", self.masked_bytes_key, e);
                 return false;
             }
         }
@@ -514,7 +527,7 @@ impl StateDatabase for RedisDatabase {
                         mask_r.copy_from_slice(&t[32..48]);
                         (mask, mask_r)
                     } else {
-                        return Err(format!("Invalid length for mask: {}", t.len()));
+                        return Err(format!("invalid length for mask: {}", t.len()));
                     }
                 }
                 Err(e) => return Err(e.to_string()),
@@ -598,6 +611,10 @@ impl StateDatabase for HashMapDatabase {
             rev_lock_map: HashMap::new(),
             mask_mpc_bytes: HashMap::new(),
         })
+    }
+
+    fn is_connected(&mut self) -> Result<bool, String> {
+        Ok(true)
     }
 
     fn check_session_id(&mut self, session_id_hex: &String) -> Result<bool, String> {
@@ -1011,6 +1028,8 @@ mod tests {
         let db_url = "redis://127.0.0.1/".to_string();
         let mut db = RedisDatabase::new("test", db_url).unwrap();
         db.clear_state();
+
+        assert!(db.is_connected().is_ok());
 
         let session_id1 = hex::encode([1u8; 16]);
         let session_id2 = hex::encode([2u8; 16]);

@@ -971,6 +971,8 @@ pub mod mpc {
         init_hash: [u8; 32],
         merch_state: &mut MerchantMPCState,
     ) -> Result<bool, String> {
+        // check db is connected
+        db.is_connected()?;
         merch_state.validate_channel_params(db, channel_token, init_state, init_hash)
     }
 
@@ -1007,6 +1009,9 @@ pub mod mpc {
         s0: &State,
         merch_state: &mut MerchantMPCState,
     ) -> Result<[u8; 32], String> {
+        // check db is connected
+        db.is_connected()?;
+        // TODO: implement ZKC-19
         // activate channel - generate pay_token
         merch_state.activate_channel(db, &channel_token, s0)
     }
@@ -1099,6 +1104,8 @@ pub mod mpc {
         justification: Option<String>,
         merch_state: &mut MerchantMPCState,
     ) -> Result<[u8; 32], String> {
+        // check db is connected
+        db.is_connected()?;
         // checks that no existing session with the specified session_id/nonce combo
         merch_state.generate_pay_mask_commitment(
             csprng,
@@ -1178,6 +1185,9 @@ pub mod mpc {
         pay_token_mask_com: [u8; 32],
         merch_state: &mut MerchantMPCState,
     ) -> Result<bool, String> {
+        // check db is connected
+        db.is_connected()?;
+
         if merch_state.net_config.is_none() {
             // use default ip/port
             merch_state.set_network_config(NetworkConfig {
@@ -1210,6 +1220,9 @@ pub mod mpc {
         mpc_result: bool,
         _merch_state: &mut MerchantMPCState,
     ) -> Result<MaskedTxMPCInputs, String> {
+        // check db is connected
+        db.is_connected()?;
+
         let session_id_hex = hex::encode(session_id);
         match mpc_result {
             true => {
