@@ -934,10 +934,10 @@ impl CustomerMPCState {
         if close_tx.is_ok() {
             self.close_status = match from_escrow {
                 true => ChannelCloseStatus::CustomerInit,
-                false => ChannelCloseStatus::MerchantInit
+                false => ChannelCloseStatus::MerchantInit,
             };
-        }    
-        return close_tx;    
+        }
+        return close_tx;
     }
 }
 

@@ -1335,7 +1335,10 @@ pub mod mpc {
         merch_state: &mut MerchantMPCState,
     ) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), String> {
         if escrow_txid.len() != 32 {
-            return Err(format!("escrow-txid does not have expected length: {}", escrow_txid.len()));
+            return Err(format!(
+                "escrow-txid does not have expected length: {}",
+                escrow_txid.len()
+            ));
         }
         let mut txid = [0u8; 32];
         txid.copy_from_slice(escrow_txid.as_slice());
@@ -1363,7 +1366,7 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     use bindings::ConnType_NETIO;
-    use channels_mpc::{ChannelStatus, PaymentStatus};
+    use channels_mpc::{ChannelCloseStatus, ChannelStatus, PaymentStatus};
     use database::{
         get_file_from_db, store_file_in_db, HashMapDatabase, MaskedTxMPCInputs, RedisDatabase,
         StateDatabase,
@@ -2923,6 +2926,13 @@ mod tests {
             &mut cust_state,
             &mut merch_state,
         );
+
+        // customer initiates close tx
+        let (signed_tx, txid_be, txid_le) =
+            mpc::force_customer_close(&channel_state, &channel_token, true, &mut cust_state)
+                .unwrap();
+
+        assert!(cust_state.close_status == ChannelCloseStatus::CustomerInit);
     }
 
     #[test]
