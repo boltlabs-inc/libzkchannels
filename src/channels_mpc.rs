@@ -39,12 +39,18 @@ pub enum ChannelStatus {
     Initialized,
     Activated,
     Established,
-    MerchantInitClose,
-    CustomerInitClose,
-    Disputed,
-    PendingClose,
-    ConfirmedClose,
 }
+
+#[derive(Clone, Debug, PartialEq, Display, Serialize, Deserialize)]
+pub enum ChannelCloseStatus {
+    None,
+    MerchantInit,
+    CustomerInit,
+    Disputed,
+    Pending,
+    Confirmed,
+}
+
 #[derive(Clone, Debug, PartialEq, Display, Serialize, Deserialize)]
 pub enum PaymentStatus {
     Prepare,
@@ -201,6 +207,7 @@ pub struct CustomerMPCState {
     close_escrow_signature: Option<String>,
     close_merch_signature: Option<String>,
     pub channel_status: ChannelStatus,
+    pub close_status: ChannelCloseStatus,
     pub net_config: Option<NetworkConfig>,
 }
 
@@ -290,6 +297,7 @@ impl CustomerMPCState {
             close_escrow_signature: None,
             close_merch_signature: None,
             channel_status: ChannelStatus::Opened,
+            close_status: ChannelCloseStatus::None,
             net_config: None,
         };
     }
@@ -903,7 +911,7 @@ impl CustomerMPCState {
     }
 
     pub fn customer_close<N: BitcoinNetwork>(
-        &self,
+        &mut self,
         channel_state: &ChannelMPCState,
         channel_token: &ChannelMPCToken,
         from_escrow: bool,
@@ -912,7 +920,7 @@ impl CustomerMPCState {
             self.construct_close_transaction_preimage::<N>(channel_state, channel_token);
         let merch_pk = channel_token.pk_m.serialize().to_vec();
         let cust_sk = self.sk_c.0.to_vec();
-        return generate_customer_close_tx_helper::<N>(
+        let close_tx = generate_customer_close_tx_helper::<N>(
             &self.close_escrow_signature,
             &escrow_tx_preimage,
             &escrow_tx_params,
@@ -923,6 +931,13 @@ impl CustomerMPCState {
             &merch_pk,
             &cust_sk,
         );
+        if close_tx.is_ok() {
+            self.close_status = match from_escrow {
+                true => ChannelCloseStatus::CustomerInit,
+                false => ChannelCloseStatus::MerchantInit
+            };
+        }    
+        return close_tx;    
     }
 }
 
@@ -982,6 +997,7 @@ pub struct MerchCloseTx {
     fee_mc: i64,
     cust_sig: String,
     self_delay: String,
+    close_status: ChannelCloseStatus,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1439,6 +1455,7 @@ impl MerchantMPCState {
             fee_mc,
             cust_sig: hex::encode(cust_sig),
             self_delay: hex::encode(to_self_delay_be),
+            close_status: ChannelCloseStatus::None,
         };
 
         let mut escrow_txid = [0u8; 32];
@@ -1448,7 +1465,7 @@ impl MerchantMPCState {
     }
 
     pub fn get_closing_tx<N: BitcoinNetwork>(
-        &self,
+        &mut self,
         escrow_txid: [u8; 32],
     ) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), String> {
         let escrow_txid = FixedSizeArray32(escrow_txid);
@@ -1493,6 +1510,11 @@ impl MerchantMPCState {
         let mut txid_le = txid_be.to_vec();
         txid_le.reverse();
         let signed_merch_close_tx = signed_merch_close_tx.to_transaction_bytes().unwrap();
+
+        // let's update the close status
+        let mut m2 = m.clone();
+        m2.close_status = ChannelCloseStatus::MerchantInit;
+        self.close_tx.insert(escrow_txid, m2.clone());
 
         Ok((signed_merch_close_tx, txid_be.to_vec(), txid_le))
     }

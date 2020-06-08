@@ -109,11 +109,6 @@ char *cust_verify_init_cust_close_txs(char *ser_funding_tx,
                                       char *ser_merch_sig,
                                       char *ser_cust_state);
 
-char *customer_close_tx(char *ser_channel_state,
-                        char *ser_channel_token,
-                        uint32_t ser_from_escrow,
-                        char *ser_cust_state);
-
 char *customer_sign_merch_close_tx(char *ser_cust_sk, char *ser_merch_tx_preimage);
 
 char *ffishim_bls12_channel_setup(const char *channel_name, uint32_t third_party_support);
@@ -280,6 +275,13 @@ char *ffishim_bn256_wtp_verify_merch_close_message(char *ser_channel_token,
 
 void ffishim_free_string(char *pointer);
 
+char *force_customer_close_tx(char *ser_channel_state,
+                              char *ser_channel_token,
+                              uint32_t ser_from_escrow,
+                              char *ser_cust_state);
+
+char *force_merchant_close_tx(char *ser_escrow_txid, char *ser_merch_state);
+
 char *form_merch_close_transaction(char *ser_escrow_txid,
                                    char *ser_cust_pk,
                                    char *ser_merch_pk,
@@ -357,8 +359,6 @@ char *merch_sign_init_cust_close_txs(char *ser_funding_tx,
                                      int64_t fee_cc);
 
 char *merchant_check_rev_lock(char *ser_rev_lock, char *ser_merch_state);
-
-char *merchant_close_tx(char *ser_escrow_txid, char *ser_merch_state);
 
 char *merchant_verify_merch_close_tx(char *ser_escrow_txid,
                                      char *ser_cust_pk,

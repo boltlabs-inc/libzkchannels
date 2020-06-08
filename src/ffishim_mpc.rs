@@ -918,7 +918,7 @@ pub mod ffishim_mpc {
     // TRANSACTION BUILDER FOR ESCROW, MERCH-CLOSE-TX and CUST-CLOSE-TXS
 
     #[no_mangle]
-    pub extern "C" fn customer_close_tx(
+    pub extern "C" fn force_customer_close_tx(
         ser_channel_state: *mut c_char,
         ser_channel_token: *mut c_char,
         ser_from_escrow: u32,
@@ -937,7 +937,7 @@ pub mod ffishim_mpc {
         // Deserialize the cust_state
         let cust_state_result: ResultSerdeType<CustomerMPCState> =
             deserialize_result_object(ser_cust_state);
-        let cust_state = handle_errors!(cust_state_result);
+        let mut cust_state = handle_errors!(cust_state_result);
 
         let mut from_escrow = false;
         // deserialize ser_from_escrow accordingly
@@ -945,17 +945,19 @@ pub mod ffishim_mpc {
             from_escrow = true;
         }
 
-        let (signed_tx, _, txid_le) = handle_errors!(mpc::customer_close(
+        let (signed_tx, _, txid_le) = handle_errors!(mpc::force_customer_close(
             &channel_state,
             &channel_token,
             from_escrow,
-            &cust_state
+            &mut cust_state
         ));
         let ser = [
             "{\'signed_tx\':\'",
             &hex::encode(signed_tx),
             "\', \'txid_le\':\'",
             &hex::encode(txid_le),
+            "\', \'cust_state\':\'",
+            serde_json::to_string(&cust_state).unwrap().as_str(),
             "\'}",
         ]
         .concat();
@@ -964,7 +966,7 @@ pub mod ffishim_mpc {
     }
 
     #[no_mangle]
-    pub extern "C" fn merchant_close_tx(
+    pub extern "C" fn force_merchant_close_tx(
         ser_escrow_txid: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
@@ -976,11 +978,11 @@ pub mod ffishim_mpc {
         // Deserialize the merch_state
         let merch_state_result: ResultSerdeType<MerchantMPCState> =
             deserialize_result_object(ser_merch_state);
-        let merch_state = handle_errors!(merch_state_result);
+        let mut merch_state = handle_errors!(merch_state_result);
 
         // use channel token to retrieve initial channel params, then generate the merch-close-tx and sign it
         let (signed_tx, txid_be, txid_le) =
-            handle_errors!(mpc::merchant_close(&escrow_txid_be, &merch_state));
+            handle_errors!(mpc::force_merchant_close(&escrow_txid_be, &mut merch_state));
         let ser = [
             "{\'signed_tx\':\'",
             &hex::encode(signed_tx),
@@ -988,6 +990,8 @@ pub mod ffishim_mpc {
             &hex::encode(txid_be),
             "\', \'txid_le\':\'",
             &hex::encode(txid_le),
+            "\', \'merch_state\':\'",
+            serde_json::to_string(&merch_state).unwrap().as_str(),
             "\'}",
         ]
         .concat();

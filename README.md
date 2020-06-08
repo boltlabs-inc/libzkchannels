@@ -199,18 +199,18 @@ Unmask/Revoke phase
 	// customer unmasks the pay token and checks validity of pay-token mask commitment opening
 	let is_ok = mpc::pay_unmask_pay_token_customer(pt_mask, pt_mask_r, &mut cust_state);
 
-#### 1.2.5 Close
+#### 1.2.5 Force Close
 
 Merchant can initiate channel closing with a signed *merch-close-tx* that pays full channel balance to a timelocked multi-sig:
 
 	// merchant signs the merch-close-tx for the channel and combines with customer signature
-	let (merch_signed_tx, txid) = mpc::merchant_close(&escrow_txid, &merch_state).unwrap();
+	let (merch_signed_tx, txid) = mpc::force_merchant_close(&escrow_txid, &mut merch_state).unwrap();
 
 Customer can similarly initiate channel closing with a signed *cust-close-tx* of current balances spending from *escrow-tx* (or *merch-close-tx*):
 
 	// customer signs the current state of channel and combines with escrow signature (if spending from <escrow-tx>)
 	let from_escrow = true;
-	let (cust_signed_tx, txid) = mpc::customer_close(&channel_state, &channel_token, from_escrow, &cust_state).unwrap();
+	let (cust_signed_tx, txid) = mpc::force_customer_close(&channel_state, &channel_token, from_escrow, &mut cust_state).unwrap();
 
 ### 1.3 Build MPC with Malicious Security 
 

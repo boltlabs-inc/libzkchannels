@@ -90,6 +90,7 @@ type CustState struct {
 	EscrowSignature string                  `json:"close_escrow_signature"`
 	MerchSignature  string                  `json:"close_merch_signature"`
 	ChannelStatus   string                  `json:"channel_status"`
+	CloseStatus     string                  `json:"close_status"`
 	NetConfig       *map[string]interface{} `json:"net_config"`
 }
 
@@ -335,28 +336,44 @@ func CustomerSignMerchCloseTx(custSk string, merchTxPreimage string) (string, er
 	return r.CustSig, err
 }
 
-func CustomerCloseTx(channelState ChannelState, channelToken ChannelToken, fromEscrow bool, custState CustState) (string, string, error) {
+func ForceCustomerCloseTx(channelState ChannelState, channelToken ChannelToken, fromEscrow bool, custState CustState) (string, string, CustState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
-		return "", "", err
+		return "", "", CustState{}, err
 	}
 
 	serChannelToken, err := json.Marshal(channelToken)
 	if err != nil {
-		return "", "", err
+		return "", "", CustState{}, err
 	}
 
 	serCustState, err := json.Marshal(custState)
 	if err != nil {
-		return "", "", err
+		return "", "", CustState{}, err
 	}
 
-	resp := C.GoString(C.customer_close_tx(C.CString(string(serChannelState)), C.CString(string(serChannelToken)), C.uint(btoi(fromEscrow)), C.CString(string(serCustState))))
+	resp := C.GoString(C.force_customer_close_tx(C.CString(string(serChannelState)), C.CString(string(serChannelToken)), C.uint(btoi(fromEscrow)), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
-		return "", "", err
+		return "", "", CustState{}, err
 	}
-	return r.SignedTx, r.TxIdLe, err
+	err = json.Unmarshal([]byte(r.CustState), &custState)
+	return r.SignedTx, r.TxIdLe, custState, err
+}
+
+func ForceMerchantCloseTx(escrowTxId_LE string, merchState MerchState) (string, string, string, MerchState, error) {
+	serMerchState, err := json.Marshal(merchState)
+	if err != nil {
+		return "", "", "", MerchState{}, err
+	}
+
+	resp := C.GoString(C.force_merchant_close_tx(C.CString(escrowTxId_LE), C.CString(string(serMerchState))))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return "", "", "", MerchState{}, err
+	}
+	err = json.Unmarshal([]byte(r.MerchState), &merchState)
+	return r.SignedTx, r.TxIdBe, r.TxIdLe, merchState, err
 }
 
 func MerchantVerifyMerchCloseTx(escrowTxId_LE string, custPk string, custBal int64, merchBal int64, feeMC int64, toSelfDelay string, custSig string, merchState MerchState) (bool, string, string, string, MerchState, error) {
@@ -373,21 +390,6 @@ func MerchantVerifyMerchCloseTx(escrowTxId_LE string, custPk string, custBal int
 	}
 	err = json.Unmarshal([]byte(r.MerchState), &merchState)
 	return r.IsOk, r.TxIdBe, r.TxIdLe, r.HashPrevOut, merchState, err
-}
-
-func MerchantCloseTx(escrowTxId_LE string, merchState MerchState) (string, string, string, error) {
-	serMerchState, err := json.Marshal(merchState)
-	if err != nil {
-		return "", "", "", err
-	}
-
-	resp := C.GoString(C.merchant_close_tx(C.CString(escrowTxId_LE), C.CString(string(serMerchState))))
-	r, err := processCResponse(resp)
-	if err != nil {
-		return "", "", "", err
-	}
-
-	return r.SignedTx, r.TxIdBe, r.TxIdLe, err
 }
 
 func MerchantCheckRevLock(revLock string, merchState MerchState) (bool, string, error) {

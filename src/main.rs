@@ -1002,7 +1002,7 @@ mod cust {
         let cust_state_key = format!("cust:{}:cust_state", channel_id);
         let ser_cust_state =
             handle_error_result!(get_file_from_db(&mut db_conn, &key, &cust_state_key));
-        let cust_state: CustomerMPCState =
+        let mut cust_state: CustomerMPCState =
             handle_error_result!(serde_json::from_str(&ser_cust_state));
 
         // load the channel token from DB
@@ -1014,11 +1014,11 @@ mod cust {
 
         let from_escrow = !from_merch_close;
 
-        let (signed_tx, txid_be, _) = handle_error_result!(mpc::customer_close(
+        let (signed_tx, txid_be, _) = handle_error_result!(mpc::force_customer_close(
             &channel_state,
             &channel_token,
             from_escrow,
-            &cust_state
+            &mut cust_state
         ));
 
         if from_escrow {
@@ -1026,6 +1026,10 @@ mod cust {
         } else {
             println!("cust-close from merch txid: {}", hex::encode(txid_be));
         }
+        let cust_state_key = format!("cust:{}:cust_state", channel_id);
+        let cust_state_json_str = handle_error_result!(serde_json::to_string(&cust_state));
+        store_file_in_db(&mut db_conn, &key, &cust_state_key, &cust_state_json_str)?;
+
         // write out to a file
         write_pathfile(out_file, hex::encode(signed_tx))?;
         Ok(())
@@ -1502,7 +1506,7 @@ mod merch {
             get_file_from_db(&mut db.conn, &key1, &MERCH_STATE_KEY.to_string()),
             "Could not load the merchant state DB"
         );
-        let merch_state: MerchantMPCState =
+        let mut merch_state: MerchantMPCState =
             handle_error_result!(serde_json::from_str(&ser_merch_state));
 
         let key2 = String::from("cli:merch_channels");
@@ -1517,7 +1521,7 @@ mod merch {
         let escrow_txid = channel_token.escrow_txid.0.to_vec();
 
         let (merch_close_tx, txid_be, _) =
-            handle_error_result!(mpc::merchant_close(&escrow_txid, &merch_state));
+            handle_error_result!(mpc::force_merchant_close(&escrow_txid, &mut merch_state));
         write_pathfile(out_file, hex::encode(merch_close_tx))?;
         println!("merch-close-tx signed txid: {}", hex::encode(txid_be));
         Ok(())

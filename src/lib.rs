@@ -986,7 +986,7 @@ pub mod mpc {
         // check that customer already in the Initialized state
         if cust_state.channel_status != ChannelStatus::Initialized {
             return Err(format!(
-                "Invalid channel status for activate_customer(): {}",
+                "invalid channel status for activate_customer(): {}",
                 cust_state.channel_status
             ));
         }
@@ -1311,24 +1311,32 @@ pub mod mpc {
     }
 
     ///
-    /// customer_close() - takes as input the channel_state, channel_token, from_escrow and customer state.
-    /// computes the signed tx on the current state of the channel
+    /// force_customer_close() - takes as input the channel_state, channel_token, from_escrow and customer state.
+    /// signs the closing tx on the current state of the channel
     /// output: cust-close-(signed_tx, txid) from escrow-tx or merch-close-tx
     ///
-    pub fn customer_close(
+    pub fn force_customer_close(
         channel_state: &ChannelMPCState,
         channel_token: &ChannelMPCToken,
         from_escrow: bool,
-        cust_state: &CustomerMPCState,
+        cust_state: &mut CustomerMPCState,
     ) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), String> {
         // (close_tx, close_txid_be, close_txid_le) that spends from escrow (if from_escrow = true)
         cust_state.customer_close::<Testnet>(&channel_state, &channel_token, from_escrow)
     }
 
-    pub fn merchant_close(
+    ///
+    /// force_merchant_close() - takes as input the escrow txid and merchant state.
+    /// signs the merch-close-tx tx on the current state of the channel
+    /// output: merch-close-signed-tx on a given channel (identified by the escrow-txid)
+    ///
+    pub fn force_merchant_close(
         escrow_txid: &Vec<u8>,
-        merch_state: &MerchantMPCState,
+        merch_state: &mut MerchantMPCState,
     ) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), String> {
+        if escrow_txid.len() != 32 {
+            return Err(format!("escrow-txid does not have expected length: {}", escrow_txid.len()));
+        }
         let mut txid = [0u8; 32];
         txid.copy_from_slice(escrow_txid.as_slice());
         merch_state.get_closing_tx::<Testnet>(txid)

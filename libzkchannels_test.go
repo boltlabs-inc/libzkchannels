@@ -103,9 +103,10 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 
 	if isOk {
 		// initiate merch-close-tx
-		signedMerchCloseTx, merchTxid2_BE, merchTxid2_LE, err := MerchantCloseTx(escrowTxid_LE, merchState)
+		signedMerchCloseTx, merchTxid2_BE, merchTxid2_LE, merchState, err := ForceMerchantCloseTx(escrowTxid_LE, merchState)
 		assert.Nil(t, err)
 		assert.NotNil(t, merchTxid2_BE)
+		assert.NotNil(t, merchState)
 		fmt.Println("========================================")
 		fmt.Println("TX2: Merchant has signed merch close tx => ", signedMerchCloseTx)
 		fmt.Println("merch txid = ", merchTxid2_LE)
@@ -151,7 +152,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("initial close transactions validated: ", isOk)
 
 	fmt.Println("Output initial closing transactions")
-	CloseEscrowTx, CloseEscrowTxId_LE, err := CustomerCloseTx(channelState, channelToken, true, custState)
+	CloseEscrowTx, CloseEscrowTxId_LE, custState, err := ForceCustomerCloseTx(channelState, channelToken, true, custState)
 	CloseEscrowTxId_TX3 := CloseEscrowTxId_LE
 	assert.NotNil(t, CloseEscrowTxId_LE)
 	fmt.Println("========================================")
@@ -159,7 +160,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("TX3: Close from EscrowTx => ", string(CloseEscrowTx))
 	fmt.Println("========================================")
 
-	CloseMerchTx, CloseMerchTxId_LE, err := CustomerCloseTx(channelState, channelToken, false, custState)
+	CloseMerchTx, CloseMerchTxId_LE, custState, err := ForceCustomerCloseTx(channelState, channelToken, false, custState)
 	assert.NotNil(t, CloseMerchTxId_LE)
 	fmt.Println("TX4: Close MerchTx ID (LE): ", CloseMerchTxId_LE)
 	fmt.Println("TX4: Close from MerchCloseTx => ", string(CloseMerchTx))
@@ -227,7 +228,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 
 	// Customer initiates close and generates cust-close-from-escrow-tx
 	fmt.Println("Get new signed close transactions...")
-	CloseEscrowTx, CloseEscrowTxId_LE, err = CustomerCloseTx(channelState, channelToken, true, custState)
+	CloseEscrowTx, CloseEscrowTxId_LE, custState, err = ForceCustomerCloseTx(channelState, channelToken, true, custState)
 	assert.Nil(t, err)
 	assert.NotNil(t, CloseEscrowTxId_LE)
 	fmt.Println("TX5: Close EscrowTx ID (LE): ", CloseEscrowTxId_LE)
@@ -252,7 +253,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("========================================")
 
 	// Customer can also close from merch-close-tx
-	CloseMerchTx, CloseMerchTxId_LE, err = CustomerCloseTx(channelState, channelToken, false, custState)
+	CloseMerchTx, CloseMerchTxId_LE, custState, err = ForceCustomerCloseTx(channelState, channelToken, false, custState)
 	assert.Nil(t, err)
 	assert.NotNil(t, CloseMerchTxId_LE)
 	fmt.Println("TX6: Close MerchTx ID (LE): ", CloseMerchTxId_LE)
