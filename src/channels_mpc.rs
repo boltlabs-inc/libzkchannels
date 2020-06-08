@@ -1116,10 +1116,13 @@ impl MerchantMPCState {
 
     pub fn activate_channel(
         &self,
-        _db: &mut dyn StateDatabase,
+        db: &mut dyn StateDatabase,
         channel_token: &ChannelMPCToken,
         s0: &State,
     ) -> Result<[u8; 32], String> {
+        // check db is connected
+        db.is_connected()?;
+
         // refer to the state stored inside ActivateBucket by the channel_id
         let channel_id = channel_token.compute_channel_id().unwrap();
         let channel_id_str = hex::encode(channel_id.to_vec());
@@ -1156,6 +1159,9 @@ impl MerchantMPCState {
         init_state: &InitCustState,
         init_state_hash: [u8; 32],
     ) -> Result<bool, String> {
+        // check db is connected
+        db.is_connected()?;
+
         let channel_id = channel_token.compute_channel_id().unwrap();
         let channel_id_str = hex::encode(channel_id.to_vec());
 
@@ -1249,6 +1255,9 @@ impl MerchantMPCState {
         amount: i64,
         justification: Option<String>,
     ) -> Result<[u8; 32], String> {
+        // check db is connected
+        db.is_connected()?;
+
         let nonce_hex = hex::encode(nonce);
         let session_id_hex = hex::encode(session_id);
         // check if there's an existing active session with the same session id
@@ -1532,6 +1541,9 @@ impl MerchantMPCState {
         //     return Err(String::from("epsilon below dust limit!"));
         // }
 
+        // check db is connected
+        db.is_connected()?;
+
         let session_id_hex = hex::encode(&session_id);
         let session_state = match db.load_session_state(&session_id_hex) {
             Ok(s) => s,
@@ -1649,7 +1661,8 @@ impl MerchantMPCState {
         rev_sec: [u8; 32],
         t: [u8; 16],
     ) -> Result<([u8; 32], [u8; 16]), String> {
-        // TODO: check that db is connected
+        // check db is connected
+        db.is_connected()?;
 
         let session_id_hex = hex::encode(session_id);
         // retrieve session_state

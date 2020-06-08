@@ -971,8 +971,6 @@ pub mod mpc {
         init_hash: [u8; 32],
         merch_state: &mut MerchantMPCState,
     ) -> Result<bool, String> {
-        // check db is connected
-        db.is_connected()?;
         merch_state.validate_channel_params(db, channel_token, init_state, init_hash)
     }
 
@@ -1009,8 +1007,6 @@ pub mod mpc {
         s0: &State,
         merch_state: &mut MerchantMPCState,
     ) -> Result<[u8; 32], String> {
-        // check db is connected
-        db.is_connected()?;
         // TODO: implement ZKC-19
         // activate channel - generate pay_token
         merch_state.activate_channel(db, &channel_token, s0)
@@ -1050,7 +1046,6 @@ pub mod mpc {
                 false => cust_state.cust_balance + amount, // negative value
             };
             if new_balance < channel.get_min_threshold() {
-                // TODO: add a lower max to provide a suitable buffer (10% above dust limit)
                 let max_payment = cust_state.cust_balance - channel.get_min_threshold();
                 let s = format!(
                     "Balance after payment is below dust limit: {}. Max payment: {}",
@@ -1104,8 +1099,6 @@ pub mod mpc {
         justification: Option<String>,
         merch_state: &mut MerchantMPCState,
     ) -> Result<[u8; 32], String> {
-        // check db is connected
-        db.is_connected()?;
         // checks that no existing session with the specified session_id/nonce combo
         merch_state.generate_pay_mask_commitment(
             csprng,
@@ -1185,9 +1178,6 @@ pub mod mpc {
         pay_token_mask_com: [u8; 32],
         merch_state: &mut MerchantMPCState,
     ) -> Result<bool, String> {
-        // check db is connected
-        db.is_connected()?;
-
         if merch_state.net_config.is_none() {
             // use default ip/port
             merch_state.set_network_config(NetworkConfig {
@@ -1198,7 +1188,6 @@ pub mod mpc {
                 peer_raw_fd: 0,
             });
         }
-        // TODO: add better error handling here
         let circuit = merch_state.get_circuit_file();
         return merch_state.execute_mpc_context(
             csprng,
