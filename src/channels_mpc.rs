@@ -1,5 +1,5 @@
 use super::*;
-use util::{compute_hash160, hash_to_slice, hmac_sign, VAL_CPFP};
+use util::{compute_hash160, hash_to_slice, hmac_sign};
 
 use bindings::{load_circuit_file, ConnType};
 use database::{MaskedMPCInputs, MaskedTxMPCInputs, SessionState, StateDatabase};
@@ -115,7 +115,9 @@ impl fmt::Display for ChannelMPCToken {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ChannelMPCState {
-    min_threshold: i64,
+    bal_min_cust: i64,
+    bal_min_merch: i64,
+    val_cpfp: i64,
     key_com: FixedSizeArray32,
     pub name: String,
     pub third_party: bool,
@@ -128,27 +130,34 @@ impl ChannelMPCState {
     pub fn new(
         name: String,
         self_delay: u16,
-        min_threshold: i64,
+        bal_min_cust: i64,
+        bal_min_merch: i64,
+        val_cpfp: i64,
         third_party_support: bool,
     ) -> ChannelMPCState {
         ChannelMPCState {
-            min_threshold: min_threshold, // dust limit (546)
+            bal_min_cust, // dust limit (546)
+            bal_min_merch, // dust limit (546)
+            val_cpfp,
             key_com: FixedSizeArray32([0u8; 32]),
             name: name.to_string(),
             third_party: third_party_support,
             merch_payout_pk: None,
             merch_dispute_pk: None,
-            self_delay: self_delay,
+            self_delay,
         }
     }
 
-    pub fn set_min_threshold(&mut self, dust_amount: i64) {
-        assert!(dust_amount >= 0);
-        self.min_threshold = dust_amount;
+    pub fn get_bal_min_cust(&self) -> i64 {
+        return self.bal_min_cust;
     }
 
-    pub fn get_min_threshold(&self) -> i64 {
-        return self.min_threshold;
+    pub fn get_bal_min_merch(&self) -> i64 {
+        return self.bal_min_merch;
+    }
+
+    pub fn get_val_cpfp(&self) -> i64 {
+        return self.val_cpfp;
     }
 
     pub fn get_key_com(&self) -> [u8; 32] {
@@ -539,7 +548,9 @@ impl CustomerMPCState {
         new_state: State,
         amount: i64,
         fee_cc: i64,
-        min_threshold: i64,
+        bal_min_cust: i64,
+        bal_min_merch: i64,
+        val_cpfp: i64,
     ) {
         assert_eq!(old_state.min_fee, new_state.min_fee);
         assert_eq!(old_state.max_fee, new_state.max_fee);
@@ -551,8 +562,8 @@ impl CustomerMPCState {
         assert_eq!(new_state.bm, old_state.bm + amount);
         assert_eq!(new_state.bc, old_state.bc - amount);
 
-        assert!(new_state.bm >= min_threshold + new_state.fee_mc + VAL_CPFP);
-        assert!(new_state.bc >= min_threshold + fee_cc + VAL_CPFP);
+        assert!(new_state.bm >= bal_min_merch + new_state.fee_mc + val_cpfp);
+        assert!(new_state.bc >= bal_min_cust + fee_cc + val_cpfp);
     }
 
     // customer side of mpc
@@ -568,7 +579,7 @@ impl CustomerMPCState {
         amount: i64,
         circuit: *mut c_void,
     ) -> Result<bool, String> {
-        let min_cust_bal = channel_state.min_threshold + fee_cc + VAL_CPFP;
+        let min_cust_bal = channel_state.bal_min_cust + fee_cc + channel_state.val_cpfp;
         if new_state.bc <= min_cust_bal {
             return Err(format!(
                 "customer::execute_mpc_context - customer balance below min balance allowed after payment: {}", min_cust_bal
@@ -627,13 +638,19 @@ impl CustomerMPCState {
             new_state,
             amount,
             fee_cc,
-            channel_state.min_threshold,
+            channel_state.bal_min_cust,
+            channel_state.bal_min_merch,
+            channel_state.val_cpfp,
         );
         let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) =
             match mpc_build_masked_tokens_cust(
                 net_conn,
                 circuit,
                 amount,
+                channel_state.bal_min_cust,
+                channel_state.bal_min_merch,
+                channel_state.val_cpfp,
+                channel_state.self_delay,
                 &paytoken_mask_com,
                 &rev_lock_com,
                 &self.t.0,
@@ -721,7 +738,7 @@ impl CustomerMPCState {
             self.merch_balance,
             self.fee_cc,
             self.get_current_state().fee_mc,
-            util::VAL_CPFP,
+            channel_state.get_val_cpfp(),
             true,
         );
 
@@ -733,7 +750,7 @@ impl CustomerMPCState {
             self.merch_balance,
             self.fee_cc,
             self.get_current_state().fee_mc,
-            util::VAL_CPFP,
+            channel_state.get_val_cpfp(),
             false,
         );
 
@@ -1380,6 +1397,7 @@ impl MerchantMPCState {
         cust_close_pk: Vec<u8>,
         to_self_delay_be: [u8; 2],
         fee_cc: i64,
+        val_cpfp: i64,
     ) -> (Vec<u8>, Vec<u8>) {
         let init_balance = funding_tx.init_cust_bal + funding_tx.init_merch_bal;
         let escrow_index = 0;
@@ -1409,7 +1427,7 @@ impl MerchantMPCState {
             funding_tx.init_merch_bal,
             fee_cc,
             funding_tx.fee_mc,
-            util::VAL_CPFP,
+            val_cpfp,
             true,
         );
 
@@ -1421,7 +1439,7 @@ impl MerchantMPCState {
             funding_tx.init_merch_bal,
             fee_cc,
             funding_tx.fee_mc,
-            util::VAL_CPFP,
+            val_cpfp,
             false,
         );
 
@@ -1467,6 +1485,7 @@ impl MerchantMPCState {
     pub fn get_closing_tx<N: BitcoinNetwork>(
         &mut self,
         escrow_txid: [u8; 32],
+        val_cpfp: i64,
     ) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), String> {
         let escrow_txid = FixedSizeArray32(escrow_txid);
         let m = match self.close_tx.get(&escrow_txid) {
@@ -1495,7 +1514,7 @@ impl MerchantMPCState {
             m.bc,
             m.bm,
             m.fee_mc,
-            util::VAL_CPFP,
+            val_cpfp,
             to_self_delay
         ));
 
@@ -1652,6 +1671,10 @@ impl MerchantMPCState {
             net_conn,
             circuit,
             amount,
+            channel_state.bal_min_cust,
+            channel_state.bal_min_merch,
+            channel_state.val_cpfp,
+            channel_state.self_delay,
             &paytoken_mask_com,
             &rev_lock_com,
             &hmac_key_com,
@@ -1811,7 +1834,7 @@ mod tests {
     rusty_fork_test! {
     #[test]
     fn mpc_channel_util_customer_works() {
-        let mut channel_state = ChannelMPCState::new(String::from("Channel A <-> B"), 1487, 546, false);
+        let mut channel_state = ChannelMPCState::new(String::from("Channel A <-> B"), 1487, 546, 546, 1000, false);
         // let rng = &mut rand::thread_rng();
         let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d86);
 
@@ -1974,7 +1997,7 @@ mod tests {
     rusty_fork_test! {
     #[test]
     fn mpc_channel_util_merchant_works() {
-        let mut channel = ChannelMPCState::new(String::from("Channel A <-> B"), 1487, 546, false);
+        let mut channel = ChannelMPCState::new(String::from("Channel A <-> B"), 1487, 546, 546, 1000, false);
         // let rng = &mut rand::thread_rng();
         let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d86);
         let db_url = "redis://127.0.0.1/".to_string();
@@ -2120,7 +2143,7 @@ mod tests {
     #[test]
     fn mpc_test_serialization() {
         let mut channel_state =
-            ChannelMPCState::new(String::from("Channel A <-> B"), 1487, 546, false);
+            ChannelMPCState::new(String::from("Channel A <-> B"), 1487, 546, 546, 1000, false);
         let mut rng = XorShiftRng::seed_from_u64(0x8d863e545dbe6259);
         let db_url = "redis://127.0.0.1/".to_string();
 

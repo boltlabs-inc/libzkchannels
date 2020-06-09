@@ -883,11 +883,9 @@ pub mod mpc {
     use database::{MaskedTxMPCInputs, StateDatabase};
     use rand::Rng;
     use secp256k1::PublicKey;
-    use util;
     pub use wallet::{State, NONCE_LEN};
     use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
     use zkchan_tx::Testnet;
-    // use util::VAL_CPFP;
 
     ///
     /// init_merchant() - takes as input the public params, merchant balance and keypair.
@@ -921,18 +919,21 @@ pub mod mpc {
         min_fee: i64,
         max_fee: i64,
         fee_mc: i64,
+        bal_min_cust: i64,
+        bal_min_merch: i64,
+        val_cpfp: i64,
         name: &str,
     ) -> (ChannelMPCToken, CustomerMPCState) {
         assert!(b0_cust > 0);
         assert!(b0_merch >= 0);
 
         let b0_cust = match b0_merch {
-            0 => b0_cust - util::DUST_LIMIT - fee_mc - util::VAL_CPFP,
+            0 => b0_cust - bal_min_cust - fee_mc - val_cpfp,
             _ => b0_cust,
         };
 
         let b0_merch = match b0_merch {
-            0 => util::DUST_LIMIT + fee_mc + util::VAL_CPFP,
+            0 => bal_min_merch + fee_mc + val_cpfp,
             _ => b0_merch,
         };
 
@@ -1045,11 +1046,11 @@ pub mod mpc {
                 true => cust_state.cust_balance - amount,  // positive value
                 false => cust_state.cust_balance + amount, // negative value
             };
-            if new_balance < channel.get_min_threshold() {
-                let max_payment = cust_state.cust_balance - channel.get_min_threshold();
+            if new_balance < channel.get_bal_min_cust() {
+                let max_payment = cust_state.cust_balance - channel.get_bal_min_cust();
                 let s = format!(
                     "Balance after payment is below dust limit: {}. Max payment: {}",
-                    channel.get_min_threshold(),
+                    channel.get_bal_min_cust(),
                     max_payment
                 );
                 return Err(s);
@@ -1332,6 +1333,7 @@ pub mod mpc {
     ///
     pub fn force_merchant_close(
         escrow_txid: &Vec<u8>,
+        val_cpfp: i64,
         merch_state: &mut MerchantMPCState,
     ) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), String> {
         if escrow_txid.len() != 32 {
@@ -1342,7 +1344,7 @@ pub mod mpc {
         }
         let mut txid = [0u8; 32];
         txid.copy_from_slice(escrow_txid.as_slice());
-        merch_state.get_closing_tx::<Testnet>(txid)
+        merch_state.get_closing_tx::<Testnet>(txid, val_cpfp)
     }
 }
 
@@ -2064,8 +2066,9 @@ mod tests {
         let mut db = HashMapDatabase::new("", "".to_string()).unwrap();
 
         let min_threshold = 546;
+        let val_cpfp = 1000;
         let mut channel_state =
-            mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, min_threshold, false);
+            mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, min_threshold, min_threshold, val_cpfp, false);
         // init merchant
         let mut merch_state = mpc::init_merchant(rng, "".to_string(), &mut channel_state, "Bob");
 
@@ -2086,6 +2089,9 @@ mod tests {
             min_fee,
             max_fee,
             fee_mc,
+            channel_state.get_bal_min_cust(),
+            channel_state.get_bal_min_merch(),
+            channel_state.get_val_cpfp(),
             "Alice",
         );
 
@@ -2104,6 +2110,7 @@ mod tests {
             pubkeys.cust_close_pk,
             to_self_delay_be,
             fee_cc,
+            channel_state.get_val_cpfp(),
         );
 
         let res1 = cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info);
@@ -2198,8 +2205,9 @@ mod tests {
     ) {
         // init channel state
         let min_threshold = 546;
+        let val_cpfp = 1000;
         let mut channel_state =
-            mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, min_threshold, false);
+            mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, min_threshold, min_threshold, val_cpfp, false);
         // init merchant
         let merch_state = mpc::init_merchant(rng, "".to_string(), &mut channel_state, "Bob");
 
@@ -2218,6 +2226,9 @@ mod tests {
             min_fee,
             max_fee,
             fee_mc,
+            channel_state.get_bal_min_cust(),
+            channel_state.get_bal_min_merch(),
+            channel_state.get_val_cpfp(),
             "Alice",
         );
 
@@ -2231,8 +2242,9 @@ mod tests {
         let mut db = RedisDatabase::new("merch.lib", "redis://127.0.0.1/".to_string()).unwrap();
 
         let min_threshold = 546;
+        let val_cpfp = 1000;
         let mut channel =
-            mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, min_threshold, false);
+            mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, min_threshold, min_threshold, val_cpfp, false);
 
         let mut merch_state = mpc::init_merchant(&mut rng, "".to_string(), &mut channel, "Bob");
 
@@ -2253,6 +2265,9 @@ mod tests {
             min_fee,
             max_fee,
             fee_mc,
+            channel.get_bal_min_cust(),
+            channel.get_bal_min_merch(),
+            channel.get_val_cpfp(),
             "Alice",
         );
 
@@ -2358,7 +2373,8 @@ mod tests {
             let mut db = RedisDatabase::new("cust.lib", "redis://127.0.0.1/".to_string()).unwrap();
 
             let min_threshold = 546;
-            let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, min_threshold, false);
+            let val_cpfp = 1000;
+            let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, min_threshold, min_threshold, val_cpfp, false);
             let mut merch_state = mpc::init_merchant(&mut rng, "".to_string(), &mut channel_state, "Bob");
 
             let b0_cust = 100000;
@@ -2368,7 +2384,7 @@ mod tests {
             let max_fee = 10000;
             let fee_mc = 1000;
             let amount = 1000;
-            let (mut channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, b0_cust, b0_merch, fee_cc, min_fee, max_fee, fee_mc, "Alice");
+            let (mut channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, b0_cust, b0_merch, fee_cc, min_fee, max_fee, fee_mc, "Alice", &channel_state);
 
             let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch, fee_mc);
 
@@ -2453,6 +2469,7 @@ mod tests {
             pubkeys.cust_close_pk,
             to_self_delay_be.clone(),
             fee_cc,
+            channel_state.get_val_cpfp(),
         );
 
         assert!(cust_state.channel_status == ChannelStatus::Opened);
@@ -2494,7 +2511,7 @@ mod tests {
                 cust_bal,
                 merch_bal,
                 fee_mc,
-                util::VAL_CPFP,
+                channel_state.get_val_cpfp(),
                 to_self_delay_be.clone(),
             )
             .unwrap();
@@ -3013,7 +3030,7 @@ mod tests {
         let mut escrow_txid_be = channel_token.escrow_txid.0.clone(); // originally in LE
         escrow_txid_be.reverse();
         let (_merch_close_signed_tx, _merch_txid_be, _merch_txid_le) =
-            mpc::force_merchant_close(&escrow_txid_be.to_vec(), &mut merch_state).unwrap();
+            mpc::force_merchant_close(&escrow_txid_be.to_vec(), channel_state.get_val_cpfp(), &mut merch_state).unwrap();
         assert!(
             merch_state
                 .get_channel_close_status(escrow_txid_be)

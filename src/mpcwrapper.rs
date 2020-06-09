@@ -15,7 +15,7 @@ use std::ptr;
 use std::str;
 use std::time::Instant;
 use wallet::State;
-use {secp256k1, util};
+use secp256k1;
 
 static MPC_ERROR: &str = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
 pub static CIRCUIT_FILE: &str = "/include/emp-tool/circuits/files/tokens.circuit.txt";
@@ -51,6 +51,10 @@ pub fn mpc_build_masked_tokens_cust(
     net_conn: NetworkConfig,
     circuit_ptr: *mut c_void,
     amount: i64,
+    bal_min_cust: i64,
+    bal_min_merch: i64,
+    val_cpfp: i64,
+    self_delay_int: u16,
     pay_mask_com: &[u8],
     rev_lock_com: &[u8],
     rl_rand: &[u8; 16],
@@ -101,7 +105,7 @@ pub fn mpc_build_masked_tokens_cust(
     let cust_public_key_hash_c = translate_pub_key_hash(&cust_pub_key_hash);
 
     let nonce = translate_nonce(&old_state.get_nonce());
-    let val_cpfp_c = translate_balance(util::VAL_CPFP);
+    let val_cpfp_c = translate_balance(val_cpfp);
 
     // create pointers the output variables
     let pt_return_ar = [0u32; 8];
@@ -125,8 +129,9 @@ pub fn mpc_build_masked_tokens_cust(
     };
 
     let timer = Instant::now();
-    let self_delay_int: i32 = 1487;
-    let self_delay = bytes_to_u32(&self_delay_int.to_le_bytes(), 4)[0];
+    let self_delay = bytes_to_u32(&(self_delay_int as u32).to_le_bytes(), 4)[0];
+    let bal_min_cust_c = translate_balance(bal_min_cust);
+    let bal_min_merch_c = translate_balance(bal_min_merch);
     unsafe {
         build_masked_tokens_cust(
             Some(io_callback),
@@ -142,6 +147,8 @@ pub fn mpc_build_masked_tokens_cust(
             merch_payout_pub_key_c,
             nonce,
             val_cpfp_c,
+            bal_min_cust_c,
+            bal_min_merch_c,
             self_delay,
             rl_rand_c,
             new_state_c,
@@ -317,6 +324,10 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(
     net_conn: NetworkConfig,
     circuit_ptr: *mut c_void,
     amount: i64,
+    bal_min_cust: i64,
+    bal_min_merch: i64,
+    val_cpfp: i64,
+    self_delay_int: u16,
     com_new: &[u8],
     rev_lock_com: &[u8],
     key_com: &[u8],
@@ -343,7 +354,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(
     let merch_payout_pub_key_c = translate_bitcoin_key(&merch_payout_pub_key);
 
     let nonce_c = translate_nonce(&nonce);
-    let val_cpfp_c = translate_balance(util::VAL_CPFP);
+    let val_cpfp_c = translate_balance(val_cpfp);
 
     // Create ECDSA_params
     let pp1 = EcdsaPartialSig::New(rng, &merch_escrow_secret_key.clone());
@@ -396,8 +407,9 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(
     };
 
     let timer = Instant::now();
-    let self_delay_int: i32 = 1487;
-    let self_delay = bytes_to_u32(&self_delay_int.to_le_bytes(), 4)[0];
+    let self_delay = bytes_to_u32(&(self_delay_int as u32).to_le_bytes(), 4)[0];
+    let bal_min_cust_c = translate_balance(bal_min_cust);
+    let bal_min_merch_c = translate_balance(bal_min_merch);
     unsafe {
         build_masked_tokens_merch(
             Some(io_callback),
@@ -413,6 +425,8 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(
             merch_payout_pub_key_c,
             nonce_c,
             val_cpfp_c,
+            bal_min_cust_c,
+            bal_min_merch_c,
             self_delay,
             hmac_key,
             merch_mask,
@@ -494,6 +508,10 @@ mod tests {
             /* Balance amount, HMACKeyCommit, PT_MaskCommit, RevLockCommit, Nonce, 3x Public Key, 1x PK_Hash*/
 
             let amount = 10000;
+            let bal_min_cust = 546;
+            let bal_min_merch = 546;
+            let val_cpfp = 1000;
+            let self_delay = 1487;
 
             let key_com_r = [1u8; 16];
             let key_com = compute_commitment(&hmac_key.to_vec(), &key_com_r);
@@ -579,6 +597,10 @@ mod tests {
                 nc,
                 cf_ptr,
                 amount,
+                bal_min_cust,
+                bal_min_merch,
+                val_cpfp,
+                self_delay,
                 &paytoken_mask_com,
                 &rev_lock_com,
                 &key_com,
@@ -754,13 +776,13 @@ mod tests {
                 .unwrap()
                 .as_slice(),
         )
-        .unwrap();
+            .unwrap();
         let cust_payout_pub_key = secp256k1::PublicKey::from_slice(
             hex::decode("03195e272df2310ded35f9958fd0c2847bf73b5b429a716c005d465009bd768641")
                 .unwrap()
                 .as_slice(),
         )
-        .unwrap();
+            .unwrap();
         let cust_pk_input_buf = cust_payout_pub_key.serialize();
         let cust_pub_key_hash = compute_hash160(&cust_pk_input_buf.to_vec());
 
@@ -802,13 +824,13 @@ mod tests {
                 .unwrap()
                 .as_slice(),
         )
-        .unwrap();
+            .unwrap();
         let merch_dispute_key = secp256k1::PublicKey::from_slice(
             hex::decode("0253be79afe84fd9342c1f52024379b6da6299ea98844aee23838e8e678a765f7c")
                 .unwrap()
                 .as_slice(),
         )
-        .unwrap();
+            .unwrap();
         let mut merch_public_key_hash = [0u8; 20];
         merch_public_key_hash.copy_from_slice(
             hex::decode("43e9e81bc632ad9cad48fc23f800021c5769a063")
@@ -820,7 +842,7 @@ mod tests {
                 .unwrap()
                 .as_slice(),
         )
-        .unwrap();
+            .unwrap();
 
         let nc = NetworkConfig {
             conn_type: ConnType_NETIO,
@@ -857,10 +879,18 @@ mod tests {
         };
 
         let fee_cc = 1500;
+        let bal_min_cust = 546;
+        let bal_min_merch = 546;
+        let val_cpfp = 1000;
+        let self_delay = 1487;
         let mpc_result = mpc_build_masked_tokens_cust(
             nc,
             cf_ptr,
             amount,
+            bal_min_cust,
+            bal_min_merch,
+            val_cpfp,
+            self_delay,
             &paytoken_mask_com,
             &rev_lock_com,
             &rev_lock_r,
@@ -929,7 +959,7 @@ mod tests {
             new_state.bm,
             fee_cc,
             new_state.fee_mc,
-            util::VAL_CPFP,
+            val_cpfp,
             true,
         );
         println!(
@@ -955,7 +985,7 @@ mod tests {
             new_state.bm,
             fee_cc,
             new_state.fee_mc,
-            util::VAL_CPFP,
+            val_cpfp,
             false,
         );
         println!(
@@ -1067,7 +1097,7 @@ mod tests {
                 &hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141")
                     .unwrap(),
             )
-            .to_string()
+                .to_string()
         );
         let mes = secp256k1::Message::from_slice(&msg).unwrap();
         println!("{:?}", mes);

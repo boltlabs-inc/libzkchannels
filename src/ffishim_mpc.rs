@@ -15,7 +15,7 @@ pub mod ffishim_mpc {
     use wallet::State;
     use zkchan_tx::Testnet;
     use FundingTxInfo;
-    use {mpc, util};
+    use mpc;
 
     fn error_message(s: String) -> *mut c_char {
         let ser = ["{\'error\':\'", &s, "\'}"].concat();
@@ -103,7 +103,9 @@ pub mod ffishim_mpc {
     pub extern "C" fn mpc_channel_setup(
         channel_name: *const c_char,
         self_delay: u16,
-        min_threshold: i64,
+        bal_min_cust: i64,
+        bal_min_merch: i64,
+        val_cpfp: i64,
         third_party_support: u32,
     ) -> *mut c_char {
         let bytes = unsafe { CStr::from_ptr(channel_name).to_bytes() };
@@ -114,7 +116,7 @@ pub mod ffishim_mpc {
             tps = true;
         }
         let channel_state =
-            mpc::ChannelMPCState::new(name.to_string(), self_delay, min_threshold, tps);
+            mpc::ChannelMPCState::new(name.to_string(), self_delay, bal_min_cust, bal_min_merch, val_cpfp, tps);
 
         let ser = [
             "{\'channel_state\':\'",
@@ -225,6 +227,9 @@ pub mod ffishim_mpc {
         min_fee: i64,
         max_fee: i64,
         fee_mc: i64,
+        bal_min_cust: i64,
+        bal_min_merch: i64,
+        val_cpfp: i64,
         name_ptr: *const c_char,
     ) -> *mut c_char {
         let rng = &mut rand::thread_rng();
@@ -240,7 +245,7 @@ pub mod ffishim_mpc {
 
         // We change the channel state
         let (channel_token, cust_state) = mpc::init_customer(
-            rng, &pk_m, cust_bal, merch_bal, fee_cc, min_fee, max_fee, fee_mc, name,
+            rng, &pk_m, cust_bal, merch_bal, fee_cc, min_fee, max_fee, fee_mc, bal_min_cust, bal_min_merch, val_cpfp, name,
         );
         let ser = [
             "{\'cust_state\':\'",
@@ -969,6 +974,7 @@ pub mod ffishim_mpc {
     pub extern "C" fn force_merchant_close_tx(
         ser_escrow_txid: *mut c_char,
         ser_merch_state: *mut c_char,
+        val_cpfp: i64,
     ) -> *mut c_char {
         // Deserialize the escrow-txid
         let escrow_txid_le_result = deserialize_hex_string(ser_escrow_txid);
@@ -982,7 +988,7 @@ pub mod ffishim_mpc {
 
         // use channel token to retrieve initial channel params, then generate the merch-close-tx and sign it
         let (signed_tx, txid_be, txid_le) =
-            handle_errors!(mpc::force_merchant_close(&escrow_txid_be, &mut merch_state));
+            handle_errors!(mpc::force_merchant_close(&escrow_txid_be, val_cpfp, &mut merch_state));
         let ser = [
             "{\'signed_tx\':\'",
             &hex::encode(signed_tx),
@@ -1144,6 +1150,7 @@ pub mod ffishim_mpc {
         cust_bal_sats: i64,
         merch_bal_sats: i64,
         fee_mc: i64,
+        val_cpfp: i64,
         ser_self_delay: *mut c_char,
     ) -> *mut c_char {
         let escrow_txid_le_result = deserialize_hex_string(ser_escrow_txid);
@@ -1174,7 +1181,7 @@ pub mod ffishim_mpc {
                 cust_bal_sats,
                 merch_bal_sats,
                 fee_mc,
-                util::VAL_CPFP,
+                val_cpfp,
                 self_delay_be
             )
         );
@@ -1217,6 +1224,7 @@ pub mod ffishim_mpc {
         cust_bal_sats: i64,
         merch_bal_sats: i64,
         fee_mc: i64,
+        val_cpfp: i64,
         ser_self_delay: *mut c_char,
         ser_cust_sig: *mut c_char,
         ser_merch_state: *mut c_char,
@@ -1254,7 +1262,7 @@ pub mod ffishim_mpc {
                 cust_bal_sats,
                 merch_bal_sats,
                 fee_mc,
-                util::VAL_CPFP,
+                val_cpfp,
                 self_delay_be
             )
         );
@@ -1313,6 +1321,7 @@ pub mod ffishim_mpc {
         ser_self_delay: *mut c_char,
         ser_merch_state: *mut c_char,
         fee_cc: i64,
+        val_cpfp: i64,
     ) -> *mut c_char {
         // Deserialize the tx
         let tx_result: ResultSerdeType<FundingTxInfo> = deserialize_result_object(ser_funding_tx);
@@ -1348,6 +1357,7 @@ pub mod ffishim_mpc {
             cust_close_pk,
             self_delay_be,
             fee_cc,
+            val_cpfp
         );
 
         let ser = [

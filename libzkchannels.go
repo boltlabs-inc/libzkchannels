@@ -2,7 +2,7 @@ package libzkchannels
 
 // #cgo CFLAGS: -I${SRCDIR}/include -Wno-macro-redefined
 // #cgo LDFLAGS: -L${SRCDIR}/target/release -lzkchannels
-// #include <cbindings.h>
+// #include <bindings.h>
 import "C"
 import (
 	"crypto/rand"
@@ -44,7 +44,9 @@ type setupResp struct {
 }
 
 type ChannelState struct {
-	MinThreshold   int64   `json:"min_threshold"`
+	BalMinCust     int64   `json:"bal_min_cust"`
+	BalMinMerch    int64   `json:"bal_min_merch"`
+	ValCpfp        int64   `json:"val_cpfp"`
 	KeyCom         string  `json:"key_com"`
 	Name           string  `json:"name"`
 	ThirdParty     bool    `json:"third_party"`
@@ -177,9 +179,9 @@ func GetSelfDelayBE(channelState ChannelState) (string, error) {
 	return r.SelfDelayBE, err
 }
 
-func ChannelSetup(name string, minThreshold int64, channelThirdPartySupport bool) (ChannelState, error) {
+func ChannelSetup(name string, balMinCust int64, balMinMerch int64, valCpfp int64, channelThirdPartySupport bool) (ChannelState, error) {
 	selfDelay := uint16(1487) // fixed and not configurable in current version of MPC func
-	resp := C.GoString(C.mpc_channel_setup(C.CString(name), C.uint16_t(selfDelay), C.int64_t(minThreshold), C.uint(btoi(channelThirdPartySupport))))
+	resp := C.GoString(C.mpc_channel_setup(C.CString(name), C.uint16_t(selfDelay), C.int64_t(balMinCust), C.int64_t(balMinMerch), C.int64_t(valCpfp), C.uint(btoi(channelThirdPartySupport))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return ChannelState{}, err
@@ -236,9 +238,10 @@ func LoadMerchantWallet(merchState MerchState, channelState ChannelState, skC st
 	return channelState, merchState, err
 }
 
-func InitCustomer(pkM string, custBal int64, merchBal int64, feeCC int64, minFee int64, maxFee int64, feeMC int64, name string) (ChannelToken, CustState, error) {
+func InitCustomer(pkM string, custBal int64, merchBal int64, feeCC int64, minFee int64, maxFee int64, feeMC int64, balMinCust int64, balMinMerch int64, valCpfp int64, name string) (ChannelToken, CustState, error) {
 	resp := C.GoString(C.mpc_init_customer(C.CString(pkM), C.int64_t(custBal),
 		C.int64_t(merchBal), C.int64_t(feeCC), C.int64_t(minFee), C.int64_t(maxFee), C.int64_t(feeMC),
+		C.int64_t(balMinCust), C.int64_t(balMinMerch), C.int64_t(valCpfp),
 		C.CString(name)))
 	r, err := processCResponse(resp)
 	if err != nil {
@@ -317,9 +320,9 @@ func SignEscrowTx(txid string, index uint32, custInputSk string, inputAmt int64,
 	return r.SignedTx, r.TxIdBe, r.TxIdLe, r.HashPrevOut, err
 }
 
-func FormMerchCloseTx(escrowTxId_LE string, custPk string, merchPk string, merchClosePk string, custBal int64, merchBal int64, feeMC int64, toSelfDelay string) (string, error) {
+func FormMerchCloseTx(escrowTxId_LE string, custPk string, merchPk string, merchClosePk string, custBal int64, merchBal int64, feeMC int64, valCpfp int64, toSelfDelay string) (string, error) {
 	resp := C.GoString(C.form_merch_close_transaction(C.CString(escrowTxId_LE), C.CString(custPk), C.CString(merchPk),
-		C.CString(merchClosePk), C.int64_t(custBal), C.int64_t(merchBal), C.int64_t(feeMC), C.CString(toSelfDelay)))
+		C.CString(merchClosePk), C.int64_t(custBal), C.int64_t(merchBal), C.int64_t(feeMC), C.int64_t(valCpfp), C.CString(toSelfDelay)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", err
@@ -361,13 +364,13 @@ func ForceCustomerCloseTx(channelState ChannelState, channelToken ChannelToken, 
 	return r.SignedTx, r.TxIdLe, custState, err
 }
 
-func ForceMerchantCloseTx(escrowTxId_LE string, merchState MerchState) (string, string, string, MerchState, error) {
+func ForceMerchantCloseTx(escrowTxId_LE string, merchState MerchState, valCpfp int64) (string, string, string, MerchState, error) {
 	serMerchState, err := json.Marshal(merchState)
 	if err != nil {
 		return "", "", "", MerchState{}, err
 	}
 
-	resp := C.GoString(C.force_merchant_close_tx(C.CString(escrowTxId_LE), C.CString(string(serMerchState))))
+	resp := C.GoString(C.force_merchant_close_tx(C.CString(escrowTxId_LE), C.CString(string(serMerchState)), C.int64_t(valCpfp)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", "", "", MerchState{}, err
@@ -376,14 +379,14 @@ func ForceMerchantCloseTx(escrowTxId_LE string, merchState MerchState) (string, 
 	return r.SignedTx, r.TxIdBe, r.TxIdLe, merchState, err
 }
 
-func MerchantVerifyMerchCloseTx(escrowTxId_LE string, custPk string, custBal int64, merchBal int64, feeMC int64, toSelfDelay string, custSig string, merchState MerchState) (bool, string, string, string, MerchState, error) {
+func MerchantVerifyMerchCloseTx(escrowTxId_LE string, custPk string, custBal int64, merchBal int64, feeMC int64, valCpfp int64, toSelfDelay string, custSig string, merchState MerchState) (bool, string, string, string, MerchState, error) {
 	serMerchState, err := json.Marshal(merchState)
 	if err != nil {
 		return false, "", "", "", MerchState{}, err
 	}
 
 	resp := C.GoString(C.merchant_verify_merch_close_tx(C.CString(escrowTxId_LE), C.CString(custPk), C.int64_t(custBal), C.int64_t(merchBal),
-		C.int64_t(feeMC), C.CString(toSelfDelay), C.CString(custSig), C.CString(string(serMerchState))))
+		C.int64_t(feeMC), C.int64_t(valCpfp), C.CString(toSelfDelay), C.CString(custSig), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return false, "", "", "", MerchState{}, err
@@ -407,7 +410,7 @@ func MerchantCheckRevLock(revLock string, merchState MerchState) (bool, string, 
 	return r.IsOk, r.FoundRevSecret, err
 }
 
-func MerchantSignInitCustCloseTx(tx FundingTxInfo, revLock string, custPk string, custClosePk string, toSelfDelay string, merchState MerchState, feeCC int64) (string, string, error) {
+func MerchantSignInitCustCloseTx(tx FundingTxInfo, revLock string, custPk string, custClosePk string, toSelfDelay string, merchState MerchState, feeCC int64, valCpfp int64) (string, string, error) {
 	serFundingTx, err := json.Marshal(tx)
 	if err != nil {
 		return "", "", err
@@ -419,7 +422,7 @@ func MerchantSignInitCustCloseTx(tx FundingTxInfo, revLock string, custPk string
 	}
 
 	resp := C.GoString(C.merch_sign_init_cust_close_txs(C.CString(string(serFundingTx)), C.CString(revLock), C.CString(custPk),
-		C.CString(custClosePk), C.CString(toSelfDelay), C.CString(string(serMerchState)), C.int64_t(feeCC)))
+		C.CString(custClosePk), C.CString(toSelfDelay), C.CString(string(serMerchState)), C.int64_t(feeCC), C.int64_t(valCpfp)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", "", err

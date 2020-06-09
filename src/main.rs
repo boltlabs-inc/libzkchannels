@@ -25,7 +25,6 @@ use structopt::StructOpt;
 use zkchan_tx::Testnet;
 use zkchannels::database::create_db_connection;
 use zkchannels::mpc;
-use zkchannels::util::VAL_CPFP;
 use zkchannels::FundingTxInfo;
 
 macro_rules! handle_error_result {
@@ -90,9 +89,13 @@ pub struct Open {
     other_ip: String,
     #[structopt(short = "q", long = "other-port")]
     other_port: String,
-    #[structopt(short = "d", long = "dust-limit", default_value = "546")]
-    min_threshold: i64,
-    #[structopt(short = "d", long = "self-delay", default_value = "1487")]
+    #[structopt(short = "d", long = "bal-min-cust", default_value = "546")]
+    bal_min_cust: i64,
+    #[structopt(short = "e", long = "bal-min-merch", default_value = "546")]
+    bal_min_merch: i64,
+    #[structopt(short = "v", long = "val-cpfp", default_value = "1000")]
+    val_cpfp: i64,
+    #[structopt(short = "b", long = "self-delay", default_value = "1487")]
     self_delay: u16,
     #[structopt(short = "f", long = "fee-cc", default_value = "1000")]
     fee_cc: i64,
@@ -410,7 +413,9 @@ fn main() {
                 create_connection!(open),
                 &db_url,
                 open.fee_mc,
-                open.min_threshold,
+                open.bal_min_cust,
+                open.bal_min_merch,
+                open.val_cpfp,
                 open.self_delay,
             ) {
                 Err(e) => println!("Channel opening phase failed with error: {}", e),
@@ -552,7 +557,6 @@ mod cust {
         ChannelMPCState, ChannelMPCToken, CustomerMPCState, NetworkConfig,
     };
     use zkchannels::database::MaskedTxMPCInputs;
-    use zkchannels::util;
     // use std::os::unix::io::AsRawFd;
 
     pub fn open(
@@ -579,13 +583,13 @@ mod cust {
         let fee_mc: i64 = serde_json::from_str(&msg0.get(2).unwrap()).unwrap();
 
         // check cust-bal meets min bal
-        let cust_min_bal = fee_cc + channel_state.get_min_threshold() + VAL_CPFP;
+        let cust_min_bal = fee_cc + channel_state.get_bal_min_cust() + channel_state.get_val_cpfp();
         if b0_cust < cust_min_bal {
             return Err(format!("cust-bal must be greater than {}.", cust_min_bal));
         }
 
         // check merch-bal meets min bal
-        let merch_min_bal = fee_mc + channel_state.get_min_threshold() + VAL_CPFP;
+        let merch_min_bal = fee_mc + channel_state.get_bal_min_merch() + channel_state.get_val_cpfp();
         if b0_merch < merch_min_bal {
             return Err(format!("merch-bal must be greater than {}.", merch_min_bal));
         }
@@ -599,6 +603,9 @@ mod cust {
             min_fee,
             max_fee,
             fee_mc,
+            channel_state.get_bal_min_cust(),
+            channel_state.get_bal_min_merch(),
+            channel_state.get_val_cpfp(),
             channel_name.as_str(),
         );
 
@@ -695,7 +702,7 @@ mod cust {
                 cust_bal,
                 merch_bal,
                 fee_mc,
-                util::VAL_CPFP,
+                channel_state.get_val_cpfp(),
                 to_self_delay_be
             ));
 
@@ -1068,7 +1075,6 @@ mod merch {
         ChannelMPCState, ChannelMPCToken, InitCustState, MerchantMPCState, NetworkConfig,
     };
     use zkchannels::database::{RedisDatabase, StateDatabase};
-    use zkchannels::util;
     use zkchannels::wallet::State;
 
     static MERCH_STATE_KEY: &str = "merch_state";
@@ -1078,7 +1084,9 @@ mod merch {
         conn: &mut Conn,
         db_url: &String,
         fee_mc: i64,
-        min_threshold: i64,
+        bal_min_cust: i64,
+        bal_min_merch: i64,
+        val_cpfp: i64,
         self_delay: u16,
     ) -> Result<(), String> {
         let merch_state_info = load_merchant_state_info(&db_url);
@@ -1089,13 +1097,11 @@ mod merch {
                 let rng = &mut rand::thread_rng();
 
                 let mut channel_state =
-                    ChannelMPCState::new(String::from("Channel"), self_delay, min_threshold, false);
-                if min_threshold == 0 {
+                    ChannelMPCState::new(String::from("Channel"), self_delay, bal_min_cust, bal_min_merch, val_cpfp, false);
+                if bal_min_cust == 0 || bal_min_merch == 0 {
                     let s = format!("Dust limit must be greater than 0!");
                     return Err(s);
                 }
-                // set dust limit if it's set above
-                channel_state.set_min_threshold(min_threshold);
 
                 let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
 
@@ -1178,7 +1184,7 @@ mod merch {
                 cust_bal,
                 merch_bal,
                 fee_mc,
-                util::VAL_CPFP,
+                channel_state.get_val_cpfp(),
                 to_self_delay_be
             ));
 
@@ -1227,6 +1233,7 @@ mod merch {
             cust_close_pk,
             to_self_delay_be,
             fee_cc,
+            channel_state.get_val_cpfp(),
         );
 
         let msg3 = [
@@ -1518,10 +1525,18 @@ mod merch {
         let channel_token: ChannelMPCToken =
             handle_error_result!(serde_json::from_str(&ser_channel_token));
 
+        // load the channel state from DB
+        let ser_channel_state = handle_error_with_string!(
+            get_file_from_db(&mut db.conn, &key2, &CHANNEL_STATE_KEY.to_string()),
+            "Could not load the merchant channel state"
+        );
+        let channel_state: ChannelMPCState =
+            handle_error_result!(serde_json::from_str(&ser_channel_state));
+
         let escrow_txid = channel_token.escrow_txid.0.to_vec();
 
         let (merch_close_tx, txid_be, _) =
-            handle_error_result!(mpc::force_merchant_close(&escrow_txid, &mut merch_state));
+            handle_error_result!(mpc::force_merchant_close(&escrow_txid, channel_state.get_val_cpfp(), &mut merch_state));
         write_pathfile(out_file, hex::encode(merch_close_tx))?;
         println!("merch-close-tx signed txid: {}", hex::encode(txid_be));
         Ok(())
