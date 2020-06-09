@@ -720,15 +720,21 @@ impl CustomerMPCState {
         BitcoinTransactionParameters<N>,
         BitcoinTransactionParameters<N>,
     ) {
-        let init_balance = self.cust_balance + self.merch_balance;
+        let fee_mc = self.get_current_state().fee_mc;
+        let escrow_init_balance = self.cust_balance + self.merch_balance;
+        let merch_init_balance = escrow_init_balance - util::VAL_CPFP - fee_mc;
         let escrow_index = 0;
         let merch_index = 0;
         let to_self_delay_be: [u8; 2] = channel_state.get_self_delay_be(); // big-endian format
 
         let pubkeys = self.get_pubkeys(channel_state, channel_token);
-        let escrow_input =
-            create_utxo_input(&channel_token.escrow_txid.0, escrow_index, init_balance);
-        let merch_input = create_utxo_input(&channel_token.merch_txid.0, merch_index, init_balance);
+        let escrow_input = create_utxo_input(
+            &channel_token.escrow_txid.0,
+            escrow_index,
+            escrow_init_balance,
+        );
+        let merch_input =
+            create_utxo_input(&channel_token.merch_txid.0, merch_index, merch_init_balance);
 
         let (escrow_tx_preimage, escrow_tx_params, _) = create_cust_close_transaction::<N>(
             &escrow_input,
@@ -1399,7 +1405,8 @@ impl MerchantMPCState {
         fee_cc: i64,
         val_cpfp: i64,
     ) -> (Vec<u8>, Vec<u8>) {
-        let init_balance = funding_tx.init_cust_bal + funding_tx.init_merch_bal;
+        let escrow_init_balance = funding_tx.init_cust_bal + funding_tx.init_merch_bal;
+        let merch_init_balance = escrow_init_balance - util::VAL_CPFP - funding_tx.fee_mc;
         let escrow_index = 0;
         let merch_index = 0;
         let mut escrow_txid_le = funding_tx.escrow_txid.0.clone();
@@ -1407,8 +1414,8 @@ impl MerchantMPCState {
         let mut merch_txid_le = funding_tx.merch_txid.0.clone();
         merch_txid_le.reverse();
 
-        let escrow_input = create_utxo_input(&escrow_txid_le, escrow_index, init_balance);
-        let merch_input = create_utxo_input(&merch_txid_le, merch_index, init_balance);
+        let escrow_input = create_utxo_input(&escrow_txid_le, escrow_index, escrow_init_balance);
+        let merch_input = create_utxo_input(&merch_txid_le, merch_index, merch_init_balance);
 
         let pubkeys = ClosePublicKeys {
             cust_pk: cust_pk.clone(),
