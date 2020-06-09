@@ -35,7 +35,7 @@ log_test "2. broadcast merch-close-tx"
 btcctl --simnet --rpcuser=kek --rpcpass=kek sendrawtransaction $MERCH_CLOSE_TX
 assert "STATUS: " 0 $?
 
-log_test "3. broadcast cust-close-from-merch-close tx (after mpc)"
+log_test "3. broadcast current cust-close-from-merch-close tx (after mpc)"
 btcctl --simnet --rpcuser=kek --rpcpass=kek sendrawtransaction $CUST_CLOSE_FROM_ESCROW
 assert "STATUS: " 0 $?
 

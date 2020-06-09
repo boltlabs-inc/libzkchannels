@@ -194,6 +194,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 
 	fmt.Println("Output initial closing transactions")
 	CloseEscrowTx, CloseEscrowTxId_LE, custState, err := ForceCustomerCloseTx(channelState, channelToken, true, custState)
+	initCustBalPayout := custState.CustBalance
 	WriteToFile("signed_first_cust_close_escrow_tx.txt", CloseEscrowTx)
 	CloseEscrowTxId_TX3 := CloseEscrowTxId_LE
 	assert.NotNil(t, CloseEscrowTxId_LE)
@@ -318,14 +319,16 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 
 	// Dispute scenario - If the customer has broadcast CloseEscrowTx and the revLock is an old revLock
 	index := uint32(0)
-	amount := custBal // - 10
+	// amount := custBal // - 10
+	disputedInAmt := initCustBalPayout
+	fmt.Println("Disputing this amount: ", disputedInAmt)
 	// ideally generate new changePk
 	outputPk = changePk
 	fmt.Println("========================================")
 	fmt.Println("custClosePk :=> ", custClosePk)
 	fmt.Println("merchDisputePk :=> ", merchDispPk)
-	claimAmount = amount - feeCC - feeMC
-	disputeTx, err := MerchantSignDisputeTx(CloseEscrowTxId_TX3, index, amount, claimAmount, toSelfDelay, outputPk, revState.RevLock, FoundRevSecret, custClosePk, merchState)
+	claimAmount = disputedInAmt - feeCC - feeMC
+	disputeTx, err := MerchantSignDisputeTx(CloseEscrowTxId_TX3, index, claimAmount, claimAmount, toSelfDelay, outputPk, revState.RevLock, FoundRevSecret, custClosePk, merchState)
 	assert.Nil(t, err)
 	fmt.Println("========================================")
 	fmt.Println("TX5: disputeCloseEscrowTx: ", disputeTx)
@@ -335,8 +338,8 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	// Merchant can claim tx output from merch-close-tx after timeout
 	fmt.Println("Claim tx from merchant close tx")
 	claimAmount = custBal + merchBal
-	outputAmount := claimAmount - feeCC - feeMC
-	SignedMerchClaimTx, err = MerchantSignMerchClaimTx(merchTxid_LE, index, claimAmount, outputAmount, toSelfDelay, custPk, outputPk, merchState)
+	claimAmount = claimAmount - feeCC - feeMC
+	SignedMerchClaimTx, err = MerchantSignMerchClaimTx(merchTxid_LE, index, claimAmount, claimAmount, toSelfDelay, custPk, outputPk, merchState)
 	assert.Nil(t, err)
 	fmt.Println("TX2-merch-close-claim-tx: ", SignedMerchClaimTx)
 	fmt.Println("========================================")
