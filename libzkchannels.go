@@ -2,7 +2,7 @@ package libzkchannels
 
 // #cgo CFLAGS: -I${SRCDIR}/include -Wno-macro-redefined
 // #cgo LDFLAGS: -L${SRCDIR}/target/release -lzkchannels
-// #include <cbindings.h>
+// #include <bindings.h>
 import "C"
 import (
 	"crypto/rand"
@@ -20,8 +20,10 @@ type setupResp struct {
 	PayToken        string `json:"pay_token"`
 	State           string `json:"state"`
 	RevState        string `json:"rev_state"`
+	SessionId       string `json:"session_id"`
 	FoundRevSecret  string `json:"found_rev_secret"`
 	PayTokenMaskCom string `json:"pay_token_mask_com"`
+	RevLockCom      string `json:"rev_lock_com"`
 	MaskedTxInputs  string `json:"masked_tx_inputs"`
 	PayTokenMask    string `json:"pay_token_mask"`
 	PayTokenMaskR   string `json:"pay_token_mask_r"`
@@ -42,7 +44,9 @@ type setupResp struct {
 }
 
 type ChannelState struct {
-	MinThreshold   int64   `json:"min_threshold"`
+	BalMinCust     int64   `json:"bal_min_cust"`
+	BalMinMerch    int64   `json:"bal_min_merch"`
+	ValCpfp        int64   `json:"val_cpfp"`
 	KeyCom         string  `json:"key_com"`
 	Name           string  `json:"name"`
 	ThirdParty     bool    `json:"third_party"`
@@ -52,42 +56,44 @@ type ChannelState struct {
 }
 
 type MerchState struct {
-	Id          *string                 `json:"id"`
-	PkM         *string                 `json:"pk_m"`
-	SkM         *string                 `json:"sk_m"`
-	HmacKey     string                  `json:"hmac_key"`
-	HmacKeyR    string                  `json:"hmac_key_r"`
-	PayoutSk    *string                 `json:"payout_sk"`
-	PayoutPk    *string                 `json:"payout_pk"`
-	DisputeSk   *string                 `json:"dispute_sk"`
-	DisputePk   *string                 `json:"dispute_pk"`
-	ActivateMap *map[string]interface{} `json:"activate_map"`
-	CloseTxMap  *map[string]interface{} `json:"close_tx"`
-	NetConfig   *map[string]interface{} `json:"net_config"`
-	DbUrl       string                  `json:"db_url"`
+	Id           *string                 `json:"id"`
+	PkM          *string                 `json:"pk_m"`
+	SkM          *string                 `json:"sk_m"`
+	HmacKey      string                  `json:"hmac_key"`
+	HmacKeyR     string                  `json:"hmac_key_r"`
+	PayoutSk     *string                 `json:"payout_sk"`
+	PayoutPk     *string                 `json:"payout_pk"`
+	DisputeSk    *string                 `json:"dispute_sk"`
+	DisputePk    *string                 `json:"dispute_pk"`
+	ActivateMap  *map[string]interface{} `json:"activate_map"`
+	CloseTxMap   *map[string]interface{} `json:"close_tx"`
+	NetConfig    *map[string]interface{} `json:"net_config"`
+	DbUrl        string                  `json:"db_url"`
+	RefundPolicy string                  `json:"refund_policy"`
 }
 
 type CustState struct {
-	Name               string                  `json:"name"`
-	PkC                string                  `json:"pk_c"`
-	SkC                string                  `json:"sk_c"`
-	CustBalance        int64                   `json:"cust_balance"`
-	MerchBalance       int64                   `json:"merch_balance"`
-	FeeCC              int64                   `json:"fee_cc"`
-	RevLock            string                  `json:"rev_lock"`
-	RevSecret          string                  `json:"rev_secret"`
-	T                  string                  `json:"t"`
-	State              *State                  `json:"state"`
-	Index              int                     `json:"index"`
-	MaskedOutputs      *map[string]interface{} `json:"masked_outputs"`
-	PayTokens          *map[string]interface{} `json:"pay_tokens"`
-	PayTokenMaskCom    string                  `json:"pay_token_mask_com"`
-	PayoutSk           string                  `json:"payout_sk"`
-	PayoutPk           string                  `json:"payout_pk"`
-	EscrowSignature    string                  `json:"close_escrow_signature"`
-	MerchSignature     string                  `json:"close_merch_signature"`
-	ChannelInitialized bool                    `json:"channel_initialized"`
-	NetConfig          *map[string]interface{} `json:"net_config"`
+	Name            string                  `json:"name"`
+	PkC             string                  `json:"pk_c"`
+	SkC             string                  `json:"sk_c"`
+	CustBalance     int64                   `json:"cust_balance"`
+	MerchBalance    int64                   `json:"merch_balance"`
+	FeeCC           int64                   `json:"fee_cc"`
+	RevLock         string                  `json:"rev_lock"`
+	RevSecret       string                  `json:"rev_secret"`
+	T               string                  `json:"t"`
+	State           *State                  `json:"state"`
+	Index           int                     `json:"index"`
+	MaskedOutputs   *map[string]interface{} `json:"masked_outputs"`
+	PayTokens       *map[string]interface{} `json:"pay_tokens"`
+	PayTokenMaskCom string                  `json:"pay_token_mask_com"`
+	PayoutSk        string                  `json:"payout_sk"`
+	PayoutPk        string                  `json:"payout_pk"`
+	EscrowSignature string                  `json:"close_escrow_signature"`
+	MerchSignature  string                  `json:"close_merch_signature"`
+	ChannelStatus   string                  `json:"channel_status"`
+	CloseStatus     string                  `json:"close_status"`
+	NetConfig       *map[string]interface{} `json:"net_config"`
 }
 
 type State struct {
@@ -121,11 +127,9 @@ type MaskedTxInputs struct {
 }
 
 type RevokedState struct {
-	Nonce      string `json:"nonce"`
-	RevLock    string `json:"rev_lock"`
-	RevLockCom string `json:"rev_lock_com"`
-	RevSecret  string `json:"rev_secret"`
-	T          string `json:"t"`
+	RevLock   string `json:"rev_lock"`
+	RevSecret string `json:"rev_secret"`
+	T         string `json:"t"`
 }
 
 type FundingTxInfo struct {
@@ -175,9 +179,9 @@ func GetSelfDelayBE(channelState ChannelState) (string, error) {
 	return r.SelfDelayBE, err
 }
 
-func ChannelSetup(name string, minThreshold int64, channelThirdPartySupport bool) (ChannelState, error) {
+func ChannelSetup(name string, balMinCust int64, balMinMerch int64, valCpfp int64, channelThirdPartySupport bool) (ChannelState, error) {
 	selfDelay := uint16(1487) // fixed and not configurable in current version of MPC func
-	resp := C.GoString(C.mpc_channel_setup(C.CString(name), C.uint16_t(selfDelay), C.int64_t(minThreshold), C.uint(btoi(channelThirdPartySupport))))
+	resp := C.GoString(C.mpc_channel_setup(C.CString(name), C.uint16_t(selfDelay), C.int64_t(balMinCust), C.int64_t(balMinMerch), C.int64_t(valCpfp), C.uint(btoi(channelThirdPartySupport))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return ChannelState{}, err
@@ -234,9 +238,10 @@ func LoadMerchantWallet(merchState MerchState, channelState ChannelState, skC st
 	return channelState, merchState, err
 }
 
-func InitCustomer(pkM string, custBal int64, merchBal int64, feeCC int64, minFee int64, maxFee int64, feeMC int64, name string) (ChannelToken, CustState, error) {
+func InitCustomer(pkM string, custBal int64, merchBal int64, feeCC int64, minFee int64, maxFee int64, feeMC int64, balMinCust int64, balMinMerch int64, valCpfp int64, name string) (ChannelToken, CustState, error) {
 	resp := C.GoString(C.mpc_init_customer(C.CString(pkM), C.int64_t(custBal),
 		C.int64_t(merchBal), C.int64_t(feeCC), C.int64_t(minFee), C.int64_t(maxFee), C.int64_t(feeMC),
+		C.int64_t(balMinCust), C.int64_t(balMinMerch), C.int64_t(valCpfp),
 		C.CString(name)))
 	r, err := processCResponse(resp)
 	if err != nil {
@@ -315,9 +320,9 @@ func SignEscrowTx(txid string, index uint32, custInputSk string, inputAmt int64,
 	return r.SignedTx, r.TxIdBe, r.TxIdLe, r.HashPrevOut, err
 }
 
-func FormMerchCloseTx(escrowTxId_LE string, custPk string, merchPk string, merchClosePk string, custBal int64, merchBal int64, feeMC int64, toSelfDelay string) (string, error) {
+func FormMerchCloseTx(escrowTxId_LE string, custPk string, merchPk string, merchClosePk string, custBal int64, merchBal int64, feeMC int64, valCpfp int64, toSelfDelay string) (string, error) {
 	resp := C.GoString(C.form_merch_close_transaction(C.CString(escrowTxId_LE), C.CString(custPk), C.CString(merchPk),
-		C.CString(merchClosePk), C.int64_t(custBal), C.int64_t(merchBal), C.int64_t(feeMC), C.CString(toSelfDelay)))
+		C.CString(merchClosePk), C.int64_t(custBal), C.int64_t(merchBal), C.int64_t(feeMC), C.int64_t(valCpfp), C.CString(toSelfDelay)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", err
@@ -334,59 +339,60 @@ func CustomerSignMerchCloseTx(custSk string, merchTxPreimage string) (string, er
 	return r.CustSig, err
 }
 
-func CustomerCloseTx(channelState ChannelState, channelToken ChannelToken, fromEscrow bool, custState CustState) (string, string, error) {
+func ForceCustomerCloseTx(channelState ChannelState, channelToken ChannelToken, fromEscrow bool, custState CustState) (string, string, CustState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
-		return "", "", err
+		return "", "", CustState{}, err
 	}
 
 	serChannelToken, err := json.Marshal(channelToken)
 	if err != nil {
-		return "", "", err
+		return "", "", CustState{}, err
 	}
 
 	serCustState, err := json.Marshal(custState)
 	if err != nil {
-		return "", "", err
+		return "", "", CustState{}, err
 	}
 
-	resp := C.GoString(C.customer_close_tx(C.CString(string(serChannelState)), C.CString(string(serChannelToken)), C.uint(btoi(fromEscrow)), C.CString(string(serCustState))))
+	resp := C.GoString(C.force_customer_close_tx(C.CString(string(serChannelState)), C.CString(string(serChannelToken)), C.uint(btoi(fromEscrow)), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
-		return "", "", err
+		return "", "", CustState{}, err
 	}
-	return r.SignedTx, r.TxIdLe, err
+	err = json.Unmarshal([]byte(r.CustState), &custState)
+	return r.SignedTx, r.TxIdLe, custState, err
 }
 
-func MerchantVerifyMerchCloseTx(escrowTxId_LE string, custPk string, custBal int64, merchBal int64, feeMC int64, toSelfDelay string, custSig string, merchState MerchState) (bool, string, string, string, MerchState, error) {
+func ForceMerchantCloseTx(escrowTxId_LE string, merchState MerchState, valCpfp int64) (string, string, string, MerchState, error) {
+	serMerchState, err := json.Marshal(merchState)
+	if err != nil {
+		return "", "", "", MerchState{}, err
+	}
+
+	resp := C.GoString(C.force_merchant_close_tx(C.CString(escrowTxId_LE), C.CString(string(serMerchState)), C.int64_t(valCpfp)))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return "", "", "", MerchState{}, err
+	}
+	err = json.Unmarshal([]byte(r.MerchState), &merchState)
+	return r.SignedTx, r.TxIdBe, r.TxIdLe, merchState, err
+}
+
+func MerchantVerifyMerchCloseTx(escrowTxId_LE string, custPk string, custBal int64, merchBal int64, feeMC int64, valCpfp int64, toSelfDelay string, custSig string, merchState MerchState) (bool, string, string, string, MerchState, error) {
 	serMerchState, err := json.Marshal(merchState)
 	if err != nil {
 		return false, "", "", "", MerchState{}, err
 	}
 
 	resp := C.GoString(C.merchant_verify_merch_close_tx(C.CString(escrowTxId_LE), C.CString(custPk), C.int64_t(custBal), C.int64_t(merchBal),
-		C.int64_t(feeMC), C.CString(toSelfDelay), C.CString(custSig), C.CString(string(serMerchState))))
+		C.int64_t(feeMC), C.int64_t(valCpfp), C.CString(toSelfDelay), C.CString(custSig), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return false, "", "", "", MerchState{}, err
 	}
 	err = json.Unmarshal([]byte(r.MerchState), &merchState)
 	return r.IsOk, r.TxIdBe, r.TxIdLe, r.HashPrevOut, merchState, err
-}
-
-func MerchantCloseTx(escrowTxId_LE string, merchState MerchState) (string, string, string, error) {
-	serMerchState, err := json.Marshal(merchState)
-	if err != nil {
-		return "", "", "", err
-	}
-
-	resp := C.GoString(C.merchant_close_tx(C.CString(escrowTxId_LE), C.CString(string(serMerchState))))
-	r, err := processCResponse(resp)
-	if err != nil {
-		return "", "", "", err
-	}
-
-	return r.SignedTx, r.TxIdBe, r.TxIdLe, err
 }
 
 func MerchantCheckRevLock(revLock string, merchState MerchState) (bool, string, error) {
@@ -404,7 +410,7 @@ func MerchantCheckRevLock(revLock string, merchState MerchState) (bool, string, 
 	return r.IsOk, r.FoundRevSecret, err
 }
 
-func MerchantSignInitCustCloseTx(tx FundingTxInfo, revLock string, custPk string, custClosePk string, toSelfDelay string, merchState MerchState, feeCC int64) (string, string, error) {
+func MerchantSignInitCustCloseTx(tx FundingTxInfo, revLock string, custPk string, custClosePk string, toSelfDelay string, merchState MerchState, feeCC int64, valCpfp int64) (string, string, error) {
 	serFundingTx, err := json.Marshal(tx)
 	if err != nil {
 		return "", "", err
@@ -416,7 +422,7 @@ func MerchantSignInitCustCloseTx(tx FundingTxInfo, revLock string, custPk string
 	}
 
 	resp := C.GoString(C.merch_sign_init_cust_close_txs(C.CString(string(serFundingTx)), C.CString(revLock), C.CString(custPk),
-		C.CString(custClosePk), C.CString(toSelfDelay), C.CString(string(serMerchState)), C.int64_t(feeCC)))
+		C.CString(custClosePk), C.CString(toSelfDelay), C.CString(string(serMerchState)), C.int64_t(feeCC), C.int64_t(valCpfp)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", "", err
@@ -491,7 +497,7 @@ func MerchantValidateInitialState(channelToken ChannelToken, initCustState InitC
 		return false, MerchState{}, err
 	}
 
-	resp := C.GoString(C.mpc_validate_initial_state(C.CString(string(serChannelToken)), C.CString(string(serInitCustState)), C.CString(initHash), C.CString(string(serMerchState))))
+	resp := C.GoString(C.mpc_validate_channel_params(C.CString(string(serChannelToken)), C.CString(string(serInitCustState)), C.CString(initHash), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return false, MerchState{}, err
@@ -576,39 +582,39 @@ func ActivateCustomerFinalize(payToken string, custState CustState) (CustState, 
 	return custState, err
 }
 
-func PreparePaymentCustomer(channelState ChannelState, amount int64, custState CustState) (RevokedState, State, CustState, error) {
+func PreparePaymentCustomer(channelState ChannelState, amount int64, custState CustState) (RevokedState, State, string, string, CustState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
-		return RevokedState{}, State{}, CustState{}, err
+		return RevokedState{}, State{}, "", "", CustState{}, err
 	}
 	serCustState, err := json.Marshal(custState)
 	if err != nil {
-		return RevokedState{}, State{}, CustState{}, err
+		return RevokedState{}, State{}, "", "", CustState{}, err
 	}
 	resp := C.GoString(C.mpc_prepare_payment_customer(C.CString(string(serChannelState)), C.int64_t(amount), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
-		return RevokedState{}, State{}, CustState{}, err
+		return RevokedState{}, State{}, "", "", CustState{}, err
 	}
 
 	state := State{}
 	err = json.Unmarshal([]byte(r.State), &state)
 	if err != nil {
-		return RevokedState{}, State{}, CustState{}, err
+		return RevokedState{}, State{}, "", "", CustState{}, err
 	}
 
 	newCustState := CustState{}
 	err = json.Unmarshal([]byte(r.CustState), &newCustState)
 	if err != nil {
-		return RevokedState{}, State{}, CustState{}, err
+		return RevokedState{}, State{}, "", "", CustState{}, err
 	}
 	revState := RevokedState{}
 	err = json.Unmarshal([]byte(r.RevState), &revState)
 
-	return revState, state, newCustState, err
+	return revState, state, r.RevLockCom, r.SessionId, newCustState, err
 }
 
-func PreparePaymentMerchant(channelState ChannelState, nonce string, revLockCom string, amount int64, merchState MerchState) (string, MerchState, error) {
+func PreparePaymentMerchant(channelState ChannelState, sessionId string, nonce string, revLockCom string, amount int64, justification string, merchState MerchState) (string, MerchState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
 		return "", MerchState{}, err
@@ -619,7 +625,7 @@ func PreparePaymentMerchant(channelState ChannelState, nonce string, revLockCom 
 		return "", MerchState{}, err
 	}
 
-	resp := C.GoString(C.mpc_prepare_payment_merchant(C.CString(string(serChannelState)), C.CString(nonce), C.CString(revLockCom), C.int64_t(amount), C.CString(string(serMerchState))))
+	resp := C.GoString(C.mpc_prepare_payment_merchant(C.CString(string(serChannelState)), C.CString(sessionId), C.CString(nonce), C.CString(revLockCom), C.int64_t(amount), C.CString(justification), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", MerchState{}, err
@@ -662,7 +668,7 @@ func PayUpdateCustomer(channelState ChannelState, channelToken ChannelToken, sta
 	return r.IsOk, custState, err
 }
 
-func PayUpdateMerchant(channelState ChannelState, nonce string, payTokenMaskCom string, revLockCom string, amount int64, merchState MerchState) (bool, MerchState, error) {
+func PayUpdateMerchant(channelState ChannelState, sessionId string, payTokenMaskCom string, merchState MerchState) (bool, MerchState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
 		return false, MerchState{}, err
@@ -673,7 +679,7 @@ func PayUpdateMerchant(channelState ChannelState, nonce string, payTokenMaskCom 
 		return false, MerchState{}, err
 	}
 
-	resp := C.GoString(C.mpc_pay_update_merchant(C.CString(string(serChannelState)), C.CString(nonce), C.CString(payTokenMaskCom), C.CString(revLockCom), C.int64_t(amount), C.CString(string(serMerchState))))
+	resp := C.GoString(C.mpc_pay_update_merchant(C.CString(string(serChannelState)), C.CString(sessionId), C.CString(payTokenMaskCom), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return false, MerchState{}, err
@@ -683,13 +689,13 @@ func PayUpdateMerchant(channelState ChannelState, nonce string, payTokenMaskCom 
 	return r.IsOk, merchState, err
 }
 
-func PayConfirmMPCResult(mpcResult bool, nonce string, merchState MerchState) (MaskedTxInputs, error) {
+func PayConfirmMPCResult(sessionId string, mpcResult bool, merchState MerchState) (MaskedTxInputs, error) {
 	serMerchState, err := json.Marshal(merchState)
 	if err != nil {
 		return MaskedTxInputs{}, err
 	}
 
-	resp := C.GoString(C.mpc_get_masked_tx_inputs(C.uint(btoi(mpcResult)), C.CString(nonce), C.CString(string(serMerchState))))
+	resp := C.GoString(C.mpc_get_masked_tx_inputs(C.CString(sessionId), C.uint(btoi(mpcResult)), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return MaskedTxInputs{}, err
@@ -733,7 +739,7 @@ func PayUnmaskSigsCustomer(channelState ChannelState, channelToken ChannelToken,
 	return r.IsOk, custState, err
 }
 
-func PayValidateRevLockMerchant(revokedState RevokedState, merchState MerchState) (string, string, MerchState, error) {
+func PayValidateRevLockMerchant(sessionId string, revokedState RevokedState, merchState MerchState) (string, string, MerchState, error) {
 	serRevokedState, err := json.Marshal(revokedState)
 	if err != nil {
 		return "", "", MerchState{}, err
@@ -743,7 +749,7 @@ func PayValidateRevLockMerchant(revokedState RevokedState, merchState MerchState
 		return "", "", MerchState{}, err
 	}
 
-	resp := C.GoString(C.mpc_pay_validate_rev_lock_merchant(C.CString(string(serRevokedState)), C.CString(string(serMerchState))))
+	resp := C.GoString(C.mpc_pay_validate_rev_lock_merchant(C.CString(sessionId), C.CString(string(serRevokedState)), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", "", MerchState{}, err

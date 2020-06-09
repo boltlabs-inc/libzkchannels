@@ -34,6 +34,7 @@ hex = "0.3.2"
 structopt = "0.3.7"
 bufstream = "0.1"
 zkchan-tx = { git = "https://github.com/boltlabs-inc/zkchan-tx" }
+enum-display-derive = "0.1.0"
 
 [build-dependencies]
 bindgen="*"
@@ -48,3 +49,7 @@ crate-type = ["lib", "cdylib", "staticlib"]
 [[bin]]
 name = "zkchannels-mpc"
 path = "src/main.rs"
+
+[[bin]]
+name = "mpctest"
+path = "src/mpc_test.rs"

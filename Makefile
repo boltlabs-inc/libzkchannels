@@ -24,7 +24,7 @@ mpctest:
 	cargo build --release
 	./test_mpcwrapper.sh
 	./test_channels_mpc.sh
-	cargo test --release -- --ignored --nocapture
+	./test_ignored.sh
 
 update:
 	cargo update
