@@ -2067,8 +2067,14 @@ mod tests {
 
         let min_threshold = 546;
         let val_cpfp = 1000;
-        let mut channel_state =
-            mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, min_threshold, min_threshold, val_cpfp, false);
+        let mut channel_state = mpc::ChannelMPCState::new(
+            String::from("Channel A -> B"),
+            1487,
+            min_threshold,
+            min_threshold,
+            val_cpfp,
+            false,
+        );
         // init merchant
         let mut merch_state = mpc::init_merchant(rng, "".to_string(), &mut channel_state, "Bob");
 
@@ -2206,8 +2212,14 @@ mod tests {
         // init channel state
         let min_threshold = 546;
         let val_cpfp = 1000;
-        let mut channel_state =
-            mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, min_threshold, min_threshold, val_cpfp, false);
+        let mut channel_state = mpc::ChannelMPCState::new(
+            String::from("Channel A -> B"),
+            1487,
+            min_threshold,
+            min_threshold,
+            val_cpfp,
+            false,
+        );
         // init merchant
         let merch_state = mpc::init_merchant(rng, "".to_string(), &mut channel_state, "Bob");
 
@@ -2243,8 +2255,14 @@ mod tests {
 
         let min_threshold = 546;
         let val_cpfp = 1000;
-        let mut channel =
-            mpc::ChannelMPCState::new(String::from("Channel A -> B"), 1487, min_threshold, min_threshold, val_cpfp, false);
+        let mut channel = mpc::ChannelMPCState::new(
+            String::from("Channel A -> B"),
+            1487,
+            min_threshold,
+            min_threshold,
+            val_cpfp,
+            false,
+        );
 
         let mut merch_state = mpc::init_merchant(&mut rng, "".to_string(), &mut channel, "Bob");
 
@@ -3029,8 +3047,12 @@ mod tests {
 
         let mut escrow_txid_be = channel_token.escrow_txid.0.clone(); // originally in LE
         escrow_txid_be.reverse();
-        let (_merch_close_signed_tx, _merch_txid_be, _merch_txid_le) =
-            mpc::force_merchant_close(&escrow_txid_be.to_vec(), channel_state.get_val_cpfp(), &mut merch_state).unwrap();
+        let (_merch_close_signed_tx, _merch_txid_be, _merch_txid_le) = mpc::force_merchant_close(
+            &escrow_txid_be.to_vec(),
+            channel_state.get_val_cpfp(),
+            &mut merch_state,
+        )
+        .unwrap();
         assert!(
             merch_state
                 .get_channel_close_status(escrow_txid_be)

@@ -136,7 +136,7 @@ impl ChannelMPCState {
         third_party_support: bool,
     ) -> ChannelMPCState {
         ChannelMPCState {
-            bal_min_cust, // dust limit (546)
+            bal_min_cust,  // dust limit (546)
             bal_min_merch, // dust limit (546)
             val_cpfp,
             key_com: FixedSizeArray32([0u8; 32]),

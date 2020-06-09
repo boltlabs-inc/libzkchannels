@@ -10,12 +10,12 @@ use ecdsa_partial::EcdsaPartialSig;
 use libc::{c_int, c_void};
 // c_uint, c_char
 use rand::Rng;
+use secp256k1;
 use std::ffi::{CStr, CString};
 use std::ptr;
 use std::str;
 use std::time::Instant;
 use wallet::State;
-use secp256k1;
 
 static MPC_ERROR: &str = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
 pub static CIRCUIT_FILE: &str = "/include/emp-tool/circuits/files/tokens.circuit.txt";
@@ -776,13 +776,13 @@ mod tests {
                 .unwrap()
                 .as_slice(),
         )
-            .unwrap();
+        .unwrap();
         let cust_payout_pub_key = secp256k1::PublicKey::from_slice(
             hex::decode("03195e272df2310ded35f9958fd0c2847bf73b5b429a716c005d465009bd768641")
                 .unwrap()
                 .as_slice(),
         )
-            .unwrap();
+        .unwrap();
         let cust_pk_input_buf = cust_payout_pub_key.serialize();
         let cust_pub_key_hash = compute_hash160(&cust_pk_input_buf.to_vec());
 
@@ -824,13 +824,13 @@ mod tests {
                 .unwrap()
                 .as_slice(),
         )
-            .unwrap();
+        .unwrap();
         let merch_dispute_key = secp256k1::PublicKey::from_slice(
             hex::decode("0253be79afe84fd9342c1f52024379b6da6299ea98844aee23838e8e678a765f7c")
                 .unwrap()
                 .as_slice(),
         )
-            .unwrap();
+        .unwrap();
         let mut merch_public_key_hash = [0u8; 20];
         merch_public_key_hash.copy_from_slice(
             hex::decode("43e9e81bc632ad9cad48fc23f800021c5769a063")
@@ -842,7 +842,7 @@ mod tests {
                 .unwrap()
                 .as_slice(),
         )
-            .unwrap();
+        .unwrap();
 
         let nc = NetworkConfig {
             conn_type: ConnType_NETIO,
@@ -1097,7 +1097,7 @@ mod tests {
                 &hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141")
                     .unwrap(),
             )
-                .to_string()
+            .to_string()
         );
         let mes = secp256k1::Message::from_slice(&msg).unwrap();
         println!("{:?}", mes);

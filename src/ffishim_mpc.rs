@@ -8,6 +8,7 @@ pub mod ffishim_mpc {
     use database::{MaskedTxMPCInputs, RedisDatabase, StateDatabase};
     use hex::FromHexError;
     use libc::c_char;
+    use mpc;
     use mpc::RevokedState;
     use serde::Deserialize;
     use std::ffi::{CStr, CString};
@@ -15,7 +16,6 @@ pub mod ffishim_mpc {
     use wallet::State;
     use zkchan_tx::Testnet;
     use FundingTxInfo;
-    use mpc;
 
     fn error_message(s: String) -> *mut c_char {
         let ser = ["{\'error\':\'", &s, "\'}"].concat();
@@ -115,8 +115,14 @@ pub mod ffishim_mpc {
         if third_party_support >= 1 {
             tps = true;
         }
-        let channel_state =
-            mpc::ChannelMPCState::new(name.to_string(), self_delay, bal_min_cust, bal_min_merch, val_cpfp, tps);
+        let channel_state = mpc::ChannelMPCState::new(
+            name.to_string(),
+            self_delay,
+            bal_min_cust,
+            bal_min_merch,
+            val_cpfp,
+            tps,
+        );
 
         let ser = [
             "{\'channel_state\':\'",
@@ -245,7 +251,18 @@ pub mod ffishim_mpc {
 
         // We change the channel state
         let (channel_token, cust_state) = mpc::init_customer(
-            rng, &pk_m, cust_bal, merch_bal, fee_cc, min_fee, max_fee, fee_mc, bal_min_cust, bal_min_merch, val_cpfp, name,
+            rng,
+            &pk_m,
+            cust_bal,
+            merch_bal,
+            fee_cc,
+            min_fee,
+            max_fee,
+            fee_mc,
+            bal_min_cust,
+            bal_min_merch,
+            val_cpfp,
+            name,
         );
         let ser = [
             "{\'cust_state\':\'",
@@ -987,8 +1004,11 @@ pub mod ffishim_mpc {
         let mut merch_state = handle_errors!(merch_state_result);
 
         // use channel token to retrieve initial channel params, then generate the merch-close-tx and sign it
-        let (signed_tx, txid_be, txid_le) =
-            handle_errors!(mpc::force_merchant_close(&escrow_txid_be, val_cpfp, &mut merch_state));
+        let (signed_tx, txid_be, txid_le) = handle_errors!(mpc::force_merchant_close(
+            &escrow_txid_be,
+            val_cpfp,
+            &mut merch_state
+        ));
         let ser = [
             "{\'signed_tx\':\'",
             &hex::encode(signed_tx),
@@ -1357,7 +1377,7 @@ pub mod ffishim_mpc {
             cust_close_pk,
             self_delay_be,
             fee_cc,
-            val_cpfp
+            val_cpfp,
         );
 
         let ser = [

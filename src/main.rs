@@ -589,7 +589,8 @@ mod cust {
         }
 
         // check merch-bal meets min bal
-        let merch_min_bal = fee_mc + channel_state.get_bal_min_merch() + channel_state.get_val_cpfp();
+        let merch_min_bal =
+            fee_mc + channel_state.get_bal_min_merch() + channel_state.get_val_cpfp();
         if b0_merch < merch_min_bal {
             return Err(format!("merch-bal must be greater than {}.", merch_min_bal));
         }
@@ -1096,8 +1097,14 @@ mod merch {
                 // create a new channel state and merchant state DB
                 let rng = &mut rand::thread_rng();
 
-                let mut channel_state =
-                    ChannelMPCState::new(String::from("Channel"), self_delay, bal_min_cust, bal_min_merch, val_cpfp, false);
+                let mut channel_state = ChannelMPCState::new(
+                    String::from("Channel"),
+                    self_delay,
+                    bal_min_cust,
+                    bal_min_merch,
+                    val_cpfp,
+                    false,
+                );
                 if bal_min_cust == 0 || bal_min_merch == 0 {
                     let s = format!("Dust limit must be greater than 0!");
                     return Err(s);
@@ -1535,8 +1542,11 @@ mod merch {
 
         let escrow_txid = channel_token.escrow_txid.0.to_vec();
 
-        let (merch_close_tx, txid_be, _) =
-            handle_error_result!(mpc::force_merchant_close(&escrow_txid, channel_state.get_val_cpfp(), &mut merch_state));
+        let (merch_close_tx, txid_be, _) = handle_error_result!(mpc::force_merchant_close(
+            &escrow_txid,
+            channel_state.get_val_cpfp(),
+            &mut merch_state
+        ));
         write_pathfile(out_file, hex::encode(merch_close_tx))?;
         println!("merch-close-tx signed txid: {}", hex::encode(txid_be));
         Ok(())
