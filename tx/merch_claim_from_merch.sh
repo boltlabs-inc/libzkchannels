@@ -24,8 +24,7 @@ function log_test() {
 
 ESCROW=`cat signed_escrow.txt`
 MERCH_CLOSE_TX=`cat signed_merch_close.txt`
-CUST_CLOSE_FROM_ESCROW=`cat signed_cust_close_merch_tx.txt`
-# CUST_CLOSE_CLAIM=`cat signed_cust_claim_tx.txt`
+MERCH_CLAIM_FROM_MERCH=`cat signed_merch_claim_merch_close_tx.txt`
 
 log_test "1. broadcast escrow tx"
 btcctl --simnet --rpcuser=kek --rpcpass=kek sendrawtransaction $ESCROW
@@ -35,15 +34,10 @@ log_test "2. broadcast merch-close-tx"
 btcctl --simnet --rpcuser=kek --rpcpass=kek sendrawtransaction $MERCH_CLOSE_TX
 assert "STATUS: " 0 $?
 
-log_test "3. broadcast cust-close-from-merch-close tx (after mpc)"
-btcctl --simnet --rpcuser=kek --rpcpass=kek sendrawtransaction $CUST_CLOSE_FROM_ESCROW
+log_test "3. wait for 1487 blocks"
+btcctl --simnet --rpcuser=kek --rpcpass=kek generate 1487
 assert "STATUS: " 0 $?
 
-# TODO
-# log_test "4. wait for 1487 blocks"
-# btcctl --simnet --rpcuser=kek --rpcpass=kek generate 1487
-# assert "STATUS: " 0 $?
-
-# log_test "5. claim the funds"
-# btcctl --simnet --rpcuser=kek --rpcpass=kek sendrawtransaction $CUST_CLOSE_CLAIM
-# assert "STATUS: " 0 $?
+log_test "4. broadcast merch-claim from merch-close-tx (after timeout)"
+btcctl --simnet --rpcuser=kek --rpcpass=kek sendrawtransaction $MERCH_CLAIM_FROM_MERCH
+assert "STATUS: " 0 $?
