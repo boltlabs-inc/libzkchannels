@@ -701,8 +701,8 @@ mod cust {
 
         // get the cust-sig on the merch-close-tx
         let cust_sig = handle_error_result!(customer_sign_merch_close_transaction(
-            cust_sk.clone(),
-            merch_tx_preimage
+            &cust_sk,
+            &merch_tx_preimage
         ));
 
         let init_cust_state = handle_error_result!(cust_state.get_initial_cust_state());

@@ -2431,7 +2431,7 @@ mod tests {
     }
 
     // establish the funding tx and sign initial closing tx
-    fn establish_funding_tx_helper(
+    fn establish_init_cust_close_tx_helper(
         funding_tx: &FundingTxInfo,
         channel_state: &mpc::ChannelMPCState,
         channel_token: &mut mpc::ChannelMPCToken,
@@ -2444,14 +2444,14 @@ mod tests {
             .unwrap();
         let pubkeys = cust_state.get_pubkeys(&channel_state, &channel_token);
 
-        // merchant signs and returns initial close sigs to customer
         let to_self_delay_be = channel_state.get_self_delay_be();
+        // merchant signs and returns initial close sigs to customer
         let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(
             funding_tx.clone(),
             pubkeys.rev_lock.0,
             pubkeys.cust_pk,
             pubkeys.cust_close_pk,
-            to_self_delay_be,
+            to_self_delay_be.clone(),
             fee_cc,
         );
 
@@ -2465,6 +2465,68 @@ mod tests {
             &merch_sig,
         );
         assert!(got_close_tx.is_ok(), got_close_tx.err().unwrap());
+    }
+
+    // establish the init merch-close-tx
+    fn establish_merch_close_tx_helper(
+        funding_tx_info: &mut FundingTxInfo,
+        channel_state: &mpc::ChannelMPCState,
+        channel_token: &mpc::ChannelMPCToken,
+        cust_bal: i64,
+        merch_bal: i64,
+        cust_state: &mut mpc::CustomerMPCState,
+        merch_state: &mut mpc::MerchantMPCState,
+        fee_mc: i64,
+    ) {
+        let escrow_txid_be = funding_tx_info.escrow_txid.0.clone();
+        println!("fake escrow txid: {}", hex::encode(&escrow_txid_be));
+        let to_self_delay_be = channel_state.get_self_delay_be();
+        let pubkeys = cust_state.get_pubkeys(&channel_state, &channel_token);
+        let cust_sk = cust_state.get_close_secret_key();
+        println!("cust sk: {}", hex::encode(&cust_sk));
+
+        let (merch_tx_preimage, tx_params) =
+            zkchan_tx::transactions::btc::merchant_form_close_transaction::<Testnet>(
+                escrow_txid_be.to_vec(),
+                pubkeys.cust_pk.clone(),
+                pubkeys.merch_pk.clone(),
+                pubkeys.merch_close_pk.clone(),
+                cust_bal,
+                merch_bal,
+                fee_mc,
+                util::VAL_CPFP,
+                to_self_delay_be.clone(),
+            )
+            .unwrap();
+
+        // set the funding_tx_info structure
+        let (merch_txid_be, prevout) =
+            zkchan_tx::txutil::merchant_generate_transaction_id(tx_params).unwrap();
+        funding_tx_info.merch_txid = FixedSizeArray32(merch_txid_be);
+        funding_tx_info.merch_prevout = FixedSizeArray32(prevout);
+
+        // generate merch-close tx
+        let cust_sig =
+            zkchan_tx::txutil::customer_sign_merch_close_transaction(&cust_sk, &merch_tx_preimage)
+                .unwrap();
+
+        let _is_ok = zkchan_tx::txutil::merchant_verify_merch_close_transaction(
+            &merch_tx_preimage,
+            &cust_sig,
+            &pubkeys.cust_pk,
+        )
+        .unwrap();
+
+        // store the signature for merch-close-tx
+        merch_state.store_merch_close_tx(
+            &escrow_txid_be.to_vec(),
+            &pubkeys.cust_pk,
+            cust_bal,
+            merch_bal,
+            fee_mc,
+            to_self_delay_be,
+            &cust_sig,
+        );
     }
 
     // validate the initial state of the channel
@@ -2577,7 +2639,8 @@ mod tests {
         // create funding txs
         let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch, fee_mc);
 
-        establish_funding_tx_helper(
+        // customer obtains signatures on initial closing tx
+        establish_init_cust_close_tx_helper(
             &funding_tx_info,
             &channel_state,
             &mut channel_token,
@@ -2625,10 +2688,23 @@ mod tests {
         let (channel_state, mut channel_token, mut cust_state, mut merch_state) =
             setup_new_zkchannel_helper(rng, b0_cust, b0_merch, fee_cc, fee_mc);
 
-        // create funding txs
-        let funding_tx_info = generate_funding_tx(rng, b0_cust, b0_merch, fee_mc);
+        // generate random funding tx for testing
+        let mut funding_tx_info = generate_funding_tx(rng, b0_cust, b0_merch, fee_mc);
 
-        establish_funding_tx_helper(
+        // customer and merchant jointly sign merch-close-tx
+        establish_merch_close_tx_helper(
+            &mut funding_tx_info,
+            &channel_state,
+            &channel_token,
+            b0_cust,
+            b0_merch,
+            &mut cust_state,
+            &mut merch_state,
+            fee_mc,
+        );
+
+        // customer obtains signatures on initial closing tx
+        establish_init_cust_close_tx_helper(
             &funding_tx_info,
             &channel_state,
             &mut channel_token,
@@ -2928,11 +3004,22 @@ mod tests {
         );
 
         // customer initiates close tx
-        let (signed_tx, txid_be, txid_le) =
+        let (_cust_close_signed_tx, _close_txid_be, _close_txid_le) =
             mpc::force_customer_close(&channel_state, &channel_token, true, &mut cust_state)
                 .unwrap();
 
         assert!(cust_state.close_status == ChannelCloseStatus::CustomerInit);
+
+        let mut escrow_txid_be = channel_token.escrow_txid.0.clone(); // originally in LE
+        escrow_txid_be.reverse();
+        let (_merch_close_signed_tx, _merch_txid_be, _merch_txid_le) =
+            mpc::force_merchant_close(&escrow_txid_be.to_vec(), &mut merch_state).unwrap();
+        assert!(
+            merch_state
+                .get_channel_close_status(escrow_txid_be)
+                .unwrap()
+                == ChannelCloseStatus::MerchantInit
+        );
     }
 
     #[test]

@@ -1519,6 +1519,24 @@ impl MerchantMPCState {
         Ok((signed_merch_close_tx, txid_be.to_vec(), txid_le))
     }
 
+    pub fn get_channel_close_status(
+        &self,
+        escrow_txid: [u8; 32],
+    ) -> Result<ChannelCloseStatus, String> {
+        let escrow_txid = FixedSizeArray32(escrow_txid);
+        let m = match self.close_tx.get(&escrow_txid) {
+            Some(t) => t,
+            None => {
+                return Err(format!(
+                    "could not find merch_close_tx for escrow_txid: {}",
+                    hex::encode(escrow_txid.0)
+                ));
+            }
+        };
+
+        Ok(m.close_status.clone())
+    }
+
     pub fn get_circuit_file(&self) -> *mut c_void {
         // Box<Circuit>
         let using_ag2pc = match env::var("AG2PC") {

@@ -1202,8 +1202,8 @@ pub mod ffishim_mpc {
         let merch_tx_preimage = handle_errors!(tx_preimage_result);
 
         let cust_sig = handle_errors!(zkchan_tx::txutil::customer_sign_merch_close_transaction(
-            cust_sk,
-            merch_tx_preimage
+            &cust_sk,
+            &merch_tx_preimage
         ));
         let ser = ["{\'cust_sig\':\'", &hex::encode(cust_sig), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
@@ -1273,6 +1273,10 @@ pub mod ffishim_mpc {
                 fee_mc,
                 self_delay_be,
                 &cust_sig,
+            );
+        } else {
+            return error_message(
+                "could not validate customer signature on the merch-close-tx".to_string(),
             );
         }
 

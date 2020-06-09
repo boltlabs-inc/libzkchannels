@@ -43,6 +43,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 
 	fix_customer_wallet := os.Getenv("FIX_CUSTOMER_WALLET")
 	if fix_customer_wallet != "" {
+		fmt.Println("Loading an external wallet...")
 		skC := "1a1971e1379beec67178509e25b6772c66cb67bb04d70df2b4bcdb8c08a01827"
 		payoutSk := "4157697b6428532758a9d0f9a73ce58befe3fd665797427d1c5bb3d33f6a132e"
 		channelToken, custState, err = LoadCustomerWallet(custState, channelToken, skC, payoutSk)
@@ -77,14 +78,15 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("merchClosePk :=> ", merchClosePk)
 
 	outputSats := custBal + merchBal
-	escrowTxid_BE, escrowTxid_LE, escrowPrevout, err := FormEscrowTx(cust_utxo_txid, 0, custSk, inputSats, outputSats, custPk, merchPk, changePk, false)
+	// escrowTxid_BE, escrowTxid_LE, escrowPrevout, err := FormEscrowTx(cust_utxo_txid, 0, custSk, inputSats, outputSats, custPk, merchPk, changePk, false)
 
-	signedEscrowTx, _, _, _, err := SignEscrowTx(cust_utxo_txid, 0, custInputSk, inputSats, outputSats, custPk, merchPk, changePk, false)
+	signedEscrowTx, escrowTxid_BE, escrowTxid_LE, escrowPrevout, err := SignEscrowTx(cust_utxo_txid, 0, custInputSk, inputSats, outputSats, custPk, merchPk, changePk, false)
 
 	assert.Nil(t, err)
 
 	fmt.Println("========================================")
 	fmt.Println("escrow txid (LE) => ", escrowTxid_LE)
+	fmt.Println("escrow txid (BE) => ", escrowTxid_BE)
 	fmt.Println("escrow prevout => ", escrowPrevout)
 	fmt.Println("TX1: signedEscrowTx => ", signedEscrowTx)
 	fmt.Println("========================================")
