@@ -2384,7 +2384,7 @@ mod tests {
             let max_fee = 10000;
             let fee_mc = 1000;
             let amount = 1000;
-            let (mut channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, b0_cust, b0_merch, fee_cc, min_fee, max_fee, fee_mc, "Alice", &channel_state);
+            let (mut channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, b0_cust, b0_merch, fee_cc, min_fee, max_fee, fee_mc, channel_state.get_bal_min_cust(), channel_state.get_bal_min_merch(), channel_state.get_val_cpfp(), "Alice");
 
             let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch, fee_mc);
 

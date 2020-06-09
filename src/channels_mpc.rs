@@ -722,7 +722,7 @@ impl CustomerMPCState {
     ) {
         let fee_mc = self.get_current_state().fee_mc;
         let escrow_init_balance = self.cust_balance + self.merch_balance;
-        let merch_init_balance = escrow_init_balance - util::VAL_CPFP - fee_mc;
+        let merch_init_balance = escrow_init_balance - channel_state.get_val_cpfp() - fee_mc;
         let escrow_index = 0;
         let merch_index = 0;
         let to_self_delay_be: [u8; 2] = channel_state.get_self_delay_be(); // big-endian format
@@ -1406,7 +1406,7 @@ impl MerchantMPCState {
         val_cpfp: i64,
     ) -> (Vec<u8>, Vec<u8>) {
         let escrow_init_balance = funding_tx.init_cust_bal + funding_tx.init_merch_bal;
-        let merch_init_balance = escrow_init_balance - util::VAL_CPFP - funding_tx.fee_mc;
+        let merch_init_balance = escrow_init_balance - val_cpfp - funding_tx.fee_mc;
         let escrow_index = 0;
         let merch_index = 0;
         let mut escrow_txid_le = funding_tx.escrow_txid.0.clone();
