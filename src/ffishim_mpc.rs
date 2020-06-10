@@ -226,6 +226,7 @@ pub mod ffishim_mpc {
 
     #[no_mangle]
     pub extern "C" fn mpc_init_customer(
+        ser_channel_state: *mut c_char,
         ser_merch_pk: *mut c_char,
         cust_bal: i64,
         merch_bal: i64,
@@ -233,12 +234,14 @@ pub mod ffishim_mpc {
         min_fee: i64,
         max_fee: i64,
         fee_mc: i64,
-        bal_min_cust: i64,
-        bal_min_merch: i64,
-        val_cpfp: i64,
         name_ptr: *const c_char,
     ) -> *mut c_char {
         let rng = &mut rand::thread_rng();
+
+        // Deserialize the channel_state
+        let channel_state_result: ResultSerdeType<ChannelMPCState> =
+            deserialize_result_object(ser_channel_state);
+        let channel_state = handle_errors!(channel_state_result);
 
         // Deserialize the pk_m
         let merch_pk_result = deserialize_hex_string(ser_merch_pk);
@@ -252,6 +255,7 @@ pub mod ffishim_mpc {
         // We change the channel state
         let (channel_token, cust_state) = mpc::init_customer(
             rng,
+            &channel_state,
             &pk_m,
             cust_bal,
             merch_bal,
@@ -259,9 +263,6 @@ pub mod ffishim_mpc {
             min_fee,
             max_fee,
             fee_mc,
-            bal_min_cust,
-            bal_min_merch,
-            val_cpfp,
             name,
         );
         let ser = [

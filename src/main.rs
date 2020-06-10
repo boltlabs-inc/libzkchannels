@@ -597,6 +597,7 @@ mod cust {
 
         let (channel_token, cust_state) = mpc::init_customer(
             rng,
+            &channel_state,
             &pk_m,
             b0_cust,
             b0_merch,
@@ -604,9 +605,6 @@ mod cust {
             min_fee,
             max_fee,
             fee_mc,
-            channel_state.get_bal_min_cust(),
-            channel_state.get_bal_min_merch(),
-            channel_state.get_val_cpfp(),
             channel_name.as_str(),
         );
 

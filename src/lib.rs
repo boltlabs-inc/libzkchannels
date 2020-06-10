@@ -912,6 +912,7 @@ pub mod mpc {
     ///
     pub fn init_customer<'a, R: Rng>(
         csprng: &mut R,
+        channel_state: &ChannelMPCState,
         pk_m: &PublicKey,
         b0_cust: i64,
         b0_merch: i64,
@@ -919,13 +920,13 @@ pub mod mpc {
         min_fee: i64,
         max_fee: i64,
         fee_mc: i64,
-        bal_min_cust: i64,
-        bal_min_merch: i64,
-        val_cpfp: i64,
         name: &str,
-    ) -> (ChannelMPCToken, CustomerMPCState) {
+    ) -> (ChannelMPCToken, CustomerMPCState) {        
         assert!(b0_cust > 0);
         assert!(b0_merch >= 0);
+        let bal_min_cust = channel_state.get_bal_min_cust();
+        let bal_min_merch = channel_state.get_bal_min_merch();
+        let val_cpfp = channel_state.get_val_cpfp();
 
         let b0_cust = match b0_merch {
             0 => b0_cust - bal_min_cust - fee_mc - val_cpfp,
@@ -2088,6 +2089,7 @@ mod tests {
         // init customer
         let (mut channel_token, mut cust_state) = mpc::init_customer(
             rng,
+            &channel_state,
             &merch_state.pk_m,
             b0_cust,
             b0_merch,
@@ -2095,9 +2097,6 @@ mod tests {
             min_fee,
             max_fee,
             fee_mc,
-            channel_state.get_bal_min_cust(),
-            channel_state.get_bal_min_merch(),
-            channel_state.get_val_cpfp(),
             "Alice",
         );
 
@@ -2231,6 +2230,7 @@ mod tests {
         // init customer
         let (channel_token, cust_state) = mpc::init_customer(
             rng,
+            &channel_state,
             &merch_state.pk_m,
             b0_cust,
             b0_merch,
@@ -2238,9 +2238,6 @@ mod tests {
             min_fee,
             max_fee,
             fee_mc,
-            channel_state.get_bal_min_cust(),
-            channel_state.get_bal_min_merch(),
-            channel_state.get_val_cpfp(),
             "Alice",
         );
 
@@ -2255,7 +2252,7 @@ mod tests {
 
         let min_threshold = 546;
         let val_cpfp = 1000;
-        let mut channel = mpc::ChannelMPCState::new(
+        let mut channel_state = mpc::ChannelMPCState::new(
             String::from("Channel A -> B"),
             1487,
             min_threshold,
@@ -2264,7 +2261,7 @@ mod tests {
             false,
         );
 
-        let mut merch_state = mpc::init_merchant(&mut rng, "".to_string(), &mut channel, "Bob");
+        let mut merch_state = mpc::init_merchant(&mut rng, "".to_string(), &mut channel_state, "Bob");
 
         let b0_cust = 100000;
         let b0_merch = 100000;
@@ -2276,6 +2273,7 @@ mod tests {
 
         let (mut channel_token, mut cust_state) = mpc::init_customer(
             &mut rng,
+            &channel_state,
             &merch_state.pk_m,
             b0_cust,
             b0_merch,
@@ -2283,9 +2281,6 @@ mod tests {
             min_fee,
             max_fee,
             fee_mc,
-            channel.get_bal_min_cust(),
-            channel.get_bal_min_merch(),
-            channel.get_val_cpfp(),
             "Alice",
         );
 
@@ -2322,12 +2317,12 @@ mod tests {
         mpc::activate_customer_finalize(pay_token, &mut cust_state).unwrap();
 
         let (_new_state, revoked_state, rev_lock_com, session_id) =
-            mpc::pay_prepare_customer(&mut rng, &channel, amount, &mut cust_state).unwrap();
+            mpc::pay_prepare_customer(&mut rng, &channel_state, amount, &mut cust_state).unwrap();
 
         let pay_mask_com = mpc::pay_prepare_merchant(
             &mut rng,
             &mut db as &mut dyn StateDatabase,
-            &channel,
+            &channel_state,
             session_id,
             s0.get_nonce(),
             rev_lock_com.clone(),
@@ -2340,7 +2335,7 @@ mod tests {
         let res_merch = mpc::pay_update_merchant(
             &mut rng,
             &mut db as &mut dyn StateDatabase,
-            &channel,
+            &channel_state,
             session_id,
             pay_mask_com,
             &mut merch_state,
@@ -2402,7 +2397,7 @@ mod tests {
             let max_fee = 10000;
             let fee_mc = 1000;
             let amount = 1000;
-            let (mut channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, b0_cust, b0_merch, fee_cc, min_fee, max_fee, fee_mc, channel_state.get_bal_min_cust(), channel_state.get_bal_min_merch(), channel_state.get_val_cpfp(), "Alice");
+            let (mut channel_token, mut cust_state) = mpc::init_customer(&mut rng, &channel_state, &merch_state.pk_m, b0_cust, b0_merch, fee_cc, min_fee, max_fee, fee_mc, "Alice");
 
             let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch, fee_mc);
 

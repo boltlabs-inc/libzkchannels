@@ -238,10 +238,14 @@ func LoadMerchantWallet(merchState MerchState, channelState ChannelState, skC st
 	return channelState, merchState, err
 }
 
-func InitCustomer(pkM string, custBal int64, merchBal int64, feeCC int64, minFee int64, maxFee int64, feeMC int64, balMinCust int64, balMinMerch int64, valCpfp int64, name string) (ChannelToken, CustState, error) {
-	resp := C.GoString(C.mpc_init_customer(C.CString(pkM), C.int64_t(custBal),
+func InitCustomer(channelState ChannelState, pkM string, custBal int64, merchBal int64, feeCC int64, minFee int64, maxFee int64, feeMC int64, name string) (ChannelToken, CustState, error) {
+	serChannelState, err := json.Marshal(channelState)
+	if err != nil {
+		return ChannelToken{}, CustState{}, err
+	}
+
+	resp := C.GoString(C.mpc_init_customer(C.CString(string(serChannelState)), C.CString(pkM), C.int64_t(custBal),
 		C.int64_t(merchBal), C.int64_t(feeCC), C.int64_t(minFee), C.int64_t(maxFee), C.int64_t(feeMC),
-		C.int64_t(balMinCust), C.int64_t(balMinMerch), C.int64_t(valCpfp),
 		C.CString(name)))
 	r, err := processCResponse(resp)
 	if err != nil {

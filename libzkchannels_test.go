@@ -54,8 +54,9 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	minFee := int64(0)
 	maxFee := int64(10000)
 	feeMC := int64(1000)
+	merchPKM := fmt.Sprintf("%v", *merchState.PkM)
 
-	channelToken, custState, err := InitCustomer(fmt.Sprintf("%v", *merchState.PkM), custBal, merchBal, feeCC, minFee, maxFee, feeMC, channelState.BalMinCust, channelState.BalMinMerch, channelState.ValCpfp, "cust")
+	channelToken, custState, err := InitCustomer(channelState, merchPKM, custBal, merchBal, feeCC, minFee, maxFee, feeMC, "cust")
 	assert.Nil(t, err)
 
 	fix_customer_wallet := os.Getenv("FIX_CUSTOMER_WALLET")

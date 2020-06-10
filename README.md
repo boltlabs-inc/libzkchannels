@@ -130,12 +130,14 @@ We now describe the high-level protocol API implemented in module `zkchannels::m
 
 	let cust_bal = 10000;
 	let merch_bal = 100;
+	let fee_cc = 1000;
+	let fee_mc = 1000;
 
 	// merchant initializes state for all channels it will open with customers
 	let mut merch_state = mpc::init_merchant(&mut rng, &mut channel_state, "Bob");
 
 	// customer initializes state for channel with initial balances
-	let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, cust_bal, merch_bal, "Alice");
+	let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &channel_state, &merch_state.pk_m, cust_bal, merch_bal, "Alice");
 
 	// form all the transactions using tx builder: <escrow-tx> and <merch-close-tx>
 
@@ -159,7 +161,7 @@ We now describe the high-level protocol API implemented in module `zkchannels::m
 	let old_state = mpc::activate_customer(&mut rng, &mut cust_state);
 
 	// merchant returns an initial pay token for channel
-	let pay_token = mpc::activate_merchant(channel_token, &old_state, &mut merch_state);
+	let pay_token = mpc::activate_merchant(&mut db, channel_token, &old_state, &mut merch_state);
 
 	// customer stores the initial pay token
 	mpc::activate_customer_finalize(pay_token, &mut cust_state);
@@ -171,8 +173,7 @@ We now describe the high-level protocol API implemented in module `zkchannels::m
 Prepare/Update State phase
 
 	// customer prepares payment by generating a new state, new revocation lock and secret
-	let (state, revoked_state, session_id) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, 10, &mut cust_state).unwrap();
-	let rev_lock_com = revoked_state.get_rev_lock_com();
+	let (new_state, rev_state, rev_lock_com, session_id) = mpc::pay_prepare_customer(&mut rng, &mut channel_state, 10, &mut cust_state).unwrap();
 
 	// merchant generates a pay token mask and return a commitment to the customer
 	let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, channel_state, session_id, old_state.get_nonce(), rev_lock_com, 10, &mut merch_state).unwrap();
@@ -180,12 +181,13 @@ Prepare/Update State phase
 Now proceed with executing the MPC if successful
 
 	// customer executes mpc protocol with old/new state, pay mask commitment, rev lock commitment and payment amount
-	let ok_cust = mpc::pay_update_customer(&mut channel_state, &channel_token, old_state, new_state, pay_mask_com, rev_lock_com, 10, &mut cust_state);
+	let mpc_ok = mpc::pay_update_customer(&mut channel_state, &channel_token, old_state, new_state, fee_cc, pay_mask_com, rev_lock_com, 10, &mut cust_state);
 
 	// merchant executes mpc protocol with customer nonce, pay mask commitment, rev lock commitment and payment amount
-	let ok_merch = mpc::pay_update_merchant(&mut rng, &mut channel_state, session_id, pay_mask_com, &mut merch_state);
+	mpc::pay_update_merchant(&mut rng, &mut channel_state, session_id, pay_mask_com, &mut merch_state);
 
 	// customer sends success/error back to merchant if the customer obtains 3 masked outputs for both closing transactions and pay token
+	let is_ok = mpc::pay_confirm_mpc_result(&mut rng, &mut db, mpc_ok, &merch_state)
 
 Unmask/Revoke phase
 
@@ -194,7 +196,7 @@ Unmask/Revoke phase
 	let is_ok = mpc::pay_unmask_sigs_customer(masks, &mut cust_state);
 
 	// merchant verifies that revoked message on the previous state if unmasking was successful
-	let (pt_mask, pt_mask_r) = mpc::pay_validate_rev_lock_merchant(revoked_state, &mut merch_state).unwrap();
+	let (pt_mask, pt_mask_r) = mpc::pay_validate_rev_lock_merchant(session_id, revoked_state, &mut merch_state).unwrap();
 
 	// customer unmasks the pay token and checks validity of pay-token mask commitment opening
 	let is_ok = mpc::pay_unmask_pay_token_customer(pt_mask, pt_mask_r, &mut cust_state);
@@ -204,13 +206,13 @@ Unmask/Revoke phase
 Merchant can initiate channel closing with a signed *merch-close-tx* that pays full channel balance to a timelocked multi-sig:
 
 	// merchant signs the merch-close-tx for the channel and combines with customer signature
-	let (merch_signed_tx, txid) = mpc::force_merchant_close(&escrow_txid, &mut merch_state).unwrap();
+	let (merch_signed_tx, txidbe, txidle) = mpc::force_merchant_close(&escrow_txid, &mut merch_state).unwrap();
 
 Customer can similarly initiate channel closing with a signed *cust-close-tx* of current balances spending from *escrow-tx* (or *merch-close-tx*):
 
 	// customer signs the current state of channel and combines with escrow signature (if spending from <escrow-tx>)
 	let from_escrow = true;
-	let (cust_signed_tx, txid) = mpc::force_customer_close(&channel_state, &channel_token, from_escrow, &mut cust_state).unwrap();
+	let (cust_signed_tx, txidbe, txidle) = mpc::force_customer_close(&channel_state, &channel_token, from_escrow, &mut cust_state).unwrap();
 
 ### 1.3 Build MPC with Malicious Security 
 
