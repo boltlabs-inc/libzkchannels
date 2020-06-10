@@ -971,12 +971,12 @@ mod tests {
         let escrow_tx_ar = Sha256::digest(&Sha256::digest(escrow_preimage.as_slice()));
         let escrow_tx = Message::from_slice(escrow_tx_ar.as_slice()).unwrap();
         // the merch preimage is: "020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000007263522103f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd2103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae6702cf05b2752102f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90ac68400d030000000000ffffffffcb618c017ebbe60597107dbb2060df80bbbb03b8b3ea19d0dbf5f3553d55d4a10000000001000000"
-        let merch_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000007263522103f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd2103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae6702cf05b2752102f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90ac68400d030000000000ffffffffcb618c017ebbe60597107dbb2060df80bbbb03b8b3ea19d0dbf5f3553d55d4a10000000001000000").unwrap();
+        let merch_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000007263522103f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd2103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae6702cf05b2752102f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90ac687c03030000000000ffffffffcb618c017ebbe60597107dbb2060df80bbbb03b8b3ea19d0dbf5f3553d55d4a10000000001000000").unwrap();
         let merch_tx_ar = Sha256::digest(&Sha256::digest(merch_preimage.as_slice()));
         let merch_tx = Message::from_slice(merch_tx_ar.as_slice()).unwrap();
 
         // automatically generate the escrow_preimage
-        let input2 = create_reverse_input(&tx_id_merch, 0, new_state.bc + new_state.bm);
+        let input2 = create_reverse_input(&tx_id_merch, 0, new_state.bc + new_state.bm - val_cpfp - new_state.fee_mc);
         let (m_tx_preimage, _, _) = create_cust_close_transaction::<Testnet>(
             &input2,
             &pubkeys,
