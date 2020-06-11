@@ -865,9 +865,6 @@ pub mod wtp_utils {
 pub struct FundingTxInfo {
     pub init_cust_bal: i64,
     pub init_merch_bal: i64,
-    pub min_fee: i64,
-    pub max_fee: i64,
-    pub fee_mc: i64,
     pub escrow_txid: FixedSizeArray32,
     pub escrow_prevout: FixedSizeArray32,
     pub merch_txid: FixedSizeArray32,
@@ -877,7 +874,7 @@ pub struct FundingTxInfo {
 pub mod mpc {
     use bindings::ConnType_NETIO;
     pub use channels_mpc::{
-        ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState, RevokedState,
+        ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState, RevokedState, TransactionFeeInfo,
     };
     pub use channels_mpc::{ChannelStatus, InitCustState, NetworkConfig, PaymentStatus};
     use database::{MaskedTxMPCInputs, StateDatabase};
@@ -912,21 +909,21 @@ pub mod mpc {
     ///
     pub fn init_customer<'a, R: Rng>(
         csprng: &mut R,
-        channel_state: &ChannelMPCState,
         pk_m: &PublicKey,
         b0_cust: i64,
         b0_merch: i64,
-        fee_cc: i64,
-        min_fee: i64,
-        max_fee: i64,
-        fee_mc: i64,
+        tx_fee_info: &TransactionFeeInfo,
         name: &str,
     ) -> (ChannelMPCToken, CustomerMPCState) {        
         assert!(b0_cust > 0);
         assert!(b0_merch >= 0);
-        let bal_min_cust = channel_state.get_bal_min_cust();
-        let bal_min_merch = channel_state.get_bal_min_merch();
-        let val_cpfp = channel_state.get_val_cpfp();
+        let bal_min_cust = tx_fee_info.bal_min_cust;
+        let bal_min_merch = tx_fee_info.bal_min_merch;
+        let val_cpfp = tx_fee_info.val_cpfp;
+        let fee_cc = tx_fee_info.fee_cc;
+        let fee_mc = tx_fee_info.fee_mc;
+        let min_fee = tx_fee_info.min_fee;
+        let max_fee = tx_fee_info.max_fee;
 
         let b0_cust = match b0_merch {
             0 => b0_cust - bal_min_cust - fee_mc - val_cpfp,
@@ -1125,7 +1122,6 @@ pub mod mpc {
         channel_token: &ChannelMPCToken,
         s0: State,
         s1: State,
-        fee_cc: i64,
         pay_token_mask_com: [u8; 32],
         rev_lock_com: [u8; 32],
         amount: i64,
@@ -1152,7 +1148,6 @@ pub mod mpc {
                 &channel_token,
                 s0,
                 s1,
-                fee_cc,
                 pay_token_mask_com,
                 rev_lock_com,
                 amount,
@@ -2086,22 +2081,28 @@ mod tests {
         let b0_cust = 10000;
         let b0_merch = 10000;
 
+        let tx_fee_info = mpc::TransactionFeeInfo {
+            bal_min_cust: min_threshold,
+            bal_min_merch: min_threshold,
+            val_cpfp: val_cpfp,
+            fee_cc: fee_cc,
+            fee_mc: fee_mc,
+            min_fee: min_fee,
+            max_fee: max_fee
+        };
+
         // init customer
         let (mut channel_token, mut cust_state) = mpc::init_customer(
             rng,
-            &channel_state,
             &merch_state.pk_m,
             b0_cust,
             b0_merch,
-            fee_cc,
-            min_fee,
-            max_fee,
-            fee_mc,
+            &tx_fee_info,
             "Alice",
         );
 
         // form all of the escrow and merch-close-tx transactions
-        let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch, fee_mc);
+        let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch);
 
         // form and sign the cust-close-from-escrow-tx and from-merch-close-tx
         let pubkeys = cust_state.get_pubkeys(&channel_state, &channel_token);
@@ -2115,10 +2116,11 @@ mod tests {
             pubkeys.cust_close_pk,
             to_self_delay_be,
             fee_cc,
+            fee_mc,
             channel_state.get_val_cpfp(),
         );
 
-        let res1 = cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info);
+        let res1 = cust_state.set_initial_cust_state(&mut channel_token, &funding_tx_info, &tx_fee_info);
         assert!(res1.is_ok(), res1.err().unwrap());
 
         let got_close_tx = cust_state.sign_initial_closing_transaction::<Testnet>(
@@ -2160,7 +2162,6 @@ mod tests {
         csprng: &mut R,
         b0_cust: i64,
         b0_merch: i64,
-        fee_mc: i64,
     ) -> FundingTxInfo {
         let mut escrow_txid = [0u8; 32];
         let mut merch_txid = [0u8; 32];
@@ -2190,9 +2191,6 @@ mod tests {
             merch_txid: FixedSizeArray32(merch_txid),
             escrow_prevout: FixedSizeArray32(escrow_prevout),
             merch_prevout: FixedSizeArray32(merch_prevout),
-            fee_mc: fee_mc,
-            min_fee: 0,
-            max_fee: 10000,
         };
     }
 
@@ -2200,8 +2198,7 @@ mod tests {
         rng: &mut R,
         cust_bal: i64,
         merch_bal: i64,
-        fee_cc: i64,
-        fee_mc: i64,
+        tx_fee_info: &mpc::TransactionFeeInfo
     ) -> (
         mpc::ChannelMPCState,
         mpc::ChannelMPCToken,
@@ -2209,35 +2206,26 @@ mod tests {
         mpc::MerchantMPCState,
     ) {
         // init channel state
-        let min_threshold = 546;
-        let val_cpfp = 1000;
         let mut channel_state = mpc::ChannelMPCState::new(
             String::from("Channel A -> B"),
             1487,
-            min_threshold,
-            min_threshold,
-            val_cpfp,
+            tx_fee_info.bal_min_cust,
+            tx_fee_info.bal_min_merch,
+            tx_fee_info.val_cpfp,
             false,
         );
         // init merchant
         let merch_state = mpc::init_merchant(rng, "".to_string(), &mut channel_state, "Bob");
 
-        let min_fee = 0;
-        let max_fee = 10000;
         let b0_cust = cust_bal;
         let b0_merch = merch_bal;
-
         // init customer
         let (channel_token, cust_state) = mpc::init_customer(
             rng,
-            &channel_state,
             &merch_state.pk_m,
             b0_cust,
             b0_merch,
-            fee_cc,
-            min_fee,
-            max_fee,
-            fee_mc,
+            tx_fee_info,
             "Alice",
         );
 
@@ -2270,24 +2258,29 @@ mod tests {
         let max_fee = 10000;
         let fee_mc = 1000;
         let amount = 1000;
+        let tx_fee_info = mpc::TransactionFeeInfo {
+            bal_min_cust: min_threshold,
+            bal_min_merch: min_threshold,
+            val_cpfp: val_cpfp,
+            fee_cc: fee_cc,
+            fee_mc: fee_mc,
+            min_fee: min_fee,
+            max_fee: max_fee
+        };
 
         let (mut channel_token, mut cust_state) = mpc::init_customer(
             &mut rng,
-            &channel_state,
             &merch_state.pk_m,
             b0_cust,
             b0_merch,
-            fee_cc,
-            min_fee,
-            max_fee,
-            fee_mc,
+            &tx_fee_info,
             "Alice",
         );
 
-        let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch, fee_mc);
+        let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch);
 
         cust_state
-            .set_funding_tx_info(&mut channel_token, &funding_tx_info)
+            .set_initial_cust_state(&mut channel_token, &funding_tx_info, &tx_fee_info)
             .unwrap();
 
         let (init_cust_state, init_hash) = mpc::get_initial_state(&cust_state).unwrap();
@@ -2397,11 +2390,21 @@ mod tests {
             let max_fee = 10000;
             let fee_mc = 1000;
             let amount = 1000;
-            let (mut channel_token, mut cust_state) = mpc::init_customer(&mut rng, &channel_state, &merch_state.pk_m, b0_cust, b0_merch, fee_cc, min_fee, max_fee, fee_mc, "Alice");
+            let tx_fee_info = mpc::TransactionFeeInfo {
+                bal_min_cust: min_threshold,
+                bal_min_merch: min_threshold,
+                val_cpfp: val_cpfp,
+                fee_cc: fee_cc,
+                fee_mc: fee_mc,
+                min_fee: min_fee,
+                max_fee: max_fee
+            };
+    
+            let (mut channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, b0_cust, b0_merch, &tx_fee_info, "Alice");
 
-            let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch, fee_mc);
+            let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch);
 
-            cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info).unwrap();
+            cust_state.set_initial_cust_state(&mut channel_token, &funding_tx_info, &tx_fee_info).unwrap();
 
             let (init_cust_state, init_hash) = match mpc::get_initial_state(&cust_state) {
                 Ok(n) => (n.0, n.1),
@@ -2427,7 +2430,7 @@ mod tests {
 
             let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &mut db as &mut dyn StateDatabase, &channel_state, session_id, state.get_nonce(), rev_lock_com.clone(), amount, None, &mut merch_state).unwrap();
 
-            let res_cust = mpc::pay_update_customer(&channel_state, &channel_token, s0, state, fee_cc, pay_mask_com, rev_lock_com, amount, &mut cust_state);
+            let res_cust = mpc::pay_update_customer(&channel_state, &channel_token, s0, state, pay_mask_com, rev_lock_com, amount, &mut cust_state);
             assert!(res_cust.is_ok() && res_cust.unwrap());
 
             let mut escrow_mask = [0u8; 32];
@@ -2462,14 +2465,14 @@ mod tests {
     // establish the funding tx and sign initial closing tx
     fn establish_init_cust_close_tx_helper(
         funding_tx: &FundingTxInfo,
+        tx_fee_info: &mpc::TransactionFeeInfo,
         channel_state: &mpc::ChannelMPCState,
         channel_token: &mut mpc::ChannelMPCToken,
         cust_state: &mut mpc::CustomerMPCState,
         merch_state: &mut mpc::MerchantMPCState,
-        fee_cc: i64,
     ) {
         cust_state
-            .set_funding_tx_info(channel_token, funding_tx)
+            .set_initial_cust_state(channel_token, funding_tx, tx_fee_info)
             .unwrap();
         let pubkeys = cust_state.get_pubkeys(&channel_state, &channel_token);
 
@@ -2481,8 +2484,9 @@ mod tests {
             pubkeys.cust_pk,
             pubkeys.cust_close_pk,
             to_self_delay_be.clone(),
-            fee_cc,
-            channel_state.get_val_cpfp(),
+            tx_fee_info.fee_cc,
+            tx_fee_info.fee_mc,
+            tx_fee_info.val_cpfp,
         );
 
         assert!(cust_state.channel_status == ChannelStatus::Opened);
@@ -2509,11 +2513,9 @@ mod tests {
         fee_mc: i64,
     ) {
         let escrow_txid_be = funding_tx_info.escrow_txid.0.clone();
-        println!("fake escrow txid: {}", hex::encode(&escrow_txid_be));
         let to_self_delay_be = channel_state.get_self_delay_be();
         let pubkeys = cust_state.get_pubkeys(&channel_state, &channel_token);
         let cust_sk = cust_state.get_close_secret_key();
-        println!("cust sk: {}", hex::encode(&cust_sk));
 
         let (merch_tx_preimage, tx_params) =
             zkchan_tx::transactions::btc::merchant_form_close_transaction::<Testnet>(
@@ -2663,20 +2665,35 @@ mod tests {
         let b0_merch = 10000;
         let fee_cc = 1000;
         let fee_mc = 1000;
-        let (channel_state, mut channel_token, mut cust_state, mut merch_state) =
-            setup_new_zkchannel_helper(&mut rng, b0_cust, b0_merch, fee_cc, fee_mc);
+        let min_fee = 0;
+        let max_fee = 10000;
+        let min_threshold = 546; // dust limit
+        let val_cpfp = 1000;
+
+        let tx_fee_info = mpc::TransactionFeeInfo {
+            bal_min_cust: min_threshold,
+            bal_min_merch: min_threshold,
+            val_cpfp: val_cpfp,
+            fee_cc: fee_cc,
+            fee_mc: fee_mc,
+            min_fee: min_fee,
+            max_fee: max_fee
+        };
+
+    let (channel_state, mut channel_token, mut cust_state, mut merch_state) =
+            setup_new_zkchannel_helper(&mut rng, b0_cust, b0_merch, &tx_fee_info);
 
         // create funding txs
-        let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch, fee_mc);
+        let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch);
 
         // customer obtains signatures on initial closing tx
         establish_init_cust_close_tx_helper(
             &funding_tx_info,
+            &tx_fee_info,
             &channel_state,
             &mut channel_token,
             &mut cust_state,
             &mut merch_state,
-            fee_cc,
         );
 
         assert!(cust_state.channel_status == ChannelStatus::Initialized);
@@ -2705,7 +2722,7 @@ mod tests {
     fn zkchannel_full_establish_setup_helper<R: Rng>(
         rng: &mut R,
         db: &mut RedisDatabase,
-        fee_cc: i64,
+        tx_fee_info: &mpc::TransactionFeeInfo,
     ) -> (
         mpc::ChannelMPCState,
         mpc::ChannelMPCToken,
@@ -2714,12 +2731,12 @@ mod tests {
     ) {
         let b0_cust = 10000;
         let b0_merch = 10000;
-        let fee_mc = 1000;
+
         let (channel_state, mut channel_token, mut cust_state, mut merch_state) =
-            setup_new_zkchannel_helper(rng, b0_cust, b0_merch, fee_cc, fee_mc);
+            setup_new_zkchannel_helper(rng, b0_cust, b0_merch, &tx_fee_info);
 
         // generate random funding tx for testing
-        let mut funding_tx_info = generate_funding_tx(rng, b0_cust, b0_merch, fee_mc);
+        let mut funding_tx_info = generate_funding_tx(rng, b0_cust, b0_merch);
 
         // customer and merchant jointly sign merch-close-tx
         establish_merch_close_tx_helper(
@@ -2730,17 +2747,17 @@ mod tests {
             b0_merch,
             &mut cust_state,
             &mut merch_state,
-            fee_mc,
+            tx_fee_info.fee_mc,
         );
 
         // customer obtains signatures on initial closing tx
         establish_init_cust_close_tx_helper(
             &funding_tx_info,
+            tx_fee_info,
             &channel_state,
             &mut channel_token,
             &mut cust_state,
             &mut merch_state,
-            fee_cc,
         );
         assert!(cust_state.channel_status == ChannelStatus::Initialized);
 
@@ -2901,8 +2918,24 @@ mod tests {
 
         // full channel setup
         let fee_cc = 1000;
+        let fee_mc = 1000;
+        let min_fee = 0;
+        let max_fee = 10000;
+        let min_threshold = 546; // dust limit
+        let val_cpfp = 1000;
+
+        let tx_fee_info = mpc::TransactionFeeInfo {
+            bal_min_cust: min_threshold,
+            bal_min_merch: min_threshold,
+            val_cpfp: val_cpfp,
+            fee_cc: fee_cc,
+            fee_mc: fee_mc,
+            min_fee: min_fee,
+            max_fee: max_fee
+        };
+
         let (channel_state, channel_token, mut cust_state, mut merch_state) =
-            zkchannel_full_establish_setup_helper(&mut rng, &mut db, fee_cc);
+            zkchannel_full_establish_setup_helper(&mut rng, &mut db, &tx_fee_info);
 
         // UNLINK PROTOCOL
         let (session_id, cur_state, new_state, rev_state, rev_lock_com, pay_mask_com) =
@@ -2943,7 +2976,6 @@ mod tests {
             &channel_token,
             cur_state,
             new_state,
-            fee_cc,
             pay_mask_com,
             rev_lock_com,
             0,
@@ -3004,7 +3036,6 @@ mod tests {
             &channel_token,
             cur_state1,
             new_state1,
-            fee_cc,
             pay_mask_com1,
             rev_lock_com1,
             200,
@@ -3064,8 +3095,24 @@ mod tests {
 
         // full channel setup
         let fee_cc = 1000;
+        let fee_mc = 1000;
+        let min_fee = 0;
+        let max_fee = 10000;
+        let min_threshold = 546; // dust limit
+        let val_cpfp = 1000;
+        let tx_fee_info = mpc::TransactionFeeInfo {
+            bal_min_cust: min_threshold,
+            bal_min_merch: min_threshold,
+            val_cpfp: val_cpfp,
+            fee_cc: fee_cc,
+            fee_mc: fee_mc,
+            min_fee: min_fee,
+            max_fee: max_fee
+        };
+
+
         let (channel_state, channel_token, mut cust_state, mut merch_state) =
-            zkchannel_full_establish_setup_helper(&mut rng, &mut db, fee_cc);
+            zkchannel_full_establish_setup_helper(&mut rng, &mut db, &tx_fee_info);
 
         // UNLINK PROTOCOL
         let (session_id, cur_state, new_state, _rev_state, rev_lock_com, pay_mask_com) =
@@ -3106,7 +3153,6 @@ mod tests {
             &channel_token,
             cur_state,
             new_state,
-            fee_cc,
             [11u8; 32], // bad pay-token-mask commitment
             rev_lock_com,
             0,

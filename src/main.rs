@@ -89,14 +89,20 @@ pub struct Open {
     other_ip: String,
     #[structopt(short = "q", long = "other-port")]
     other_port: String,
+    #[structopt(short = "b", long = "self-delay", default_value = "1487")]
+    self_delay: u16,
+    #[structopt(short = "n", long = "channel-name", default_value = "")]
+    channel_name: String,
+}
+
+#[derive(Clone, Debug, StructOpt, Deserialize)]
+pub struct SetFees {
     #[structopt(short = "d", long = "bal-min-cust", default_value = "546")]
     bal_min_cust: i64,
     #[structopt(short = "e", long = "bal-min-merch", default_value = "546")]
     bal_min_merch: i64,
     #[structopt(short = "v", long = "val-cpfp", default_value = "1000")]
     val_cpfp: i64,
-    #[structopt(short = "b", long = "self-delay", default_value = "1487")]
-    self_delay: u16,
     #[structopt(short = "f", long = "fee-cc", default_value = "1000")]
     fee_cc: i64,
     #[structopt(short = "m", long = "min-fee", default_value = "0")]
@@ -105,8 +111,6 @@ pub struct Open {
     max_fee: i64,
     #[structopt(short = "g", long = "fee-mc", default_value = "1000")]
     fee_mc: i64,
-    #[structopt(short = "n", long = "channel-name", default_value = "")]
-    channel_name: String,
 }
 
 #[derive(Clone, Debug, StructOpt, Deserialize)]
@@ -165,8 +169,6 @@ pub struct Pay {
     party: Party,
     #[structopt(short = "a", long = "amount", allow_hyphen_values = true)]
     amount: Option<i64>,
-    #[structopt(short = "f", long = "fee-cc", allow_hyphen_values = true)]
-    fee_cc: Option<i64>,
     #[structopt(short = "i", long = "own-ip", default_value = "127.0.0.1")]
     own_ip: String,
     #[structopt(short = "p", long = "own-port")]
@@ -195,6 +197,8 @@ pub struct Close {
 
 #[derive(Clone, Debug, StructOpt, Deserialize)]
 pub enum Command {
+    #[structopt(name = "setfees")] // for setting transaction fees for zkchannels
+    SETFEES(SetFees),
     #[structopt(name = "open")] // for initializing channel state and cust/merch state
     OPEN(Open),
     #[structopt(name = "init")] // for creating/signing txs between cust/merch
@@ -298,6 +302,20 @@ pub fn get_file_from_db(
         Ok(s) => Ok(s),
         Err(e) => return Err(e.to_string()),
     }
+}
+
+fn get_tx_fee_info() -> mpc::TransactionFeeInfo {
+    let min_threshold = 546; // dust limit
+    let tx_fee_info = mpc::TransactionFeeInfo {
+        bal_min_cust: min_threshold,
+        bal_min_merch: min_threshold,
+        val_cpfp: 1000,
+        fee_cc: 1000,
+        fee_mc: 1000,
+        min_fee: 0,
+        max_fee: 10000
+    };
+    return tx_fee_info;
 }
 
 #[derive(StructOpt, Debug)]
@@ -408,14 +426,13 @@ fn main() {
     println!("******************************************");
 
     match args.command {
+        Command::SETFEES(_setfees) => {
+            println!("Setting tx fees config: ");
+        },
         Command::OPEN(open) => match open.party {
             Party::MERCH => match merch::open(
                 create_connection!(open),
                 &db_url,
-                open.fee_mc,
-                open.bal_min_cust,
-                open.bal_min_merch,
-                open.val_cpfp,
                 open.self_delay,
             ) {
                 Err(e) => println!("Channel opening phase failed with error: {}", e),
@@ -427,9 +444,6 @@ fn main() {
                     &db_url,
                     open.cust_bal,
                     open.merch_bal,
-                    open.fee_cc,
-                    open.min_fee,
-                    open.max_fee,
                     open.channel_name,
                 ) {
                     Err(e) => println!("Channel opening phase failed with error: {}", e),
@@ -441,10 +455,6 @@ fn main() {
             Party::MERCH => match merch::init(
                 create_connection!(init),
                 &db_url,
-                init.fee_cc,
-                init.fee_mc,
-                init.min_fee,
-                init.max_fee,
             ) {
                 Err(e) => println!("Initialize phase failed with error: {}", e),
                 _ => (),
@@ -458,9 +468,6 @@ fn main() {
                 init.input_sats.unwrap(),
                 init.output_sats.unwrap(),
                 init.channel_name,
-                init.fee_mc,
-                init.min_fee,
-                init.max_fee,
             ) {
                 Err(e) => println!("Initialize phase failed with error: {}", e),
                 _ => (),
@@ -488,7 +495,6 @@ fn main() {
             }
             Party::CUST => cust::pay(
                 0,
-                1000,
                 create_connection!(unlink),
                 &db_url,
                 unlink.channel_name,
@@ -516,7 +522,6 @@ fn main() {
             Party::CUST => {
                 match cust::pay(
                     pay.amount.unwrap(),
-                    pay.fee_cc.unwrap_or(1000),
                     create_connection!(pay),
                     &db_url,
                     pay.channel_name,
@@ -564,9 +569,6 @@ mod cust {
         db_url: &String,
         b0_cust: i64,
         b0_merch: i64,
-        fee_cc: i64,
-        min_fee: i64,
-        max_fee: i64,
         channel_name: String,
     ) -> Result<(), String> {
         if channel_name == "" {
@@ -576,35 +578,32 @@ mod cust {
         let rng = &mut rand::thread_rng();
         let mut db_conn = handle_error_result!(create_db_connection(db_url.clone()));
 
+        let tx_fee_info = get_tx_fee_info();
+        
         println!("Waiting for merchant's channel_state and pk_m...");
         let msg0 = conn.wait_for(None, false);
         let channel_state: ChannelMPCState = serde_json::from_str(&msg0.get(0).unwrap()).unwrap();
         let pk_m: secp256k1::PublicKey = serde_json::from_str(&msg0.get(1).unwrap()).unwrap();
-        let fee_mc: i64 = serde_json::from_str(&msg0.get(2).unwrap()).unwrap();
 
         // check cust-bal meets min bal
-        let cust_min_bal = fee_cc + channel_state.get_bal_min_cust() + channel_state.get_val_cpfp();
+        let cust_min_bal = tx_fee_info.fee_cc + channel_state.get_bal_min_cust() + channel_state.get_val_cpfp();
         if b0_cust < cust_min_bal {
             return Err(format!("cust-bal must be greater than {}.", cust_min_bal));
         }
 
         // check merch-bal meets min bal
         let merch_min_bal =
-            fee_mc + channel_state.get_bal_min_merch() + channel_state.get_val_cpfp();
+            tx_fee_info.fee_mc + channel_state.get_bal_min_merch() + channel_state.get_val_cpfp();
         if b0_merch < merch_min_bal {
             return Err(format!("merch-bal must be greater than {}.", merch_min_bal));
         }
 
         let (channel_token, cust_state) = mpc::init_customer(
             rng,
-            &channel_state,
             &pk_m,
             b0_cust,
             b0_merch,
-            fee_cc,
-            min_fee,
-            max_fee,
-            fee_mc,
+            &tx_fee_info,
             channel_name.as_str(),
         );
 
@@ -626,9 +625,6 @@ mod cust {
         input_sats: i64,
         output_sats: i64,
         channel_name: String,
-        fee_mc: i64,
-        min_fee: i64,
-        max_fee: i64,
     ) -> Result<(), String> {
         if channel_name == "" {
             return Err(String::from("missing channel-name"));
@@ -637,6 +633,7 @@ mod cust {
         let mut rng = &mut rand::thread_rng();
         let mut db_conn = handle_error_result!(create_db_connection(db_url.clone()));
         let key = format!("id:{}", channel_name);
+        let tx_fee_info = get_tx_fee_info();
 
         // load the customer state from DB
         let cust_state_key = format!("cust:{}:cust_state", channel_name);
@@ -700,7 +697,7 @@ mod cust {
                 merch_close_pk,
                 cust_bal,
                 merch_bal,
-                fee_mc,
+                tx_fee_info.fee_mc,
                 channel_state.get_val_cpfp(),
                 to_self_delay_be
             ));
@@ -734,16 +731,13 @@ mod cust {
         let funding_tx = FundingTxInfo {
             init_cust_bal: cust_bal,
             init_merch_bal: merch_bal,
-            min_fee: min_fee,
-            max_fee: max_fee,
-            fee_mc: fee_mc,
             escrow_txid: FixedSizeArray32(escrow_txid_be),
             escrow_prevout: FixedSizeArray32(escrow_prevout),
             merch_txid: FixedSizeArray32(merch_txid),
             merch_prevout: FixedSizeArray32(merch_prevout),
         };
 
-        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx)?;
+        cust_state.set_initial_cust_state(&mut channel_token, &funding_tx, &tx_fee_info)?;
 
         // now sign the customer's initial closing txs
         println!("Signing the initial closing transactions...");
@@ -845,7 +839,6 @@ mod cust {
 
     pub fn pay(
         amount: i64,
-        fee_cc: i64,
         conn: &mut Conn,
         db_url: &String,
         channel_name: String,
@@ -928,7 +921,6 @@ mod cust {
             &mut channel_token,
             old_state,
             new_state,
-            fee_cc,
             pay_token_mask_com,
             rev_lock_com,
             amount,
@@ -1082,14 +1074,10 @@ mod merch {
     pub fn open(
         conn: &mut Conn,
         db_url: &String,
-        fee_mc: i64,
-        bal_min_cust: i64,
-        bal_min_merch: i64,
-        val_cpfp: i64,
         self_delay: u16,
     ) -> Result<(), String> {
         let merch_state_info = load_merchant_state_info(&db_url);
-
+        let tx_fee_info = get_tx_fee_info();
         let (channel_state, merch_state) = match merch_state_info {
             Err(_) => {
                 // create a new channel state and merchant state DB
@@ -1098,12 +1086,12 @@ mod merch {
                 let mut channel_state = ChannelMPCState::new(
                     String::from("Channel"),
                     self_delay,
-                    bal_min_cust,
-                    bal_min_merch,
-                    val_cpfp,
+                    tx_fee_info.bal_min_cust,
+                    tx_fee_info.bal_min_merch,
+                    tx_fee_info.val_cpfp,
                     false,
                 );
-                if bal_min_cust == 0 || bal_min_merch == 0 {
+                if tx_fee_info.bal_min_cust == 0 || tx_fee_info.bal_min_merch == 0 {
                     let s = format!("Dust limit must be greater than 0!");
                     return Err(s);
                 }
@@ -1124,7 +1112,6 @@ mod merch {
         let msg1 = [
             handle_error_result!(serde_json::to_string(&channel_state)),
             handle_error_result!(serde_json::to_string(&merch_state.pk_m)),
-            handle_error_result!(serde_json::to_string(&fee_mc)),
         ];
         conn.send(&msg1);
 
@@ -1134,14 +1121,11 @@ mod merch {
     pub fn init(
         conn: &mut Conn,
         db_url: &String,
-        fee_cc: i64,
-        fee_mc: i64,
-        min_fee: i64,
-        max_fee: i64,
     ) -> Result<(), String> {
         // build tx and sign it
         let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
         let key = String::from("cli:merch_db");
+        let tx_fee_info = get_tx_fee_info();
 
         // load the channel state from DB
         let ser_channel_state = handle_error_with_string!(
@@ -1188,7 +1172,7 @@ mod merch {
                 merch_close_pk,
                 cust_bal,
                 merch_bal,
-                fee_mc,
+                tx_fee_info.fee_mc,
                 channel_state.get_val_cpfp(),
                 to_self_delay_be
             ));
@@ -1206,7 +1190,7 @@ mod merch {
                 &cust_pk,
                 cust_bal,
                 merch_bal,
-                fee_mc,
+                tx_fee_info.fee_mc,
                 to_self_delay_be,
                 &cust_sig,
             );
@@ -1220,9 +1204,6 @@ mod merch {
         let funding_tx = FundingTxInfo {
             init_cust_bal: cust_bal,
             init_merch_bal: merch_bal,
-            min_fee: min_fee,
-            max_fee: max_fee,
-            fee_mc,
             escrow_txid: FixedSizeArray32(escrow_txid),
             escrow_prevout: FixedSizeArray32(escrow_prevout),
             merch_txid: FixedSizeArray32(merch_txid.clone()),
@@ -1237,8 +1218,9 @@ mod merch {
             cust_pk,
             cust_close_pk,
             to_self_delay_be,
-            fee_cc,
-            channel_state.get_val_cpfp(),
+            tx_fee_info.fee_cc,
+            tx_fee_info.fee_mc,
+            tx_fee_info.val_cpfp,
         );
 
         let msg3 = [

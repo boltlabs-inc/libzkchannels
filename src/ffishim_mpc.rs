@@ -3,7 +3,7 @@ pub mod ffishim_mpc {
     extern crate libc;
 
     use channels_mpc::{
-        ChannelMPCState, ChannelMPCToken, CustomerMPCState, InitCustState, MerchantMPCState,
+        ChannelMPCState, ChannelMPCToken, CustomerMPCState, InitCustState, MerchantMPCState, TransactionFeeInfo,
     };
     use database::{MaskedTxMPCInputs, RedisDatabase, StateDatabase};
     use hex::FromHexError;
@@ -226,27 +226,23 @@ pub mod ffishim_mpc {
 
     #[no_mangle]
     pub extern "C" fn mpc_init_customer(
-        ser_channel_state: *mut c_char,
         ser_merch_pk: *mut c_char,
         cust_bal: i64,
         merch_bal: i64,
-        fee_cc: i64,
-        min_fee: i64,
-        max_fee: i64,
-        fee_mc: i64,
+        ser_tx_fee_info: *mut c_char,
         name_ptr: *const c_char,
     ) -> *mut c_char {
         let rng = &mut rand::thread_rng();
-
-        // Deserialize the channel_state
-        let channel_state_result: ResultSerdeType<ChannelMPCState> =
-            deserialize_result_object(ser_channel_state);
-        let channel_state = handle_errors!(channel_state_result);
 
         // Deserialize the pk_m
         let merch_pk_result = deserialize_hex_string(ser_merch_pk);
         let merch_pk = handle_errors!(merch_pk_result);
         let pk_m = handle_errors!(secp256k1::PublicKey::from_slice(&merch_pk));
+
+        // Deserialize the transaction fee info struct
+        let tx_fee_info_result: ResultSerdeType<TransactionFeeInfo> =
+            deserialize_result_object(ser_tx_fee_info);
+        let tx_fee_info = handle_errors!(tx_fee_info_result);
 
         // Deserialize the name
         let bytes = unsafe { CStr::from_ptr(name_ptr).to_bytes() };
@@ -255,14 +251,10 @@ pub mod ffishim_mpc {
         // We change the channel state
         let (channel_token, cust_state) = mpc::init_customer(
             rng,
-            &channel_state,
             &pk_m,
             cust_bal,
             merch_bal,
-            fee_cc,
-            min_fee,
-            max_fee,
-            fee_mc,
+            &tx_fee_info,
             name,
         );
         let ser = [
@@ -633,7 +625,6 @@ pub mod ffishim_mpc {
         ser_pay_token_mask_com: *mut c_char,
         ser_rev_lock_com: *mut c_char,
         amount: i64,
-        fee_cc: i64,
         ser_cust_state: *mut c_char,
     ) -> *mut c_char {
         // Deserialize the channel_state
@@ -678,7 +669,6 @@ pub mod ffishim_mpc {
             &channel_token,
             start_state,
             end_state,
-            fee_cc,
             pay_token_mask_com_ar,
             rev_lock_com_ar,
             amount,
@@ -1342,6 +1332,7 @@ pub mod ffishim_mpc {
         ser_self_delay: *mut c_char,
         ser_merch_state: *mut c_char,
         fee_cc: i64,
+        fee_mc: i64,
         val_cpfp: i64,
     ) -> *mut c_char {
         // Deserialize the tx
@@ -1378,6 +1369,7 @@ pub mod ffishim_mpc {
             cust_close_pk,
             self_delay_be,
             fee_cc,
+            fee_mc,
             val_cpfp,
         );
 
@@ -1396,6 +1388,7 @@ pub mod ffishim_mpc {
     #[no_mangle]
     pub extern "C" fn cust_verify_init_cust_close_txs(
         ser_funding_tx: *mut c_char,
+        ser_tx_fee_info: *mut c_char,
         ser_channel_state: *mut c_char,
         ser_channel_token: *mut c_char,
         ser_escrow_sig: *mut c_char,
@@ -1405,6 +1398,11 @@ pub mod ffishim_mpc {
         // Deserialize the tx
         let tx_result: ResultSerdeType<FundingTxInfo> = deserialize_result_object(ser_funding_tx);
         let funding_tx = handle_errors!(tx_result);
+
+        // Deserialize the transaction fee info struct
+        let tx_fee_info_result: ResultSerdeType<TransactionFeeInfo> =
+            deserialize_result_object(ser_tx_fee_info);
+        let tx_fee_info = handle_errors!(tx_fee_info_result);
 
         // Deserialize the channel_state
         let channel_state_result: ResultSerdeType<ChannelMPCState> =
@@ -1428,7 +1426,7 @@ pub mod ffishim_mpc {
             deserialize_result_object(ser_cust_state);
         let mut cust_state = handle_errors!(cust_state_result);
 
-        handle_errors!(cust_state.set_funding_tx_info(&mut channel_token, &funding_tx));
+        handle_errors!(cust_state.set_initial_cust_state(&mut channel_token, &funding_tx, &tx_fee_info));
 
         // now sign the customer's initial closing txs iff escrow-sig and merch-sig are valid
         let got_close_tx = handle_errors!(cust_state.sign_initial_closing_transaction::<Testnet>(

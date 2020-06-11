@@ -114,6 +114,17 @@ impl fmt::Display for ChannelMPCToken {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TransactionFeeInfo {
+    pub bal_min_cust: i64,
+    pub bal_min_merch: i64,
+    pub val_cpfp: i64,
+    pub fee_cc: i64,
+    pub fee_mc: i64,
+    pub min_fee: i64,
+    pub max_fee: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ChannelMPCState {
     bal_min_cust: i64,
     bal_min_merch: i64,
@@ -424,13 +435,14 @@ impl CustomerMPCState {
         Ok(())
     }
 
-    pub fn set_funding_tx_info(
+    pub fn set_initial_cust_state(
         &mut self,
         channel_token: &mut ChannelMPCToken,
         tx: &FundingTxInfo,
+        tx_fee_info: &TransactionFeeInfo,
     ) -> Result<(), String> {
         if self.state.is_none() {
-            return Err(String::from("Customer initial state has not been created!"));
+            return Err(String::from("Customer state has not been initialized!"));
         }
 
         let mut s = self.state.unwrap();
@@ -440,9 +452,9 @@ impl CustomerMPCState {
         s.merch_prevout = tx.merch_prevout.clone();
         s.bc = tx.init_cust_bal;
         s.bm = tx.init_merch_bal;
-        s.min_fee = tx.min_fee;
-        s.max_fee = tx.max_fee;
-        s.fee_mc = tx.fee_mc;
+        s.min_fee = tx_fee_info.min_fee;
+        s.max_fee = tx_fee_info.max_fee;
+        s.fee_mc = tx_fee_info.fee_mc;
         self.state = Some(s);
 
         channel_token.escrow_txid = convert_to_little_endian(&tx.escrow_txid);
@@ -573,13 +585,12 @@ impl CustomerMPCState {
         channel_token: &ChannelMPCToken,
         old_state: State,
         new_state: State,
-        fee_cc: i64,
         paytoken_mask_com: [u8; 32],
         rev_lock_com: [u8; 32],
         amount: i64,
         circuit: *mut c_void,
     ) -> Result<bool, String> {
-        let min_cust_bal = channel_state.bal_min_cust + fee_cc + channel_state.val_cpfp;
+        let min_cust_bal = channel_state.bal_min_cust + self.fee_cc + channel_state.val_cpfp;
         if new_state.bc <= min_cust_bal {
             return Err(format!(
                 "customer::execute_mpc_context - customer balance below min balance allowed after payment: {}", min_cust_bal
@@ -637,7 +648,7 @@ impl CustomerMPCState {
             old_state,
             new_state,
             amount,
-            fee_cc,
+            self.fee_cc,
             channel_state.bal_min_cust,
             channel_state.bal_min_merch,
             channel_state.val_cpfp,
@@ -661,7 +672,7 @@ impl CustomerMPCState {
                 merch_payout_pub_key,
                 new_state,
                 old_state,
-                fee_cc,
+                self.fee_cc,
                 &old_paytoken.0,
                 cust_escrow_pub_key,
                 cust_payout_pub_key,
@@ -1403,10 +1414,11 @@ impl MerchantMPCState {
         cust_close_pk: Vec<u8>,
         to_self_delay_be: [u8; 2],
         fee_cc: i64,
+        fee_mc: i64,
         val_cpfp: i64,
     ) -> (Vec<u8>, Vec<u8>) {
         let escrow_init_balance = funding_tx.init_cust_bal + funding_tx.init_merch_bal;
-        let merch_init_balance = escrow_init_balance - val_cpfp - funding_tx.fee_mc;
+        let merch_init_balance = escrow_init_balance - val_cpfp - fee_mc;
         let escrow_index = 0;
         let merch_index = 0;
         let mut escrow_txid_le = funding_tx.escrow_txid.0.clone();
@@ -1433,7 +1445,7 @@ impl MerchantMPCState {
             funding_tx.init_cust_bal,
             funding_tx.init_merch_bal,
             fee_cc,
-            funding_tx.fee_mc,
+            fee_mc,
             val_cpfp,
             true,
         );
@@ -1445,7 +1457,7 @@ impl MerchantMPCState {
             funding_tx.init_cust_bal,
             funding_tx.init_merch_bal,
             fee_cc,
-            funding_tx.fee_mc,
+            fee_mc,
             val_cpfp,
             false,
         );
@@ -1802,7 +1814,6 @@ mod tests {
         csprng: &mut R,
         b0_cust: i64,
         b0_merch: i64,
-        fee_mc: i64,
     ) -> FundingTxInfo {
         let mut escrow_txid = [0u8; 32];
         let mut merch_txid = [0u8; 32];
@@ -1832,9 +1843,6 @@ mod tests {
             escrow_prevout: FixedSizeArray32(escrow_prevout),
             merch_txid: FixedSizeArray32(merch_txid),
             merch_prevout: FixedSizeArray32(merch_prevout),
-            fee_mc: fee_mc,
-            min_fee: 0,
-            max_fee: 10000,
         };
     }
 
@@ -1847,10 +1855,17 @@ mod tests {
 
         let b0_cust = 1000000;
         let b0_merch = 200000;
-        let fee_cc = 1000;
-        let fee_mc = 1000;
-        let min_fee = 0;
-        let max_fee = 10000;
+        let min_threshold = 546; // dust limit
+        let tx_fee_info = mpc::TransactionFeeInfo {
+            bal_min_cust: min_threshold,
+            bal_min_merch: min_threshold,
+            val_cpfp: 1000,
+            fee_cc: 1000,
+            fee_mc: 1000,
+            min_fee: 0,
+            max_fee: 10000
+        };
+    
         // each party executes the init algorithm on the agreed initial challenge balance
         // in order to derive the channel tokens
         // initialize on the merchant side with balance: b0_merch
@@ -1860,17 +1875,17 @@ mod tests {
         db.clear_state();
 
         // initialize on the customer side with balance: b0_cust
-        let mut cust_state = CustomerMPCState::new(&mut rng, b0_cust, b0_merch, fee_cc, String::from("Customer"));
+        let mut cust_state = CustomerMPCState::new(&mut rng, b0_cust, b0_merch, tx_fee_info.fee_cc, String::from("Customer"));
 
         // initialize the channel token on with pks
         // generate and send initial state to the merchant
-        let mut channel_token = cust_state.generate_init_state(&mut rng, &merch_state.pk_m, min_fee, max_fee, fee_mc);
+        let mut channel_token = cust_state.generate_init_state(&mut rng, &merch_state.pk_m, tx_fee_info.min_fee, tx_fee_info.max_fee, tx_fee_info.fee_mc);
 
         // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
-        let funding_tx_info = generate_test_txs(&mut rng, b0_cust, b0_merch, fee_mc);
+        let funding_tx_info = generate_test_txs(&mut rng, b0_cust, b0_merch);
 
         // set escrow-tx and merch-close-tx info
-        cust_state.set_funding_tx_info(&mut channel_token, &funding_tx_info).unwrap();
+        cust_state.set_initial_cust_state(&mut channel_token, &funding_tx_info, &tx_fee_info).unwrap();
 
 
         // activate - get initial state (which should include the funding tx info)
@@ -1927,7 +1942,7 @@ mod tests {
 
         println!("hello, customer!");
         let circuit = cust_state.get_circuit_file();
-        let res = cust_state.execute_mpc_context(&channel_state, &channel_token, s0, s1, fee_cc, pay_token_mask_com, r_com, amount, circuit);
+        let res = cust_state.execute_mpc_context(&channel_state, &channel_token, s0, s1, pay_token_mask_com, r_com, amount, circuit);
         assert!(res.is_ok(), res.err().unwrap());
 
         println!("completed mpc execution!");
@@ -2011,10 +2026,17 @@ mod tests {
 
         let b0_cust = 1000000;
         let b0_merch = 200000;
-        let fee_cc = 1000;
-        let fee_mc = 1000;
-        let min_fee = 0;
-        let max_fee = 10000;
+
+        let min_threshold = 546; // dust limit
+        let tx_fee_info = mpc::TransactionFeeInfo {
+            bal_min_cust: min_threshold,
+            bal_min_merch: min_threshold,
+            val_cpfp: 1000,
+            fee_cc: 1000,
+            fee_mc: 1000,
+            min_fee: 0,
+            max_fee: 10000
+        };
 
         // each party executes the init algorithm on the agreed initial challenge balance
         // in order to derive the channel tokens
@@ -2030,20 +2052,20 @@ mod tests {
             &mut rng,
             b0_cust,
             b0_merch,
-            fee_cc,
+            tx_fee_info.fee_cc,
             String::from("Customer")
         );
 
         // initialize the channel token on with pks
         // generate and send initial state to the merchant
-        let mut channel_token = cust_state.generate_init_state(&mut rng, &merch_state.pk_m, min_fee, max_fee, fee_mc);
+        let mut channel_token = cust_state.generate_init_state(&mut rng, &merch_state.pk_m, tx_fee_info.min_fee, tx_fee_info.max_fee, tx_fee_info.fee_mc);
 
         // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
-        let funding_tx_info = generate_test_txs(&mut rng, b0_cust, b0_merch, fee_mc);
+        let funding_tx_info = generate_test_txs(&mut rng, b0_cust, b0_merch);
 
         // set escrow-tx and merch-close-tx info
         cust_state
-            .set_funding_tx_info(&mut channel_token, &funding_tx_info)
+            .set_initial_cust_state(&mut channel_token, &funding_tx_info, &tx_fee_info)
             .unwrap();
         // get initial state
         let s_0 = cust_state.get_current_state();
@@ -2149,15 +2171,24 @@ mod tests {
 
     #[test]
     fn mpc_test_serialization() {
+
+        let min_threshold = 546; // dust limit
+        let tx_fee_info = mpc::TransactionFeeInfo {
+            bal_min_cust: min_threshold,
+            bal_min_merch: min_threshold,
+            val_cpfp: 1000,
+            fee_cc: 1000,
+            fee_mc: 1000,
+            min_fee: 0,
+            max_fee: 10000
+        };
         let mut channel_state =
-            ChannelMPCState::new(String::from("Channel A <-> B"), 1487, 546, 546, 1000, false);
+            ChannelMPCState::new(String::from("Channel A <-> B"), 1487, tx_fee_info.bal_min_cust, tx_fee_info.bal_min_merch, tx_fee_info.val_cpfp, false);
         let mut rng = XorShiftRng::seed_from_u64(0x8d863e545dbe6259);
         let db_url = "redis://127.0.0.1/".to_string();
 
         let b0_cust = 1000000;
         let b0_merch = 10000;
-        let fee_cc = 1000;
-        let fee_mc = 1000;
 
         let mut merch_state = MerchantMPCState::new(
             &mut rng,
@@ -2192,14 +2223,14 @@ mod tests {
             &mut rng,
             b0_cust,
             b0_merch,
-            fee_cc,
+            tx_fee_info.fee_cc,
             String::from("Customer"),
         );
 
         // initialize the channel token on with pks
         // generate and send initial state to the merchant
         let mut channel_token =
-            cust_state.generate_init_state(&mut rng, &merch_state.pk_m, 0, 10000, fee_mc);
+            cust_state.generate_init_state(&mut rng, &merch_state.pk_m, tx_fee_info.min_fee, tx_fee_info.max_fee, tx_fee_info.fee_mc);
 
         let cust_sk = [4u8; 32];
         let pay_sk = [5u8; 32];
@@ -2207,13 +2238,13 @@ mod tests {
             .load_external_wallet(&mut channel_token, cust_sk, pay_sk)
             .unwrap();
         // at this point, cust/merch have both exchanged initial sigs (escrow-tx + merch-close-tx)
-        let funding_tx_info = generate_test_txs(&mut rng, b0_cust, b0_merch, fee_mc);
+        let funding_tx_info = generate_test_txs(&mut rng, b0_cust, b0_merch);
 
         // start activate phase
         let s_0 = cust_state.get_current_state();
 
         cust_state
-            .set_funding_tx_info(&mut channel_token, &funding_tx_info)
+            .set_initial_cust_state(&mut channel_token, &funding_tx_info, &tx_fee_info)
             .unwrap();
 
         let ser_state = serde_json::to_string(&s_0).unwrap();

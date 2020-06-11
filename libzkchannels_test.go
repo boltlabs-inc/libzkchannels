@@ -37,7 +37,20 @@ func WriteToFile(filename string, data string) error {
 func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	dbUrl := "redis://127.0.0.1/"
 	valCpfp := int64(1000)
-	channelState, err := ChannelSetup("channel", 546, 546, valCpfp, false)
+	minThreshold := int64(546)
+	txFeeInfo := TransactionFeeInfo{
+		BalMinCust:  minThreshold,
+		BalMinMerch: minThreshold,
+		ValCpFp:     valCpfp,
+		FeeCC:       1000,
+		FeeMC:       1000,
+		MinFee:      0,
+		MaxFee:      10000,
+	}
+	feeCC := txFeeInfo.FeeCC
+	feeMC := txFeeInfo.FeeMC
+
+	channelState, err := ChannelSetup("channel", txFeeInfo.BalMinCust, txFeeInfo.BalMinMerch, txFeeInfo.ValCpFp, false)
 	assert.Nil(t, err)
 
 	channelState, merchState, err := InitMerchant(dbUrl, channelState, "merch")
@@ -50,13 +63,10 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 
 	custBal := int64(1000000)
 	merchBal := int64(1000000)
-	feeCC := int64(1000)
-	minFee := int64(0)
-	maxFee := int64(10000)
-	feeMC := int64(1000)
+
 	merchPKM := fmt.Sprintf("%v", *merchState.PkM)
 
-	channelToken, custState, err := InitCustomer(channelState, merchPKM, custBal, merchBal, feeCC, minFee, maxFee, feeMC, "cust")
+	channelToken, custState, err := InitCustomer(merchPKM, custBal, merchBal, txFeeInfo, "cust")
 	assert.Nil(t, err)
 
 	fix_customer_wallet := os.Getenv("FIX_CUSTOMER_WALLET")
@@ -127,21 +137,21 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("TX1: signedEscrowTx => ", signedEscrowTx)
 	fmt.Println("========================================")
 
-	merchTxPreimage, err := FormMerchCloseTx(escrowTxid_LE, custPk, merchPk, merchClosePk, custBal, merchBal, feeMC, valCpfp, toSelfDelay)
+	merchTxPreimage, err := FormMerchCloseTx(escrowTxid_LE, custPk, merchPk, merchClosePk, custBal, merchBal, feeMC, txFeeInfo.ValCpFp, toSelfDelay)
 
 	fmt.Println("merch TxPreimage => ", merchTxPreimage)
 
 	custSig, err := CustomerSignMerchCloseTx(custSk, merchTxPreimage)
 	fmt.Println("cust sig for merchCloseTx => ", custSig)
 
-	isOk, merchTxid_BE, merchTxid_LE, merchPrevout, merchState, err := MerchantVerifyMerchCloseTx(escrowTxid_LE, custPk, custBal, merchBal, feeMC, valCpfp, toSelfDelay, custSig, merchState)
+	isOk, merchTxid_BE, merchTxid_LE, merchPrevout, merchState, err := MerchantVerifyMerchCloseTx(escrowTxid_LE, custPk, custBal, merchBal, feeMC, txFeeInfo.ValCpFp, toSelfDelay, custSig, merchState)
 	fmt.Println("orig merch txid (BE) = ", merchTxid_BE)
 	fmt.Println("orig merch txid (LE) = ", merchTxid_LE)
 	fmt.Println("orig merch prevout = ", merchPrevout)
 
 	if isOk {
 		// initiate merch-close-tx
-		signedMerchCloseTx, merchTxid2_BE, merchTxid2_LE, merchState, err := ForceMerchantCloseTx(escrowTxid_LE, merchState, valCpfp)
+		signedMerchCloseTx, merchTxid2_BE, merchTxid2_LE, merchState, err := ForceMerchantCloseTx(escrowTxid_LE, merchState, txFeeInfo.ValCpFp)
 		WriteToFile("signed_merch_close.txt", signedMerchCloseTx)
 		assert.Nil(t, err)
 		assert.NotNil(t, merchTxid2_BE)
@@ -159,21 +169,18 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 		MerchPrevout:  merchPrevout,  // big-endian
 		InitCustBal:   custBal,
 		InitMerchBal:  merchBal,
-		FeeMC:         feeMC,
-		MinFee:        0,
-		MaxFee:        10000,
 	}
 
 	fmt.Println("RevLock => ", custState.RevLock)
 
 	custClosePk := custState.PayoutPk
-	escrowSig, merchSig, err := MerchantSignInitCustCloseTx(txInfo, custState.RevLock, custState.PkC, custClosePk, toSelfDelay, merchState, feeCC, valCpfp)
+	escrowSig, merchSig, err := MerchantSignInitCustCloseTx(txInfo, custState.RevLock, custState.PkC, custClosePk, toSelfDelay, merchState, feeCC, feeMC, valCpfp)
 	assert.Nil(t, err)
 
 	fmt.Println("escrow sig: ", escrowSig)
 	fmt.Println("merch sig: ", merchSig)
 
-	isOk, channelToken, custState, err = CustomerVerifyInitCustCloseTx(txInfo, channelState, channelToken, escrowSig, merchSig, custState)
+	isOk, channelToken, custState, err = CustomerVerifyInitCustCloseTx(txInfo, txFeeInfo, channelState, channelToken, escrowSig, merchSig, custState)
 	if !isOk {
 		fmt.Println("FAILED to verify the merch signatures on init cust-close-tx")
 		return
@@ -396,7 +403,7 @@ func TestPayUpdateCustomer(t *testing.T) {
 	err = json.Unmarshal([]byte(os.Getenv("custState")), &custState)
 	assert.Nil(t, err)
 
-	isOk, custState, err := PayUpdateCustomer(channelState, channelToken, state, newState, payTokenMaskCom, revLockCom, 10, 1000, custState)
+	isOk, custState, err := PayUpdateCustomer(channelState, channelToken, state, newState, payTokenMaskCom, revLockCom, 10, custState)
 	serCustState, err := json.Marshal(custState)
 	t.Log("\n|||", string(serCustState), "|||\n")
 	assert.True(t, isOk)
