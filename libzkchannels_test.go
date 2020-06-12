@@ -21,6 +21,10 @@ func DebugError(err error) {
 }
 
 func WriteToFile(filename string, data string) error {
+	if filename == "" {
+		return nil
+	}
+
 	file, err := os.Create(filename)
 	if err != nil {
 		return err
@@ -104,6 +108,37 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("Using custInputSk: ", custInputSk)
 	fmt.Println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
 
+	// files to write to
+	EscrowTxFile := ""
+	MerchCloseTxFile := ""
+	FirstCustCloseEscrowTxFile := ""
+	FirstCustCloseMerchTxFile := ""
+	CustCloseEscrowTxFile := ""
+	CustCloseFromMerchTxFile := ""
+	CustClaimFromCustCloseEscrowTxFile := ""
+	CustClaimFromCustCloseMerchTxFile := ""
+	MerchClaimFromEscrowTxFile := ""
+	MerchDisputeFirstCustCloseTxFile := ""
+	MerchDisputeFirstCustCloseFromMerchTxFile := ""
+	MerchClaimFromMerchCloseTxFile := ""
+	save_tx_file := os.Getenv("UTXO_SAVE_TX")
+	if save_tx_file == "yes" {
+		index := cust_utxo_index
+		EscrowTxFile = fmt.Sprintf("signed_escrow_%d.txt", index)
+		MerchCloseTxFile = fmt.Sprintf("signed_merch_close_%d.txt", index)
+		FirstCustCloseEscrowTxFile = fmt.Sprintf("signed_first_cust_close_escrow_tx_%d.txt", index)
+		FirstCustCloseMerchTxFile = fmt.Sprintf("signed_first_cust_close_merch_tx_%d.txt", index)
+		CustCloseEscrowTxFile = fmt.Sprintf("signed_cust_close_escrow_tx_%d.txt", index)
+		CustCloseFromMerchTxFile = fmt.Sprintf("signed_cust_close_merch_tx_%d.txt", index)
+		CustClaimFromCustCloseEscrowTxFile = fmt.Sprintf("signed_cust_claim_escrow_tx_%d.txt", index)
+		CustClaimFromCustCloseMerchTxFile = fmt.Sprintf("signed_cust_claim_merch_tx_%d.txt", index)
+		MerchClaimFromEscrowTxFile = fmt.Sprintf("signed_merch_claim_tx_%d.txt", index)
+		MerchDisputeFirstCustCloseTxFile = fmt.Sprintf("signed_dispute_from_escrow_tx_%d.txt", index)
+		MerchDisputeFirstCustCloseFromMerchTxFile = fmt.Sprintf("signed_dispute_from_merch_tx_%d.txt", index)
+		MerchClaimFromMerchCloseTxFile = fmt.Sprintf("signed_merch_claim_merch_close_tx_%d.txt", index)
+	}
+	fmt.Println("Write to file: ", EscrowTxFile)
+
 	custSk := fmt.Sprintf("%v", custState.SkC)
 	custPk := fmt.Sprintf("%v", custState.PkC)
 	merchSk := fmt.Sprintf("%v", *merchState.SkM)
@@ -127,7 +162,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	// escrowTxid_BE, escrowTxid_LE, escrowPrevout, err := FormEscrowTx(cust_utxo_txid, 0, custSk, inputSats, outputSats, custPk, merchPk, changePk, false)
 
 	signedEscrowTx, escrowTxid_BE, escrowTxid_LE, escrowPrevout, err := SignEscrowTx(cust_utxo_txid, cust_utxo_index, custInputSk, inputSats, outputSats, custPk, merchPk, changePk, false)
-	WriteToFile("signed_escrow.txt", signedEscrowTx)
+	WriteToFile(EscrowTxFile, signedEscrowTx)
 	assert.Nil(t, err)
 
 	fmt.Println("========================================")
@@ -152,7 +187,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	if isOk {
 		// initiate merch-close-tx
 		signedMerchCloseTx, merchTxid2_BE, merchTxid2_LE, merchState, err := ForceMerchantCloseTx(escrowTxid_LE, merchState, txFeeInfo.ValCpFp)
-		WriteToFile("signed_merch_close.txt", signedMerchCloseTx)
+		WriteToFile(MerchCloseTxFile, signedMerchCloseTx)
 		assert.Nil(t, err)
 		assert.NotNil(t, merchTxid2_BE)
 		assert.NotNil(t, merchState)
@@ -204,7 +239,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("Output initial closing transactions")
 	CloseEscrowTx, CloseEscrowTxId_LE, custState, err := ForceCustomerCloseTx(channelState, channelToken, true, custState)
 	initCustBalPayout := custState.CustBalance
-	WriteToFile("signed_first_cust_close_escrow_tx.txt", CloseEscrowTx)
+	WriteToFile(FirstCustCloseEscrowTxFile, CloseEscrowTx)
 	CloseEscrowTxId_TX3 := CloseEscrowTxId_LE
 	assert.NotNil(t, CloseEscrowTxId_LE)
 	fmt.Println("========================================")
@@ -213,8 +248,10 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("========================================")
 
 	CloseMerchTx, CloseMerchTxId_LE, custState, err := ForceCustomerCloseTx(channelState, channelToken, false, custState)
-	WriteToFile("signed_first_cust_close_merch_tx.txt", CloseMerchTx)
+	WriteToFile(FirstCustCloseMerchTxFile, CloseMerchTx)
 	assert.NotNil(t, CloseMerchTxId_LE)
+	CloseMerchTxId_TX3 := CloseMerchTxId_LE
+
 	fmt.Println("TX4: Close MerchTx ID (LE): ", CloseMerchTxId_LE)
 	fmt.Println("TX4: Close from MerchCloseTx => ", string(CloseMerchTx))
 
@@ -282,7 +319,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	// Customer initiates close and generates cust-close-from-escrow-tx
 	fmt.Println("Get new signed close transactions...")
 	CloseEscrowTx, CloseEscrowTxId_LE, custState, err = ForceCustomerCloseTx(channelState, channelToken, true, custState)
-	WriteToFile("signed_cust_close_escrow_tx.txt", CloseEscrowTx)
+	WriteToFile(CustCloseEscrowTxFile, CloseEscrowTx)
 	assert.Nil(t, err)
 	assert.NotNil(t, CloseEscrowTxId_LE)
 	fmt.Println("TX5: Close EscrowTx ID (LE): ", CloseEscrowTxId_LE)
@@ -296,7 +333,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	SignedCustClaimTx, err := CustomerSignClaimTx(channelState, CloseEscrowTxId_LE, uint32(0), inputAmount, claimAmount, toSelfDelay, outputPk, custState.RevLock, custClosePk, custState)
 	assert.Nil(t, err)
 	fmt.Println("TX5-cust-claim-tx: ", SignedCustClaimTx)
-	WriteToFile("signed_cust_claim_tx.txt", SignedCustClaimTx)
+	WriteToFile(CustClaimFromCustCloseEscrowTxFile, SignedCustClaimTx)
 
 	// Merchant claim tx to_merchant output from cust-close-from-escrow-tx (spendable immediately)
 	outputPk2 := "03af0530f244a154b278b34de709b84bb85bb39ff3f1302fc51ae275e5a45fb353"
@@ -306,16 +343,26 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	assert.Nil(t, err)
 	fmt.Println("TX5-merch-claim-tx: ", SignedMerchClaimTx)
 	fmt.Println("========================================")
-	WriteToFile("signed_merch_claim_tx.txt", SignedMerchClaimTx)
+	WriteToFile(MerchClaimFromEscrowTxFile, SignedMerchClaimTx)
 
 	// Customer can also close from merch-close-tx
 	CloseMerchTx, CloseMerchTxId_LE, custState, err = ForceCustomerCloseTx(channelState, channelToken, false, custState)
 	assert.Nil(t, err)
 	assert.NotNil(t, CloseMerchTxId_LE)
-	WriteToFile("signed_cust_close_merch_tx.txt", CloseMerchTx)
+	WriteToFile(CustCloseFromMerchTxFile, CloseMerchTx)
 
 	fmt.Println("TX6: Close MerchTx ID (LE): ", CloseMerchTxId_LE)
 	fmt.Println("TX6: Close from MerchCloseTx => ", string(CloseMerchTx))
+
+	{
+		// try to claim from cust-close-from-merch-tx
+		inputAmount := custState.CustBalance - feeCC - feeMC
+		claimAmount := inputAmount
+
+		SignedCustClaimTx2, err := CustomerSignClaimTx(channelState, CloseMerchTxId_LE, uint32(0), inputAmount, claimAmount, toSelfDelay, outputPk, custState.RevLock, custClosePk, custState)
+		assert.Nil(t, err)
+		WriteToFile(CustClaimFromCustCloseMerchTxFile, SignedCustClaimTx2)
+	}
 
 	// Merchant checks whether it has seen RevLock from cust-close-tx on chain
 	isOldRevLock, FoundRevSecret, err := MerchantCheckRevLock(revState.RevLock, merchState)
@@ -342,7 +389,10 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("========================================")
 	fmt.Println("TX5: disputeCloseEscrowTx: ", disputeTx)
 	fmt.Println("========================================")
-	WriteToFile("signed_dispute_tx.txt", disputeTx)
+	WriteToFile(MerchDisputeFirstCustCloseTxFile, disputeTx)
+
+	SignedMerchDisputeTx2, err := MerchantSignDisputeTx(CloseMerchTxId_TX3, index, claimAmount, claimAmount, toSelfDelay, outputPk, revState.RevLock, FoundRevSecret, custClosePk, merchState)
+	WriteToFile(MerchDisputeFirstCustCloseFromMerchTxFile, SignedMerchDisputeTx2)
 
 	// Merchant can claim tx output from merch-close-tx after timeout
 	fmt.Println("Claim tx from merchant close tx")
@@ -352,7 +402,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	assert.Nil(t, err)
 	fmt.Println("TX2-merch-close-claim-tx: ", SignedMerchClaimTx)
 	fmt.Println("========================================")
-	WriteToFile("signed_merch_claim_merch_close_tx.txt", SignedMerchClaimTx)
+	WriteToFile(MerchClaimFromMerchCloseTxFile, SignedMerchClaimTx)
 	return
 }
 

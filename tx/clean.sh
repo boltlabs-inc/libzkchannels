@@ -1,3 +1,3 @@
 #!/bin/bash
 
-rm signed_*
+rm -rf txdata_*
