@@ -1,6 +1,6 @@
 # 
 # To run the tests, execute the following:
-# $: python3 test_btc_transactions.py --n_outputs=5
+# $: python3 test_scenarios_btcd.py --n_outputs=5
 #
 
 import argparse
