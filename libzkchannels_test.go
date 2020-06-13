@@ -145,9 +145,11 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 		MerchCloseTxFile = fmt.Sprintf("signed_merch_close_%d.txt", index)
 		// stores first cust-close-from-escrow-tx (old state)
 		FirstCustCloseEscrowTxFile = fmt.Sprintf("signed_first_cust_close_escrow_tx_%d.txt", index)
+		// stores merch claim to_merchant in first cust-close-from-escrow-tx (immediately)
 		MerchClaimViaFirstCustCloseEscrowTxFile = fmt.Sprintf("signed_merch_claim_first_close_escrow_tx_%d.txt", index)
 		// stores first cust-close-from-merch-close-tx (old state)
 		FirstCustCloseMerchTxFile = fmt.Sprintf("signed_first_cust_close_merch_tx_%d.txt", index)
+		// stores merch claim to_merchant in first cust-close-from-merch-close-tx (immediately)
 		MerchClaimViaFirstCustCloseMerchTxFile = fmt.Sprintf("signed_merch_claim_first_close_merch_tx_%d.txt", index)
 		// stores cust-close-from-escrow-tx (current state)
 		CustCloseEscrowTxFile = fmt.Sprintf("signed_cust_close_escrow_tx_%d.txt", index)
@@ -168,7 +170,6 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 		// stores merch claim tx for full balance in merch-close-tx (after timelock)
 		MerchClaimFromMerchCloseTxFile = fmt.Sprintf("signed_merch_claim_merch_close_tx_%d.txt", index)
 	}
-	fmt.Println("Write to file: ", EscrowTxFile)
 
 	custSk := fmt.Sprintf("%v", custState.SkC)
 	custPk := fmt.Sprintf("%v", custState.PkC)
