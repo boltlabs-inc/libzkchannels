@@ -130,17 +130,19 @@ We now describe the high-level protocol API implemented in module `zkchannels::m
 
 	let cust_bal = 10000;
 	let merch_bal = 100;
-	let fee_cc = 1000;
-	let fee_mc = 1000;
+
+	// set the network transaction fees
+	let tx_fee_info = mpc::TransactionFeeInfo { ... };
 
 	// merchant initializes state for all channels it will open with customers
 	let mut merch_state = mpc::init_merchant(&mut rng, &mut channel_state, "Bob");
 
 	// customer initializes state for channel with initial balances
-	let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &channel_state, &merch_state.pk_m, cust_bal, merch_bal, "Alice");
+	let (channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, cust_bal, merch_bal, &tx_fee_info, "Alice");
 
 	// form all the transactions using tx builder: <escrow-tx> and <merch-close-tx>
-
+	// obtain closing signatures on <cust-close-txs> (from escrow-tx and merch-close-tx)
+	
 	// customer gets the initial state of the channel and
 	let (init_cust_state, init_hash) = mpc::get_initial_state(&cust_state).unwrap();
 
@@ -181,7 +183,7 @@ Prepare/Update State phase
 Now proceed with executing the MPC if successful
 
 	// customer executes mpc protocol with old/new state, pay mask commitment, rev lock commitment and payment amount
-	let mpc_ok = mpc::pay_update_customer(&mut channel_state, &channel_token, old_state, new_state, fee_cc, pay_mask_com, rev_lock_com, 10, &mut cust_state);
+	let mpc_ok = mpc::pay_update_customer(&mut channel_state, &channel_token, old_state, new_state, pay_mask_com, rev_lock_com, 10, &mut cust_state);
 
 	// merchant executes mpc protocol with customer nonce, pay mask commitment, rev lock commitment and payment amount
 	mpc::pay_update_merchant(&mut rng, &mut channel_state, session_id, pay_mask_com, &mut merch_state);
