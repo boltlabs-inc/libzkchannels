@@ -186,7 +186,7 @@ def run_gowrapper(utxo_txid, utxo_index, utxo_sk):
 
 def run_scenario_test1(network, utxo_index):
     print("==============================================")
-    log(">> Scenario: cust close from merch-close without dispute")
+    log(">> Scenario 1: cust close from merch-close without dispute")
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     merch_close_tx = read_file(MerchCloseTxFile % (utxo_index, utxo_index))
     cust_close_tx = read_file(CustCloseFromMerchTxFile % (utxo_index, utxo_index))
@@ -205,7 +205,7 @@ def run_scenario_test1(network, utxo_index):
 
 def run_scenario_test2(network, utxo_index):
     print("==============================================")
-    log(">> Scenario: cust close from escrow without dispute")
+    log(">> Scenario 2: cust close from escrow without dispute")
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     cust_close_tx = read_file(CustCloseEscrowTxFile % (utxo_index, utxo_index))
     cust_claim_tx = read_file(CustClaimFromCustCloseEscrowTxFile % (utxo_index, utxo_index))
@@ -220,7 +220,7 @@ def run_scenario_test2(network, utxo_index):
 
 def run_scenario_test3(network, utxo_index):
     print("==============================================")
-    log(">> Scenario: cust close from escrow with merch dispute")
+    log(">> Scenario 3: cust close from escrow with merch dispute")
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     first_cust_close_tx = read_file(FirstCustCloseEscrowTxFile % (utxo_index, utxo_index))
     merch_dispute_tx = read_file(MerchDisputeFirstCustCloseTxFile % (utxo_index, utxo_index))
@@ -234,7 +234,7 @@ def run_scenario_test3(network, utxo_index):
 
 def run_scenario_test4(network, utxo_index):
     print("==============================================")
-    log(">> Scenario: cust close from merch with merch dispute")
+    log(">> Scenario 4: cust close from merch with merch dispute")
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     merch_close_tx = read_file(MerchCloseTxFile % (utxo_index, utxo_index))
     first_cust_close_tx = read_file(FirstCustCloseMerchTxFile % (utxo_index, utxo_index))
@@ -250,7 +250,7 @@ def run_scenario_test4(network, utxo_index):
 
 def run_scenario_test5(network, utxo_index):
     print("==============================================")
-    log(">> Scenario: merch claim from merch close after timelock")
+    log(">> Scenario 5: merch claim from merch close after timelock")
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     merch_close_tx = read_file(MerchCloseTxFile % (utxo_index, utxo_index))
     merch_claim_tx = read_file(MerchClaimFromMerchCloseTxFile % (utxo_index, utxo_index))
@@ -263,25 +263,22 @@ def run_scenario_test5(network, utxo_index):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--n_outputs", "-n", help="number of np2wkh outputs to pay", default="10")
     parser.add_argument("--output_btc", help="amount in btc to pay out to each output", default="1")
     parser.add_argument("--network", help="select the type of network", default="regtest")
     parser.add_argument("--ignore_fees", help="if flagged, set minRelayTxFee to 0", default=False,  action="store_true")
     args = parser.parse_args()
 
-    n_outputs = int(args.n_outputs)
-    if n_outputs < 5:
-        sys.exit("Need at least 5 utxos to test all scenarios")
     network = str(args.network)
     output_btc = int(args.output_btc)
     ignore_fees = args.ignore_fees
 
     print("Network: ", network)
 
-    output_privkeys = gen_privkeys(n_outputs)
     start_bitcoind(network, ignore_fees)
 
     tests_to_run = [run_scenario_test1, run_scenario_test2, run_scenario_test3, run_scenario_test4, run_scenario_test5]
+    
+    output_privkeys = gen_privkeys(len(tests_to_run)+1)
 
     for i, scenario in enumerate(tests_to_run):
         utxo_txid, tx_index = generate_funded_np2wkh(output_privkeys[i].hex(), output_btc, network)
