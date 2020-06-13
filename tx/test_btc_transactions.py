@@ -254,6 +254,8 @@ def np2wkh_to_n_p2wkh(txID_str, tx_index, input_amount_btc, input_privkey_str, n
 EscrowTxFile = "txdata_%d/signed_escrow_%d.txt"
 MerchCloseTxFile = "txdata_%d/signed_merch_close_%d.txt"
 FirstCustCloseEscrowTxFile = "txdata_%d/signed_first_cust_close_escrow_tx_%d.txt"
+MerchClaimViaFirstCustCloseEscrowTxFile = "txdata_%d/signed_merch_claim_first_close_escrow_tx_%d.txt"
+MerchClaimViaFirstCustCloseMerchTxFile = "txdata_%d/signed_merch_claim_first_close_merch_tx_%d.txt"
 FirstCustCloseMerchTxFile = "txdata_%d/signed_first_cust_close_merch_tx_%d.txt"
 CustCloseEscrowTxFile = "txdata_%d/signed_cust_close_escrow_tx_%d.txt"
 CustCloseFromMerchTxFile = "txdata_%d/signed_cust_close_merch_tx_%d.txt"
@@ -326,9 +328,11 @@ def run_scenario_test1(network, utxo_index):
     broadcast_transaction(network, escrow_tx, "Escrow")
     broadcast_transaction(network, merch_close_tx, "Merch Close")
     broadcast_transaction(network, cust_close_tx, "Cust Close from Merch Close")
-    generate_blocks(network, 1487)
-    broadcast_transaction(network, cust_claim_tx, "Cust claim from Cust Close after timelock (to_customer)")
-    broadcast_transaction(network, merch_claim_tx, "Merch claim from Cust Close (to_merchant)")
+    broadcast_transaction(network, merch_claim_tx, "Merch claim from Cust Close (to_merchant)") # can be spent immediately
+    generate_blocks(network, 1486)
+    broadcast_transaction(network, cust_claim_tx, "Cust claim from Cust Close after timelock (to_customer)") # should fail
+    generate_blocks(network, 1)
+    broadcast_transaction(network, cust_claim_tx, "Cust claim from Cust Close after timelock (to_customer)") # now should succeed
     print("==============================================")
 
 def run_scenario_test2(network, utxo_index):
@@ -352,11 +356,12 @@ def run_scenario_test3(network, utxo_index):
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     first_cust_close_tx = read_file(FirstCustCloseEscrowTxFile % (utxo_index, utxo_index))
     merch_dispute_tx = read_file(MerchDisputeFirstCustCloseTxFile % (utxo_index, utxo_index))
+    merch_claim_tx = read_file(MerchClaimViaFirstCustCloseEscrowTxFile % (utxo_index, utxo_index))
 
     broadcast_transaction(network, escrow_tx, "Escrow")
     broadcast_transaction(network, first_cust_close_tx, "Old Cust Close")
-    broadcast_transaction(network, merch_dispute_tx, "Merch dispute the Cust Close from Escrow")  
-    # TODO: add Merch claim for to_merchant
+    broadcast_transaction(network, merch_dispute_tx, "Merch dispute the old Cust Close from Escrow (to_customer)")  
+    broadcast_transaction(network, merch_claim_tx, "Merch claim from old Cust Close (to_merchant)")
     print("==============================================")
 
 def run_scenario_test4(network, utxo_index):
@@ -366,12 +371,13 @@ def run_scenario_test4(network, utxo_index):
     merch_close_tx = read_file(MerchCloseTxFile % (utxo_index, utxo_index))
     first_cust_close_tx = read_file(FirstCustCloseMerchTxFile % (utxo_index, utxo_index))
     merch_dispute_tx = read_file(MerchDisputeFirstCustCloseFromMerchTxFile % (utxo_index, utxo_index))
+    merch_claim_tx = read_file(MerchClaimViaFirstCustCloseMerchTxFile % (utxo_index, utxo_index))
 
     broadcast_transaction(network, escrow_tx, "Escrow")
     broadcast_transaction(network, merch_close_tx, "Merch Close")
     broadcast_transaction(network, first_cust_close_tx, "Old Cust Close from Merch Close")
     broadcast_transaction(network, merch_dispute_tx, "Merch dispute the Cust Close from Merch")  
-    # TODO: add Merch claim for to_merchant
+    broadcast_transaction(network, merch_claim_tx, "Merch claim from old Cust Close (to_merchant)")
     print("==============================================")
 
 def run_scenario_test5(network, utxo_index):
@@ -382,10 +388,9 @@ def run_scenario_test5(network, utxo_index):
     merch_claim_tx = read_file(MerchClaimFromMerchCloseTxFile % (utxo_index, utxo_index))
 
     broadcast_transaction(network, escrow_tx, "Escrow")
-    broadcast_transaction(network, merch_close_tx, "MerchClose")
+    broadcast_transaction(network, merch_close_tx, "Merch Close")
     generate_blocks(network, 1487)
     broadcast_transaction(network, merch_claim_tx, "Merch claim from the Merch Close (after timelock)")
-    # TODO: add Merch claim for to_merchant
     print("==============================================")
 
 def main():

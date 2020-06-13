@@ -124,7 +124,9 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	EscrowTxFile := ""
 	MerchCloseTxFile := ""
 	FirstCustCloseEscrowTxFile := ""
+	MerchClaimViaFirstCustCloseEscrowTxFile := ""
 	FirstCustCloseMerchTxFile := ""
+	MerchClaimViaFirstCustCloseMerchTxFile := ""
 	CustCloseEscrowTxFile := ""
 	CustCloseFromMerchTxFile := ""
 	CustClaimFromCustCloseEscrowTxFile := ""
@@ -143,8 +145,10 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 		MerchCloseTxFile = fmt.Sprintf("signed_merch_close_%d.txt", index)
 		// stores first cust-close-from-escrow-tx (old state)
 		FirstCustCloseEscrowTxFile = fmt.Sprintf("signed_first_cust_close_escrow_tx_%d.txt", index)
+		MerchClaimViaFirstCustCloseEscrowTxFile = fmt.Sprintf("signed_merch_claim_first_close_escrow_tx_%d.txt", index)
 		// stores first cust-close-from-merch-close-tx (old state)
 		FirstCustCloseMerchTxFile = fmt.Sprintf("signed_first_cust_close_merch_tx_%d.txt", index)
+		MerchClaimViaFirstCustCloseMerchTxFile = fmt.Sprintf("signed_merch_claim_first_close_merch_tx_%d.txt", index)
 		// stores cust-close-from-escrow-tx (current state)
 		CustCloseEscrowTxFile = fmt.Sprintf("signed_cust_close_escrow_tx_%d.txt", index)
 		// stores cust-close-from-merch-close-tx (current state)
@@ -273,6 +277,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("TX3: Close EscrowTx ID (LE): ", CloseEscrowTxId_LE)
 	fmt.Println("TX3: Close from EscrowTx => ", string(CloseEscrowTx))
 	fmt.Println("========================================")
+	MerchantGenerateCustClaimTx(CloseEscrowTxId_TX3, custState.MerchBalance, merchState, MerchClaimViaFirstCustCloseEscrowTxFile)
 
 	CloseMerchTx, CloseMerchTxId_LE, custState, err := ForceCustomerCloseTx(channelState, channelToken, false, custState)
 	WriteToFile(FirstCustCloseMerchTxFile, CloseMerchTx)
@@ -281,7 +286,10 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 
 	fmt.Println("TX4: Close MerchTx ID (LE): ", CloseMerchTxId_LE)
 	fmt.Println("TX4: Close from MerchCloseTx => ", string(CloseMerchTx))
-
+	{
+		inputAmount0 := custState.MerchBalance - feeMC - valCpfp
+		MerchantGenerateCustClaimTx(CloseMerchTxId_LE, inputAmount0, merchState, MerchClaimViaFirstCustCloseMerchTxFile)
+	}
 	/////////////////////////////////////////////////////////
 	fmt.Println("Proceed with channel activation...")
 
