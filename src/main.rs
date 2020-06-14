@@ -133,16 +133,8 @@ pub struct Init {
     other_ip: String,
     #[structopt(short = "q", long = "other-port")]
     other_port: String,
-    #[structopt(short = "d", long = "dust-limit", default_value = "546")]
-    min_threshold: i64,
-    #[structopt(short = "f", long = "fee-cc", default_value = "1000")]
-    fee_cc: i64,
-    #[structopt(short = "g", long = "fee-mc", default_value = "1000")]
-    fee_mc: i64,
-    #[structopt(short = "m", long = "min-fee", default_value = "0")]
-    min_fee: i64,
-    #[structopt(short = "s", long = "max-fee", default_value = "10000")]
-    max_fee: i64,
+    #[structopt(short = "f", long = "tx-fee", default_value = "1000")]
+    tx_fee: i64,
     #[structopt(short = "n", long = "channel-name", default_value = "")]
     channel_name: String,
 }
@@ -467,6 +459,7 @@ fn main() {
                 init.index.unwrap(),
                 init.input_sats.unwrap(),
                 init.output_sats.unwrap(),
+                init.tx_fee,
                 init.channel_name,
             ) {
                 Err(e) => println!("Initialize phase failed with error: {}", e),
@@ -624,6 +617,7 @@ mod cust {
         index: u32,
         input_sats: i64,
         output_sats: i64,
+        tx_fee: i64,
         channel_name: String,
     ) -> Result<(), String> {
         if channel_name == "" {
@@ -674,15 +668,16 @@ mod cust {
         // form the escrow transaction
         let (escrow_txid_be, _, escrow_prevout) =
             handle_error_result!(customer_form_escrow_transaction(
-                input_txid.clone(),
+                &input_txid,
                 index,
-                cust_sk.clone(),
+                &cust_sk,
                 input_sats,
                 output_sats,
-                cust_pk.clone(),
-                merch_pk.clone(),
-                Some(change_pk_vec.clone()),
-                false
+                &cust_pk,
+                &merch_pk,
+                Some(&change_pk_vec),
+                false,
+                tx_fee
             ));
 
         // form the merch-close-tx
@@ -776,15 +771,16 @@ mod cust {
 
         // proceed to sign the escrow-tx after initial closing tx signed
         let (signed_tx, _, _, _) = handle_error_result!(customer_sign_escrow_transaction(
-            input_txid,
+            &input_txid,
             index,
-            cust_sk.clone(),
+            &cust_sk,
             input_sats,
             output_sats,
-            cust_pk.clone(),
-            merch_pk.clone(),
-            Some(change_pk_vec),
-            false
+            &cust_pk,
+            &merch_pk,
+            Some(&change_pk_vec),
+            false,
+            tx_fee
         ));
 
         println!("Can now broadcast the signed escrow transaction");

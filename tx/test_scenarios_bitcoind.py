@@ -1,7 +1,8 @@
 # 
 # To run the tests, execute the following:
-# $: python3 test_scenarios_bitcoind.py
+# $: python3 test_scenarios_bitcoind.py --rpcuser kek --rpcpass kek
 # include --ignore_fees to set minRelayTxFee = 0
+#
 
 import argparse
 import base58
@@ -81,33 +82,54 @@ def gen_privkeys(n) -> list :
     return privkeys
 
 
-def start_bitcoind(network,ignore_fees):
-    # Make sure btcd is not already running
-    print("Stop bitcoind in case it is running")
+def start_bitcoind(network, ignore_fees, auth_user, auth_pass, verbose):
+    print("Starting bitcoin node ...")
+    # Make sure bitcoind is not already running
+    log("-> First stop existing bitcoind ...")
     out = subprocess.getoutput("bitcoin-cli -{net} stop".format(net=network))
-    print(out)
+    log("-> %s" % out, verbose)
     time.sleep(2)
+    auth_creds = ""
+    if auth_user != "" and auth_pass != "":
+        auth_creds = "-rpcuser=%s -rpcpassword=%s " % (auth_user, auth_pass)
     if ignore_fees:
-        out = subprocess.getoutput("bitcoind -{net} -daemon -minrelaytxfee=0".format(net=network))
-    else:
-        out = subprocess.getoutput("bitcoind -{net} -daemon".format(net=network))
-    print("bitcoind started")
+        out = subprocess.getoutput("bitcoind -{net} -daemon {auth}-deprecatedrpc=generate -fallbackfee=0.0002 -minrelaytxfee=0".format(net=network, auth=auth_creds))
+    else: # specify specific minrelay
+        out = subprocess.getoutput("bitcoind -{net} -daemon {auth}-deprecatedrpc=generate -fallbackfee=0.0002".format(net=network, auth=auth_creds))
+    log("-> bitcoind started")
     time.sleep(2)
+    if not check_for_sufficient_funds(network, verbose):
+        mine_blocks(network)
+    return
 
-    # mine 300 blocks so that segwit is active (incase blockchain is starting from scratch)
-    subprocess.getoutput("bitcoin-cli -{net} generate 301".format(net=network))
-    # print(out)
-
+def mine_blocks(network):
+    ## mine 300 blocks so that segwit is active (incase blockchain is starting from scratch)
+    mine_out = subprocess.getoutput("bitcoin-cli -{net} generate 301".format(net=network))
+    log("-> mine blocks => '%s'" % mine_out)
+    time.sleep(3)
     return 
 
-def generate_funded_np2wkh(input_sk, amount, network):
+def check_for_sufficient_funds(network, verbose):
+    funds_left = subprocess.getoutput("bitcoin-cli -{net} getwalletinfo".format(net=network))
+    d = json.loads(funds_left)
+    cur_balance = int(d["balance"])
+    log("Miner balance: %s" % cur_balance)
+    return cur_balance > 100
+
+def generate_funded_np2wkh(input_sk, amount, network, verbose):
     pubkey = privkey_to_pubkey(bytes.fromhex(input_sk))
     np2wkh_addr = pk_to_p2sh_p2wpkh(pubkey, network)
-    txid = subprocess.getoutput("bitcoin-cli -{net} sendtoaddress {addr} {amt} true".format(net=network, addr=np2wkh_addr, amt=amount))
+    fund_tx_cmd = "bitcoin-cli -{net} sendtoaddress {addr} {amt} true".format(net=network, addr=np2wkh_addr, amt=amount)
+    log("Transfer: %s" % fund_tx_cmd, verbose)
+    txid = subprocess.getoutput(fund_tx_cmd)
+    # check that txid is actually valid
+    log(">> Spendable utxo => txid=%s" % txid)
 
     # find which index corresponds to the funded utxo (as opposed to change output)
     full_tx = subprocess.getoutput("bitcoin-cli -{net} getrawtransaction {txid}".format(net=network, txid=txid))
+    log("Full Tx: %s" % full_tx, verbose)
     decoded = subprocess.getoutput("bitcoin-cli -{net} decoderawtransaction {tx}".format(net=network, tx=full_tx))
+    log("Decoded Tx: %s" % decoded, verbose)
     d = json.loads(decoded)
 
     if d["vout"][0]["scriptPubKey"]["addresses"][0] == np2wkh_addr:
@@ -140,8 +162,8 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-def log(msg):
-    print("%s[+] %s%s" % (PURPLE, msg, NC))
+def log(msg, debug=True):
+    if debug: print("%s[+] %s%s" % (PURPLE, msg, NC))
 
 def get_status(bool_val):
     if bool_val:
@@ -181,7 +203,7 @@ def generate_blocks(network, blocks):
 
 def run_gowrapper(utxo_txid, utxo_index, utxo_sk):
     cmd = "./run_gowrapper.sh {txid} {index} {sk}".format(txid=utxo_txid, index=utxo_index, sk=utxo_sk)
-    log(">> DEBUG: %s" % cmd)
+    log(">> Generate txs: %s" % cmd)
     return subprocess.getoutput(cmd)
 
 def run_scenario_test1(network, utxo_index):
@@ -266,29 +288,36 @@ def main():
     parser.add_argument("--output_btc", help="amount in btc to pay out to each output", default="1")
     parser.add_argument("--network", help="select the type of network", default="regtest")
     parser.add_argument("--ignore_fees", help="if flagged, set minRelayTxFee to 0", default=False,  action="store_true")
+    parser.add_argument("--rpcuser", help="rpcuser for bitcoind ", default="")
+    parser.add_argument("--rpcpass", help="rpcpassword for bitcoind", default="")
+
+    parser.add_argument("--verbose", "-v", help="increase output verbosity", action="store_true")
     args = parser.parse_args()
 
     network = str(args.network)
     output_btc = int(args.output_btc)
     ignore_fees = args.ignore_fees
+    auth_user = args.rpcuser
+    auth_pass = args.rpcpass
+    verbose = args.verbose
 
     print("Network: ", network)
 
-    start_bitcoind(network, ignore_fees)
+    start_bitcoind(network, ignore_fees, auth_user, auth_pass, verbose)
 
     tests_to_run = [run_scenario_test1, run_scenario_test2, run_scenario_test3, run_scenario_test4, run_scenario_test5]
     
     output_privkeys = gen_privkeys(len(tests_to_run)+1)
 
     for i, scenario in enumerate(tests_to_run):
-        utxo_txid, tx_index = generate_funded_np2wkh(output_privkeys[i].hex(), output_btc, network)
+        utxo_txid, tx_index = generate_funded_np2wkh(output_privkeys[i].hex(), output_btc, network, verbose)
 
         run_gowrapper(utxo_txid, tx_index, output_privkeys[i].hex())
         time.sleep(2)
         scenario(network, tx_index)
 
-    subprocess.getoutput("bitcoin-cli -{net} stop".format(net=network))
-
+    out = subprocess.getoutput("bitcoin-cli -{net} stop".format(net=network))
+    log("Stop bitcoind ... %s" % out)
     exit(0)
 
 main()

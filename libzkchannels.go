@@ -304,11 +304,11 @@ func ValidateOpenZkChannel(txid string, prevout string, nonce string, revLock st
 	return true, nil
 }
 
-func FormEscrowTx(txid string, index uint32, custInputSk string, inputAmt int64, outputAmt int64, custPk string, merchPk string, changePk string, changePkIsHash bool) (string, string, string, error) {
+func FormEscrowTx(txid string, index uint32, custInputSk string, inputAmt int64, outputAmt int64, custPk string, merchPk string, changePk string, changePkIsHash bool, txFee int64) (string, string, string, error) {
 
 	resp := C.GoString(C.cust_create_escrow_transaction(C.CString(txid), C.uint(index), C.CString(custInputSk),
 		C.int64_t(inputAmt), C.int64_t(outputAmt), C.CString(custPk),
-		C.CString(merchPk), C.CString(changePk), C.uint(btoi(changePkIsHash)), C.uint(btoi(false))))
+		C.CString(merchPk), C.CString(changePk), C.uint(btoi(changePkIsHash)), C.int64_t(txFee), C.uint(btoi(false))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", "", "", err
@@ -317,11 +317,11 @@ func FormEscrowTx(txid string, index uint32, custInputSk string, inputAmt int64,
 	return r.TxIdBe, r.TxIdLe, r.HashPrevOut, err
 }
 
-func SignEscrowTx(txid string, index uint32, custInputSk string, inputAmt int64, outputAmt int64, custPk string, merchPk string, changePk string, changePkIsHash bool) (string, string, string, string, error) {
+func SignEscrowTx(txid string, index uint32, custInputSk string, inputAmt int64, outputAmt int64, custPk string, merchPk string, changePk string, changePkIsHash bool, txFee int64) (string, string, string, string, error) {
 
 	resp := C.GoString(C.cust_create_escrow_transaction(C.CString(txid), C.uint(index), C.CString(custInputSk),
 		C.int64_t(inputAmt), C.int64_t(outputAmt), C.CString(custPk),
-		C.CString(merchPk), C.CString(changePk), C.uint(btoi(changePkIsHash)), C.uint(btoi(true))))
+		C.CString(merchPk), C.CString(changePk), C.uint(btoi(changePkIsHash)), C.int64_t(txFee), C.uint(btoi(true))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", "", "", "", err

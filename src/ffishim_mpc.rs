@@ -1063,6 +1063,7 @@ pub mod ffishim_mpc {
         ser_merch_pk: *mut c_char,
         ser_change_pk: *mut c_char,
         ser_change_pk_is_hash: u32,
+        tx_fee: i64,
         ser_should_sign: u32,
     ) -> *mut c_char {
         let txid_result = deserialize_hex_string(ser_txid);
@@ -1097,15 +1098,16 @@ pub mod ffishim_mpc {
                 // proceed to sign
                 let (signed_tx, txid_be, txid_le, prevout) =
                     handle_errors!(zkchan_tx::txutil::customer_sign_escrow_transaction(
-                        txid,
+                        &txid,
                         index,
-                        cust_sk,
+                        &cust_sk,
                         input_sats,
                         output_sats,
-                        cust_pk,
-                        merch_pk,
-                        Some(change_pk),
-                        change_pk_is_hash
+                        &cust_pk,
+                        &merch_pk,
+                        Some(&change_pk),
+                        change_pk_is_hash,
+                        tx_fee
                     ));
                 let ser = [
                     "{\'signed_tx\':\'",
@@ -1125,15 +1127,16 @@ pub mod ffishim_mpc {
                 // proceed to form and return the txid/prevout
                 let (txid_be, txid_le, prevout) =
                     handle_errors!(zkchan_tx::txutil::customer_form_escrow_transaction(
-                        txid,
+                        &txid,
                         index,
-                        cust_sk,
+                        &cust_sk,
                         input_sats,
                         output_sats,
-                        cust_pk,
-                        merch_pk,
-                        Some(change_pk),
-                        change_pk_is_hash
+                        &cust_pk,
+                        &merch_pk,
+                        Some(&change_pk),
+                        change_pk_is_hash,
+                        tx_fee
                     ));
                 let ser = [
                     "{\'txid_be\':\'",

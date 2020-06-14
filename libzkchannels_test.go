@@ -41,7 +41,7 @@ func WriteToFile(filename string, data string) error {
 func MerchantGenerateCustClaimTx(txid string, ToMerchantAmount int64, merchState MerchState, targetTxFile string) {
 	// Merchant claim tx to_merchant output from cust-close-from-escrow-tx (spendable immediately)
 	outputPk2 := "03af0530f244a154b278b34de709b84bb85bb39ff3f1302fc51ae275e5a45fb353"
-	txFee := int64(100)
+	txFee := int64(1000)
 	claimAmount := ToMerchantAmount - txFee // with some fee
 	SignedMerchClaimTx, err := MerchantSignCustClaimTx(txid, uint32(1), ToMerchantAmount, claimAmount, outputPk2, merchState)
 	if err == nil {
@@ -192,8 +192,8 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 
 	outputSats := custBal + merchBal
 	// escrowTxid_BE, escrowTxid_LE, escrowPrevout, err := FormEscrowTx(cust_utxo_txid, 0, custSk, inputSats, outputSats, custPk, merchPk, changePk, false)
-
-	signedEscrowTx, escrowTxid_BE, escrowTxid_LE, escrowPrevout, err := SignEscrowTx(cust_utxo_txid, cust_utxo_index, custInputSk, inputSats, outputSats, custPk, merchPk, changePk, false)
+	txFee := int64(500)
+	signedEscrowTx, escrowTxid_BE, escrowTxid_LE, escrowPrevout, err := SignEscrowTx(cust_utxo_txid, cust_utxo_index, custInputSk, inputSats, outputSats, custPk, merchPk, changePk, false, txFee)
 	WriteToFile(EscrowTxFile, signedEscrowTx)
 	assert.Nil(t, err)
 
@@ -364,24 +364,15 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	// Customer claim tx from cust-close-from-escrow-tx
 	fmt.Println("========================================")
 	outputPk := changePk
-	inputAmount := custState.CustBalance - feeCC - feeMC
-	claimAmount := inputAmount
-	SignedCustClaimTx, err := CustomerSignClaimTx(channelState, CloseEscrowTxId_LE, uint32(0), inputAmount, claimAmount, toSelfDelay, outputPk, custState.RevLock, custClosePk, custState)
+	inputAmount0 := custState.CustBalance - feeCC - feeMC
+	claimAmount := inputAmount0 - txFee
+	SignedCustClaimTx, err := CustomerSignClaimTx(channelState, CloseEscrowTxId_LE, uint32(0), inputAmount0, claimAmount, toSelfDelay, outputPk, custState.RevLock, custClosePk, custState)
 	assert.Nil(t, err)
 	fmt.Println("TX5-cust-claim-tx: ", SignedCustClaimTx)
 	WriteToFile(CustClaimFromCustCloseEscrowTxFile, SignedCustClaimTx)
 
 	// Merchant claim tx to_merchant output from cust-close-from-escrow-tx (spendable immediately)
 	MerchantGenerateCustClaimTx(CloseEscrowTxId_LE, custState.MerchBalance, merchState, MerchClaimFromEscrowTxFile)
-
-	// outputPk2 := "03af0530f244a154b278b34de709b84bb85bb39ff3f1302fc51ae275e5a45fb353"
-	// txFee := int64(100)
-	// claimAmount = custState.MerchBalance - txFee // with some fee
-	// SignedMerchClaimTx, err := MerchantSignCustClaimTx(CloseEscrowTxId_LE, uint32(1), custState.MerchBalance, claimAmount, outputPk2, merchState)
-	// assert.Nil(t, err)
-	// fmt.Println("TX5-merch-claim-tx: ", SignedMerchClaimTx)
-	// fmt.Println("========================================")
-	// WriteToFile(MerchClaimFromEscrowTxFile, SignedMerchClaimTx)
 
 	// Customer can also close from merch-close-tx
 	CloseMerchTx, CloseMerchTxId_LE, custState, err = ForceCustomerCloseTx(channelState, channelToken, false, custState)
@@ -395,8 +386,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	{
 		// try to claim from cust-close-from-merch-tx
 		inputAmount1 := custState.CustBalance - feeCC - feeMC
-		claimAmount := inputAmount1
-
+		claimAmount := inputAmount1 - txFee
 		SignedCustClaimTx2, err := CustomerSignClaimTx(channelState, CloseMerchTxId_LE, uint32(0), inputAmount1, claimAmount, toSelfDelay, outputPk, custState.RevLock, custClosePk, custState)
 		assert.Nil(t, err)
 		WriteToFile(CustClaimFromCustCloseMerchTxFile, SignedCustClaimTx2)
@@ -426,21 +416,23 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("custClosePk :=> ", custClosePk)
 	fmt.Println("merchDisputePk :=> ", merchDispPk)
 	claimAmount = disputedInAmt - feeCC - feeMC
-	disputeTx, err := MerchantSignDisputeTx(CloseEscrowTxId_TX3, index, claimAmount, claimAmount, toSelfDelay, outputPk, revState.RevLock, FoundRevSecret, custClosePk, merchState)
+	claimOutAmount := claimAmount - txFee
+	disputeTx, err := MerchantSignDisputeTx(CloseEscrowTxId_TX3, index, claimAmount, claimOutAmount, toSelfDelay, outputPk, revState.RevLock, FoundRevSecret, custClosePk, merchState)
 	assert.Nil(t, err)
 	fmt.Println("========================================")
 	fmt.Println("TX5: disputeCloseEscrowTx: ", disputeTx)
 	fmt.Println("========================================")
 	WriteToFile(MerchDisputeFirstCustCloseTxFile, disputeTx)
 
-	SignedMerchDisputeTx2, err := MerchantSignDisputeTx(CloseMerchTxId_TX3, index, claimAmount, claimAmount, toSelfDelay, outputPk, revState.RevLock, FoundRevSecret, custClosePk, merchState)
+	SignedMerchDisputeTx2, err := MerchantSignDisputeTx(CloseMerchTxId_TX3, index, claimAmount, claimOutAmount, toSelfDelay, outputPk, revState.RevLock, FoundRevSecret, custClosePk, merchState)
 	WriteToFile(MerchDisputeFirstCustCloseFromMerchTxFile, SignedMerchDisputeTx2)
 
 	// Merchant can claim tx output from merch-close-tx after timeout
 	fmt.Println("Claim tx from merchant close tx")
 	claimAmount = custBal + merchBal
 	claimAmount = claimAmount - feeCC - feeMC
-	SignedMerchClaimTx, err := MerchantSignMerchClaimTx(merchTxid_LE, index, claimAmount, claimAmount, toSelfDelay, custPk, outputPk, merchState)
+	claimOutAmount = claimAmount - txFee
+	SignedMerchClaimTx, err := MerchantSignMerchClaimTx(merchTxid_LE, index, claimAmount, claimOutAmount, toSelfDelay, custPk, outputPk, merchState)
 	assert.Nil(t, err)
 	fmt.Println("TX2-merch-close-claim-tx: ", SignedMerchClaimTx)
 	fmt.Println("========================================")

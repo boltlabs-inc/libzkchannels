@@ -100,6 +100,7 @@ char *cust_create_escrow_transaction(char *ser_txid,
                                      char *ser_merch_pk,
                                      char *ser_change_pk,
                                      uint32_t ser_change_pk_is_hash,
+                                     int64_t tx_fee,
                                      uint32_t ser_should_sign);
 
 char *cust_verify_init_cust_close_txs(char *ser_funding_tx,
