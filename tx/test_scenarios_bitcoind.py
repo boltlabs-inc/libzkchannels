@@ -9,9 +9,10 @@ import base58
 import ecdsa
 import hashlib
 import json
+import re
 import subprocess
-import time
 import sys
+import time
 
 def dSHA256(data):
     hash_1 = hashlib.sha256(data).digest()
@@ -99,15 +100,8 @@ def start_bitcoind(network, ignore_fees, auth_user, auth_pass, verbose):
     log("-> bitcoind started")
     time.sleep(2)
     if not check_for_sufficient_funds(network, verbose):
-        mine_blocks(network)
+        generate_blocks(network,301)
     return
-
-def mine_blocks(network):
-    ## mine 300 blocks so that segwit is active (incase blockchain is starting from scratch)
-    mine_out = subprocess.getoutput("bitcoin-cli -{net} generate 301".format(net=network))
-    log("-> mine blocks => '%s'" % mine_out)
-    time.sleep(3)
-    return 
 
 def check_for_sufficient_funds(network, verbose):
     funds_left = subprocess.getoutput("bitcoin-cli -{net} getwalletinfo".format(net=network))
@@ -194,12 +188,28 @@ def broadcast_transaction(network, tx_hex, tx_type_str):
     return
 
 def generate_blocks(network, blocks):
-    result = subprocess.getoutput("bitcoin-cli -{net} generate {blocks}".format(net=network, blocks=blocks))
+    version = get_btc_version()
+    if int(version) < int("018"):
+        # if bitcoin-cli is pre v0.18, use 'generate' command
+        result = subprocess.getoutput("bitcoin-cli -{net} generate {blocks}".format(net=network, blocks=blocks))
+    else:
+        address = subprocess.getoutput("bitcoin-cli -{net} getnewaddress".format(net=network))
+        result = subprocess.getoutput("bitcoin-cli -{net} generatetoaddress {blocks} {addr}".format(net=network, blocks=blocks, addr=address))
     if result != "":
         print("Generated %s blocks" % emphasize(blocks))
     else:
         print("Failed to advance chain! :-(")
     return
+
+def get_btc_version():
+    '''
+    e.g. 'Bitcoin Core RPC client version v0.20.99.0-dec067f5a' returns ("020") 
+    '''
+    out = subprocess.getoutput("bitcoin-cli -version")
+    version = re.search(r"version v(\d).(\d\d)", out, re.M).group(1,2)
+    return "".join(version)
+
+
 
 def run_gowrapper(utxo_txid, utxo_index, utxo_sk):
     cmd = "./run_gowrapper.sh {txid} {index} {sk}".format(txid=utxo_txid, index=utxo_index, sk=utxo_sk)
@@ -302,6 +312,7 @@ def main():
     verbose = args.verbose
 
     print("Network: ", network)
+    print(subprocess.getoutput("bitcoin-cli -version"))
 
     start_bitcoind(network, ignore_fees, auth_user, auth_pass, verbose)
 
