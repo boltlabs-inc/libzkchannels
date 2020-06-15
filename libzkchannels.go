@@ -186,8 +186,7 @@ func GetSelfDelayBE(channelState ChannelState) (string, error) {
 	return r.SelfDelayBE, err
 }
 
-func ChannelSetup(name string, balMinCust int64, balMinMerch int64, valCpfp int64, channelThirdPartySupport bool) (ChannelState, error) {
-	selfDelay := uint16(1487) // fixed and not configurable in current version of MPC func
+func ChannelSetup(name string, selfDelay int16, balMinCust int64, balMinMerch int64, valCpfp int64, channelThirdPartySupport bool) (ChannelState, error) {
 	resp := C.GoString(C.mpc_channel_setup(C.CString(name), C.uint16_t(selfDelay), C.int64_t(balMinCust), C.int64_t(balMinMerch), C.int64_t(valCpfp), C.uint(btoi(channelThirdPartySupport))))
 	r, err := processCResponse(resp)
 	if err != nil {

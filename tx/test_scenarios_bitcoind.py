@@ -1,6 +1,6 @@
 # 
 # To run the tests, execute the following:
-# $: python3 test_scenarios_bitcoind.py --rpcuser kek --rpcpass kek
+# $: python3 test_scenarios_bitcoind.py --rpcuser kek --rpcpass kek --timelock=187
 # include --ignore_fees to set minRelayTxFee = 0
 #
 
@@ -211,12 +211,12 @@ def get_btc_version():
 
 
 
-def run_gowrapper(utxo_txid, utxo_index, utxo_sk):
-    cmd = "./run_gowrapper.sh {txid} {index} {sk}".format(txid=utxo_txid, index=utxo_index, sk=utxo_sk)
+def run_gowrapper(utxo_txid, utxo_index, utxo_sk, blocks):
+    cmd = "./run_gowrapper.sh {txid} {index} {sk} {blocks}".format(txid=utxo_txid, index=utxo_index, sk=utxo_sk, blocks=blocks)
     log(">> Generate txs: %s" % cmd)
     return subprocess.getoutput(cmd)
 
-def run_scenario_test1(network, utxo_index):
+def run_scenario_test1(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario 1: cust close from merch-close without dispute")
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
@@ -228,14 +228,14 @@ def run_scenario_test1(network, utxo_index):
     broadcast_transaction(network, escrow_tx, "Escrow")
     broadcast_transaction(network, merch_close_tx, "Merch Close")
     broadcast_transaction(network, cust_close_tx, "Cust Close from Merch Close")
-    broadcast_transaction(network, merch_claim_tx, "Merch claim from Cust Close (to_merchant)") # can be spent immediately
-    generate_blocks(network, 1486)
-    broadcast_transaction(network, cust_claim_tx, "Cust claim from Cust Close after timelock (to_customer)") # should fail
+    generate_blocks(network, blocks-1)
+    broadcast_transaction(network, cust_claim_tx, "Cust claim from Cust Close after timelock (to_customer) - should fail") # should fail
     generate_blocks(network, 1)
     broadcast_transaction(network, cust_claim_tx, "Cust claim from Cust Close after timelock (to_customer)") # now should succeed
+    broadcast_transaction(network, merch_claim_tx, "Merch claim from Cust Close (to_merchant)") # can be spent immediately
     print("==============================================")
 
-def run_scenario_test2(network, utxo_index):
+def run_scenario_test2(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario 2: cust close from escrow without dispute")
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
@@ -245,12 +245,12 @@ def run_scenario_test2(network, utxo_index):
 
     broadcast_transaction(network, escrow_tx, "Escrow")
     broadcast_transaction(network, cust_close_tx, "Cust Close from Escrow")
-    generate_blocks(network, 1487)
+    generate_blocks(network, blocks)
     broadcast_transaction(network, cust_claim_tx, "Cust claim from Cust Close after timelock (to_customer)")
     broadcast_transaction(network, merch_claim_tx, "Merch claim from Cust Close (to_merchant)")
     print("==============================================")
 
-def run_scenario_test3(network, utxo_index):
+def run_scenario_test3(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario 3: cust close from escrow with merch dispute")
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
@@ -264,7 +264,7 @@ def run_scenario_test3(network, utxo_index):
     broadcast_transaction(network, merch_claim_tx, "Merch claim from old Cust Close (to_merchant)")
     print("==============================================")
 
-def run_scenario_test4(network, utxo_index):
+def run_scenario_test4(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario 4: cust close from merch with merch dispute")
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
@@ -280,7 +280,7 @@ def run_scenario_test4(network, utxo_index):
     broadcast_transaction(network, merch_claim_tx, "Merch claim from old Cust Close (to_merchant)")
     print("==============================================")
 
-def run_scenario_test5(network, utxo_index):
+def run_scenario_test5(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario 5: merch claim from merch close after timelock")
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
@@ -289,7 +289,7 @@ def run_scenario_test5(network, utxo_index):
 
     broadcast_transaction(network, escrow_tx, "Escrow")
     broadcast_transaction(network, merch_close_tx, "Merch Close")
-    generate_blocks(network, 1487)
+    generate_blocks(network, blocks)
     broadcast_transaction(network, merch_claim_tx, "Merch claim from the Merch Close (after timelock)")
     print("==============================================")
 
@@ -298,6 +298,7 @@ def main():
     parser.add_argument("--output_btc", help="amount in btc to pay out to each output", default="1")
     parser.add_argument("--network", help="select the type of network", default="regtest")
     parser.add_argument("--ignore_fees", help="if flagged, set minRelayTxFee to 0", default=False,  action="store_true")
+    parser.add_argument("--timelock", "-t", help="timelock for closing transactions", default="287")
     parser.add_argument("--rpcuser", help="rpcuser for bitcoind ", default="")
     parser.add_argument("--rpcpass", help="rpcpassword for bitcoind", default="")
 
@@ -307,6 +308,7 @@ def main():
     network = str(args.network)
     output_btc = int(args.output_btc)
     ignore_fees = args.ignore_fees
+    blocks = int(args.timelock)
     auth_user = args.rpcuser
     auth_pass = args.rpcpass
     verbose = args.verbose
@@ -323,9 +325,9 @@ def main():
     for i, scenario in enumerate(tests_to_run):
         utxo_txid, tx_index = generate_funded_np2wkh(output_privkeys[i].hex(), output_btc, network, verbose)
 
-        run_gowrapper(utxo_txid, tx_index, output_privkeys[i].hex())
+        run_gowrapper(utxo_txid, tx_index, output_privkeys[i].hex(), blocks)
         time.sleep(2)
-        scenario(network, tx_index)
+        scenario(network, tx_index, blocks)
 
     out = subprocess.getoutput("bitcoin-cli -{net} stop".format(net=network))
     log("Stop bitcoind ... %s" % out)

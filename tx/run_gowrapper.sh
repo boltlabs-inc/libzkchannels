@@ -3,6 +3,7 @@
 export UTXO_TXID=$1
 export UTXO_INDEX=$2
 export UTXO_SK=$3
+export TIMELOCK=$4
 export FIX_CUSTOMER_WALLET=yes
 export UTXO_SAVE_TX=yes
 cd ..

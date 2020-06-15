@@ -1,6 +1,6 @@
 # 
 # To run the tests, execute the following:
-# $: python3 test_scenarios_btcd.py --n_outputs=5
+# $: python3 test_scenarios_btcd.py --n_outputs=5 --timelock=287
 #
 
 import argparse
@@ -311,12 +311,12 @@ def generate_blocks(network, blocks):
         print("Failed to advance chain! :-(")
     return
 
-def run_gowrapper(utxo_txid, utxo_index, utxo_sk):
-    cmd = "./run_gowrapper.sh {txid} {index} {sk}".format(txid=utxo_txid, index=utxo_index, sk=utxo_sk)
+def run_gowrapper(utxo_txid, utxo_index, utxo_sk, blocks):
+    cmd = "./run_gowrapper.sh {txid} {index} {sk} {blocks}".format(txid=utxo_txid, index=utxo_index, sk=utxo_sk, blocks=blocks)
     log(">> DEBUG: %s" % cmd)
     return subprocess.getoutput(cmd)
 
-def run_scenario_test1(network, utxo_index):
+def run_scenario_test1(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario %s: cust close from merch-close without dispute" % utxo_index)
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
@@ -328,14 +328,14 @@ def run_scenario_test1(network, utxo_index):
     broadcast_transaction(network, escrow_tx, "Escrow")
     broadcast_transaction(network, merch_close_tx, "Merch Close")
     broadcast_transaction(network, cust_close_tx, "Cust Close from Merch Close")
-    broadcast_transaction(network, merch_claim_tx, "Merch claim from Cust Close (to_merchant)") # can be spent immediately
-    generate_blocks(network, 1486)
-    broadcast_transaction(network, cust_claim_tx, "Cust claim from Cust Close after timelock (to_customer)") # should fail
+    generate_blocks(network, blocks-1)
+    broadcast_transaction(network, cust_claim_tx, "Cust claim from Cust Close after timelock (to_customer) - should fail") # should fail
     generate_blocks(network, 1)
     broadcast_transaction(network, cust_claim_tx, "Cust claim from Cust Close after timelock (to_customer)") # now should succeed
+    broadcast_transaction(network, merch_claim_tx, "Merch claim from Cust Close (to_merchant)") # can be spent immediately
     print("==============================================")
 
-def run_scenario_test2(network, utxo_index):
+def run_scenario_test2(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario %s: cust close from escrow without dispute" % utxo_index)
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
@@ -345,12 +345,12 @@ def run_scenario_test2(network, utxo_index):
 
     broadcast_transaction(network, escrow_tx, "Escrow")
     broadcast_transaction(network, cust_close_tx, "Cust Close from Escrow")
-    generate_blocks(network, 1487)
-    broadcast_transaction(network, cust_claim_tx, "Cust claim from Cust Close after timelock (to_customer)")
     broadcast_transaction(network, merch_claim_tx, "Merch claim from Cust Close (to_merchant)")
+    generate_blocks(network, blocks)
+    broadcast_transaction(network, cust_claim_tx, "Cust claim from Cust Close after timelock (to_customer)")
     print("==============================================")
 
-def run_scenario_test3(network, utxo_index):
+def run_scenario_test3(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario %s: cust close from escrow with merch dispute" % utxo_index)
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
@@ -364,7 +364,7 @@ def run_scenario_test3(network, utxo_index):
     broadcast_transaction(network, merch_claim_tx, "Merch claim from old Cust Close (to_merchant)")
     print("==============================================")
 
-def run_scenario_test4(network, utxo_index):
+def run_scenario_test4(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario %s: cust close from merch with merch dispute" % utxo_index)
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
@@ -380,7 +380,7 @@ def run_scenario_test4(network, utxo_index):
     broadcast_transaction(network, merch_claim_tx, "Merch claim from old Cust Close (to_merchant)")
     print("==============================================")
 
-def run_scenario_test5(network, utxo_index):
+def run_scenario_test5(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario %s: merch claim from merch close after timelock" % utxo_index)
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
@@ -389,28 +389,29 @@ def run_scenario_test5(network, utxo_index):
 
     broadcast_transaction(network, escrow_tx, "Escrow")
     broadcast_transaction(network, merch_close_tx, "Merch Close")
-    generate_blocks(network, 1487)
+    generate_blocks(network, blocks)
     broadcast_transaction(network, merch_claim_tx, "Merch claim from the Merch Close (after timelock)")
     print("==============================================")
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--n_outputs", "-n", help="number of np2wkh outputs to pay")
     parser.add_argument("--output_btc", "-btc", help="amount in btc to pay out to each output", default="1")
     parser.add_argument("--network", "-nw", help="select the type of network", default="simnet")
+    parser.add_argument("--timelock", "-t", help="timelock for closing transactions", default="287")
     args = parser.parse_args()
 
-    n_outputs = int(args.n_outputs)
-    if n_outputs < 5:
-        sys.exit("Need at least 5 utxos to test all scenarios")
     network = str(args.network)
     output_btc = int(args.output_btc)
+    blocks = int(args.timelock)
 
     print("Network: ", network)
 
     miner_privkey = "2222222222222222222222222222222222222222222222222222222222222222"
     coinbase_txid, amount_btc = make_coinbase_utxo_for_sk(miner_privkey, network)
     # print("miner's utxo txid (little Endian) => " + coinbase_txid)
+    tests_to_run = [run_scenario_test1, run_scenario_test2, run_scenario_test3, run_scenario_test4, run_scenario_test5]
+
+    n_outputs = len(tests_to_run)
 
     output_privkeys = gen_privkeys(n_outputs)
     init_tx = np2wkh_to_n_p2wkh(coinbase_txid, 0, amount_btc, miner_privkey, n_outputs, output_btc)
@@ -420,30 +421,10 @@ def main():
 
     output_privkeys_hex = [sk.hex() for sk in output_privkeys]
 
-    index = 0
-    run_gowrapper(utxo_txid, index, output_privkeys_hex[index])
-    time.sleep(2)
-    run_scenario_test1(network, index)
-
-    index = 1
-    run_gowrapper(utxo_txid, index, output_privkeys_hex[index])
-    time.sleep(2)
-    run_scenario_test2(network, index)
-
-    index = 2
-    run_gowrapper(utxo_txid, index, output_privkeys_hex[index])
-    time.sleep(2)
-    run_scenario_test3(network, index)
-
-    index = 3
-    run_gowrapper(utxo_txid, index, output_privkeys_hex[index])
-    time.sleep(2)
-    run_scenario_test4(network, index)
-
-    index = 4
-    run_gowrapper(utxo_txid, index, output_privkeys_hex[index])
-    time.sleep(2)
-    run_scenario_test5(network, index)
+    for index, scenario in enumerate(tests_to_run):
+        run_gowrapper(utxo_txid, index, output_privkeys_hex[index], blocks)
+        time.sleep(2)
+        scenario(network, index, blocks)
 
     exit(0)
 

@@ -54,6 +54,15 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	dbUrl := "redis://127.0.0.1/"
 	valCpfp := int64(1000)
 	minThreshold := int64(546)
+	selfDelay := int16(1487) // used to be 1487
+	self_delay := os.Getenv("TIMELOCK")
+	if self_delay != "" {
+		to_self_delay, err := strconv.ParseUint(self_delay, 10, 16)
+		assert.Nil(t, err)
+		selfDelay = int16(to_self_delay)
+		fmt.Println("Using timelock: ", selfDelay)
+	}
+
 	txFeeInfo := TransactionFeeInfo{
 		BalMinCust:  minThreshold,
 		BalMinMerch: minThreshold,
@@ -66,7 +75,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	feeCC := txFeeInfo.FeeCC
 	feeMC := txFeeInfo.FeeMC
 
-	channelState, err := ChannelSetup("channel", txFeeInfo.BalMinCust, txFeeInfo.BalMinMerch, txFeeInfo.ValCpFp, false)
+	channelState, err := ChannelSetup("channel", selfDelay, txFeeInfo.BalMinCust, txFeeInfo.BalMinMerch, txFeeInfo.ValCpFp, false)
 	assert.Nil(t, err)
 
 	channelState, merchState, err := InitMerchant(dbUrl, channelState, "merch")
