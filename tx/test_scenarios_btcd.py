@@ -1,6 +1,6 @@
 # 
 # To run the tests, execute the following:
-# $: python3 test_scenarios_btcd.py --n_outputs=5 --timelock=287
+# $: python3 test_scenarios_btcd.py --timelock=287
 #
 
 import argparse
@@ -273,8 +273,8 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-def log(msg):
-    print("%s[+] %s%s" % (PURPLE, msg, NC))
+def log(msg, verbose=True):
+    if verbose: print("%s[+] %s%s" % (PURPLE, msg, NC))
 
 def get_status(bool_val):
     if bool_val:
@@ -398,11 +398,16 @@ def main():
     parser.add_argument("--output_btc", "-btc", help="amount in btc to pay out to each output", default="1")
     parser.add_argument("--network", "-nw", help="select the type of network", default="simnet")
     parser.add_argument("--timelock", "-t", help="timelock for closing transactions", default="287")
+    parser.add_argument("--verbose", "-v", help="increase output verbosity", action="store_true")
+    parser.add_argument("--scenario", "-s", help="run a specific scenario", default="-1")
+
     args = parser.parse_args()
 
     network = str(args.network)
     output_btc = int(args.output_btc)
     blocks = int(args.timelock)
+    scenario_index = int(args.scenario)
+    verbose = args.verbose
 
     print("Network: ", network)
 
@@ -417,14 +422,19 @@ def main():
     init_tx = np2wkh_to_n_p2wkh(coinbase_txid, 0, amount_btc, miner_privkey, n_outputs, output_btc)
 
     utxo_txid = subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek sendrawtransaction {init_tx}".format(net=network, init_tx=init_tx))
-    print("init_tx utxo txid (little Endian) => %s" % emphasize(utxo_txid))
+    if verbose: print("init_tx utxo txid (little Endian) => %s" % emphasize(utxo_txid))
 
     output_privkeys_hex = [sk.hex() for sk in output_privkeys]
-
-    for index, scenario in enumerate(tests_to_run):
+    if scenario_index in range(0,5):
+        index = 0
         run_gowrapper(utxo_txid, index, output_privkeys_hex[index], blocks)
         time.sleep(2)
-        scenario(network, index, blocks)
+        tests_to_run[scenario_index](network, index, blocks)
+    else:
+        for index, scenario in enumerate(tests_to_run):
+            run_gowrapper(utxo_txid, index, output_privkeys_hex[index], blocks)
+            time.sleep(2)
+            scenario(network, index, blocks)
 
     exit(0)
 

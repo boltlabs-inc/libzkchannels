@@ -301,8 +301,8 @@ def main():
     parser.add_argument("--timelock", "-t", help="timelock for closing transactions", default="287")
     parser.add_argument("--rpcuser", help="rpcuser for bitcoind ", default="")
     parser.add_argument("--rpcpass", help="rpcpassword for bitcoind", default="")
-
     parser.add_argument("--verbose", "-v", help="increase output verbosity", action="store_true")
+    
     args = parser.parse_args()
 
     network = str(args.network)
