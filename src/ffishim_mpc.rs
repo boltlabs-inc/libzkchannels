@@ -3,7 +3,8 @@ pub mod ffishim_mpc {
     extern crate libc;
 
     use channels_mpc::{
-        ChannelMPCState, ChannelMPCToken, CustomerMPCState, InitCustState, MerchantMPCState, TransactionFeeInfo,
+        ChannelMPCState, ChannelMPCToken, CustomerMPCState, InitCustState, MerchantMPCState,
+        TransactionFeeInfo,
     };
     use database::{MaskedTxMPCInputs, RedisDatabase, StateDatabase};
     use hex::FromHexError;
@@ -249,14 +250,8 @@ pub mod ffishim_mpc {
         let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
 
         // We change the channel state
-        let (channel_token, cust_state) = mpc::init_customer(
-            rng,
-            &pk_m,
-            cust_bal,
-            merch_bal,
-            &tx_fee_info,
-            name,
-        );
+        let (channel_token, cust_state) =
+            mpc::init_customer(rng, &pk_m, cust_bal, merch_bal, &tx_fee_info, name);
         let ser = [
             "{\'cust_state\':\'",
             serde_json::to_string(&cust_state).unwrap().as_str(),
@@ -1429,7 +1424,11 @@ pub mod ffishim_mpc {
             deserialize_result_object(ser_cust_state);
         let mut cust_state = handle_errors!(cust_state_result);
 
-        handle_errors!(cust_state.set_initial_cust_state(&mut channel_token, &funding_tx, &tx_fee_info));
+        handle_errors!(cust_state.set_initial_cust_state(
+            &mut channel_token,
+            &funding_tx,
+            &tx_fee_info
+        ));
 
         // now sign the customer's initial closing txs iff escrow-sig and merch-sig are valid
         let got_close_tx = handle_errors!(cust_state.sign_initial_closing_transaction::<Testnet>(

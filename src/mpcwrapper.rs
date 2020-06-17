@@ -976,7 +976,11 @@ mod tests {
         let merch_tx = Message::from_slice(merch_tx_ar.as_slice()).unwrap();
 
         // automatically generate the escrow_preimage
-        let input2 = create_reverse_input(&tx_id_merch, 0, new_state.bc + new_state.bm - val_cpfp - new_state.fee_mc);
+        let input2 = create_reverse_input(
+            &tx_id_merch,
+            0,
+            new_state.bc + new_state.bm - val_cpfp - new_state.fee_mc,
+        );
         let (m_tx_preimage, _, _) = create_cust_close_transaction::<Testnet>(
             &input2,
             &pubkeys,

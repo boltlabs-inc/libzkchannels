@@ -305,7 +305,7 @@ fn get_tx_fee_info() -> mpc::TransactionFeeInfo {
         fee_cc: 1000,
         fee_mc: 1000,
         min_fee: 0,
-        max_fee: 10000
+        max_fee: 10000,
     };
     return tx_fee_info;
 }
@@ -420,13 +420,9 @@ fn main() {
     match args.command {
         Command::SETFEES(_setfees) => {
             println!("Setting tx fees config: ");
-        },
+        }
         Command::OPEN(open) => match open.party {
-            Party::MERCH => match merch::open(
-                create_connection!(open),
-                &db_url,
-                open.self_delay,
-            ) {
+            Party::MERCH => match merch::open(create_connection!(open), &db_url, open.self_delay) {
                 Err(e) => println!("Channel opening phase failed with error: {}", e),
                 _ => (),
             },
@@ -444,10 +440,7 @@ fn main() {
             }
         },
         Command::INIT(init) => match init.party {
-            Party::MERCH => match merch::init(
-                create_connection!(init),
-                &db_url,
-            ) {
+            Party::MERCH => match merch::init(create_connection!(init), &db_url) {
                 Err(e) => println!("Initialize phase failed with error: {}", e),
                 _ => (),
             },
@@ -572,14 +565,15 @@ mod cust {
         let mut db_conn = handle_error_result!(create_db_connection(db_url.clone()));
 
         let tx_fee_info = get_tx_fee_info();
-        
+
         println!("Waiting for merchant's channel_state and pk_m...");
         let msg0 = conn.wait_for(None, false);
         let channel_state: ChannelMPCState = serde_json::from_str(&msg0.get(0).unwrap()).unwrap();
         let pk_m: secp256k1::PublicKey = serde_json::from_str(&msg0.get(1).unwrap()).unwrap();
 
         // check cust-bal meets min bal
-        let cust_min_bal = tx_fee_info.fee_cc + channel_state.get_bal_min_cust() + channel_state.get_val_cpfp();
+        let cust_min_bal =
+            tx_fee_info.fee_cc + channel_state.get_bal_min_cust() + channel_state.get_val_cpfp();
         if b0_cust < cust_min_bal {
             return Err(format!("cust-bal must be greater than {}.", cust_min_bal));
         }
@@ -1067,11 +1061,7 @@ mod merch {
     static MERCH_STATE_KEY: &str = "merch_state";
     static CHANNEL_STATE_KEY: &str = "channel_state";
 
-    pub fn open(
-        conn: &mut Conn,
-        db_url: &String,
-        self_delay: u16,
-    ) -> Result<(), String> {
+    pub fn open(conn: &mut Conn, db_url: &String, self_delay: u16) -> Result<(), String> {
         let merch_state_info = load_merchant_state_info(&db_url);
         let tx_fee_info = get_tx_fee_info();
         let (channel_state, merch_state) = match merch_state_info {
@@ -1114,10 +1104,7 @@ mod merch {
         Ok(())
     }
 
-    pub fn init(
-        conn: &mut Conn,
-        db_url: &String,
-    ) -> Result<(), String> {
+    pub fn init(conn: &mut Conn, db_url: &String) -> Result<(), String> {
         // build tx and sign it
         let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
         let key = String::from("cli:merch_db");

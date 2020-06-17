@@ -1810,11 +1810,7 @@ mod tests {
     use sha2::Sha256;
     use zkchan_tx::Testnet;
 
-    fn generate_test_txs<R: Rng>(
-        csprng: &mut R,
-        b0_cust: i64,
-        b0_merch: i64,
-    ) -> FundingTxInfo {
+    fn generate_test_txs<R: Rng>(csprng: &mut R, b0_cust: i64, b0_merch: i64) -> FundingTxInfo {
         let mut escrow_txid = [0u8; 32];
         let mut merch_txid = [0u8; 32];
 
@@ -1865,7 +1861,7 @@ mod tests {
             min_fee: 0,
             max_fee: 10000
         };
-    
+
         // each party executes the init algorithm on the agreed initial challenge balance
         // in order to derive the channel tokens
         // initialize on the merchant side with balance: b0_merch
@@ -2171,7 +2167,6 @@ mod tests {
 
     #[test]
     fn mpc_test_serialization() {
-
         let min_threshold = 546; // dust limit
         let tx_fee_info = mpc::TransactionFeeInfo {
             bal_min_cust: min_threshold,
@@ -2180,10 +2175,16 @@ mod tests {
             fee_cc: 1000,
             fee_mc: 1000,
             min_fee: 0,
-            max_fee: 10000
+            max_fee: 10000,
         };
-        let mut channel_state =
-            ChannelMPCState::new(String::from("Channel A <-> B"), 1487, tx_fee_info.bal_min_cust, tx_fee_info.bal_min_merch, tx_fee_info.val_cpfp, false);
+        let mut channel_state = ChannelMPCState::new(
+            String::from("Channel A <-> B"),
+            1487,
+            tx_fee_info.bal_min_cust,
+            tx_fee_info.bal_min_merch,
+            tx_fee_info.val_cpfp,
+            false,
+        );
         let mut rng = XorShiftRng::seed_from_u64(0x8d863e545dbe6259);
         let db_url = "redis://127.0.0.1/".to_string();
 
@@ -2229,8 +2230,13 @@ mod tests {
 
         // initialize the channel token on with pks
         // generate and send initial state to the merchant
-        let mut channel_token =
-            cust_state.generate_init_state(&mut rng, &merch_state.pk_m, tx_fee_info.min_fee, tx_fee_info.max_fee, tx_fee_info.fee_mc);
+        let mut channel_token = cust_state.generate_init_state(
+            &mut rng,
+            &merch_state.pk_m,
+            tx_fee_info.min_fee,
+            tx_fee_info.max_fee,
+            tx_fee_info.fee_mc,
+        );
 
         let cust_sk = [4u8; 32];
         let pay_sk = [5u8; 32];

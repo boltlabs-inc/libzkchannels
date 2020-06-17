@@ -874,7 +874,8 @@ pub struct FundingTxInfo {
 pub mod mpc {
     use bindings::ConnType_NETIO;
     pub use channels_mpc::{
-        ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState, RevokedState, TransactionFeeInfo,
+        ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState, RevokedState,
+        TransactionFeeInfo,
     };
     pub use channels_mpc::{ChannelStatus, InitCustState, NetworkConfig, PaymentStatus};
     use database::{MaskedTxMPCInputs, StateDatabase};
@@ -914,7 +915,7 @@ pub mod mpc {
         b0_merch: i64,
         tx_fee_info: &TransactionFeeInfo,
         name: &str,
-    ) -> (ChannelMPCToken, CustomerMPCState) {        
+    ) -> (ChannelMPCToken, CustomerMPCState) {
         assert!(b0_cust > 0);
         assert!(b0_merch >= 0);
         let bal_min_cust = tx_fee_info.bal_min_cust;
@@ -2088,7 +2089,7 @@ mod tests {
             fee_cc: fee_cc,
             fee_mc: fee_mc,
             min_fee: min_fee,
-            max_fee: max_fee
+            max_fee: max_fee,
         };
 
         // init customer
@@ -2120,7 +2121,8 @@ mod tests {
             channel_state.get_val_cpfp(),
         );
 
-        let res1 = cust_state.set_initial_cust_state(&mut channel_token, &funding_tx_info, &tx_fee_info);
+        let res1 =
+            cust_state.set_initial_cust_state(&mut channel_token, &funding_tx_info, &tx_fee_info);
         assert!(res1.is_ok(), res1.err().unwrap());
 
         let got_close_tx = cust_state.sign_initial_closing_transaction::<Testnet>(
@@ -2158,11 +2160,7 @@ mod tests {
         //TODO: test unlinking with a 0-payment of pay protocol
     }
 
-    fn generate_funding_tx<R: Rng>(
-        csprng: &mut R,
-        b0_cust: i64,
-        b0_merch: i64,
-    ) -> FundingTxInfo {
+    fn generate_funding_tx<R: Rng>(csprng: &mut R, b0_cust: i64, b0_merch: i64) -> FundingTxInfo {
         let mut escrow_txid = [0u8; 32];
         let mut merch_txid = [0u8; 32];
 
@@ -2198,7 +2196,7 @@ mod tests {
         rng: &mut R,
         cust_bal: i64,
         merch_bal: i64,
-        tx_fee_info: &mpc::TransactionFeeInfo
+        tx_fee_info: &mpc::TransactionFeeInfo,
     ) -> (
         mpc::ChannelMPCState,
         mpc::ChannelMPCToken,
@@ -2249,7 +2247,8 @@ mod tests {
             false,
         );
 
-        let mut merch_state = mpc::init_merchant(&mut rng, "".to_string(), &mut channel_state, "Bob");
+        let mut merch_state =
+            mpc::init_merchant(&mut rng, "".to_string(), &mut channel_state, "Bob");
 
         let b0_cust = 100000;
         let b0_merch = 100000;
@@ -2265,7 +2264,7 @@ mod tests {
             fee_cc: fee_cc,
             fee_mc: fee_mc,
             min_fee: min_fee,
-            max_fee: max_fee
+            max_fee: max_fee,
         };
 
         let (mut channel_token, mut cust_state) = mpc::init_customer(
@@ -2399,7 +2398,7 @@ mod tests {
                 min_fee: min_fee,
                 max_fee: max_fee
             };
-    
+
             let (mut channel_token, mut cust_state) = mpc::init_customer(&mut rng, &merch_state.pk_m, b0_cust, b0_merch, &tx_fee_info, "Alice");
 
             let funding_tx_info = generate_funding_tx(&mut rng, b0_cust, b0_merch);
@@ -2677,10 +2676,10 @@ mod tests {
             fee_cc: fee_cc,
             fee_mc: fee_mc,
             min_fee: min_fee,
-            max_fee: max_fee
+            max_fee: max_fee,
         };
 
-    let (channel_state, mut channel_token, mut cust_state, mut merch_state) =
+        let (channel_state, mut channel_token, mut cust_state, mut merch_state) =
             setup_new_zkchannel_helper(&mut rng, b0_cust, b0_merch, &tx_fee_info);
 
         // create funding txs
@@ -2931,7 +2930,7 @@ mod tests {
             fee_cc: fee_cc,
             fee_mc: fee_mc,
             min_fee: min_fee,
-            max_fee: max_fee
+            max_fee: max_fee,
         };
 
         let (channel_state, channel_token, mut cust_state, mut merch_state) =
@@ -3107,9 +3106,8 @@ mod tests {
             fee_cc: fee_cc,
             fee_mc: fee_mc,
             min_fee: min_fee,
-            max_fee: max_fee
+            max_fee: max_fee,
         };
-
 
         let (channel_state, channel_token, mut cust_state, mut merch_state) =
             zkchannel_full_establish_setup_helper(&mut rng, &mut db, &tx_fee_info);
