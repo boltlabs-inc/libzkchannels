@@ -54,7 +54,7 @@ pub fn mpc_build_masked_tokens_cust(
     bal_min_cust: i64,
     bal_min_merch: i64,
     val_cpfp: i64,
-    self_delay_int: u16,
+    self_delay: u16,
     pay_mask_com: &[u8],
     rev_lock_com: &[u8],
     rl_rand: &[u8; 16],
@@ -129,7 +129,6 @@ pub fn mpc_build_masked_tokens_cust(
     };
 
     let timer = Instant::now();
-    let self_delay = bytes_to_u32(&(self_delay_int as u32).to_le_bytes(), 4)[0];
     let bal_min_cust_c = translate_balance(bal_min_cust);
     let bal_min_merch_c = translate_balance(bal_min_merch);
     unsafe {
@@ -327,7 +326,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(
     bal_min_cust: i64,
     bal_min_merch: i64,
     val_cpfp: i64,
-    self_delay_int: u16,
+    self_delay: u16,
     com_new: &[u8],
     rev_lock_com: &[u8],
     key_com: &[u8],
@@ -407,7 +406,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(
     };
 
     let timer = Instant::now();
-    let self_delay = bytes_to_u32(&(self_delay_int as u32).to_le_bytes(), 4)[0];
+    // let self_delay = bytes_to_u32(&(self_delay_int as u32).to_le_bytes(), 4)[0];
     let bal_min_cust_c = translate_balance(bal_min_cust);
     let bal_min_merch_c = translate_balance(bal_min_merch);
     unsafe {
@@ -934,8 +933,6 @@ mod tests {
         let secp = Secp256k1::new();
 
         // We are signing this thing (this is post hash): "c76b9fbe0364d533b6ee018de59b3f3d529c6caa1d6fbe28853785e03b006047"
-        // the escrow Preimage is: "020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff40000000047522103f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd2103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae400d030000000000ffffffffab11137ab3c29c95e0c35debd9cfebf1e265ad5e496fa5964400767425e203cb0000000001000000"
-        let escrow_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff40000000047522103f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd2103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae400d030000000000ffffffffab11137ab3c29c95e0c35debd9cfebf1e265ad5e496fa5964400767425e203cb0000000001000000").unwrap();
         // automatically generate the escrow_preimage
         let input1 = create_reverse_input(&tx_id_esc, 0, new_state.bc + new_state.bm);
         let mut pubkeys = ClosePublicKeys {
@@ -950,7 +947,7 @@ mod tests {
             .rev_lock
             .0
             .copy_from_slice(&new_state.get_rev_lock());
-        let to_self_delay_be: [u8; 2] = [0x05, 0xcf]; // big-endian format
+        let to_self_delay_be: [u8; 2] = self_delay.to_be_bytes();
         let (tx_preimage, _, _) = create_cust_close_transaction::<Testnet>(
             &input1,
             &pubkeys,
@@ -966,15 +963,9 @@ mod tests {
             "TX BUILDER: generated escrow tx preimage: {}",
             hex::encode(&tx_preimage)
         );
-        assert_eq!(tx_preimage, escrow_preimage);
 
-        let escrow_tx_ar = Sha256::digest(&Sha256::digest(escrow_preimage.as_slice()));
+        let escrow_tx_ar = Sha256::digest(&Sha256::digest(tx_preimage.as_slice()));
         let escrow_tx = Message::from_slice(escrow_tx_ar.as_slice()).unwrap();
-        // the merch preimage is: "020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000007263522103f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd2103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae6702cf05b2752102f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90ac68400d030000000000ffffffffcb618c017ebbe60597107dbb2060df80bbbb03b8b3ea19d0dbf5f3553d55d4a10000000001000000"
-        let merch_preimage = hex::decode("020000007d03c85ecc9a0046e13c0dcc05c3fb047762275cb921ca150b6f6b616bd3d7383bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044e162d4625d3a6bc72f2c938b1e29068a00f42796aacc323896c235971416dff4000000007263522103f5ebc49f568e80a1dfca988eccf5d30ef9a63ae9e89a3f68b959f59d811489bd2103fc43b44cd953c7b92726ebefe482a272538c7e40fdcde5994a62841525afa8d752ae6702cf05b2752102f3d17ca1ac6dcf42b0297a71abb87f79dfa2c66278cbb99c1437e6570643ce90ac687c03030000000000ffffffffcb618c017ebbe60597107dbb2060df80bbbb03b8b3ea19d0dbf5f3553d55d4a10000000001000000").unwrap();
-        let merch_tx_ar = Sha256::digest(&Sha256::digest(merch_preimage.as_slice()));
-        let merch_tx = Message::from_slice(merch_tx_ar.as_slice()).unwrap();
-
         // automatically generate the escrow_preimage
         let input2 = create_reverse_input(
             &tx_id_merch,
@@ -996,7 +987,9 @@ mod tests {
             "TX BUILDER: generated merch tx preimage: {}",
             hex::encode(&m_tx_preimage)
         );
-        assert_eq!(m_tx_preimage, merch_preimage);
+
+        let merch_tx_ar = Sha256::digest(&Sha256::digest(m_tx_preimage.as_slice()));
+        let merch_tx = Message::from_slice(merch_tx_ar.as_slice()).unwrap();
 
         // Asserts
         // 1. check that hmac(new_state) =  pt_mask ^ pt_masked_ar
