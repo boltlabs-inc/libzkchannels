@@ -266,5 +266,5 @@ if verbose:
     print("11 => locktime:\t", locktime.hex(), len(locktime))
     print("<====== FULL TX ======>")
 
-print("Raw Transaction: ", final_tx.hex())
+print(final_tx.hex())
 # print(merch_close_script.hex())

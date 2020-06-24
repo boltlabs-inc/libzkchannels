@@ -244,7 +244,7 @@ final_tx = (
     + locktime
 )
 
-print("Raw Transaction Hex: ", final_tx.hex())
+print(final_tx.hex())
 
 
 # Calculate txid of the tx we have just created:
