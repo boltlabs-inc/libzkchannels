@@ -67,21 +67,20 @@ def pk_to_p2sh_p2wpkh(compressed, network):
         return "Enter the network: tesnet/simnet/mainnet"
     return encode_base58_checksum(prefix + rs_hash)
 
-def make_coinbase_utxo_for_sk(input_sk, network):
+def make_coinbase_utxo_for_sk(input_sk, network, restart_btcd=False):
     miner_pubkey_bytes = privkey_to_pubkey(bytes.fromhex(input_sk))
     miner_p2sh_p2wpkh_address = pk_to_p2sh_p2wpkh(miner_pubkey_bytes, network)
     print("Miner address: ", miner_p2sh_p2wpkh_address)
-
-    # Make sure btcd is not already running
-    out = subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek stop".format(net=network))
-    # if btcd was not running already, it'll return "Post https://localhost:18556: dial tcp [::1]:18556: connect: connection refused"
-    print(out)
-
-    # start up btcd in simnet mode with Alice's address as coinbase tx output
-    # NOTE: This needs to be run in a separate terminal, otherwise it'll get stuck here
-    print("\nExecute this command in a separate terminal\n")
-    print("btcd --txindex --{net} --rpcuser=kek --rpcpass=kek --minrelaytxfee=0 --miningaddr={addr}".format(net=network, addr=miner_p2sh_p2wpkh_address))
-    input("\nPress Enter to begin scenario testing...")
+    if restart_btcd:
+        # Make sure btcd is not already running
+        out = subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek stop".format(net=network))
+        # if btcd was not running already, it'll return "Post https://localhost:18556: dial tcp [::1]:18556: connect: connection refused"
+        print(out)
+        # start up btcd in simnet mode with Alice's address as coinbase tx output
+        # NOTE: This needs to be run in a separate terminal, otherwise it'll get stuck here
+        print("\nExecute this command in a separate terminal\n")
+        print("btcd --txindex --{net} --rpcuser=kek --rpcpass=kek --minrelaytxfee=0 --miningaddr={addr}".format(net=network, addr=miner_p2sh_p2wpkh_address))
+        input("\nPress Enter to begin scenario testing...")
 
     # generate 1 block to fund Alice
     # get block hash to find the coinbase transaction
@@ -399,6 +398,7 @@ def main():
     parser.add_argument("--network", "-nw", help="select the type of network", default="simnet")
     parser.add_argument("--timelock", "-t", help="timelock for closing transactions", default="287")
     parser.add_argument("--verbose", "-v", help="increase output verbosity", action="store_true")
+    parser.add_argument("--restart_btcd", "-r", help="restart btcd", action="store_true")
     parser.add_argument("--scenario", "-s", help="run a specific scenario", default="-1")
 
     args = parser.parse_args()
@@ -407,12 +407,13 @@ def main():
     output_btc = int(args.output_btc)
     blocks = int(args.timelock)
     scenario_index = int(args.scenario)
+    retart_btcd = args.restart_btcd
     verbose = args.verbose
 
     print("Network: ", network)
 
     miner_privkey = "2222222222222222222222222222222222222222222222222222222222222222"
-    coinbase_txid, amount_btc = make_coinbase_utxo_for_sk(miner_privkey, network)
+    coinbase_txid, amount_btc = make_coinbase_utxo_for_sk(miner_privkey, network, retart_btcd)
     # print("miner's utxo txid (little Endian) => " + coinbase_txid)
     tests_to_run = [run_scenario_test1, run_scenario_test2, run_scenario_test3, run_scenario_test4, run_scenario_test5]
 

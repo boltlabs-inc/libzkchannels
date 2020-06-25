@@ -2110,16 +2110,18 @@ mod tests {
 
         // merchant signs the customer's closing transactions and sends signatures back to customer
         let to_self_delay_be = channel_state.get_self_delay_be(); // [0x05, 0xcf]; // big-endian format
-        let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(
-            funding_tx_info.clone(),
-            pubkeys.rev_lock.0,
-            pubkeys.cust_pk,
-            pubkeys.cust_close_pk,
-            to_self_delay_be,
-            fee_cc,
-            fee_mc,
-            channel_state.get_val_cpfp(),
-        );
+        let (escrow_sig, merch_sig) = merch_state
+            .sign_initial_closing_transaction::<Testnet>(
+                funding_tx_info.clone(),
+                pubkeys.rev_lock.0,
+                pubkeys.cust_pk,
+                pubkeys.cust_close_pk,
+                to_self_delay_be,
+                fee_cc,
+                fee_mc,
+                channel_state.get_val_cpfp(),
+            )
+            .unwrap();
 
         let res1 =
             cust_state.set_initial_cust_state(&mut channel_token, &funding_tx_info, &tx_fee_info);
@@ -2477,16 +2479,18 @@ mod tests {
 
         let to_self_delay_be = channel_state.get_self_delay_be();
         // merchant signs and returns initial close sigs to customer
-        let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(
-            funding_tx.clone(),
-            pubkeys.rev_lock.0,
-            pubkeys.cust_pk,
-            pubkeys.cust_close_pk,
-            to_self_delay_be.clone(),
-            tx_fee_info.fee_cc,
-            tx_fee_info.fee_mc,
-            tx_fee_info.val_cpfp,
-        );
+        let (escrow_sig, merch_sig) = merch_state
+            .sign_initial_closing_transaction::<Testnet>(
+                funding_tx.clone(),
+                pubkeys.rev_lock.0,
+                pubkeys.cust_pk,
+                pubkeys.cust_close_pk,
+                to_self_delay_be.clone(),
+                tx_fee_info.fee_cc,
+                tx_fee_info.fee_mc,
+                tx_fee_info.val_cpfp,
+            )
+            .unwrap();
 
         assert!(cust_state.channel_status == ChannelStatus::Opened);
 

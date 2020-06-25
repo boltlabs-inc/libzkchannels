@@ -725,12 +725,15 @@ impl CustomerMPCState {
         &self,
         channel_state: &ChannelMPCState,
         channel_token: &ChannelMPCToken,
-    ) -> (
-        Vec<u8>,
-        Vec<u8>,
-        BitcoinTransactionParameters<N>,
-        BitcoinTransactionParameters<N>,
-    ) {
+    ) -> Result<
+        (
+            Vec<u8>,
+            Vec<u8>,
+            BitcoinTransactionParameters<N>,
+            BitcoinTransactionParameters<N>,
+        ),
+        String,
+    > {
         let fee_mc = self.get_current_state().fee_mc;
         let escrow_init_balance = self.cust_balance + self.merch_balance;
         let merch_init_balance = escrow_init_balance - channel_state.get_val_cpfp() - fee_mc;
@@ -757,7 +760,7 @@ impl CustomerMPCState {
             self.get_current_state().fee_mc,
             channel_state.get_val_cpfp(),
             true,
-        );
+        )?;
 
         let (merch_tx_preimage, merch_tx_params, _) = create_cust_close_transaction::<N>(
             &merch_input,
@@ -769,14 +772,14 @@ impl CustomerMPCState {
             self.get_current_state().fee_mc,
             channel_state.get_val_cpfp(),
             false,
-        );
+        )?;
 
-        return (
+        return Ok((
             escrow_tx_preimage,
             merch_tx_preimage,
             escrow_tx_params,
             merch_tx_params,
-        );
+        ));
     }
 
     // Customer signs the initial closing transaction (in the clear)
@@ -788,7 +791,7 @@ impl CustomerMPCState {
         orig_merch_sig: &Vec<u8>,
     ) -> Result<bool, String> {
         let (escrow_tx_preimage, merch_tx_preimage, _, _) =
-            self.construct_close_transaction_preimage::<N>(channel_state, channel_token);
+            self.construct_close_transaction_preimage::<N>(channel_state, channel_token)?;
 
         // now that we've got preimages
         let escrow_tx_hash = Sha256::digest(&Sha256::digest(&escrow_tx_preimage));
@@ -859,7 +862,7 @@ impl CustomerMPCState {
 
         // if valid, output (s_{i+1}, CT_{i+1}, pay-token-{i+1})
         let (escrow_tx_preimage, merch_tx_preimage, _, _) =
-            self.construct_close_transaction_preimage::<N>(channel_state, channel_token);
+            self.construct_close_transaction_preimage::<N>(channel_state, channel_token)?;
         // println!("Close-Escrow Tx preimage: {}", hex::encode(&escrow_tx_preimage));
         // println!("Close-Merch Tx preimage: {}", hex::encode(&merch_tx_preimage));
 
@@ -951,7 +954,7 @@ impl CustomerMPCState {
         from_escrow: bool,
     ) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), String> {
         let (escrow_tx_preimage, merch_tx_preimage, escrow_tx_params, merch_tx_params) =
-            self.construct_close_transaction_preimage::<N>(channel_state, channel_token);
+            self.construct_close_transaction_preimage::<N>(channel_state, channel_token)?;
         let merch_pk = channel_token.pk_m.serialize().to_vec();
         let cust_sk = self.sk_c.0.to_vec();
         let close_tx = generate_customer_close_tx_helper::<N>(
@@ -1416,7 +1419,7 @@ impl MerchantMPCState {
         fee_cc: i64,
         fee_mc: i64,
         val_cpfp: i64,
-    ) -> (Vec<u8>, Vec<u8>) {
+    ) -> Result<(Vec<u8>, Vec<u8>), String> {
         let escrow_init_balance = funding_tx.init_cust_bal + funding_tx.init_merch_bal;
         let merch_init_balance = escrow_init_balance - val_cpfp - fee_mc;
         let escrow_index = 0;
@@ -1448,7 +1451,7 @@ impl MerchantMPCState {
             fee_mc,
             val_cpfp,
             true,
-        );
+        )?;
 
         let (merch_tx_preimage, _, _) = create_cust_close_transaction::<N>(
             &merch_input,
@@ -1460,7 +1463,7 @@ impl MerchantMPCState {
             fee_mc,
             val_cpfp,
             false,
-        );
+        )?;
 
         // merchant generates signatures
         let sk_m = self.sk_m.0.to_vec();
@@ -1472,7 +1475,7 @@ impl MerchantMPCState {
             generate_signature_for_multi_sig_transaction::<N>(&merch_tx_preimage, &m_private_key)
                 .unwrap();
 
-        return (escrow_cust_sig, merch_cust_sig);
+        return Ok((escrow_cust_sig, merch_cust_sig));
     }
 
     pub fn store_merch_close_tx(

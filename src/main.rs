@@ -1204,7 +1204,7 @@ mod merch {
             tx_fee_info.fee_cc,
             tx_fee_info.fee_mc,
             tx_fee_info.val_cpfp,
-        );
+        )?;
 
         let msg3 = [
             handle_error_result!(serde_json::to_string(&merch_txid)),

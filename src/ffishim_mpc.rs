@@ -1360,16 +1360,17 @@ pub mod ffishim_mpc {
             deserialize_result_object(ser_merch_state);
         let merch_state = handle_errors!(merch_state_result);
 
-        let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(
-            funding_tx,
-            rl,
-            cust_pk,
-            cust_close_pk,
-            self_delay_be,
-            fee_cc,
-            fee_mc,
-            val_cpfp,
-        );
+        let (escrow_sig, merch_sig) = handle_errors!(merch_state
+            .sign_initial_closing_transaction::<Testnet>(
+                funding_tx,
+                rl,
+                cust_pk,
+                cust_close_pk,
+                self_delay_be,
+                fee_cc,
+                fee_mc,
+                val_cpfp,
+            ));
 
         let ser = [
             "{\'escrow_sig\': \'",

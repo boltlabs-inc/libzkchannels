@@ -958,7 +958,8 @@ mod tests {
             new_state.fee_mc,
             val_cpfp,
             true,
-        );
+        )
+        .unwrap();
         println!(
             "TX BUILDER: generated escrow tx preimage: {}",
             hex::encode(&tx_preimage)
@@ -982,7 +983,8 @@ mod tests {
             new_state.fee_mc,
             val_cpfp,
             false,
-        );
+        )
+        .unwrap();
         println!(
             "TX BUILDER: generated merch tx preimage: {}",
             hex::encode(&m_tx_preimage)

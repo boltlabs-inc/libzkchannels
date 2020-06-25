@@ -191,7 +191,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	merchDispPk := fmt.Sprintf("%v", *merchState.DisputePk)
 	// toSelfDelay := "05cf" // 1487 blocks
 	toSelfDelay, err := GetSelfDelayBE(channelState)
-	fmt.Println("toSelfDelay :=> ", toSelfDelay)
+	fmt.Println("toSelfDelay (BE) :=> ", toSelfDelay)
 
 	fmt.Println("custSk :=> ", custSk)
 	fmt.Println("custPk :=> ", custPk)

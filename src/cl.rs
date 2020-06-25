@@ -650,6 +650,8 @@ mod tests {
 
     use ff::Rand;
     use pairing::bls12_381::{Bls12, Fr};
+    use rand::SeedableRng;
+    use rand_xorshift::XorShiftRng;
 
     #[test]
     fn sign_and_verify() {
@@ -976,5 +978,31 @@ mod tests {
 
         let rec_y2_str = serde_json::to_string(&rec_cl_pk.Y[1]).unwrap();
         assert_eq!(rec_y2_str, "\"96842dec92877ff23d374964970c3386972a8ae369367907001bcd8bba458b8f29842321a8231f3441054999cb19b2c40409da8216406298e1d41bcaf5ea8a2252662848d3f810dd369aba5ff684360080aa6f5e9ba61be1331f6bdf8b00d1ec\"");
+    }
+
+    #[test]
+    fn test_cl_basic_test() {
+        // let mut rng = &mut rand::thread_rng();
+        let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d76);
+
+        let l = 2;
+        let mpk = setup(&mut rng);
+        println!("mpk.g2 = {}", serde_json::to_string(&mpk.g2).unwrap());
+        let keypair = KeyPair::<Bls12>::generate(&mut rng, &mpk, l);
+
+        let pubkey = keypair.public.clone();
+        println!("PK: {}", serde_json::to_string(&pubkey).unwrap());
+
+        let mut message: Vec<Fr> = Vec::new();
+
+        for _i in 0..l {
+            message.push(Fr::rand(&mut rng));
+        }
+        println!("m0: {}", serde_json::to_string(&message[0]).unwrap());
+        println!("m1: {}", serde_json::to_string(&message[1]).unwrap());
+
+        let signature = keypair.sign(&mut rng, &message);
+        println!("SIG: {}", serde_json::to_string(&signature).unwrap());
+        assert_eq!(pubkey.verify(&mpk, &message, &signature), true);
     }
 }
