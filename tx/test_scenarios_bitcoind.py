@@ -298,7 +298,7 @@ def main():
     parser.add_argument("--output_btc", help="amount in btc to pay out to each output", default="1")
     parser.add_argument("--network", help="select the type of network", default="regtest")
     parser.add_argument("--ignore_fees", help="if flagged, set minRelayTxFee to 0", default=False,  action="store_true")
-    parser.add_argument("--timelock", "-t", help="timelock for closing transactions", default="287")
+    parser.add_argument("--timelock", "-t", help="timelock for closing transactions", default="16")
     parser.add_argument("--rpcuser", help="rpcuser for bitcoind ", default="")
     parser.add_argument("--rpcpass", help="rpcpassword for bitcoind", default="")
     parser.add_argument("--verbose", "-v", help="increase output verbosity", action="store_true")
