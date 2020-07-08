@@ -80,6 +80,10 @@ typedef struct {
   uint32_t sig[8];
 } EcdsaSig_l;
 
+char *change_close_status_to_confirmed(char *ser_cust_state);
+
+char *change_close_status_to_pending(char *ser_cust_state);
+
 char *cust_claim_tx_from_cust_close(char *ser_channel_state,
                                     char *ser_tx_index,
                                     uint32_t index,

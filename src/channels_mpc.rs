@@ -976,6 +976,38 @@ impl CustomerMPCState {
         }
         return close_tx;
     }
+
+    // should only be called if closing has been detected on-chain (either by customer or merchant)
+    pub fn change_close_status_to_pending(&mut self) -> Result<(), String> {
+        let cur_close_status = self.close_status.clone();
+        self.close_status = match cur_close_status {
+            ChannelCloseStatus::CustomerInit => ChannelCloseStatus::Pending,
+            ChannelCloseStatus::MerchantInit => ChannelCloseStatus::Pending,
+            _ => {
+                return Err(format!(
+                    "Closing has not been initiated yet: {}",
+                    cur_close_status
+                ))
+            }
+        };
+        Ok(())
+    }
+
+    // should only be called if the timelock has passed for the closing transaction
+    // and a merchant dispute did not occur
+    pub fn change_close_status_to_confirmed(&mut self) -> Result<(), String> {
+        let cur_close_status = self.close_status.clone();
+        self.close_status = match cur_close_status {
+            ChannelCloseStatus::Pending => ChannelCloseStatus::Confirmed,
+            _ => {
+                return Err(format!(
+                    "Channel not in a pending close state: {}",
+                    cur_close_status
+                ))
+            }
+        };
+        Ok(())
+    }
 }
 
 fn compute_rev_lock_commitment(input: &[u8; 32], r: &[u8; 16]) -> [u8; 32] {

@@ -3067,12 +3067,18 @@ mod tests {
             &mut merch_state,
         );
 
+        let res = cust_state.change_close_status_to_pending();
+        assert!(res.is_err());
+
+        let res = cust_state.change_close_status_to_confirmed();
+        assert!(res.is_err());
+
         // customer initiates close tx
         let (_cust_close_signed_tx, _close_txid_be, _close_txid_le) =
             mpc::force_customer_close(&channel_state, &channel_token, true, &mut cust_state)
                 .unwrap();
 
-        assert!(cust_state.close_status == ChannelCloseStatus::CustomerInit);
+        assert_eq!(cust_state.close_status, ChannelCloseStatus::CustomerInit);
 
         let mut escrow_txid_be = channel_token.escrow_txid.0.clone(); // originally in LE
         escrow_txid_be.reverse();
@@ -3088,6 +3094,16 @@ mod tests {
                 .unwrap()
                 == ChannelCloseStatus::MerchantInit
         );
+
+        // change close status after closing transaction is detected on-chain
+        let res = cust_state.change_close_status_to_pending();
+        assert!(res.is_ok());
+        assert_eq!(cust_state.close_status, ChannelCloseStatus::Pending);
+
+        // assume that timelock has passed and there was no dispute
+        let res = cust_state.change_close_status_to_confirmed();
+        assert!(res.is_ok());
+        assert_eq!(cust_state.close_status, ChannelCloseStatus::Confirmed);
     }
 
     #[test]

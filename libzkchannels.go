@@ -790,6 +790,39 @@ func PayUnmaskPayTokenCustomer(ptMask string, ptMaskR string, custState CustStat
 	return r.IsOk, custState, err
 }
 
+func ChangeCloseStatusToPending(custState CustState) (CustState, error) {
+	serCustState, err := json.Marshal(custState)
+	if err != nil {
+		return CustState{}, err
+	}
+
+	resp := C.GoString(C.change_close_status_to_pending(C.CString(string(serCustState))))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return CustState{}, err
+	}
+
+	err = json.Unmarshal([]byte(r.CustState), &custState)
+	return custState, err
+}
+
+func ChangeCloseStatusToConfirmed(custState CustState) (CustState, error) {
+	serCustState, err := json.Marshal(custState)
+	if err != nil {
+		return CustState{}, err
+	}
+
+	resp := C.GoString(C.change_close_status_to_confirmed(C.CString(string(serCustState))))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return CustState{}, err
+	}
+
+	err = json.Unmarshal([]byte(r.CustState), &custState)
+	return custState, err
+}
+
+// TRANSACTION BUILDER ROUTINES
 func MerchantSignDisputeTx(txid_LE string, index uint32, inputAmount int64, outputAmount int64, toSelfDelay string, outputPk string,
 	revLock string, revSecret string, custClosePk string, merchState MerchState) (string, error) {
 

@@ -276,6 +276,15 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	}
 
 	fmt.Println("initial close transactions validated: ", isOk)
+	_, err = ChangeCloseStatusToPending(custState)
+	if err != nil {
+		fmt.Println("Failed as expected to change close status to pending => ", err)
+	}
+
+	_, err = ChangeCloseStatusToConfirmed(custState)
+	if err != nil {
+		fmt.Println("Failed as expected to change close status to confirmed => ", err)
+	}
 
 	fmt.Println("Output initial closing transactions")
 	CloseEscrowTx, CloseEscrowTxId_LE, custState, err := ForceCustomerCloseTx(channelState, channelToken, true, custState)
@@ -370,6 +379,19 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("TX5: Close EscrowTx ID (LE): ", CloseEscrowTxId_LE)
 	fmt.Println("TX5: Close from EscrowTx => ", string(CloseEscrowTx))
 
+	_, err = ChangeCloseStatusToConfirmed(custState)
+	if err != nil {
+		// should be pending first
+		fmt.Println("Failed as expected to change close status to confirmed => ", err)
+	}
+
+	custState, err = ChangeCloseStatusToPending(custState)
+	if err != nil {
+		// should be pending first
+		fmt.Println("Failed to change close status to pending => ", err)
+		return
+	}
+
 	// Customer claim tx from cust-close-from-escrow-tx
 	fmt.Println("========================================")
 	outputPk := changePk
@@ -446,6 +468,21 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("TX2-merch-close-claim-tx: ", SignedMerchClaimTx)
 	fmt.Println("========================================")
 	WriteToFile(MerchClaimFromMerchCloseTxFile, SignedMerchClaimTx)
+
+	custState, err = ChangeCloseStatusToPending(custState)
+	if err != nil {
+		// should be pending first
+		fmt.Println("Failed to change close status to pending => ", err)
+		return
+	}
+
+	custState, err = ChangeCloseStatusToConfirmed(custState)
+	if err != nil {
+		fmt.Println("Failed to change close status to confirmed => ", err)
+		return
+	}
+
+	fmt.Println("Successful test!")
 	return
 }
 

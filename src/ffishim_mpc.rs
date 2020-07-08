@@ -923,6 +923,46 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
+    // Change customer state to pending
+    #[no_mangle]
+    pub extern "C" fn change_close_status_to_pending(ser_cust_state: *mut c_char) -> *mut c_char {
+        // Deserialize the cust_state
+        let cust_state_result: ResultSerdeType<CustomerMPCState> =
+            deserialize_result_object(ser_cust_state);
+        let mut cust_state = handle_errors!(cust_state_result);
+
+        handle_errors!(cust_state.change_close_status_to_pending());
+
+        let ser = [
+            "{\'cust_state\':\'",
+            serde_json::to_string(&cust_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    // Change customer state to confirmed
+    #[no_mangle]
+    pub extern "C" fn change_close_status_to_confirmed(ser_cust_state: *mut c_char) -> *mut c_char {
+        // Deserialize the cust_state
+        let cust_state_result: ResultSerdeType<CustomerMPCState> =
+            deserialize_result_object(ser_cust_state);
+        let mut cust_state = handle_errors!(cust_state_result);
+
+        handle_errors!(cust_state.change_close_status_to_confirmed());
+
+        let ser = [
+            "{\'cust_state\':\'",
+            serde_json::to_string(&cust_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
     // TRANSACTION BUILDER FOR ESCROW, MERCH-CLOSE-TX and CUST-CLOSE-TXS
 
     #[no_mangle]
@@ -1047,6 +1087,7 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
+    // Form the escrow-tx
     #[no_mangle]
     pub extern "C" fn cust_create_escrow_transaction(
         ser_txid: *mut c_char,
@@ -1150,6 +1191,7 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
+    // Form the merch-close-tx
     #[no_mangle]
     pub extern "C" fn form_merch_close_transaction(
         ser_escrow_txid: *mut c_char,
@@ -1205,6 +1247,7 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
+    // Customer - signs the initial merch-close-tx
     #[no_mangle]
     pub extern "C" fn customer_sign_merch_close_tx(
         ser_cust_sk: *mut c_char,
@@ -1226,6 +1269,7 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
+    // Merchant - verify & store the initial merch-close-tx (w/ sig from Customer)
     #[no_mangle]
     pub extern "C" fn merchant_verify_merch_close_tx(
         ser_escrow_txid: *mut c_char,
@@ -1321,6 +1365,7 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
+    // Merchant - sign the initial cust-close-*-tx for a channel
     #[no_mangle]
     pub extern "C" fn merch_sign_init_cust_close_txs(
         ser_funding_tx: *mut c_char,
@@ -1384,6 +1429,7 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
+    // Customer - verify the initial cust-close-*-tx signatures (from Merchant)
     #[no_mangle]
     pub extern "C" fn cust_verify_init_cust_close_txs(
         ser_funding_tx: *mut c_char,
@@ -1452,6 +1498,7 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
+    // Merchant - form dispute tx given a revocation secret for an existing cust-close-*-tx
     #[no_mangle]
     pub extern "C" fn sign_merch_dispute_tx(
         ser_tx_index: *mut c_char,
@@ -1605,6 +1652,7 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
+    // Customer - claim tx from cust-close-*-tx after timeout
     #[no_mangle]
     pub extern "C" fn cust_claim_tx_from_cust_close(
         ser_channel_state: *mut c_char,
