@@ -872,7 +872,7 @@ pub struct FundingTxInfo {
 }
 
 pub mod mpc {
-    use bindings::ConnType_NETIO;
+    use bindings::{ConnType_NETIO, cb_send, cb_receive, ConnType_LNDNETIO};
     pub use channels_mpc::{
         ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState, RevokedState,
         TransactionFeeInfo,
@@ -884,6 +884,7 @@ pub mod mpc {
     pub use wallet::{State, NONCE_LEN};
     use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
     use zkchan_tx::Testnet;
+    use libc::c_void;
 
     ///
     /// init_merchant() - takes as input the public params, merchant balance and keypair.
@@ -1127,6 +1128,9 @@ pub mod mpc {
         rev_lock_com: [u8; 32],
         amount: i64,
         cust_state: &mut CustomerMPCState,
+        p_ptr: *mut c_void,
+        send_cb: cb_send,
+        receive_cb: cb_receive,
     ) -> Result<bool, String> {
         // verify that channel status is already activated or established (unlink)
         if (cust_state.channel_status == ChannelStatus::Activated && amount >= 0)
@@ -1136,7 +1140,7 @@ pub mod mpc {
             if cust_state.net_config.is_none() {
                 // use default
                 cust_state.set_network_config(NetworkConfig {
-                    conn_type: ConnType_NETIO,
+                    conn_type: ConnType_LNDNETIO,
                     dest_ip: String::from("127.0.0.1"),
                     dest_port: 2424,
                     path: String::new(),
@@ -1153,6 +1157,9 @@ pub mod mpc {
                 rev_lock_com,
                 amount,
                 circuit,
+                p_ptr,
+                send_cb,
+                receive_cb,
             )
         } else {
             return Err(format!(
@@ -1175,11 +1182,14 @@ pub mod mpc {
         session_id: [u8; 16],
         pay_token_mask_com: [u8; 32],
         merch_state: &mut MerchantMPCState,
+        p_ptr: *mut c_void,
+        send_cb: cb_send,
+        receive_cb: cb_receive,
     ) -> Result<bool, String> {
         if merch_state.net_config.is_none() {
             // use default ip/port
             merch_state.set_network_config(NetworkConfig {
-                conn_type: ConnType_NETIO,
+                conn_type: ConnType_LNDNETIO,
                 dest_ip: String::from("127.0.0.1"),
                 dest_port: 2424,
                 path: String::new(),
@@ -1194,6 +1204,9 @@ pub mod mpc {
             session_id,
             pay_token_mask_com,
             circuit,
+            p_ptr,
+            send_cb,
+            receive_cb
         );
     }
 
@@ -1370,7 +1383,7 @@ mod tests {
         get_file_from_db, store_file_in_db, HashMapDatabase, MaskedTxMPCInputs, RedisDatabase,
         StateDatabase,
     };
-    use std::env;
+    use std::{env, ptr};
     use std::process::Command;
     use zkchan_tx::fixed_size_array::FixedSizeArray32;
     use zkchan_tx::Testnet;
@@ -2333,6 +2346,9 @@ mod tests {
             session_id,
             pay_mask_com,
             &mut merch_state,
+            ptr::null_mut(),
+            None,
+            None,
         );
         assert!(res_merch.is_ok(), res_merch.err().unwrap());
 
@@ -2431,7 +2447,10 @@ mod tests {
 
             let pay_mask_com = mpc::pay_prepare_merchant(&mut rng, &mut db as &mut dyn StateDatabase, &channel_state, session_id, state.get_nonce(), rev_lock_com.clone(), amount, None, &mut merch_state).unwrap();
 
-            let res_cust = mpc::pay_update_customer(&channel_state, &channel_token, s0, state, pay_mask_com, rev_lock_com, amount, &mut cust_state);
+            let res_cust = mpc::pay_update_customer(&channel_state, &channel_token, s0, state, pay_mask_com, rev_lock_com, amount, &mut cust_state,
+            ptr::null_mut(),
+            None,
+            None,);
             assert!(res_cust.is_ok() && res_cust.unwrap());
 
             let mut escrow_mask = [0u8; 32];
@@ -2983,6 +3002,9 @@ mod tests {
             rev_lock_com,
             0,
             &mut cust_state,
+            ptr::null_mut(),
+            None,
+            None,
         );
         assert!(res_cust.is_ok());
         let mpc_result_ok = res_cust.unwrap();
@@ -3043,6 +3065,9 @@ mod tests {
             rev_lock_com1,
             200,
             &mut cust_state,
+            ptr::null_mut(),
+            None,
+            None,
         );
         assert!(res_cust.is_ok());
         let mpc_result_ok = res_cust.unwrap();
@@ -3159,6 +3184,9 @@ mod tests {
             rev_lock_com,
             0,
             &mut cust_state,
+            ptr::null_mut(),
+            None,
+            None,
         );
         assert!(res_cust.is_err());
 

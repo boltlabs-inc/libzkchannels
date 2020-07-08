@@ -1,9 +1,4 @@
-use bindings::{
-    build_masked_tokens_cust, build_masked_tokens_merch, get_netio_ptr, get_unixnetio_ptr,
-    Balance_l, BitcoinPublicKey_l, CommitmentRandomness_l, ConnType_NETIO, ConnType_TORNETIO,
-    ConnType_UNIXNETIO, Conn_l, EcdsaSig_l, HMACKeyCommitment_l, HMACKey_l, MaskCommitment_l,
-    Mask_l, Nonce_l, PayToken_l, PublicKeyHash_l, RevLockCommitment_l, RevLock_l, State_l, Txid_l,
-};
+use bindings::{build_masked_tokens_cust, build_masked_tokens_merch, get_netio_ptr, get_unixnetio_ptr, Balance_l, BitcoinPublicKey_l, CommitmentRandomness_l, ConnType_NETIO, ConnType_TORNETIO, ConnType_UNIXNETIO, Conn_l, EcdsaSig_l, HMACKeyCommitment_l, HMACKey_l, MaskCommitment_l, Mask_l, Nonce_l, PayToken_l, PublicKeyHash_l, RevLockCommitment_l, RevLock_l, State_l, Txid_l, cb_send, cb_receive};
 // ConnType_CUSTOM, get_gonetio_ptr
 use channels_mpc::NetworkConfig;
 use ecdsa_partial::EcdsaPartialSig;
@@ -49,6 +44,9 @@ extern "C" fn io_callback(net_config: *mut c_void, party: c_int) -> *mut c_void 
 
 pub fn mpc_build_masked_tokens_cust(
     net_conn: NetworkConfig,
+    p_ptr: *mut c_void,
+    send_cb: cb_send,
+    receive_cb: cb_receive,
     circuit_ptr: *mut c_void,
     amount: i64,
     bal_min_cust: i64,
@@ -135,6 +133,9 @@ pub fn mpc_build_masked_tokens_cust(
         build_masked_tokens_cust(
             Some(io_callback),
             conn,
+            p_ptr,
+            send_cb,
+            receive_cb,
             circuit_ptr,
             translate_balance(amount),
             rl_c,
@@ -321,6 +322,9 @@ fn u32_to_bytes(input: &[u32]) -> Vec<u8> {
 pub fn mpc_build_masked_tokens_merch<R: Rng>(
     rng: &mut R,
     net_conn: NetworkConfig,
+    p_ptr: *mut c_void,
+    send_cb: cb_send,
+    receive_cb: cb_receive,
     circuit_ptr: *mut c_void,
     amount: i64,
     bal_min_cust: i64,
@@ -413,6 +417,9 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(
         build_masked_tokens_merch(
             Some(io_callback),
             conn,
+            p_ptr,
+            send_cb,
+            receive_cb,
             circuit_ptr,
             translate_balance(amount),
             rl_c,
@@ -594,6 +601,9 @@ mod tests {
             let (r1, r2) = mpc_build_masked_tokens_merch(
                 &mut csprng,
                 nc,
+                ptr::null_mut(),
+                None,
+                None,
                 cf_ptr,
                 amount,
                 bal_min_cust,
@@ -884,6 +894,9 @@ mod tests {
         let self_delay = 1487;
         let mpc_result = mpc_build_masked_tokens_cust(
             nc,
+            ptr::null_mut(),
+            None,
+            None,
             cf_ptr,
             amount,
             bal_min_cust,
