@@ -977,32 +977,28 @@ impl CustomerMPCState {
         return close_tx;
     }
 
-    // should only be called if closing has been detected on-chain (either by customer or merchant)
-    pub fn change_close_status_to_pending(&mut self) -> Result<(), String> {
+    pub fn change_close_status(
+        &mut self,
+        new_close_status: ChannelCloseStatus,
+    ) -> Result<(), String> {
         let cur_close_status = self.close_status.clone();
-        self.close_status = match cur_close_status {
-            ChannelCloseStatus::CustomerInit => ChannelCloseStatus::Pending,
-            ChannelCloseStatus::MerchantInit => ChannelCloseStatus::Pending,
-            _ => {
-                return Err(format!(
-                    "Closing has not been initiated yet: {}",
-                    cur_close_status
-                ))
-            }
-        };
-        Ok(())
-    }
+        if cur_close_status == new_close_status {
+            return Ok(());
+        }
 
-    // should only be called if the timelock has passed for the closing transaction
-    // and a merchant dispute did not occur
-    pub fn change_close_status_to_confirmed(&mut self) -> Result<(), String> {
-        let cur_close_status = self.close_status.clone();
-        self.close_status = match cur_close_status {
-            ChannelCloseStatus::Pending => ChannelCloseStatus::Confirmed,
-            _ => {
+        self.close_status = match (cur_close_status.clone(), new_close_status.clone()) {
+            // should only be called if closing has been detected on-chain (either by customer or merchant)
+            (ChannelCloseStatus::CustomerInit, ChannelCloseStatus::Pending) => new_close_status,
+            (ChannelCloseStatus::MerchantInit, ChannelCloseStatus::Pending) => new_close_status,
+            // should only be called if the timelock has passed for the closing transaction
+            // and a merchant dispute did not occur
+            (ChannelCloseStatus::Pending, ChannelCloseStatus::Confirmed) => new_close_status,
+            (ChannelCloseStatus::Confirmed, ChannelCloseStatus::None) => new_close_status,
+            (ChannelCloseStatus::Pending, ChannelCloseStatus::Disputed) => new_close_status,
+            (_, _) => {
                 return Err(format!(
-                    "Channel not in a pending close state: {}",
-                    cur_close_status
+                    "transition not allowed for channel: {} => {}",
+                    cur_close_status, new_close_status
                 ))
             }
         };
@@ -1601,13 +1597,53 @@ impl MerchantMPCState {
             Some(t) => t,
             None => {
                 return Err(format!(
-                    "could not find merch_close_tx for escrow_txid: {}",
+                    "could not find <merch_close_tx> for input <escrow_txid>: {}",
                     hex::encode(escrow_txid.0)
                 ));
             }
         };
 
         Ok(m.close_status.clone())
+    }
+
+    pub fn change_close_status(
+        &mut self,
+        escrow_txid: [u8; 32],
+        new_close_status: ChannelCloseStatus,
+    ) -> Result<(), String> {
+        let escrow_txid = FixedSizeArray32(escrow_txid);
+        let m = match self.close_tx.get(&escrow_txid) {
+            Some(t) => t,
+            None => {
+                return Err(format!(
+                    "could not find <merch_close_tx> for input <escrow_txid>: {}",
+                    hex::encode(escrow_txid.0)
+                ));
+            }
+        };
+
+        let cur_close_status = m.close_status.clone();
+        if cur_close_status == new_close_status {
+            return Ok(());
+        }
+
+        let mut m2 = m.clone();
+        m2.close_status = match (cur_close_status.clone(), new_close_status.clone()) {
+            (ChannelCloseStatus::CustomerInit, ChannelCloseStatus::Pending) => new_close_status,
+            (ChannelCloseStatus::MerchantInit, ChannelCloseStatus::Pending) => new_close_status,
+            (ChannelCloseStatus::Pending, ChannelCloseStatus::Confirmed) => new_close_status,
+            (ChannelCloseStatus::Confirmed, ChannelCloseStatus::None) => new_close_status,
+            (ChannelCloseStatus::Pending, ChannelCloseStatus::Disputed) => new_close_status,
+            (_, _) => {
+                return Err(format!(
+                    "transition not allowed for channel identified by <escrow-txid>: {} => {}",
+                    cur_close_status, new_close_status
+                ))
+            }
+        };
+        self.close_tx.insert(escrow_txid, m2.clone());
+
+        Ok(())
     }
 
     pub fn get_circuit_file(&self) -> *mut c_void {

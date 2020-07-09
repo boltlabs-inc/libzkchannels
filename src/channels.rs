@@ -45,12 +45,12 @@ pub struct PubKeyMap {
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
-<E as pairing::Engine>::G1: serde::Serialize, \
-<E as pairing::Engine>::G2: serde::Serialize"))]
+                           <E as pairing::Engine>::G1: serde::Serialize, \
+                           <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(
     bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
-<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
-<E as pairing::Engine>::G2: serde::Deserialize<'de>")
+                         <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+                         <E as pairing::Engine>::G2: serde::Deserialize<'de>")
 )]
 pub struct ChannelParams<E: Engine> {
     pub pub_params: NIZKPublicParams<E>,
@@ -61,12 +61,12 @@ pub struct ChannelParams<E: Engine> {
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
-<E as pairing::Engine>::G1: serde::Serialize, \
-<E as pairing::Engine>::G2: serde::Serialize"))]
+                           <E as pairing::Engine>::G1: serde::Serialize, \
+                           <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(
     bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
-<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
-<E as pairing::Engine>::G2: serde::Deserialize<'de>")
+                         <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+                         <E as pairing::Engine>::G2: serde::Deserialize<'de>")
 )]
 pub struct ChannelState<E: Engine> {
     R: i32,
@@ -80,12 +80,12 @@ pub struct ChannelState<E: Engine> {
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
-<E as pairing::Engine>::G1: serde::Serialize, \
-<E as pairing::Engine>::G2: serde::Serialize"))]
+                           <E as pairing::Engine>::G1: serde::Serialize, \
+                           <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(
     bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
-<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
-<E as pairing::Engine>::G2: serde::Deserialize<'de>")
+                         <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+                         <E as pairing::Engine>::G2: serde::Deserialize<'de>")
 )]
 pub struct ChannelToken<E: Engine> {
     pub pk_c: Option<secp256k1::PublicKey>,
@@ -176,12 +176,12 @@ struct WalletKeyPair {
 ///
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
-<E as pairing::Engine>::G1: serde::Serialize, \
-<E as pairing::Engine>::G2: serde::Serialize"))]
+                           <E as pairing::Engine>::G1: serde::Serialize, \
+                           <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(
     bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
-<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
-<E as pairing::Engine>::G2: serde::Deserialize<'de>")
+                         <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+                         <E as pairing::Engine>::G2: serde::Deserialize<'de>")
 )]
 pub struct CustomerState<E: Engine> {
     pub name: String,
@@ -555,12 +555,12 @@ pub struct ChannelcloseM {
 ///
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
-<E as pairing::Engine>::G1: serde::Serialize, \
-<E as pairing::Engine>::G2: serde::Serialize"))]
+                           <E as pairing::Engine>::G1: serde::Serialize, \
+                           <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(
     bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
-<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
-<E as pairing::Engine>::G2: serde::Deserialize<'de>")
+                         <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+                         <E as pairing::Engine>::G2: serde::Deserialize<'de>")
 )]
 pub struct MerchantState<E: Engine> {
     id: String,

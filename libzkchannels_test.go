@@ -276,14 +276,14 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	}
 
 	fmt.Println("initial close transactions validated: ", isOk)
-	_, err = ChangeCloseStatusToPending(custState)
+	_, err = CustomerChangeCloseStatusToPending(custState)
 	if err != nil {
-		fmt.Println("Failed as expected to change close status to pending => ", err)
+		fmt.Println("Failed as expected to change close status to pending -", err)
 	}
 
-	_, err = ChangeCloseStatusToConfirmed(custState)
+	_, err = CustomerChangeCloseStatusToConfirmed(custState)
 	if err != nil {
-		fmt.Println("Failed as expected to change close status to confirmed => ", err)
+		fmt.Println("Failed as expected to change close status to confirmed -", err)
 	}
 
 	fmt.Println("Output initial closing transactions")
@@ -379,16 +379,16 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("TX5: Close EscrowTx ID (LE): ", CloseEscrowTxId_LE)
 	fmt.Println("TX5: Close from EscrowTx => ", string(CloseEscrowTx))
 
-	_, err = ChangeCloseStatusToConfirmed(custState)
+	_, err = CustomerChangeCloseStatusToConfirmed(custState)
 	if err != nil {
 		// should be pending first
-		fmt.Println("Failed as expected to change close status to confirmed => ", err)
+		fmt.Println("Failed as expected to change close status to confirmed -", err)
 	}
 
-	custState, err = ChangeCloseStatusToPending(custState)
+	custState, err = CustomerChangeCloseStatusToPending(custState)
 	if err != nil {
 		// should be pending first
-		fmt.Println("Failed to change close status to pending => ", err)
+		fmt.Println("Failed to change close status to pending -", err)
 		return
 	}
 
@@ -448,14 +448,14 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("merchDisputePk :=> ", merchDispPk)
 	claimAmount = disputedInAmt - feeCC - feeMC
 	claimOutAmount := claimAmount - txFee
-	disputeTx, err := MerchantSignDisputeTx(CloseEscrowTxId_TX3, index, claimAmount, claimOutAmount, toSelfDelay, outputPk, revState.RevLock, FoundRevSecret, custClosePk, merchState)
+	disputeTx, merchState, err := MerchantSignDisputeTx(escrowTxid_LE, CloseEscrowTxId_TX3, index, claimAmount, claimOutAmount, toSelfDelay, outputPk, revState.RevLock, FoundRevSecret, custClosePk, merchState)
 	assert.Nil(t, err)
 	fmt.Println("========================================")
 	fmt.Println("TX5: disputeCloseEscrowTx: ", disputeTx)
 	fmt.Println("========================================")
 	WriteToFile(MerchDisputeFirstCustCloseTxFile, disputeTx)
 
-	SignedMerchDisputeTx2, err := MerchantSignDisputeTx(CloseMerchTxId_TX3, index, claimAmount, claimOutAmount, toSelfDelay, outputPk, revState.RevLock, FoundRevSecret, custClosePk, merchState)
+	SignedMerchDisputeTx2, _, err := MerchantSignDisputeTx(escrowTxid_LE, CloseMerchTxId_TX3, index, claimAmount, claimOutAmount, toSelfDelay, outputPk, revState.RevLock, FoundRevSecret, custClosePk, merchState)
 	WriteToFile(MerchDisputeFirstCustCloseFromMerchTxFile, SignedMerchDisputeTx2)
 
 	// Merchant can claim tx output from merch-close-tx after timeout
@@ -469,16 +469,34 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("========================================")
 	WriteToFile(MerchClaimFromMerchCloseTxFile, SignedMerchClaimTx)
 
-	custState, err = ChangeCloseStatusToPending(custState)
+	custState, err = CustomerChangeCloseStatusToPending(custState)
 	if err != nil {
 		// should be pending first
-		fmt.Println("Failed to change close status to pending => ", err)
+		fmt.Println("Failed to change close status to pending -", err)
 		return
 	}
 
-	custState, err = ChangeCloseStatusToConfirmed(custState)
+	custState, err = CustomerChangeCloseStatusToConfirmed(custState)
 	if err != nil {
-		fmt.Println("Failed to change close status to confirmed => ", err)
+		fmt.Println("Failed to change close status to confirmed -", err)
+		return
+	}
+
+	custState, err = CutstomerClearCloseStatus(custState)
+	if err != nil {
+		fmt.Println("Failed to clear close status for customer -", err)
+		return
+	}
+
+	_, err = MerchantChangeCloseStatusToConfirmed(escrowTxid_LE, merchState)
+	if err != nil {
+		fmt.Println("Failed to change close status to confirmed -", err)
+		return
+	}
+
+	merchState, err = MerchantClearCloseStatus(escrowTxid_LE, merchState)
+	if err != nil {
+		fmt.Println("Failed to clear close status for merchant -", err)
 		return
 	}
 

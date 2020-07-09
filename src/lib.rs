@@ -121,10 +121,10 @@ pub mod zkproofs {
 
     #[derive(Clone, Serialize, Deserialize)]
     #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
-    <E as pairing::Engine>::G1: serde::Serialize"))]
+                               <E as pairing::Engine>::G1: serde::Serialize"))]
     #[serde(
         bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
-    <E as pairing::Engine>::G1: serde::Deserialize<'de>")
+                             <E as pairing::Engine>::G1: serde::Deserialize<'de>")
     )]
     pub struct ChannelcloseC<E: Engine> {
         pub wpk: secp256k1::PublicKey,
@@ -134,14 +134,14 @@ pub mod zkproofs {
 
     #[derive(Clone, Serialize, Deserialize)]
     #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
-    <E as pairing::Engine>::G1: serde::Serialize, \
-    <E as pairing::Engine>::G2: serde::Serialize, \
-    <E as pairing::Engine>::Fqk: serde::Serialize"))]
+                               <E as pairing::Engine>::G1: serde::Serialize, \
+                               <E as pairing::Engine>::G2: serde::Serialize, \
+                               <E as pairing::Engine>::Fqk: serde::Serialize"))]
     #[serde(
         bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
-    <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
-    <E as pairing::Engine>::G2: serde::Deserialize<'de>,\
-    <E as pairing::Engine>::Fqk: serde::Deserialize<'de>")
+                             <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+                             <E as pairing::Engine>::G2: serde::Deserialize<'de>,\
+                             <E as pairing::Engine>::Fqk: serde::Deserialize<'de>")
     )]
     pub struct Payment<E: Engine> {
         proof: NIZKProof<E>,
@@ -874,10 +874,12 @@ pub struct FundingTxInfo {
 pub mod mpc {
     use bindings::ConnType_NETIO;
     pub use channels_mpc::{
+        ChannelCloseStatus, ChannelStatus, InitCustState, NetworkConfig, PaymentStatus,
+    };
+    pub use channels_mpc::{
         ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState, RevokedState,
         TransactionFeeInfo,
     };
-    pub use channels_mpc::{ChannelStatus, InitCustState, NetworkConfig, PaymentStatus};
     use database::{MaskedTxMPCInputs, StateDatabase};
     use rand::Rng;
     use secp256k1::PublicKey;
@@ -3067,10 +3069,10 @@ mod tests {
             &mut merch_state,
         );
 
-        let res = cust_state.change_close_status_to_pending();
+        let res = cust_state.change_close_status(ChannelCloseStatus::Pending);
         assert!(res.is_err());
 
-        let res = cust_state.change_close_status_to_confirmed();
+        let res = cust_state.change_close_status(ChannelCloseStatus::Confirmed);
         assert!(res.is_err());
 
         // customer initiates close tx
@@ -3096,12 +3098,12 @@ mod tests {
         );
 
         // change close status after closing transaction is detected on-chain
-        let res = cust_state.change_close_status_to_pending();
+        let res = cust_state.change_close_status(ChannelCloseStatus::Pending);
         assert!(res.is_ok());
         assert_eq!(cust_state.close_status, ChannelCloseStatus::Pending);
 
         // assume that timelock has passed and there was no dispute
-        let res = cust_state.change_close_status_to_confirmed();
+        let res = cust_state.change_close_status(ChannelCloseStatus::Confirmed);
         assert!(res.is_ok());
         assert_eq!(cust_state.close_status, ChannelCloseStatus::Confirmed);
     }
