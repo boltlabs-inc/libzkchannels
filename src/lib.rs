@@ -872,7 +872,7 @@ pub struct FundingTxInfo {
 }
 
 pub mod mpc {
-    use bindings::{ConnType_NETIO, cb_send, cb_receive, ConnType_LNDNETIO};
+    use bindings::{cb_send, cb_receive, ConnType_LNDNETIO};
     pub use channels_mpc::{
         ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState, RevokedState,
         TransactionFeeInfo,
