@@ -109,6 +109,17 @@ char *cust_create_escrow_transaction(char *ser_txid,
                                      int64_t tx_fee,
                                      uint32_t ser_should_sign);
 
+char *cust_sign_mutual_close_tx(char *ser_tx_index,
+                                uint32_t index,
+                                int64_t input_amount,
+                                int64_t cust_amount,
+                                int64_t merch_amount,
+                                char *ser_merch_close_pk,
+                                char *ser_cust_close_pk,
+                                char *ser_merch_pk,
+                                char *ser_cust_pk,
+                                char *ser_cust_sk);
+
 char *cust_verify_init_cust_close_txs(char *ser_funding_tx,
                                       char *ser_tx_fee_info,
                                       char *ser_channel_state,
@@ -376,6 +387,18 @@ char *merch_sign_init_cust_close_txs(char *ser_funding_tx,
                                      int64_t fee_cc,
                                      int64_t fee_mc,
                                      int64_t val_cpfp);
+
+char *merch_sign_mutual_close_tx(char *ser_tx_index,
+                                 uint32_t index,
+                                 int64_t input_amount,
+                                 int64_t cust_amount,
+                                 int64_t merch_amount,
+                                 char *ser_merch_close_pk,
+                                 char *ser_cust_close_pk,
+                                 char *ser_merch_pk,
+                                 char *ser_cust_pk,
+                                 char *ser_cust_sig,
+                                 char *ser_merch_sk);
 
 char *merchant_check_rev_lock(char *ser_rev_lock, char *ser_merch_state);
 

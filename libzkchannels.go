@@ -962,6 +962,30 @@ func MerchantSignMerchClaimTx(txid_LE string, index uint32, inputAmount int64, o
 	return r.SignedTx, err
 }
 
+func CustomerSignMutualCloseTx(txid_LE string, index uint32, inputAmount int64, custAmount int64, merchAmount int64, merchClosePk string, custClosePk string, merchPk string, custPk string, custSk string) (string, error) {
+	// call customer sign mutual close tx
+	resp := C.GoString(C.cust_sign_mutual_close_tx(C.CString(txid_LE), C.uint(index), C.int64_t(inputAmount), C.int64_t(custAmount), C.int64_t(merchAmount), C.CString(merchClosePk),
+		C.CString(custClosePk), C.CString(merchPk), C.CString(custPk), C.CString(custSk)))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return "", err
+	}
+
+	return r.CustSig, err
+}
+
+func MerchantSignMutualCloseTx(txid_LE string, index uint32, inputAmount int64, custAmount int64, merchAmount int64, merchClosePk string, custClosePk string, merchPk string, custPk string, custSig string, merchSk string) (string, string, error) {
+	// call customer sign mutual close tx
+	resp := C.GoString(C.merch_sign_mutual_close_tx(C.CString(txid_LE), C.uint(index), C.int64_t(inputAmount), C.int64_t(custAmount), C.int64_t(merchAmount), C.CString(merchClosePk),
+		C.CString(custClosePk), C.CString(merchPk), C.CString(custPk), C.CString(custSig), C.CString(merchSk)))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return "", "", err
+	}
+
+	return r.SignedTx, r.TxIdLe, err
+}
+
 func processCResponse(resp string) (*setupResp, error) {
 	resp = cleanJson(resp)
 	r := &setupResp{}

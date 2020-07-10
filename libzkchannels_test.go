@@ -500,6 +500,14 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 		return
 	}
 
+	// test mutual close tx flow here
+	mCustSig, err := CustomerSignMutualCloseTx(escrowTxid_LE, index, inputSats, custBal, merchBal, merchClosePk, custClosePk, merchPk, custPk, custSk)
+	fmt.Println("Cust sig for mutual tx: ", mCustSig)
+
+	mSignedTx, mTxid, err := MerchantSignMutualCloseTx(escrowTxid_LE, index, inputSats, custBal, merchBal, merchClosePk, custClosePk, merchPk, custPk, mCustSig, merchSk)
+	fmt.Println("Signed tx: ", mSignedTx)
+	fmt.Println("txId: ", mTxid)
+
 	fmt.Println("Successful test!")
 	return
 }

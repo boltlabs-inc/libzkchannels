@@ -1072,9 +1072,7 @@ pub mod ffishim_mpc {
             deserialize_result_object(ser_merch_state);
         let mut merch_state = handle_errors!(merch_state_result);
 
-        handle_errors!(
-            merch_state.change_close_status(escrow_txid_be, ChannelCloseStatus::None)
-        );
+        handle_errors!(merch_state.change_close_status(escrow_txid_be, ChannelCloseStatus::None));
 
         let ser = [
             "{\'merch_state\':\'",
@@ -1085,7 +1083,6 @@ pub mod ffishim_mpc {
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
-
 
     // TRANSACTION BUILDER FOR ESCROW, MERCH-CLOSE-TX and CUST-CLOSE-TXS
 
@@ -1864,6 +1861,138 @@ pub mod ffishim_mpc {
             )
         );
         let ser = ["{\'signed_tx\': \'", &hex::encode(signed_tx), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    // Customer - sign the mutual close transaction
+    #[no_mangle]
+    pub extern "C" fn cust_sign_mutual_close_tx(
+        ser_tx_index: *mut c_char,
+        index: u32,
+        input_amount: i64,
+        cust_amount: i64,
+        merch_amount: i64,
+        ser_merch_close_pk: *mut c_char,
+        ser_cust_close_pk: *mut c_char,
+        ser_merch_pk: *mut c_char,
+        ser_cust_pk: *mut c_char,
+        ser_cust_sk: *mut c_char,
+    ) -> *mut c_char {
+        let txid_result = deserialize_hex_string(ser_tx_index);
+        let txid_le = handle_errors!(txid_result);
+
+        // Deserialize the sk_c
+        let cust_sk_result = deserialize_hex_string(ser_cust_sk);
+        let cust_escrow_sk = handle_errors!(cust_sk_result);
+
+        let cust_pk_result = deserialize_hex_string(ser_cust_pk);
+        let cust_pk = handle_errors!(cust_pk_result);
+
+        let cust_close_pk_result = deserialize_hex_string(ser_cust_close_pk);
+        let cust_close_pk = handle_errors!(cust_close_pk_result);
+
+        let merch_pk_result = deserialize_hex_string(ser_merch_pk);
+        let merch_pk = handle_errors!(merch_pk_result);
+
+        let merch_close_pk_result = deserialize_hex_string(ser_merch_close_pk);
+        let merch_close_pk = handle_errors!(merch_close_pk_result);
+
+        let escrow_input = zkchan_tx::transactions::UtxoInput {
+            address_format: String::from("p2wsh"),
+            // outpoint + txid
+            transaction_id: txid_le,
+            index: index,
+            redeem_script: None,
+            script_pub_key: None,
+            utxo_amount: Some(input_amount),
+            sequence: Some([0xff, 0xff, 0xff, 0xff]), // 4294967295
+        };
+
+        let cust_signature =
+            handle_errors!(zkchan_tx::txutil::customer_sign_mutual_close_transaction(
+                &escrow_input,
+                &cust_pk,
+                &merch_pk,
+                &cust_close_pk,
+                &merch_close_pk,
+                cust_amount,
+                merch_amount,
+                &cust_escrow_sk,
+            ));
+
+        let ser = ["{\'cust_sig\': \'", &hex::encode(cust_signature), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern "C" fn merch_sign_mutual_close_tx(
+        ser_tx_index: *mut c_char,
+        index: u32,
+        input_amount: i64,
+        cust_amount: i64,
+        merch_amount: i64,
+        ser_merch_close_pk: *mut c_char,
+        ser_cust_close_pk: *mut c_char,
+        ser_merch_pk: *mut c_char,
+        ser_cust_pk: *mut c_char,
+        ser_cust_sig: *mut c_char,
+        ser_merch_sk: *mut c_char,
+    ) -> *mut c_char {
+        let txid_result = deserialize_hex_string(ser_tx_index);
+        let txid_le = handle_errors!(txid_result);
+
+        // Deserialize the keys and signature
+        let merch_sk_result = deserialize_hex_string(ser_merch_sk);
+        let merch_escrow_sk = handle_errors!(merch_sk_result);
+
+        let cust_pk_result = deserialize_hex_string(ser_cust_pk);
+        let cust_pk = handle_errors!(cust_pk_result);
+
+        let cust_close_pk_result = deserialize_hex_string(ser_cust_close_pk);
+        let cust_close_pk = handle_errors!(cust_close_pk_result);
+
+        let merch_pk_result = deserialize_hex_string(ser_merch_pk);
+        let merch_pk = handle_errors!(merch_pk_result);
+
+        let merch_close_pk_result = deserialize_hex_string(ser_merch_close_pk);
+        let merch_close_pk = handle_errors!(merch_close_pk_result);
+
+        let cust_sig_result = deserialize_hex_string(ser_cust_sig);
+        let cust_sig = handle_errors!(cust_sig_result);
+
+        let escrow_input = zkchan_tx::transactions::UtxoInput {
+            address_format: String::from("p2wsh"),
+            // outpoint + txid
+            transaction_id: txid_le,
+            index: index,
+            redeem_script: None,
+            script_pub_key: None,
+            utxo_amount: Some(input_amount),
+            sequence: Some([0xff, 0xff, 0xff, 0xff]), // 4294967295
+        };
+
+        let (signed_tx, txid) =
+            handle_errors!(zkchan_tx::txutil::merchant_sign_mutual_close_transaction(
+                &escrow_input,
+                &cust_pk,
+                &merch_pk,
+                &cust_close_pk,
+                &merch_close_pk,
+                cust_amount,
+                merch_amount,
+                &cust_sig,
+                &merch_escrow_sk,
+            ));
+        let ser = [
+            "{\'signed_tx\': \'",
+            &hex::encode(signed_tx),
+            "\', \'txid_le\':\'",
+            &hex::encode(txid),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
