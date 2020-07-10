@@ -447,7 +447,8 @@ def main():
     output_privkeys_hex = [sk.hex() for sk in output_privkeys]
     if scenario_index in range(0,6):
         index = 0
-        run_gowrapper(utxo_txid, index, output_privkeys_hex[index], blocks)
+        out = run_gowrapper(utxo_txid, index, output_privkeys_hex[index], blocks)
+        print("DEBUG: \n%s\n", out)
         time.sleep(2)
         tests_to_run[scenario_index](network, index, blocks)
     else:
