@@ -145,6 +145,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	MerchDisputeFirstCustCloseTxFile := ""
 	MerchDisputeFirstCustCloseFromMerchTxFile := ""
 	MerchClaimFromMerchCloseTxFile := ""
+	MutualCloseTxFile := ""
 	save_tx_file := os.Getenv("UTXO_SAVE_TX")
 	if save_tx_file == "yes" {
 		index := cust_utxo_index
@@ -178,6 +179,8 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 		MerchDisputeFirstCustCloseFromMerchTxFile = fmt.Sprintf("signed_dispute_from_merch_tx_%d.txt", index)
 		// stores merch claim tx for full balance in merch-close-tx (after timelock)
 		MerchClaimFromMerchCloseTxFile = fmt.Sprintf("signed_merch_claim_merch_close_tx_%d.txt", index)
+		// stores mutual close tx for most recent balance of the channel
+		MutualCloseTxFile = fmt.Sprintf("signed_mutual_close_tx_%d.txt", index)
 	}
 
 	custSk := fmt.Sprintf("%v", custState.SkC)
@@ -501,12 +504,15 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	}
 
 	// test mutual close tx flow here
-	mCustSig, err := CustomerSignMutualCloseTx(escrowTxid_LE, index, inputSats, custBal, merchBal, merchClosePk, custClosePk, merchPk, custPk, custSk)
+	custAmount := custState.CustBalance - feeCC
+	merchAmount := custState.MerchBalance
+	mCustSig, err := CustomerSignMutualCloseTx(escrowTxid_LE, index, inputSats, custAmount, merchAmount, merchClosePk, custClosePk, merchPk, custPk, custSk)
 	fmt.Println("Cust sig for mutual tx: ", mCustSig)
 
-	mSignedTx, mTxid, err := MerchantSignMutualCloseTx(escrowTxid_LE, index, inputSats, custBal, merchBal, merchClosePk, custClosePk, merchPk, custPk, mCustSig, merchSk)
-	fmt.Println("Signed tx: ", mSignedTx)
+	SignedMutualCloseTx, mTxid, err := MerchantSignMutualCloseTx(escrowTxid_LE, index, inputSats, custAmount, merchAmount, merchClosePk, custClosePk, merchPk, custPk, mCustSig, merchSk)
+	fmt.Println("Signed tx: ", SignedMutualCloseTx)
 	fmt.Println("txId: ", mTxid)
+	WriteToFile(MutualCloseTxFile, SignedMutualCloseTx)
 
 	fmt.Println("Successful test!")
 	return
