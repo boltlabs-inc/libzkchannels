@@ -504,12 +504,13 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	}
 
 	// test mutual close tx flow here
+	escrowedAmount := outputSats
 	custAmount := custState.CustBalance - feeCC
 	merchAmount := custState.MerchBalance
-	mCustSig, err := CustomerSignMutualCloseTx(escrowTxid_LE, index, inputSats, custAmount, merchAmount, merchClosePk, custClosePk, merchPk, custPk, custSk)
+	mCustSig, err := CustomerSignMutualCloseTx(escrowTxid_LE, index, escrowedAmount, custAmount, merchAmount, merchClosePk, custClosePk, merchPk, custPk, custSk)
 	fmt.Println("Cust sig for mutual tx: ", mCustSig)
 
-	SignedMutualCloseTx, mTxid, err := MerchantSignMutualCloseTx(escrowTxid_LE, index, inputSats, custAmount, merchAmount, merchClosePk, custClosePk, merchPk, custPk, mCustSig, merchSk)
+	SignedMutualCloseTx, mTxid, err := MerchantSignMutualCloseTx(escrowTxid_LE, index, escrowedAmount, custAmount, merchAmount, merchClosePk, custClosePk, merchPk, custPk, mCustSig, merchSk)
 	fmt.Println("Signed tx: ", SignedMutualCloseTx)
 	fmt.Println("txId: ", mTxid)
 	WriteToFile(MutualCloseTxFile, SignedMutualCloseTx)
