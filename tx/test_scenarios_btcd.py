@@ -448,7 +448,7 @@ def main():
     if scenario_index in range(0,6):
         index = 0
         out = run_gowrapper(utxo_txid, index, output_privkeys_hex[index], blocks)
-        print("\n%s\n", out)
+        if verbose: print("\n%s\n", out)
         time.sleep(2)
         tests_to_run[scenario_index](network, index, blocks)
     else:
