@@ -14,12 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func DebugError(err error) {
-	if err != nil {
-		fmt.Println("ERROR: ", err)
-	}
-}
-
 func WriteToFile(filename string, data string) error {
 	if filename == "" {
 		return nil
@@ -85,6 +79,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	payoutSkM := "5611111111111111111111111111111100000000000000000000000000000000"
 	disputeSkM := "5711111111111111111111111111111100000000000000000000000000000000"
 	channelState, merchState, err = LoadMerchantWallet(merchState, channelState, skM, payoutSkM, disputeSkM)
+	assert.Nil(t, err)
 
 	custBal := int64(1000000)
 	merchBal := int64(1000000)
@@ -194,6 +189,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	merchDispPk := fmt.Sprintf("%v", *merchState.DisputePk)
 	// toSelfDelay := "05cf" // 1487 blocks
 	toSelfDelay, err := GetSelfDelayBE(channelState)
+	assert.Nil(t, err)
 	fmt.Println("toSelfDelay (BE) :=> ", toSelfDelay)
 
 	fmt.Println("custSk :=> ", custSk)
@@ -217,18 +213,22 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("========================================")
 
 	merchTxPreimage, err := FormMerchCloseTx(escrowTxid_LE, custPk, merchPk, merchClosePk, custBal, merchBal, feeMC, txFeeInfo.ValCpFp, toSelfDelay)
+	assert.Nil(t, err)
 
 	fmt.Println("merch TxPreimage => ", merchTxPreimage)
 
 	custSig, err := CustomerSignMerchCloseTx(custSk, merchTxPreimage)
 	fmt.Println("cust sig for merchCloseTx => ", custSig)
+	assert.Nil(t, err)
 
 	isOk, merchTxid_BE, merchTxid_LE, merchPrevout, merchState, err := MerchantVerifyMerchCloseTx(escrowTxid_LE, custPk, custBal, merchBal, feeMC, txFeeInfo.ValCpFp, toSelfDelay, custSig, merchState)
 	fmt.Println("orig merch txid (BE) = ", merchTxid_BE)
 	fmt.Println("orig merch txid (LE) = ", merchTxid_LE)
 	fmt.Println("orig merch prevout = ", merchPrevout)
 
-	if isOk {
+	if !isOk {
+		t.Error("FAILED to verify the cust signature on merch-close-tx", err)
+	} else {
 		// initiate merch-close-tx
 		signedMerchCloseTx, merchTxid2_BE, merchTxid2_LE, merchState, err := ForceMerchantCloseTx(escrowTxid_LE, merchState, txFeeInfo.ValCpFp)
 		WriteToFile(MerchCloseTxFile, signedMerchCloseTx)
@@ -261,12 +261,12 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 
 	isOk, channelToken, custState, err = CustomerVerifyInitCustCloseTx(txInfo, txFeeInfo, channelState, channelToken, escrowSig, merchSig, custState)
 	if !isOk {
-		fmt.Println("FAILED to verify the merch signatures on init cust-close-tx")
-		return
+		t.Error("FAILED to verify the merch signatures on init cust-close-tx", err)
 	}
 	assert.Nil(t, err)
 
 	initCustState, initHash, err := CustomerGetInitialState(custState)
+	assert.Nil(t, err)
 
 	fmt.Println("initial cust state: ", initCustState)
 	fmt.Println("initial hash: ", initHash)
@@ -275,22 +275,19 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	assert.Nil(t, err)
 	fmt.Println("merchant validates initial state: ", isOk)
 	if !isOk {
-		fmt.Println("error: ", err)
+		t.Error("error: ", err)
 	}
 
 	fmt.Println("initial close transactions validated: ", isOk)
 	_, err = CustomerChangeCloseStatusToPending(custState)
-	if err != nil {
-		fmt.Println("Failed as expected to change close status to pending -", err)
-	}
+	assert.Equal(t, "transition not allowed for channel: None => Pending", err.Error())
 
 	_, err = CustomerChangeCloseStatusToConfirmed(custState)
-	if err != nil {
-		fmt.Println("Failed as expected to change close status to confirmed -", err)
-	}
+	assert.Equal(t, "transition not allowed for channel: None => Confirmed", err.Error())
 
 	fmt.Println("Output initial closing transactions")
 	CloseEscrowTx, CloseEscrowTxId_LE, custState, err := ForceCustomerCloseTx(channelState, channelToken, true, custState)
+	assert.Nil(t, err)
 	initCustBalPayout := custState.CustBalance
 	WriteToFile(FirstCustCloseEscrowTxFile, CloseEscrowTx)
 	CloseEscrowTxId_TX3 := CloseEscrowTxId_LE
@@ -316,6 +313,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("Proceed with channel activation...")
 
 	channelId, err := GetChannelId(channelToken)
+	assert.Nil(t, err)
 	fmt.Println("Channel ID: ", channelId)
 
 	state, custState, err := ActivateCustomer(custState)
@@ -353,7 +351,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	time.Sleep(time.Second * 5)
 
 	if !isOk {
-		fmt.Println("MPC execution failed for merchant!")
+		t.Error("MPC execution failed for merchant!", err)
 	}
 	assert.True(t, isOk)
 	maskedTxInputs, err := PayConfirmMPCResult(sessionId, isOk, merchState)
@@ -383,16 +381,11 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("TX5: Close from EscrowTx => ", string(CloseEscrowTx))
 
 	_, err = CustomerChangeCloseStatusToConfirmed(custState)
-	if err != nil {
-		// should be pending first
-		fmt.Println("Failed as expected to change close status to confirmed -", err)
-	}
+	assert.Equal(t, "transition not allowed for channel: CustomerInit => Confirmed", err.Error())
 
 	custState, err = CustomerChangeCloseStatusToPending(custState)
 	if err != nil {
-		// should be pending first
-		fmt.Println("Failed to change close status to pending -", err)
-		return
+		t.Error("Failed to change close status to pending -", err)
 	}
 
 	// Customer claim tx from cust-close-from-escrow-tx
@@ -432,6 +425,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 
 	// Merchant checks whether it has seen RevLock from cust-close-tx on chain
 	isOldRevLock, FoundRevSecret, err := MerchantCheckRevLock(revState.RevLock, merchState)
+	assert.Nil(t, err)
 	fmt.Println("Looking for rev lock: ", revState.RevLock)
 	if isOldRevLock {
 		fmt.Println("Found rev secret: ", FoundRevSecret)
@@ -459,6 +453,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	WriteToFile(MerchDisputeFirstCustCloseTxFile, disputeTx)
 
 	SignedMerchDisputeTx2, _, err := MerchantSignDisputeTx(escrowTxid_LE, CloseMerchTxId_TX3, index, claimAmount, claimOutAmount, toSelfDelay, outputPk, revState.RevLock, FoundRevSecret, custClosePk, merchState)
+	assert.Nil(t, err)
 	WriteToFile(MerchDisputeFirstCustCloseFromMerchTxFile, SignedMerchDisputeTx2)
 
 	// Merchant can claim tx output from merch-close-tx after timeout
@@ -474,33 +469,27 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 
 	custState, err = CustomerChangeCloseStatusToPending(custState)
 	if err != nil {
-		// should be pending first
-		fmt.Println("Failed to change close status to pending -", err)
-		return
+		t.Error("Failed to change close status to pending -", err)
 	}
 
 	custState, err = CustomerChangeCloseStatusToConfirmed(custState)
 	if err != nil {
-		fmt.Println("Failed to change close status to confirmed -", err)
-		return
+		t.Error("Failed to change close status to confirmed -", err)
 	}
 
 	custState, err = CutstomerClearCloseStatus(custState)
 	if err != nil {
-		fmt.Println("Failed to clear close status for customer -", err)
-		return
+		t.Error("Failed to clear close status for customer -", err)
 	}
 
 	_, err = MerchantChangeCloseStatusToConfirmed(escrowTxid_LE, merchState)
 	if err != nil {
-		fmt.Println("Failed to change close status to confirmed -", err)
-		return
+		t.Error("Failed to change close status to confirmed -", err)
 	}
 
 	merchState, err = MerchantClearCloseStatus(escrowTxid_LE, merchState)
 	if err != nil {
-		fmt.Println("Failed to clear close status for merchant -", err)
-		return
+		t.Error("Failed to clear close status for merchant -", err)
 	}
 
 	// test mutual close tx flow here
@@ -508,9 +497,11 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	custAmount := custState.CustBalance - feeCC
 	merchAmount := custState.MerchBalance
 	mCustSig, err := CustomerSignMutualCloseTx(escrowTxid_LE, index, escrowedAmount, custAmount, merchAmount, merchClosePk, custClosePk, merchPk, custPk, custSk)
+	assert.Nil(t, err)
 	fmt.Println("Cust sig for mutual tx: ", mCustSig)
 
 	SignedMutualCloseTx, mTxid, err := MerchantSignMutualCloseTx(escrowTxid_LE, index, escrowedAmount, custAmount, merchAmount, merchClosePk, custClosePk, merchPk, custPk, mCustSig, merchSk)
+	assert.Nil(t, err)
 	fmt.Println("Signed tx: ", SignedMutualCloseTx)
 	fmt.Println("txId: ", mTxid)
 	WriteToFile(MutualCloseTxFile, SignedMutualCloseTx)
@@ -567,6 +558,7 @@ func TestPayUpdateCustomer(t *testing.T) {
 	assert.Nil(t, err)
 
 	isOk, custState, err := PayUpdateCustomer(channelState, channelToken, state, newState, payTokenMaskCom, revLockCom, 10, custState)
+	assert.Nil(t, err)
 	serCustState, err := json.Marshal(custState)
 	t.Log("\n|||", string(serCustState), "|||\n")
 	assert.True(t, isOk)
