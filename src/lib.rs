@@ -872,7 +872,7 @@ pub struct FundingTxInfo {
 }
 
 pub mod mpc {
-    use bindings::{cb_send, cb_receive, ConnType_LNDNETIO};
+    use bindings::{cb_send, cb_receive, ConnType_LNDNETIO, ConnType_NETIO};
     pub use channels_mpc::{
         ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState, RevokedState,
         TransactionFeeInfo,
@@ -1139,8 +1139,12 @@ pub mod mpc {
             cust_state.update_pay_com(pay_token_mask_com);
             if cust_state.net_config.is_none() {
                 // use default
+                let conn_type = match send_cb.is_some() && receive_cb.is_some() {
+                    true => ConnType_LNDNETIO,
+                    false => ConnType_NETIO
+                };
                 cust_state.set_network_config(NetworkConfig {
-                    conn_type: ConnType_LNDNETIO,
+                    conn_type,
                     dest_ip: String::from("127.0.0.1"),
                     dest_port: 2424,
                     path: String::new(),
@@ -1188,8 +1192,12 @@ pub mod mpc {
     ) -> Result<bool, String> {
         if merch_state.net_config.is_none() {
             // use default ip/port
+            let conn_type = match send_cb.is_some() && receive_cb.is_some() {
+                true => ConnType_LNDNETIO,
+                false => ConnType_NETIO
+            };
             merch_state.set_network_config(NetworkConfig {
-                conn_type: ConnType_LNDNETIO,
+                conn_type,
                 dest_ip: String::from("127.0.0.1"),
                 dest_port: 2424,
                 path: String::new(),
