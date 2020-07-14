@@ -8,7 +8,7 @@ pub mod ffishim_mpc {
     };
     use database::{MaskedTxMPCInputs, RedisDatabase, StateDatabase};
     use hex::FromHexError;
-    use libc::c_char;
+    use libc::{c_void, c_char};
     use mpc;
     use mpc::ChannelStatus;
     use mpc::RevokedState;
@@ -18,6 +18,7 @@ pub mod ffishim_mpc {
     use wallet::State;
     use zkchan_tx::Testnet;
     use FundingTxInfo;
+    use bindings::{cb_send, cb_receive};
 
     fn error_message(s: String) -> *mut c_char {
         let ser = ["{\'error\':\'", &s, "\'}"].concat();
@@ -622,6 +623,9 @@ pub mod ffishim_mpc {
         ser_rev_lock_com: *mut c_char,
         amount: i64,
         ser_cust_state: *mut c_char,
+        p_ptr: *mut c_void,
+        send_cb: cb_send,
+        receive_cb: cb_receive,
     ) -> *mut c_char {
         // Deserialize the channel_state
         let channel_state_result: ResultSerdeType<ChannelMPCState> =
@@ -669,6 +673,9 @@ pub mod ffishim_mpc {
             rev_lock_com_ar,
             amount,
             &mut cust_state,
+            p_ptr,
+            send_cb,
+            receive_cb,
         );
         let is_ok: bool = handle_errors!(result);
         let ser = [
@@ -689,6 +696,9 @@ pub mod ffishim_mpc {
         ser_session_id: *mut c_char,
         ser_pay_token_mask_com: *mut c_char,
         ser_merch_state: *mut c_char,
+        p_ptr: *mut c_void,
+        send_cb: cb_send,
+        receive_cb: cb_receive,
     ) -> *mut c_char {
         let rng = &mut rand::thread_rng();
 
@@ -728,6 +738,9 @@ pub mod ffishim_mpc {
             session_id_ar,
             pay_token_mask_com_ar,
             &mut merch_state,
+            p_ptr,
+            send_cb,
+            receive_cb,
         );
         let is_ok = handle_errors!(result);
         let ser = [

@@ -12,6 +12,7 @@ use structopt::StructOpt;
 use zkchannels::database::{get_file_from_db, store_file_in_db, RedisDatabase, StateDatabase};
 use zkchannels::mpc;
 use zkchannels::mpc::{ChannelMPCState, MerchantMPCState};
+use std::ptr;
 
 macro_rules! handle_error_result {
     ($e:expr) => {
@@ -132,6 +133,9 @@ fn main() {
         session_id,
         pay_mask_com,
         &mut merch_state,
+        ptr::null_mut(),
+        None,
+        None,
     );
     assert!(res_merch.is_ok(), res_merch.err().unwrap());
 

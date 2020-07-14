@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define _LIBCPP_HAS_MERGED_TYPEINFO_NAMES_DEFAULT 1
+#define _LIBCPP_HAS_MERGED_TYPEINFO_NAMES_DEFAULT 0
 
 typedef struct {
   uint32_t nonce[4];
@@ -79,6 +79,14 @@ typedef struct {
 typedef struct {
   uint32_t sig[8];
 } EcdsaSig_l;
+
+typedef char *(*cb_send)(void *arg1, int arg2, void *arg3);
+
+typedef struct {
+  uint8_t _unused[0];
+} Receive_return;
+
+typedef Receive_return (*cb_receive)(void *arg1);
 
 char *cust_change_channel_status_to_confirmed(char *ser_cust_state);
 
@@ -468,12 +476,18 @@ char *mpc_pay_update_customer(char *ser_channel_state,
                               char *ser_pay_token_mask_com,
                               char *ser_rev_lock_com,
                               int64_t amount,
-                              char *ser_cust_state);
+                              char *ser_cust_state,
+                              void *p_ptr,
+                              cb_send send_cb,
+                              cb_receive receive_cb);
 
 char *mpc_pay_update_merchant(char *ser_channel_state,
                               char *ser_session_id,
                               char *ser_pay_token_mask_com,
-                              char *ser_merch_state);
+                              char *ser_merch_state,
+                              void *p_ptr,
+                              cb_send send_cb,
+                              cb_receive receive_cb);
 
 char *mpc_pay_validate_rev_lock_merchant(char *ser_session_id,
                                          char *ser_revoked_state,

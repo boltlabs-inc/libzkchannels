@@ -1,7 +1,7 @@
 use super::*;
 use util::{compute_hash160, hash_to_slice, hmac_sign};
 
-use bindings::{load_circuit_file, ConnType};
+use bindings::{load_circuit_file, ConnType, cb_send, cb_receive};
 use database::{MaskedMPCInputs, MaskedTxMPCInputs, SessionState, StateDatabase};
 use mpcwrapper::{mpc_build_masked_tokens_cust, mpc_build_masked_tokens_merch, CIRCUIT_FILE};
 use rand::Rng;
@@ -595,6 +595,9 @@ impl CustomerMPCState {
         rev_lock_com: [u8; 32],
         amount: i64,
         circuit: *mut c_void,
+        p_ptr: *mut c_void,
+        send_cb: cb_send,
+        receive_cb: cb_receive,
     ) -> Result<bool, String> {
         let min_cust_bal = channel_state.bal_min_cust + self.fee_cc + channel_state.val_cpfp;
         if new_state.bc <= min_cust_bal {
@@ -662,6 +665,9 @@ impl CustomerMPCState {
         let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) =
             match mpc_build_masked_tokens_cust(
                 net_conn,
+                p_ptr,
+                send_cb,
+                receive_cb,
                 circuit,
                 amount,
                 channel_state.bal_min_cust,
@@ -1697,6 +1703,9 @@ impl MerchantMPCState {
         session_id: [u8; 16],
         paytoken_mask_com: [u8; 32],
         circuit: *mut c_void,
+        p_ptr: *mut c_void,
+        send_cb: cb_send,
+        receive_cb: cb_receive,
     ) -> Result<bool, String> {
         // // if epsilon > 0, check if acceptable (above dust limit).
         // if amount > 0 && amount < channel_state.get_min_threshold() {
@@ -1773,6 +1782,9 @@ impl MerchantMPCState {
         let (r_merch, r_esc) = mpc_build_masked_tokens_merch(
             csprng,
             net_conn,
+            p_ptr,
+            send_cb,
+            receive_cb,
             circuit,
             amount,
             channel_state.bal_min_cust,
@@ -2023,7 +2035,10 @@ mod tests {
 
         println!("hello, customer!");
         let circuit = cust_state.get_circuit_file();
-        let res = cust_state.execute_mpc_context(&channel_state, &channel_token, s0, s1, pay_token_mask_com, r_com, amount, circuit);
+        let res = cust_state.execute_mpc_context(&channel_state, &channel_token, s0, s1, pay_token_mask_com, r_com, amount, circuit,
+            ptr::null_mut(),
+            None,
+            None,);
         assert!(res.is_ok(), res.err().unwrap());
 
         println!("completed mpc execution!");
@@ -2232,7 +2247,10 @@ mod tests {
             &channel,
             session_id.clone(),
             pay_token_mask_com,
-            circuit
+            circuit,
+            ptr::null_mut(),
+            None,
+            None,
         );
         assert!(res.is_ok(), res.err().unwrap());
 

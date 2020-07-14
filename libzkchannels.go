@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"unsafe"
 )
 
 type setupResp struct {
@@ -650,7 +651,7 @@ func PreparePaymentMerchant(channelState ChannelState, sessionId string, nonce s
 	return r.PayTokenMaskCom, merchState, err
 }
 
-func PayUpdateCustomer(channelState ChannelState, channelToken ChannelToken, startState State, endState State, payTokenMaskCom string, revLockCom string, amount int64, custState CustState) (bool, CustState, error) {
+func PayUpdateCustomer(channelState ChannelState, channelToken ChannelToken, startState State, endState State, payTokenMaskCom string, revLockCom string, amount int64, custState CustState, pPtr, send_cb, receive_cb unsafe.Pointer) (bool, CustState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
 		return false, CustState{}, err
@@ -673,7 +674,7 @@ func PayUpdateCustomer(channelState ChannelState, channelToken ChannelToken, sta
 	}
 
 	resp := C.GoString(C.mpc_pay_update_customer(C.CString(string(serChannelState)), C.CString(string(serChannelToken)), C.CString(string(serStartState)),
-		C.CString(string(serEndState)), C.CString(payTokenMaskCom), C.CString(revLockCom), C.int64_t(amount), C.CString(string(serCustState))))
+		C.CString(string(serEndState)), C.CString(payTokenMaskCom), C.CString(revLockCom), C.int64_t(amount), C.CString(string(serCustState)), pPtr, (C.cb_send)(send_cb), (C.cb_receive)(receive_cb)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return false, CustState{}, err
@@ -683,7 +684,7 @@ func PayUpdateCustomer(channelState ChannelState, channelToken ChannelToken, sta
 	return r.IsOk, custState, err
 }
 
-func PayUpdateMerchant(channelState ChannelState, sessionId string, payTokenMaskCom string, merchState MerchState) (bool, MerchState, error) {
+func PayUpdateMerchant(channelState ChannelState, sessionId string, payTokenMaskCom string, merchState MerchState, pPtr, send_cb, receive_cb unsafe.Pointer) (bool, MerchState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
 		return false, MerchState{}, err
@@ -694,7 +695,7 @@ func PayUpdateMerchant(channelState ChannelState, sessionId string, payTokenMask
 		return false, MerchState{}, err
 	}
 
-	resp := C.GoString(C.mpc_pay_update_merchant(C.CString(string(serChannelState)), C.CString(sessionId), C.CString(payTokenMaskCom), C.CString(string(serMerchState))))
+	resp := C.GoString(C.mpc_pay_update_merchant(C.CString(string(serChannelState)), C.CString(sessionId), C.CString(payTokenMaskCom), C.CString(string(serMerchState)), pPtr, (C.cb_send)(send_cb), (C.cb_receive)(receive_cb)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return false, MerchState{}, err

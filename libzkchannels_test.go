@@ -346,7 +346,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	assert.Nil(t, err)
 
 	go runPayCust(channelState, channelToken, state, newState, payTokenMaskCom, revLockCom, custState)
-	isOk, merchState, err = PayUpdateMerchant(channelState, sessionId, payTokenMaskCom, merchState)
+	isOk, merchState, err = PayUpdateMerchant(channelState, sessionId, payTokenMaskCom, merchState, nil, nil, nil)
 	assert.Nil(t, err)
 	time.Sleep(time.Second * 5)
 
@@ -557,7 +557,7 @@ func TestPayUpdateCustomer(t *testing.T) {
 	err = json.Unmarshal([]byte(os.Getenv("custState")), &custState)
 	assert.Nil(t, err)
 
-	isOk, custState, err := PayUpdateCustomer(channelState, channelToken, state, newState, payTokenMaskCom, revLockCom, 10, custState)
+	isOk, custState, err := PayUpdateCustomer(channelState, channelToken, state, newState, payTokenMaskCom, revLockCom, 10, custState, nil, nil, nil)
 	assert.Nil(t, err)
 	serCustState, err := json.Marshal(custState)
 	t.Log("\n|||", string(serCustState), "|||\n")

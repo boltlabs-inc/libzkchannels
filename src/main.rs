@@ -548,6 +548,7 @@ mod cust {
         ChannelMPCState, ChannelMPCToken, CustomerMPCState, NetworkConfig,
     };
     use zkchannels::database::MaskedTxMPCInputs;
+    use std::ptr;
     // use std::os::unix::io::AsRawFd;
 
     pub fn open(
@@ -915,6 +916,9 @@ mod cust {
             rev_lock_com,
             amount,
             &mut cust_state,
+            ptr::null_mut(),
+            None,
+            None,
         ) {
             Ok(n) => n,
             Err(e) => return Err(e.to_string()),
@@ -1057,6 +1061,7 @@ mod merch {
     };
     use zkchannels::database::{RedisDatabase, StateDatabase};
     use zkchannels::wallet::State;
+    use std::ptr;
 
     static MERCH_STATE_KEY: &str = "merch_state";
     static CHANNEL_STATE_KEY: &str = "channel_state";
@@ -1368,7 +1373,10 @@ mod merch {
             channel_state,
             session_id.clone(),
             pay_token_mask_com,
-            merch_state
+            merch_state,
+            ptr::null_mut(),
+            None,
+            None,
         ));
 
         // confirm customer got mpc output
