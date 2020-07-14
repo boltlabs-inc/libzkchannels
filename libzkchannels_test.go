@@ -280,7 +280,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 
 	fmt.Println("initial close transactions validated: ", isOk)
 	_, err = CustomerChangeChannelStatusToPendingClose(custState)
-	assert.Equal(t, "transition not allowed for channel: None => Pending", err.Error())
+	assert.Equal(t, "transition not allowed for channel: None => PendingClose", err.Error())
 
 	_, err = CustomerChangeChannelStatusToConfirmed(custState)
 	assert.Equal(t, "transition not allowed for channel: None => Confirmed", err.Error())
@@ -381,9 +381,9 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("TX5: Close from EscrowTx => ", string(CloseEscrowTx))
 
 	_, err = CustomerChangeChannelStatusToConfirmed(custState)
-	assert.Equal(t, "transition not allowed for channel: CustomerInit => Confirmed", err.Error())
+	assert.Equal(t, "transition not allowed for channel: CustomerInitClose => Confirmed", err.Error())
 
-	custState, err = CustomerChangeChannelStatusToPending(custState)
+	custState, err = CustomerChangeChannelStatusToPendingClose(custState)
 	if err != nil {
 		t.Error("Failed to change close status to pending -", err)
 	}
@@ -467,9 +467,9 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("========================================")
 	WriteToFile(MerchClaimFromMerchCloseTxFile, SignedMerchClaimTx)
 
-	custState, err = CustomerChangeChannelStatusToPending(custState)
+	custState, err = CustomerChangeChannelStatusToPendingClose(custState)
 	if err != nil {
-		t.Error("Failed to change close status to pending -", err)
+		t.Error("Failed to change close status to pending close -", err)
 	}
 
 	custState, err = CustomerChangeChannelStatusToConfirmed(custState)
@@ -477,7 +477,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 		t.Error("Failed to change close status to confirmed -", err)
 	}
 
-	custState, err = CutstomerClearCloseStatus(custState)
+	custState, err = CutstomerClearChannelStatus(custState)
 	if err != nil {
 		t.Error("Failed to clear close status for customer -", err)
 	}
@@ -487,7 +487,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 		t.Error("Failed to change close status to confirmed -", err)
 	}
 
-	merchState, err = MerchantClearCloseStatus(escrowTxid_LE, merchState)
+	merchState, err = MerchantClearChannelStatus(escrowTxid_LE, merchState)
 	if err != nil {
 		t.Error("Failed to clear close status for merchant -", err)
 	}

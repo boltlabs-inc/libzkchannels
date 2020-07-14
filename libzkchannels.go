@@ -91,8 +91,8 @@ type CustState struct {
 	PayoutPk        string                  `json:"payout_pk"`
 	EscrowSignature string                  `json:"close_escrow_signature"`
 	MerchSignature  string                  `json:"close_merch_signature"`
+	ProtocolStatus  string                  `json:"protocol_status"`
 	ChannelStatus   string                  `json:"channel_status"`
-	CloseStatus     string                  `json:"close_status"`
 	NetConfig       *map[string]interface{} `json:"net_config"`
 }
 
@@ -823,13 +823,13 @@ func CustomerChangeChannelStatusToConfirmed(custState CustState) (CustState, err
 	return custState, err
 }
 
-func CutstomerClearCloseStatus(custState CustState) (CustState, error) {
+func CutstomerClearChannelStatus(custState CustState) (CustState, error) {
 	serCustState, err := json.Marshal(custState)
 	if err != nil {
 		return CustState{}, err
 	}
 
-	resp := C.GoString(C.cust_clear_close_status(C.CString(string(serCustState))))
+	resp := C.GoString(C.cust_clear_channel_status(C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return CustState{}, err
@@ -840,7 +840,7 @@ func CutstomerClearCloseStatus(custState CustState) (CustState, error) {
 }
 
 // CHANNEL CLOSE STATUS FOR MERCHANT
-func MerchantChangeChannelStatusToPending(escrow_txid_LE string, merchState MerchState) (MerchState, error) {
+func MerchantChangeChannelStatusToPendingClose(escrow_txid_LE string, merchState MerchState) (MerchState, error) {
 	serMerchState, err := json.Marshal(merchState)
 	if err != nil {
 		return MerchState{}, err
@@ -872,13 +872,13 @@ func MerchantChangeChannelStatusToConfirmed(escrow_txid_LE string, merchState Me
 	return merchState, err
 }
 
-func MerchantClearCloseStatus(escrow_txid_LE string, merchState MerchState) (MerchState, error) {
+func MerchantClearChannelStatus(escrow_txid_LE string, merchState MerchState) (MerchState, error) {
 	serMerchState, err := json.Marshal(merchState)
 	if err != nil {
 		return MerchState{}, err
 	}
 
-	resp := C.GoString(C.merch_clear_close_status(C.CString(escrow_txid_LE), C.CString(string(serMerchState))))
+	resp := C.GoString(C.merch_clear_channel_status(C.CString(escrow_txid_LE), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return MerchState{}, err

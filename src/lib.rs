@@ -3080,7 +3080,10 @@ mod tests {
             mpc::force_customer_close(&channel_state, &channel_token, true, &mut cust_state)
                 .unwrap();
 
-        assert_eq!(cust_state.get_channel_status(), ChannelStatus::CustomerInitClose);
+        assert_eq!(
+            cust_state.get_channel_status(),
+            ChannelStatus::CustomerInitClose
+        );
 
         let mut escrow_txid_be = channel_token.escrow_txid.0.clone(); // originally in LE
         escrow_txid_be.reverse();
