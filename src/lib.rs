@@ -874,11 +874,11 @@ pub struct FundingTxInfo {
 pub mod mpc {
     use bindings::ConnType_NETIO;
     pub use channels_mpc::{
-        ChannelCloseStatus, ChannelStatus, InitCustState, NetworkConfig, PaymentStatus,
-    };
-    pub use channels_mpc::{
         ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState, RevokedState,
         TransactionFeeInfo,
+    };
+    pub use channels_mpc::{
+        ChannelStatus, InitCustState, NetworkConfig, PaymentStatus, ProtocolStatus,
     };
     use database::{MaskedTxMPCInputs, StateDatabase};
     use rand::Rng;
@@ -986,10 +986,10 @@ pub mod mpc {
         cust_state: &mut CustomerMPCState,
     ) -> Result<State, String> {
         // check that customer already in the Initialized state
-        if cust_state.channel_status != ChannelStatus::Initialized {
+        if cust_state.protocol_status != ProtocolStatus::Initialized {
             return Err(format!(
                 "invalid channel status for activate_customer(): {}",
-                cust_state.channel_status
+                cust_state.protocol_status
             ));
         }
         let _r_com = cust_state.generate_rev_lock_commitment(csprng);
@@ -1039,8 +1039,8 @@ pub mod mpc {
         cust_state: &mut CustomerMPCState,
     ) -> Result<(State, RevokedState, [u8; 32], [u8; 16]), String> {
         // verify that channel status is already activated or established
-        if (cust_state.channel_status == ChannelStatus::Activated && amount >= 0)
-            || (cust_state.channel_status == ChannelStatus::Established && amount > 0)
+        if (cust_state.protocol_status == ProtocolStatus::Activated && amount >= 0)
+            || (cust_state.protocol_status == ProtocolStatus::Established && amount > 0)
         {
             // check if payment on current balance is greater than dust limit
             let new_balance = match amount > 0 {
@@ -1080,7 +1080,7 @@ pub mod mpc {
         } else {
             return Err(format!(
                 "Invalid channel status for pay_prepare_customer(): {}",
-                cust_state.channel_status
+                cust_state.protocol_status
             ));
         }
     }
@@ -1131,8 +1131,8 @@ pub mod mpc {
         cust_state: &mut CustomerMPCState,
     ) -> Result<bool, String> {
         // verify that channel status is already activated or established (unlink)
-        if (cust_state.channel_status == ChannelStatus::Activated && amount >= 0)
-            || (cust_state.channel_status == ChannelStatus::Established && amount > 0)
+        if (cust_state.protocol_status == ProtocolStatus::Activated && amount >= 0)
+            || (cust_state.protocol_status == ProtocolStatus::Established && amount > 0)
         {
             cust_state.update_pay_com(pay_token_mask_com);
             if cust_state.net_config.is_none() {
@@ -1159,7 +1159,7 @@ pub mod mpc {
         } else {
             return Err(format!(
                 "Invalid channel status for pay_update_customer(): {}",
-                cust_state.channel_status
+                cust_state.protocol_status
             ));
         }
     }
@@ -1247,8 +1247,8 @@ pub mod mpc {
         mask_bytes: MaskedTxMPCInputs,
         cust_state: &mut CustomerMPCState,
     ) -> Result<bool, String> {
-        if (cust_state.channel_status == ChannelStatus::Activated
-            || cust_state.channel_status == ChannelStatus::Established)
+        if (cust_state.protocol_status == ProtocolStatus::Activated
+            || cust_state.protocol_status == ProtocolStatus::Established)
         {
             cust_state.unmask_and_verify_transactions::<Testnet>(
                 channel_state,
@@ -1258,7 +1258,7 @@ pub mod mpc {
         } else {
             return Err(format!(
                 "Invalid channel status for pay_unmask_sigs_customer(): {}",
-                cust_state.channel_status
+                cust_state.protocol_status
             ));
         }
     }
@@ -1298,14 +1298,14 @@ pub mod mpc {
         pt_mask_r: [u8; 16],
         cust_state: &mut CustomerMPCState,
     ) -> Result<bool, String> {
-        if (cust_state.channel_status == ChannelStatus::Activated
-            || cust_state.channel_status == ChannelStatus::Established)
+        if (cust_state.protocol_status == ProtocolStatus::Activated
+            || cust_state.protocol_status == ProtocolStatus::Established)
         {
             Ok(cust_state.unmask_and_verify_pay_token(pt_mask_bytes, pt_mask_r))
         } else {
             return Err(format!(
                 "Invalid channel status for pay_unmask_pay_token_customer(): {}",
-                cust_state.channel_status
+                cust_state.protocol_status
             ));
         }
     }
@@ -1367,7 +1367,7 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     use bindings::ConnType_NETIO;
-    use channels_mpc::{ChannelCloseStatus, ChannelStatus, PaymentStatus};
+    use channels_mpc::{ChannelStatus, PaymentStatus, ProtocolStatus};
     use database::{
         get_file_from_db, store_file_in_db, HashMapDatabase, MaskedTxMPCInputs, RedisDatabase,
         StateDatabase,
@@ -2298,7 +2298,7 @@ mod tests {
         println!("mpc::validate_channel_params: {}", res2.is_ok());
 
         // TODO: add cust-close tx signing API
-        cust_state.channel_status = ChannelStatus::Initialized;
+        cust_state.protocol_status = ProtocolStatus::Initialized;
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state).unwrap();
 
@@ -2417,7 +2417,7 @@ mod tests {
             let res2 = mpc::validate_channel_params(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, init_hash, &mut merch_state);
             println!("mpc::validate_channel_params: {}", res2.is_ok());
 
-            cust_state.channel_status = ChannelStatus::Initialized;
+            cust_state.protocol_status = ProtocolStatus::Initialized;
             let s0 = mpc::activate_customer(&mut rng, &mut cust_state).unwrap();
 
             let pay_token = mpc::activate_merchant(&mut db as &mut dyn StateDatabase, channel_token.clone(), &s0, &mut merch_state).unwrap();
@@ -2494,7 +2494,7 @@ mod tests {
             )
             .unwrap();
 
-        assert!(cust_state.channel_status == ChannelStatus::Opened);
+        assert!(cust_state.protocol_status == ProtocolStatus::New);
 
         // customer verifies the close signatures
         let got_close_tx = cust_state.sign_initial_closing_transaction::<Testnet>(
@@ -2701,7 +2701,7 @@ mod tests {
             &mut merch_state,
         );
 
-        assert!(cust_state.channel_status == ChannelStatus::Initialized);
+        assert!(cust_state.protocol_status == ProtocolStatus::Initialized);
 
         // merchant validates the initial state
         validate_initial_channel_state_helper(
@@ -2711,7 +2711,7 @@ mod tests {
             &mut merch_state,
         );
         println!("initial channel state validated!");
-        // println!("cust_state channel status: {}", cust_state.channel_status);
+        // println!("cust_state channel status: {}", cust_state.protocol_status);
 
         activate_channel_helper(
             &mut rng,
@@ -2720,8 +2720,8 @@ mod tests {
             &mut cust_state,
             &mut merch_state,
         );
-        assert!(cust_state.channel_status == ChannelStatus::Activated);
-        println!("cust_state channel status: {}", cust_state.channel_status);
+        assert!(cust_state.protocol_status == ProtocolStatus::Activated);
+        println!("cust_state channel status: {}", cust_state.protocol_status);
     }
 
     fn zkchannel_full_establish_setup_helper<R: Rng>(
@@ -2764,7 +2764,7 @@ mod tests {
             &mut cust_state,
             &mut merch_state,
         );
-        assert!(cust_state.channel_status == ChannelStatus::Initialized);
+        assert!(cust_state.protocol_status == ProtocolStatus::Initialized);
 
         //println!("channel_token: {:?}", cust_state);
 
@@ -2777,8 +2777,8 @@ mod tests {
         );
         // customer/merchant activate the channel
         activate_channel_helper(rng, db, &channel_token, &mut cust_state, &mut merch_state);
-        assert!(cust_state.channel_status == ChannelStatus::Activated);
-        println!("cust_state channel status: {}", cust_state.channel_status);
+        assert!(cust_state.protocol_status == ProtocolStatus::Activated);
+        println!("cust_state channel status: {}", cust_state.protocol_status);
 
         return (channel_state, channel_token, cust_state, merch_state);
     }
@@ -3010,9 +3010,9 @@ mod tests {
         );
 
         println!("cust state: {:?}", cust_state.get_current_state());
-        println!("customer's channel status: {}", cust_state.channel_status);
+        println!("customer's channel status: {}", cust_state.protocol_status);
 
-        assert!(cust_state.channel_status == ChannelStatus::Established);
+        assert!(cust_state.protocol_status == ProtocolStatus::Established);
 
         // PAY PROTOCOL
         let (session_id1, cur_state1, new_state1, rev_state1, rev_lock_com1, pay_mask_com1) =
@@ -3069,10 +3069,10 @@ mod tests {
             &mut merch_state,
         );
 
-        let res = cust_state.change_close_status(ChannelCloseStatus::Pending);
+        let res = cust_state.change_channel_status(ChannelStatus::PendingClose);
         assert!(res.is_err());
 
-        let res = cust_state.change_close_status(ChannelCloseStatus::Confirmed);
+        let res = cust_state.change_channel_status(ChannelStatus::Confirmed);
         assert!(res.is_err());
 
         // customer initiates close tx
@@ -3080,7 +3080,7 @@ mod tests {
             mpc::force_customer_close(&channel_state, &channel_token, true, &mut cust_state)
                 .unwrap();
 
-        assert_eq!(cust_state.close_status, ChannelCloseStatus::CustomerInit);
+        assert_eq!(cust_state.get_channel_status(), ChannelStatus::CustomerInitClose);
 
         let mut escrow_txid_be = channel_token.escrow_txid.0.clone(); // originally in LE
         escrow_txid_be.reverse();
@@ -3091,21 +3091,19 @@ mod tests {
         )
         .unwrap();
         assert!(
-            merch_state
-                .get_channel_close_status(escrow_txid_be)
-                .unwrap()
-                == ChannelCloseStatus::MerchantInit
+            merch_state.get_channel_status(escrow_txid_be).unwrap()
+                == ChannelStatus::MerchantInitClose
         );
 
         // change close status after closing transaction is detected on-chain
-        let res = cust_state.change_close_status(ChannelCloseStatus::Pending);
+        let res = cust_state.change_channel_status(ChannelStatus::PendingClose);
         assert!(res.is_ok());
-        assert_eq!(cust_state.close_status, ChannelCloseStatus::Pending);
+        assert_eq!(cust_state.get_channel_status(), ChannelStatus::PendingClose);
 
         // assume that timelock has passed and there was no dispute
-        let res = cust_state.change_close_status(ChannelCloseStatus::Confirmed);
+        let res = cust_state.change_channel_status(ChannelStatus::Confirmed);
         assert!(res.is_ok());
-        assert_eq!(cust_state.close_status, ChannelCloseStatus::Confirmed);
+        assert_eq!(cust_state.get_channel_status(), ChannelStatus::Confirmed);
     }
 
     #[test]

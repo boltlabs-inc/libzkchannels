@@ -791,13 +791,13 @@ func PayUnmaskPayTokenCustomer(ptMask string, ptMaskR string, custState CustStat
 }
 
 // CHANNEL CLOSE STATUS FOR CUSTOMERS
-func CustomerChangeCloseStatusToPending(custState CustState) (CustState, error) {
+func CustomerChangeChannelStatusToPendingClose(custState CustState) (CustState, error) {
 	serCustState, err := json.Marshal(custState)
 	if err != nil {
 		return CustState{}, err
 	}
 
-	resp := C.GoString(C.cust_change_close_status_to_pending(C.CString(string(serCustState))))
+	resp := C.GoString(C.cust_change_channel_status_to_pending_close(C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return CustState{}, err
@@ -807,13 +807,13 @@ func CustomerChangeCloseStatusToPending(custState CustState) (CustState, error) 
 	return custState, err
 }
 
-func CustomerChangeCloseStatusToConfirmed(custState CustState) (CustState, error) {
+func CustomerChangeChannelStatusToConfirmed(custState CustState) (CustState, error) {
 	serCustState, err := json.Marshal(custState)
 	if err != nil {
 		return CustState{}, err
 	}
 
-	resp := C.GoString(C.cust_change_close_status_to_confirmed(C.CString(string(serCustState))))
+	resp := C.GoString(C.cust_change_channel_status_to_confirmed(C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return CustState{}, err
@@ -840,13 +840,13 @@ func CutstomerClearCloseStatus(custState CustState) (CustState, error) {
 }
 
 // CHANNEL CLOSE STATUS FOR MERCHANT
-func MerchantChangeCloseStatusToPending(escrow_txid_LE string, merchState MerchState) (MerchState, error) {
+func MerchantChangeChannelStatusToPending(escrow_txid_LE string, merchState MerchState) (MerchState, error) {
 	serMerchState, err := json.Marshal(merchState)
 	if err != nil {
 		return MerchState{}, err
 	}
 
-	resp := C.GoString(C.merch_change_close_status_to_pending(C.CString(escrow_txid_LE), C.CString(string(serMerchState))))
+	resp := C.GoString(C.merch_change_channel_status_to_pending(C.CString(escrow_txid_LE), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return MerchState{}, err
@@ -856,13 +856,13 @@ func MerchantChangeCloseStatusToPending(escrow_txid_LE string, merchState MerchS
 	return merchState, err
 }
 
-func MerchantChangeCloseStatusToConfirmed(escrow_txid_LE string, merchState MerchState) (MerchState, error) {
+func MerchantChangeChannelStatusToConfirmed(escrow_txid_LE string, merchState MerchState) (MerchState, error) {
 	serMerchState, err := json.Marshal(merchState)
 	if err != nil {
 		return MerchState{}, err
 	}
 
-	resp := C.GoString(C.merch_change_close_status_to_confirmed(C.CString(escrow_txid_LE), C.CString(string(serMerchState))))
+	resp := C.GoString(C.merch_change_channel_status_to_confirmed(C.CString(escrow_txid_LE), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return MerchState{}, err

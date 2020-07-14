@@ -279,10 +279,10 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	}
 
 	fmt.Println("initial close transactions validated: ", isOk)
-	_, err = CustomerChangeCloseStatusToPending(custState)
+	_, err = CustomerChangeChannelStatusToPendingClose(custState)
 	assert.Equal(t, "transition not allowed for channel: None => Pending", err.Error())
 
-	_, err = CustomerChangeCloseStatusToConfirmed(custState)
+	_, err = CustomerChangeChannelStatusToConfirmed(custState)
 	assert.Equal(t, "transition not allowed for channel: None => Confirmed", err.Error())
 
 	fmt.Println("Output initial closing transactions")
@@ -380,10 +380,10 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("TX5: Close EscrowTx ID (LE): ", CloseEscrowTxId_LE)
 	fmt.Println("TX5: Close from EscrowTx => ", string(CloseEscrowTx))
 
-	_, err = CustomerChangeCloseStatusToConfirmed(custState)
+	_, err = CustomerChangeChannelStatusToConfirmed(custState)
 	assert.Equal(t, "transition not allowed for channel: CustomerInit => Confirmed", err.Error())
 
-	custState, err = CustomerChangeCloseStatusToPending(custState)
+	custState, err = CustomerChangeChannelStatusToPending(custState)
 	if err != nil {
 		t.Error("Failed to change close status to pending -", err)
 	}
@@ -467,12 +467,12 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("========================================")
 	WriteToFile(MerchClaimFromMerchCloseTxFile, SignedMerchClaimTx)
 
-	custState, err = CustomerChangeCloseStatusToPending(custState)
+	custState, err = CustomerChangeChannelStatusToPending(custState)
 	if err != nil {
 		t.Error("Failed to change close status to pending -", err)
 	}
 
-	custState, err = CustomerChangeCloseStatusToConfirmed(custState)
+	custState, err = CustomerChangeChannelStatusToConfirmed(custState)
 	if err != nil {
 		t.Error("Failed to change close status to confirmed -", err)
 	}
@@ -482,7 +482,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 		t.Error("Failed to clear close status for customer -", err)
 	}
 
-	_, err = MerchantChangeCloseStatusToConfirmed(escrowTxid_LE, merchState)
+	_, err = MerchantChangeChannelStatusToConfirmed(escrowTxid_LE, merchState)
 	if err != nil {
 		t.Error("Failed to change close status to confirmed -", err)
 	}

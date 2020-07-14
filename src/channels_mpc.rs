@@ -34,20 +34,22 @@ pub struct NetworkConfig {
 // }
 
 #[derive(Clone, Debug, PartialEq, Display, Serialize, Deserialize)]
-pub enum ChannelStatus {
-    Opened,
+pub enum ProtocolStatus {
+    New,
     Initialized,
     Activated,
     Established,
 }
 
 #[derive(Clone, Debug, PartialEq, Display, Serialize, Deserialize)]
-pub enum ChannelCloseStatus {
+pub enum ChannelStatus {
     None,
-    MerchantInit,
-    CustomerInit,
+    PendingOpen,
+    Open,
+    MerchantInitClose,
+    CustomerInitClose,
     Disputed,
-    Pending,
+    PendingClose,
     Confirmed,
 }
 
@@ -226,8 +228,8 @@ pub struct CustomerMPCState {
     payout_pk: secp256k1::PublicKey,
     close_escrow_signature: Option<String>,
     close_merch_signature: Option<String>,
-    pub channel_status: ChannelStatus,
-    pub close_status: ChannelCloseStatus,
+    pub protocol_status: ProtocolStatus,
+    channel_status: ChannelStatus,
     pub net_config: Option<NetworkConfig>,
 }
 
@@ -316,8 +318,8 @@ impl CustomerMPCState {
             payout_pk: payout_pk,
             close_escrow_signature: None,
             close_merch_signature: None,
-            channel_status: ChannelStatus::Opened,
-            close_status: ChannelCloseStatus::None,
+            protocol_status: ProtocolStatus::New,
+            channel_status: ChannelStatus::None,
             net_config: None,
         };
     }
@@ -360,6 +362,10 @@ impl CustomerMPCState {
         self.pay_token_mask_com
             .0
             .copy_from_slice(&pay_token_mask_com);
+    }
+
+    pub fn get_channel_status(&self) -> ChannelStatus {
+        return self.channel_status.clone();
     }
 
     pub fn generate_init_state<R: Rng>(
@@ -423,15 +429,15 @@ impl CustomerMPCState {
     }
 
     pub fn store_initial_pay_token(&mut self, pay_token: [u8; 32]) -> Result<(), String> {
-        if self.channel_status != ChannelStatus::Initialized {
+        if self.protocol_status != ProtocolStatus::Initialized {
             return Err(format!(
                 "Invalid channel status for store_initial_pay_token(): {}",
-                self.channel_status
+                self.protocol_status
             ));
         }
 
         self.pay_tokens.insert(0, FixedSizeArray32(pay_token));
-        self.channel_status = ChannelStatus::Activated;
+        self.protocol_status = ProtocolStatus::Activated;
         Ok(())
     }
 
@@ -598,13 +604,13 @@ impl CustomerMPCState {
         }
 
         // add channel_status check:
-        if self.channel_status == ChannelStatus::Activated && amount >= 0 {
+        if self.protocol_status == ProtocolStatus::Activated && amount >= 0 {
             // executing unlnik and can proceed
             ()
-        } else if self.channel_status != ChannelStatus::Established && amount > 0 {
+        } else if self.protocol_status != ProtocolStatus::Established && amount > 0 {
             return Err(format!(
                 "customer::execute_mpc_context - channel not established yet: {}",
-                self.channel_status
+                self.protocol_status
             ));
         }
 
@@ -833,7 +839,7 @@ impl CustomerMPCState {
             let merch_sig_hex = hex::encode(&merch_sig.serialize_compact().to_vec());
             self.close_escrow_signature = Some(escrow_sig_hex);
             self.close_merch_signature = Some(merch_sig_hex);
-            self.channel_status = ChannelStatus::Initialized;
+            self.protocol_status = ProtocolStatus::Initialized;
             Ok(true)
         } else {
             let s = String::from(
@@ -941,8 +947,8 @@ impl CustomerMPCState {
         self.pay_tokens
             .insert(self.index, FixedSizeArray32(pt_mask_bytes));
 
-        if self.channel_status == ChannelStatus::Activated {
-            self.channel_status = ChannelStatus::Established;
+        if self.protocol_status == ProtocolStatus::Activated {
+            self.protocol_status = ProtocolStatus::Established;
         }
         return true;
     }
@@ -969,36 +975,43 @@ impl CustomerMPCState {
             &cust_sk,
         );
         if close_tx.is_ok() {
-            self.close_status = match from_escrow {
-                true => ChannelCloseStatus::CustomerInit,
-                false => ChannelCloseStatus::MerchantInit,
+            self.channel_status = match from_escrow {
+                true => ChannelStatus::CustomerInitClose,
+                false => ChannelStatus::MerchantInitClose,
             };
         }
         return close_tx;
     }
 
-    pub fn change_close_status(
+    pub fn change_channel_status(
         &mut self,
-        new_close_status: ChannelCloseStatus,
+        new_channel_status: ChannelStatus,
     ) -> Result<(), String> {
-        let cur_close_status = self.close_status.clone();
-        if cur_close_status == new_close_status {
+        let cur_channel_status = self.channel_status.clone();
+        if cur_channel_status == new_channel_status {
             return Ok(());
         }
 
-        self.close_status = match (cur_close_status.clone(), new_close_status.clone()) {
-            // should only be called if closing has been detected on-chain (either by customer or merchant)
-            (ChannelCloseStatus::CustomerInit, ChannelCloseStatus::Pending) => new_close_status,
-            (ChannelCloseStatus::MerchantInit, ChannelCloseStatus::Pending) => new_close_status,
-            // should only be called if the timelock has passed for the closing transaction
+        self.channel_status = match (cur_channel_status.clone(), new_channel_status.clone()) {
+            // can be set when initial close tx is signed and escrow-tx can be broadcast
+            (ChannelStatus::None, ChannelStatus::PendingOpen) => new_channel_status,
+            // can be set if escrow-tx confirmed on chain
+            (ChannelStatus::PendingOpen, ChannelStatus::Open) => new_channel_status,
+            // can only close if the channel status is already open
+            (ChannelStatus::Open, ChannelStatus::CustomerInitClose) => new_channel_status,
+            (ChannelStatus::Open, ChannelStatus::MerchantInitClose) => new_channel_status,
+            // can be set if closing has been detected on chain (either by customer or merchant)
+            (ChannelStatus::CustomerInitClose, ChannelStatus::PendingClose) => new_channel_status,
+            (ChannelStatus::MerchantInitClose, ChannelStatus::PendingClose) => new_channel_status,
+            // can be set if the timelock has passed for the closing transaction
             // and a merchant dispute did not occur
-            (ChannelCloseStatus::Pending, ChannelCloseStatus::Confirmed) => new_close_status,
-            (ChannelCloseStatus::Confirmed, ChannelCloseStatus::None) => new_close_status,
-            (ChannelCloseStatus::Pending, ChannelCloseStatus::Disputed) => new_close_status,
+            (ChannelStatus::PendingClose, ChannelStatus::Confirmed) => new_channel_status,
+            (ChannelStatus::Confirmed, ChannelStatus::None) => new_channel_status,
+            (ChannelStatus::PendingClose, ChannelStatus::Disputed) => new_channel_status,
             (_, _) => {
                 return Err(format!(
                     "transition not allowed for channel: {} => {}",
-                    cur_close_status, new_close_status
+                    cur_channel_status, new_channel_status
                 ))
             }
         };
@@ -1062,7 +1075,7 @@ pub struct MerchCloseTx {
     fee_mc: i64,
     cust_sig: String,
     self_delay: String,
-    close_status: ChannelCloseStatus,
+    channel_status: ChannelStatus,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1523,7 +1536,7 @@ impl MerchantMPCState {
             fee_mc,
             cust_sig: hex::encode(cust_sig),
             self_delay: hex::encode(to_self_delay_be),
-            close_status: ChannelCloseStatus::None,
+            channel_status: ChannelStatus::None,
         };
 
         let mut escrow_txid = [0u8; 32];
@@ -1582,16 +1595,13 @@ impl MerchantMPCState {
 
         // let's update the close status
         let mut m2 = m.clone();
-        m2.close_status = ChannelCloseStatus::MerchantInit;
+        m2.channel_status = ChannelStatus::MerchantInitClose;
         self.close_tx.insert(escrow_txid, m2.clone());
 
         Ok((signed_merch_close_tx, txid_be.to_vec(), txid_le))
     }
 
-    pub fn get_channel_close_status(
-        &self,
-        escrow_txid: [u8; 32],
-    ) -> Result<ChannelCloseStatus, String> {
+    pub fn get_channel_status(&self, escrow_txid: [u8; 32]) -> Result<ChannelStatus, String> {
         let escrow_txid = FixedSizeArray32(escrow_txid);
         let m = match self.close_tx.get(&escrow_txid) {
             Some(t) => t,
@@ -1603,13 +1613,13 @@ impl MerchantMPCState {
             }
         };
 
-        Ok(m.close_status.clone())
+        Ok(m.channel_status.clone())
     }
 
-    pub fn change_close_status(
+    pub fn change_channel_status(
         &mut self,
         escrow_txid: [u8; 32],
-        new_close_status: ChannelCloseStatus,
+        new_channel_status: ChannelStatus,
     ) -> Result<(), String> {
         let escrow_txid = FixedSizeArray32(escrow_txid);
         let m = match self.close_tx.get(&escrow_txid) {
@@ -1622,22 +1632,26 @@ impl MerchantMPCState {
             }
         };
 
-        let cur_close_status = m.close_status.clone();
-        if cur_close_status == new_close_status {
+        let cur_channel_status = m.channel_status.clone();
+        if cur_channel_status == new_channel_status {
             return Ok(());
         }
 
         let mut m2 = m.clone();
-        m2.close_status = match (cur_close_status.clone(), new_close_status.clone()) {
-            (ChannelCloseStatus::CustomerInit, ChannelCloseStatus::Pending) => new_close_status,
-            (ChannelCloseStatus::MerchantInit, ChannelCloseStatus::Pending) => new_close_status,
-            (ChannelCloseStatus::Pending, ChannelCloseStatus::Confirmed) => new_close_status,
-            (ChannelCloseStatus::Confirmed, ChannelCloseStatus::None) => new_close_status,
-            (ChannelCloseStatus::Pending, ChannelCloseStatus::Disputed) => new_close_status,
+        m2.channel_status = match (cur_channel_status.clone(), new_channel_status.clone()) {
+            (ChannelStatus::None, ChannelStatus::PendingOpen) => new_channel_status,
+            (ChannelStatus::PendingOpen, ChannelStatus::Open) => new_channel_status,
+            (ChannelStatus::Open, ChannelStatus::CustomerInitClose) => new_channel_status,
+            (ChannelStatus::Open, ChannelStatus::MerchantInitClose) => new_channel_status,
+            (ChannelStatus::CustomerInitClose, ChannelStatus::PendingClose) => new_channel_status,
+            (ChannelStatus::MerchantInitClose, ChannelStatus::PendingClose) => new_channel_status,
+            (ChannelStatus::PendingClose, ChannelStatus::Confirmed) => new_channel_status,
+            (ChannelStatus::Confirmed, ChannelStatus::None) => new_channel_status,
+            (ChannelStatus::PendingClose, ChannelStatus::Disputed) => new_channel_status,
             (_, _) => {
                 return Err(format!(
                     "transition not allowed for channel identified by <escrow-txid>: {} => {}",
-                    cur_close_status, new_close_status
+                    cur_channel_status, new_channel_status
                 ))
             }
         };
@@ -1981,7 +1995,7 @@ mod tests {
 
         // at this point, should have the signed cust-close-txs
         // so can update channel status to Initialized
-        cust_state.channel_status = ChannelStatus::Initialized;
+        cust_state.protocol_status = ProtocolStatus::Initialized;
         println!("Pay Token on s_0 => {:?}", pay_token_0);
 
         cust_state.store_initial_pay_token(pay_token_0).unwrap();
@@ -2172,7 +2186,7 @@ mod tests {
 
         // at this point, should have the signed cust-close-txs
         // so can update channel status to Initialized
-        cust_state.channel_status = ChannelStatus::Initialized;
+        cust_state.protocol_status = ProtocolStatus::Initialized;
         println!("Pay Token on s_0 => {:?}", hex::encode(&pay_token_0));
         cust_state.store_initial_pay_token(pay_token_0).unwrap();
 
