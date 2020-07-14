@@ -10,6 +10,7 @@ pub mod ffishim_mpc {
     use hex::FromHexError;
     use libc::{c_void, c_char};
     use mpc;
+    use mpc::ChannelStatus;
     use mpc::RevokedState;
     use serde::Deserialize;
     use std::ffi::{CStr, CString};
@@ -936,6 +937,166 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
+    // Change customer state to pending
+    #[no_mangle]
+    pub extern "C" fn cust_change_channel_status_to_pending_close(
+        ser_cust_state: *mut c_char,
+    ) -> *mut c_char {
+        // Deserialize the cust_state
+        let cust_state_result: ResultSerdeType<CustomerMPCState> =
+            deserialize_result_object(ser_cust_state);
+        let mut cust_state = handle_errors!(cust_state_result);
+
+        handle_errors!(cust_state.change_channel_status(ChannelStatus::PendingClose));
+
+        let ser = [
+            "{\'cust_state\':\'",
+            serde_json::to_string(&cust_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    // Change customer state to confirmed
+    #[no_mangle]
+    pub extern "C" fn cust_change_channel_status_to_confirmed(
+        ser_cust_state: *mut c_char,
+    ) -> *mut c_char {
+        // Deserialize the cust_state
+        let cust_state_result: ResultSerdeType<CustomerMPCState> =
+            deserialize_result_object(ser_cust_state);
+        let mut cust_state = handle_errors!(cust_state_result);
+
+        handle_errors!(cust_state.change_channel_status(ChannelStatus::Confirmed));
+
+        let ser = [
+            "{\'cust_state\':\'",
+            serde_json::to_string(&cust_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern "C" fn cust_clear_channel_status(ser_cust_state: *mut c_char) -> *mut c_char {
+        // Deserialize the cust_state
+        let cust_state_result: ResultSerdeType<CustomerMPCState> =
+            deserialize_result_object(ser_cust_state);
+        let mut cust_state = handle_errors!(cust_state_result);
+
+        handle_errors!(cust_state.change_channel_status(ChannelStatus::None));
+
+        let ser = [
+            "{\'cust_state\':\'",
+            serde_json::to_string(&cust_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    // Change channel id'ed by escrow-txid => pending (in merchant state)
+    #[no_mangle]
+    pub extern "C" fn merch_change_channel_status_to_pending(
+        ser_escrow_txid: *mut c_char,
+        ser_merch_state: *mut c_char,
+    ) -> *mut c_char {
+        // Deserialize the escrow txid
+        let escrow_txid_result = deserialize_hex_string(ser_escrow_txid);
+        let escrow_txid_le = handle_errors!(escrow_txid_result);
+        check_vec_length!(escrow_txid_le, 32);
+
+        let mut escrow_txid_be = [0u8; 32];
+        escrow_txid_be.copy_from_slice(escrow_txid_le.as_slice());
+        escrow_txid_be.reverse();
+
+        // Deserialize the merch state
+        let merch_state_result: ResultSerdeType<MerchantMPCState> =
+            deserialize_result_object(ser_merch_state);
+        let mut merch_state = handle_errors!(merch_state_result);
+
+        handle_errors!(
+            merch_state.change_channel_status(escrow_txid_be, ChannelStatus::PendingClose)
+        );
+
+        let ser = [
+            "{\'merch_state\':\'",
+            serde_json::to_string(&merch_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    // Change channel id'ed by escrow-txid => confirmed (in merchant state)
+    #[no_mangle]
+    pub extern "C" fn merch_change_channel_status_to_confirmed(
+        ser_escrow_txid: *mut c_char,
+        ser_merch_state: *mut c_char,
+    ) -> *mut c_char {
+        // Deserialize the escrow txid
+        let escrow_txid_result = deserialize_hex_string(ser_escrow_txid);
+        let escrow_txid_le = handle_errors!(escrow_txid_result);
+        check_vec_length!(escrow_txid_le, 32);
+
+        let mut escrow_txid_be = [0u8; 32];
+        escrow_txid_be.copy_from_slice(escrow_txid_le.as_slice());
+        escrow_txid_be.reverse();
+
+        // Deserialize the merch state
+        let merch_state_result: ResultSerdeType<MerchantMPCState> =
+            deserialize_result_object(ser_merch_state);
+        let mut merch_state = handle_errors!(merch_state_result);
+
+        handle_errors!(merch_state.change_channel_status(escrow_txid_be, ChannelStatus::Confirmed));
+
+        let ser = [
+            "{\'merch_state\':\'",
+            serde_json::to_string(&merch_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern "C" fn merch_clear_channel_status(
+        ser_escrow_txid: *mut c_char,
+        ser_merch_state: *mut c_char,
+    ) -> *mut c_char {
+        // Deserialize the escrow txid
+        let escrow_txid_result = deserialize_hex_string(ser_escrow_txid);
+        let escrow_txid_le = handle_errors!(escrow_txid_result);
+        check_vec_length!(escrow_txid_le, 32);
+
+        let mut escrow_txid_be = [0u8; 32];
+        escrow_txid_be.copy_from_slice(escrow_txid_le.as_slice());
+        escrow_txid_be.reverse();
+
+        // Deserialize the merch state
+        let merch_state_result: ResultSerdeType<MerchantMPCState> =
+            deserialize_result_object(ser_merch_state);
+        let mut merch_state = handle_errors!(merch_state_result);
+
+        handle_errors!(merch_state.change_channel_status(escrow_txid_be, ChannelStatus::None));
+
+        let ser = [
+            "{\'merch_state\':\'",
+            serde_json::to_string(&merch_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
     // TRANSACTION BUILDER FOR ESCROW, MERCH-CLOSE-TX and CUST-CLOSE-TXS
 
     #[no_mangle]
@@ -1060,6 +1221,7 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
+    // Form the escrow-tx
     #[no_mangle]
     pub extern "C" fn cust_create_escrow_transaction(
         ser_txid: *mut c_char,
@@ -1163,6 +1325,7 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
+    // Form the merch-close-tx
     #[no_mangle]
     pub extern "C" fn form_merch_close_transaction(
         ser_escrow_txid: *mut c_char,
@@ -1218,6 +1381,7 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
+    // Customer - signs the initial merch-close-tx
     #[no_mangle]
     pub extern "C" fn customer_sign_merch_close_tx(
         ser_cust_sk: *mut c_char,
@@ -1239,6 +1403,7 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
+    // Merchant - verify & store the initial merch-close-tx (w/ sig from Customer)
     #[no_mangle]
     pub extern "C" fn merchant_verify_merch_close_tx(
         ser_escrow_txid: *mut c_char,
@@ -1334,6 +1499,7 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
+    // Merchant - sign the initial cust-close-*-tx for a channel
     #[no_mangle]
     pub extern "C" fn merch_sign_init_cust_close_txs(
         ser_funding_tx: *mut c_char,
@@ -1397,6 +1563,7 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
+    // Customer - verify the initial cust-close-*-tx signatures (from Merchant)
     #[no_mangle]
     pub extern "C" fn cust_verify_init_cust_close_txs(
         ser_funding_tx: *mut c_char,
@@ -1465,8 +1632,10 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
+    // Merchant - form dispute tx given a revocation secret for an existing cust-close-*-tx
     #[no_mangle]
     pub extern "C" fn sign_merch_dispute_tx(
+        ser_escrow_txid: *mut c_char,
         ser_tx_index: *mut c_char,
         index: u32,
         input_amount: i64,
@@ -1478,8 +1647,13 @@ pub mod ffishim_mpc {
         ser_cust_close_pk: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
+        let escrow_txid_result = deserialize_hex_string(ser_escrow_txid);
+        let escrow_txid_le = handle_errors!(escrow_txid_result);
+        check_vec_length!(escrow_txid_le, 32);
+
         let txid_result = deserialize_hex_string(ser_tx_index);
         let txid_le = handle_errors!(txid_result);
+        check_vec_length!(txid_le, 32);
 
         let rev_lock_result = deserialize_hex_string(ser_rev_lock);
         let rev_lock = handle_errors!(rev_lock_result);
@@ -1502,10 +1676,14 @@ pub mod ffishim_mpc {
         // Deserialize the merch_state
         let merch_state_result: ResultSerdeType<MerchantMPCState> =
             deserialize_result_object(ser_merch_state);
-        let merch_state = handle_errors!(merch_state_result);
+        let mut merch_state = handle_errors!(merch_state_result);
 
         let merch_disp_pk = merch_state.dispute_pk.serialize().to_vec();
         let merch_disp_sk = merch_state.get_dispute_secret_key();
+
+        let mut escrow_txid_be = [0u8; 32];
+        escrow_txid_be.copy_from_slice(escrow_txid_le.as_slice());
+        escrow_txid_be.reverse();
 
         let signed_tx = handle_errors!(zkchan_tx::txutil::merchant_sign_merch_dispute_transaction(
             txid_le,
@@ -1520,7 +1698,20 @@ pub mod ffishim_mpc {
             merch_disp_pk,
             merch_disp_sk
         ));
-        let ser = ["{\'signed_tx\': \'", &hex::encode(signed_tx), "\'}"].concat();
+
+        // if signed_tx successfully created, then proceed with updating the channel status
+        handle_errors!(
+            merch_state.change_channel_status(escrow_txid_be, ChannelStatus::PendingClose)
+        );
+
+        let ser = [
+            "{\'signed_tx\': \'",
+            &hex::encode(signed_tx),
+            "\', \'merch_state\':\'",
+            serde_json::to_string(&merch_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -1618,6 +1809,7 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
+    // Customer - claim tx from cust-close-*-tx after timeout
     #[no_mangle]
     pub extern "C" fn cust_claim_tx_from_cust_close(
         ser_channel_state: *mut c_char,
@@ -1684,6 +1876,138 @@ pub mod ffishim_mpc {
             )
         );
         let ser = ["{\'signed_tx\': \'", &hex::encode(signed_tx), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    // Customer - sign the mutual close transaction
+    #[no_mangle]
+    pub extern "C" fn cust_sign_mutual_close_tx(
+        ser_tx_index: *mut c_char,
+        index: u32,
+        input_amount: i64,
+        cust_amount: i64,
+        merch_amount: i64,
+        ser_merch_close_pk: *mut c_char,
+        ser_cust_close_pk: *mut c_char,
+        ser_merch_pk: *mut c_char,
+        ser_cust_pk: *mut c_char,
+        ser_cust_sk: *mut c_char,
+    ) -> *mut c_char {
+        let txid_result = deserialize_hex_string(ser_tx_index);
+        let txid_le = handle_errors!(txid_result);
+
+        // Deserialize the sk_c
+        let cust_sk_result = deserialize_hex_string(ser_cust_sk);
+        let cust_escrow_sk = handle_errors!(cust_sk_result);
+
+        let cust_pk_result = deserialize_hex_string(ser_cust_pk);
+        let cust_pk = handle_errors!(cust_pk_result);
+
+        let cust_close_pk_result = deserialize_hex_string(ser_cust_close_pk);
+        let cust_close_pk = handle_errors!(cust_close_pk_result);
+
+        let merch_pk_result = deserialize_hex_string(ser_merch_pk);
+        let merch_pk = handle_errors!(merch_pk_result);
+
+        let merch_close_pk_result = deserialize_hex_string(ser_merch_close_pk);
+        let merch_close_pk = handle_errors!(merch_close_pk_result);
+
+        let escrow_input = zkchan_tx::transactions::UtxoInput {
+            address_format: String::from("p2wsh"),
+            // outpoint + txid
+            transaction_id: txid_le,
+            index: index,
+            redeem_script: None,
+            script_pub_key: None,
+            utxo_amount: Some(input_amount),
+            sequence: Some([0xff, 0xff, 0xff, 0xff]), // 4294967295
+        };
+
+        let cust_signature =
+            handle_errors!(zkchan_tx::txutil::customer_sign_mutual_close_transaction(
+                &escrow_input,
+                &cust_pk,
+                &merch_pk,
+                &cust_close_pk,
+                &merch_close_pk,
+                cust_amount,
+                merch_amount,
+                &cust_escrow_sk,
+            ));
+
+        let ser = ["{\'cust_sig\': \'", &hex::encode(cust_signature), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern "C" fn merch_sign_mutual_close_tx(
+        ser_tx_index: *mut c_char,
+        index: u32,
+        input_amount: i64,
+        cust_amount: i64,
+        merch_amount: i64,
+        ser_merch_close_pk: *mut c_char,
+        ser_cust_close_pk: *mut c_char,
+        ser_merch_pk: *mut c_char,
+        ser_cust_pk: *mut c_char,
+        ser_cust_sig: *mut c_char,
+        ser_merch_sk: *mut c_char,
+    ) -> *mut c_char {
+        let txid_result = deserialize_hex_string(ser_tx_index);
+        let txid_le = handle_errors!(txid_result);
+
+        // Deserialize the keys and signature
+        let merch_sk_result = deserialize_hex_string(ser_merch_sk);
+        let merch_escrow_sk = handle_errors!(merch_sk_result);
+
+        let cust_pk_result = deserialize_hex_string(ser_cust_pk);
+        let cust_pk = handle_errors!(cust_pk_result);
+
+        let cust_close_pk_result = deserialize_hex_string(ser_cust_close_pk);
+        let cust_close_pk = handle_errors!(cust_close_pk_result);
+
+        let merch_pk_result = deserialize_hex_string(ser_merch_pk);
+        let merch_pk = handle_errors!(merch_pk_result);
+
+        let merch_close_pk_result = deserialize_hex_string(ser_merch_close_pk);
+        let merch_close_pk = handle_errors!(merch_close_pk_result);
+
+        let cust_sig_result = deserialize_hex_string(ser_cust_sig);
+        let cust_sig = handle_errors!(cust_sig_result);
+
+        let escrow_input = zkchan_tx::transactions::UtxoInput {
+            address_format: String::from("p2wsh"),
+            // outpoint + txid
+            transaction_id: txid_le,
+            index: index,
+            redeem_script: None,
+            script_pub_key: None,
+            utxo_amount: Some(input_amount),
+            sequence: Some([0xff, 0xff, 0xff, 0xff]), // 4294967295
+        };
+
+        let (signed_tx, txid) =
+            handle_errors!(zkchan_tx::txutil::merchant_sign_mutual_close_transaction(
+                &escrow_input,
+                &cust_pk,
+                &merch_pk,
+                &cust_close_pk,
+                &merch_close_pk,
+                cust_amount,
+                merch_amount,
+                &cust_sig,
+                &merch_escrow_sk,
+            ));
+        let ser = [
+            "{\'signed_tx\': \'",
+            &hex::encode(signed_tx),
+            "\', \'txid_le\':\'",
+            &hex::encode(txid),
+            "\'}",
+        ]
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }

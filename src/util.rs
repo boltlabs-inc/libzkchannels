@@ -98,6 +98,10 @@ pub fn convert_int_to_fr<E: Engine>(value: i64) -> E::Fr {
     }
 }
 
+pub fn convert_str_to_fr<E: Engine>(s: String) -> Option<E::Fr> {
+    return E::Fr::from_str(s.as_str());
+}
+
 pub fn compute_pub_key_fingerprint(wpk: &secp256k1::PublicKey) -> String {
     let x_slice = wpk.serialize();
     let mut hasher = sha2::Sha256::new();

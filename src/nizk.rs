@@ -11,14 +11,14 @@ use wallet::Wallet;
 /// NIZKProof is the object that represents the NIZK Proof of Knowledge during the payment and closing protocol
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
-<E as pairing::Engine>::G1: serde::Serialize, \
-<E as pairing::Engine>::G2: serde::Serialize, \
-<E as pairing::Engine>::Fqk: serde::Serialize"))]
+                           <E as pairing::Engine>::G1: serde::Serialize, \
+                           <E as pairing::Engine>::G2: serde::Serialize, \
+                           <E as pairing::Engine>::Fqk: serde::Serialize"))]
 #[serde(
     bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
-<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
-<E as pairing::Engine>::G2: serde::Deserialize<'de>, \
-<E as pairing::Engine>::Fqk: serde::Deserialize<'de>")
+                         <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+                         <E as pairing::Engine>::G2: serde::Deserialize<'de>, \
+                         <E as pairing::Engine>::Fqk: serde::Deserialize<'de>")
 )]
 pub struct NIZKProof<E: Engine> {
     pub sig: Signature<E>,
@@ -31,12 +31,12 @@ pub struct NIZKProof<E: Engine> {
 /// NIZKPublicParams are public parameters to perform a NIZK Proof of Knowledge during the payment and closing protocol
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
-<E as pairing::Engine>::G1: serde::Serialize, \
-<E as pairing::Engine>::G2: serde::Serialize"))]
+                           <E as pairing::Engine>::G1: serde::Serialize, \
+                           <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(
     bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
-<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
-<E as pairing::Engine>::G2: serde::Deserialize<'de>")
+                         <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+                         <E as pairing::Engine>::G2: serde::Deserialize<'de>")
 )]
 pub struct NIZKPublicParams<E: Engine> {
     pub mpk: PublicParams<E>,
@@ -48,12 +48,12 @@ pub struct NIZKPublicParams<E: Engine> {
 /// NIZKSecretParams are secret parameters to perform the verification of a NIZK Proof of Knowledge during the payment and closing protocol
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
-<E as pairing::Engine>::G1: serde::Serialize, \
-<E as pairing::Engine>::G2: serde::Serialize"))]
+                           <E as pairing::Engine>::G1: serde::Serialize, \
+                           <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(
     bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
-<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
-<E as pairing::Engine>::G2: serde::Deserialize<'de>")
+                         <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+                         <E as pairing::Engine>::G2: serde::Deserialize<'de>")
 )]
 pub struct NIZKSecretParams<E: Engine> {
     pub pubParams: NIZKPublicParams<E>,

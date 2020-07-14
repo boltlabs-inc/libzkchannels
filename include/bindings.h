@@ -88,6 +88,10 @@ typedef struct {
 
 typedef Receive_return (*cb_receive)(void *arg1);
 
+char *cust_change_channel_status_to_confirmed(char *ser_cust_state);
+
+char *cust_change_channel_status_to_pending_close(char *ser_cust_state);
+
 char *cust_claim_tx_from_cust_close(char *ser_channel_state,
                                     char *ser_tx_index,
                                     uint32_t index,
@@ -98,6 +102,8 @@ char *cust_claim_tx_from_cust_close(char *ser_channel_state,
                                     char *ser_rev_lock,
                                     char *ser_cust_close_pk,
                                     char *ser_cust_state);
+
+char *cust_clear_channel_status(char *ser_cust_state);
 
 char *cust_create_escrow_transaction(char *ser_txid,
                                      uint32_t index,
@@ -110,6 +116,17 @@ char *cust_create_escrow_transaction(char *ser_txid,
                                      uint32_t ser_change_pk_is_hash,
                                      int64_t tx_fee,
                                      uint32_t ser_should_sign);
+
+char *cust_sign_mutual_close_tx(char *ser_tx_index,
+                                uint32_t index,
+                                int64_t input_amount,
+                                int64_t cust_amount,
+                                int64_t merch_amount,
+                                char *ser_merch_close_pk,
+                                char *ser_cust_close_pk,
+                                char *ser_merch_pk,
+                                char *ser_cust_pk,
+                                char *ser_cust_sk);
 
 char *cust_verify_init_cust_close_txs(char *ser_funding_tx,
                                       char *ser_tx_fee_info,
@@ -341,6 +358,10 @@ extern void issue_tokens(State_l old_state_l,
 
 extern void *load_circuit_file(const char *path);
 
+char *merch_change_channel_status_to_confirmed(char *ser_escrow_txid, char *ser_merch_state);
+
+char *merch_change_channel_status_to_pending(char *ser_escrow_txid, char *ser_merch_state);
+
 /**
  * Merchant - claim output from cust-close-tx which is spendable immediately
  */
@@ -363,6 +384,8 @@ char *merch_claim_tx_from_merch_close(char *ser_tx_index,
                                       char *ser_output_pk,
                                       char *ser_merch_state);
 
+char *merch_clear_channel_status(char *ser_escrow_txid, char *ser_merch_state);
+
 char *merch_sign_init_cust_close_txs(char *ser_funding_tx,
                                      char *ser_rev_lock,
                                      char *ser_cust_pk,
@@ -372,6 +395,18 @@ char *merch_sign_init_cust_close_txs(char *ser_funding_tx,
                                      int64_t fee_cc,
                                      int64_t fee_mc,
                                      int64_t val_cpfp);
+
+char *merch_sign_mutual_close_tx(char *ser_tx_index,
+                                 uint32_t index,
+                                 int64_t input_amount,
+                                 int64_t cust_amount,
+                                 int64_t merch_amount,
+                                 char *ser_merch_close_pk,
+                                 char *ser_cust_close_pk,
+                                 char *ser_merch_pk,
+                                 char *ser_cust_pk,
+                                 char *ser_cust_sig,
+                                 char *ser_merch_sk);
 
 char *merchant_check_rev_lock(char *ser_rev_lock, char *ser_merch_state);
 
@@ -473,7 +508,8 @@ char *mpc_validate_channel_params(char *ser_channel_token,
                                   char *ser_init_hash,
                                   char *ser_merch_state);
 
-char *sign_merch_dispute_tx(char *ser_tx_index,
+char *sign_merch_dispute_tx(char *ser_escrow_txid,
+                            char *ser_tx_index,
                             uint32_t index,
                             int64_t input_amount,
                             int64_t output_amount,
