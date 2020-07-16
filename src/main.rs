@@ -1231,7 +1231,10 @@ mod merch {
         conn.send(&msg5);
 
         // if broadcast successful, then we can mark the channel as open
-        handle_error_result!(mpc::merchant_mark_open_channel(channel_token.escrow_txid.0.clone(), &mut merch_state));
+        handle_error_result!(mpc::merchant_mark_open_channel(
+            channel_token.escrow_txid.0.clone(),
+            &mut merch_state
+        ));
 
         merch_save_state_in_db(&mut db.conn, None, &merch_state)?;
         Ok(())

@@ -8,11 +8,11 @@ extern crate structopt;
 extern crate zkchan_tx;
 extern crate zkchannels;
 
+use std::ptr;
 use structopt::StructOpt;
 use zkchannels::database::{get_file_from_db, store_file_in_db, RedisDatabase, StateDatabase};
 use zkchannels::mpc;
 use zkchannels::mpc::{ChannelMPCState, MerchantMPCState};
-use std::ptr;
 
 macro_rules! handle_error_result {
     ($e:expr) => {
