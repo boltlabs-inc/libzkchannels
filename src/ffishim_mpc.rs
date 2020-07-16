@@ -2,13 +2,14 @@
 pub mod ffishim_mpc {
     extern crate libc;
 
+    use bindings::{cb_receive, cb_send};
     use channels_mpc::{
         ChannelMPCState, ChannelMPCToken, CustomerMPCState, InitCustState, MerchantMPCState,
         TransactionFeeInfo,
     };
     use database::{MaskedTxMPCInputs, RedisDatabase, StateDatabase};
     use hex::FromHexError;
-    use libc::{c_void, c_char};
+    use libc::{c_char, c_void};
     use mpc;
     use mpc::ChannelStatus;
     use mpc::RevokedState;
@@ -18,7 +19,6 @@ pub mod ffishim_mpc {
     use wallet::State;
     use zkchan_tx::Testnet;
     use FundingTxInfo;
-    use bindings::{cb_send, cb_receive};
 
     fn error_message(s: String) -> *mut c_char {
         let ser = ["{\'error\':\'", &s, "\'}"].concat();
@@ -937,7 +937,29 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
-    // Change customer state to pending
+    // Change customer state to open (after escrow-tx confirmed on chain)
+    #[no_mangle]
+    pub extern "C" fn cust_change_channel_status_to_open(
+        ser_cust_state: *mut c_char,
+    ) -> *mut c_char {
+        // Deserialize the cust_state
+        let cust_state_result: ResultSerdeType<CustomerMPCState> =
+            deserialize_result_object(ser_cust_state);
+        let mut cust_state = handle_errors!(cust_state_result);
+
+        handle_errors!(mpc::customer_mark_open_channel(&mut cust_state));
+
+        let ser = [
+            "{\'cust_state\':\'",
+            serde_json::to_string(&cust_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    // Change customer state to pending close (after close-tx detected on chain)
     #[no_mangle]
     pub extern "C" fn cust_change_channel_status_to_pending_close(
         ser_cust_state: *mut c_char,
@@ -959,9 +981,9 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
-    // Change customer state to confirmed
+    // Change customer state to confirmed after
     #[no_mangle]
-    pub extern "C" fn cust_change_channel_status_to_confirmed(
+    pub extern "C" fn cust_change_channel_status_to_confirmed_close(
         ser_cust_state: *mut c_char,
     ) -> *mut c_char {
         // Deserialize the cust_state
@@ -969,7 +991,7 @@ pub mod ffishim_mpc {
             deserialize_result_object(ser_cust_state);
         let mut cust_state = handle_errors!(cust_state_result);
 
-        handle_errors!(cust_state.change_channel_status(ChannelStatus::Confirmed));
+        handle_errors!(cust_state.change_channel_status(ChannelStatus::ConfirmedClose));
 
         let ser = [
             "{\'cust_state\':\'",
@@ -1000,9 +1022,41 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
+    #[no_mangle]
+    pub extern "C" fn merch_change_channel_status_to_open(
+        ser_escrow_txid: *mut c_char,
+        ser_merch_state: *mut c_char,
+    ) -> *mut c_char {
+        // Deserialize the escrow txid
+        let escrow_txid_result = deserialize_hex_string(ser_escrow_txid);
+        let escrow_txid_le_vec = handle_errors!(escrow_txid_result);
+        check_vec_length!(escrow_txid_le_vec, 32);
+        let mut escrow_txid_le = [0u8; 32];
+        escrow_txid_le.copy_from_slice(escrow_txid_le_vec.as_slice());
+
+        // Deserialize the merch_state
+        let merch_state_result: ResultSerdeType<MerchantMPCState> =
+            deserialize_result_object(ser_merch_state);
+        let mut merch_state = handle_errors!(merch_state_result);
+
+        handle_errors!(mpc::merchant_mark_open_channel(
+            escrow_txid_le,
+            &mut merch_state
+        ));
+
+        let ser = [
+            "{\'merch_state\':\'",
+            serde_json::to_string(&merch_state).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
     // Change channel id'ed by escrow-txid => pending (in merchant state)
     #[no_mangle]
-    pub extern "C" fn merch_change_channel_status_to_pending(
+    pub extern "C" fn merch_change_channel_status_to_pending_close(
         ser_escrow_txid: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
@@ -1036,7 +1090,7 @@ pub mod ffishim_mpc {
 
     // Change channel id'ed by escrow-txid => confirmed (in merchant state)
     #[no_mangle]
-    pub extern "C" fn merch_change_channel_status_to_confirmed(
+    pub extern "C" fn merch_change_channel_status_to_confirmed_close(
         ser_escrow_txid: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
@@ -1054,7 +1108,9 @@ pub mod ffishim_mpc {
             deserialize_result_object(ser_merch_state);
         let mut merch_state = handle_errors!(merch_state_result);
 
-        handle_errors!(merch_state.change_channel_status(escrow_txid_be, ChannelStatus::Confirmed));
+        handle_errors!(
+            merch_state.change_channel_status(escrow_txid_be, ChannelStatus::ConfirmedClose)
+        );
 
         let ser = [
             "{\'merch_state\':\'",

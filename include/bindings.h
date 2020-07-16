@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define _LIBCPP_HAS_MERGED_TYPEINFO_NAMES_DEFAULT 0
+#define _LIBCPP_HAS_MERGED_TYPEINFO_NAMES_DEFAULT 1
 
 typedef struct {
   uint32_t nonce[4];
@@ -88,7 +88,9 @@ typedef struct {
 
 typedef Receive_return (*cb_receive)(void *arg1);
 
-char *cust_change_channel_status_to_confirmed(char *ser_cust_state);
+char *cust_change_channel_status_to_confirmed_close(char *ser_cust_state);
+
+char *cust_change_channel_status_to_open(char *ser_cust_state);
 
 char *cust_change_channel_status_to_pending_close(char *ser_cust_state);
 
@@ -358,9 +360,11 @@ extern void issue_tokens(State_l old_state_l,
 
 extern void *load_circuit_file(const char *path);
 
-char *merch_change_channel_status_to_confirmed(char *ser_escrow_txid, char *ser_merch_state);
+char *merch_change_channel_status_to_confirmed_close(char *ser_escrow_txid, char *ser_merch_state);
 
-char *merch_change_channel_status_to_pending(char *ser_escrow_txid, char *ser_merch_state);
+char *merch_change_channel_status_to_open(char *ser_escrow_txid, char *ser_merch_state);
+
+char *merch_change_channel_status_to_pending_close(char *ser_escrow_txid, char *ser_merch_state);
 
 /**
  * Merchant - claim output from cust-close-tx which is spendable immediately

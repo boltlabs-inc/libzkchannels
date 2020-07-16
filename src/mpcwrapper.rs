@@ -1,4 +1,10 @@
-use bindings::{build_masked_tokens_cust, build_masked_tokens_merch, get_netio_ptr, get_unixnetio_ptr, Balance_l, BitcoinPublicKey_l, CommitmentRandomness_l, ConnType_NETIO, ConnType_TORNETIO, ConnType_UNIXNETIO, Conn_l, EcdsaSig_l, HMACKeyCommitment_l, HMACKey_l, MaskCommitment_l, Mask_l, Nonce_l, PayToken_l, PublicKeyHash_l, RevLockCommitment_l, RevLock_l, State_l, Txid_l, cb_send, cb_receive};
+use bindings::{
+    build_masked_tokens_cust, build_masked_tokens_merch, cb_receive, cb_send, get_netio_ptr,
+    get_unixnetio_ptr, Balance_l, BitcoinPublicKey_l, CommitmentRandomness_l, ConnType_NETIO,
+    ConnType_TORNETIO, ConnType_UNIXNETIO, Conn_l, EcdsaSig_l, HMACKeyCommitment_l, HMACKey_l,
+    MaskCommitment_l, Mask_l, Nonce_l, PayToken_l, PublicKeyHash_l, RevLockCommitment_l, RevLock_l,
+    State_l, Txid_l,
+};
 // ConnType_CUSTOM, get_gonetio_ptr
 use channels_mpc::NetworkConfig;
 use ecdsa_partial::EcdsaPartialSig;
@@ -571,7 +577,6 @@ mod tests {
                 path: String::from("127.0.0.1"),
                 dest_ip: String::from("127.0.0.1"),
                 dest_port: 12345,
-                peer_raw_fd: 0,
             };
 
             let using_ag2pc = match env::var("AG2PC") {
@@ -858,7 +863,6 @@ mod tests {
             path: String::from("127.0.0.1"),
             dest_ip: String::from("127.0.0.1"),
             dest_port: 12345,
-            peer_raw_fd: 0,
         };
 
         // check if AGPC=1 in env

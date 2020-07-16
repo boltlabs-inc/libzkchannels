@@ -872,7 +872,7 @@ pub struct FundingTxInfo {
 }
 
 pub mod mpc {
-    use bindings::{cb_send, cb_receive, ConnType_LNDNETIO, ConnType_NETIO};
+    use bindings::{cb_receive, cb_send, ConnType_LNDNETIO, ConnType_NETIO};
     pub use channels_mpc::{
         ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState, RevokedState,
         TransactionFeeInfo,
@@ -881,12 +881,12 @@ pub mod mpc {
         ChannelStatus, InitCustState, NetworkConfig, PaymentStatus, ProtocolStatus,
     };
     use database::{MaskedTxMPCInputs, StateDatabase};
+    use libc::c_void;
     use rand::Rng;
     use secp256k1::PublicKey;
     pub use wallet::{State, NONCE_LEN};
     use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
     use zkchan_tx::Testnet;
-    use libc::c_void;
 
     ///
     /// init_merchant() - takes as input the public params, merchant balance and keypair.
@@ -975,6 +975,26 @@ pub mod mpc {
         merch_state: &mut MerchantMPCState,
     ) -> Result<bool, String> {
         merch_state.validate_channel_params(db, channel_token, init_state, init_hash)
+    }
+
+    ///
+    /// customer_mark_open_channel() - changes channel status in customer state
+    ///
+    pub fn customer_mark_open_channel(cust_state: &mut CustomerMPCState) -> Result<(), String> {
+        cust_state.change_channel_status(ChannelStatus::Open)
+    }
+
+    ///
+    /// merchant_mark_open_channel() - changes channel status for a given escrow-txid.
+    /// fails if not in pending open state and assumes escrow-txid has been broadcast on chain
+    ///
+    pub fn merchant_mark_open_channel(
+        escrow_txid_le: [u8; 32],
+        merch_state: &mut MerchantMPCState,
+    ) -> Result<(), String> {
+        let mut escrow_txid_be = escrow_txid_le.clone();
+        escrow_txid_be.reverse();
+        merch_state.change_channel_status(escrow_txid_be, ChannelStatus::Open)
     }
 
     ///
@@ -1143,14 +1163,13 @@ pub mod mpc {
                 // use default
                 let conn_type = match send_cb.is_some() && receive_cb.is_some() {
                     true => ConnType_LNDNETIO,
-                    false => ConnType_NETIO
+                    false => ConnType_NETIO,
                 };
                 cust_state.set_network_config(NetworkConfig {
                     conn_type,
                     dest_ip: String::from("127.0.0.1"),
                     dest_port: 2424,
                     path: String::new(),
-                    peer_raw_fd: 0,
                 });
             }
             let circuit = cust_state.get_circuit_file();
@@ -1196,14 +1215,13 @@ pub mod mpc {
             // use default ip/port
             let conn_type = match send_cb.is_some() && receive_cb.is_some() {
                 true => ConnType_LNDNETIO,
-                false => ConnType_NETIO
+                false => ConnType_NETIO,
             };
             merch_state.set_network_config(NetworkConfig {
                 conn_type,
                 dest_ip: String::from("127.0.0.1"),
                 dest_port: 2424,
                 path: String::new(),
-                peer_raw_fd: 0,
             });
         }
         let circuit = merch_state.get_circuit_file();
@@ -1216,7 +1234,7 @@ pub mod mpc {
             circuit,
             p_ptr,
             send_cb,
-            receive_cb
+            receive_cb,
         );
     }
 
@@ -1393,8 +1411,8 @@ mod tests {
         get_file_from_db, store_file_in_db, HashMapDatabase, MaskedTxMPCInputs, RedisDatabase,
         StateDatabase,
     };
-    use std::{env, ptr};
     use std::process::Command;
+    use std::{env, ptr};
     use zkchan_tx::fixed_size_array::FixedSizeArray32;
     use zkchan_tx::Testnet;
 
@@ -2531,6 +2549,10 @@ mod tests {
             &merch_sig,
         );
         assert!(got_close_tx.is_ok(), got_close_tx.err().unwrap());
+
+        // at this point, we should be pending open since we've got the initial close tx signed
+        // just need to broadcast the escrow tx
+        assert!(cust_state.get_channel_status() == ChannelStatus::PendingOpen);
     }
 
     // establish the init merch-close-tx
@@ -2802,6 +2824,14 @@ mod tests {
             &mut cust_state,
             &mut merch_state,
         );
+
+        // if escrow-tx confirmed on chain, can proceed to change status for both customer/merchant
+        let rc = mpc::customer_mark_open_channel(&mut cust_state);
+        assert!(rc.is_ok());
+        let rc =
+            mpc::merchant_mark_open_channel(channel_token.escrow_txid.0.clone(), &mut merch_state);
+        assert!(rc.is_ok());
+
         // customer/merchant activate the channel
         activate_channel_helper(rng, db, &channel_token, &mut cust_state, &mut merch_state);
         assert!(cust_state.protocol_status == ProtocolStatus::Activated);
@@ -2985,7 +3015,6 @@ mod tests {
             path: String::from("tmpsock"),
             dest_ip: String::from("127.0.0.1"),
             dest_port: 5000,
-            peer_raw_fd: 0,
         };
         cust_state.set_network_config(nc.clone());
         merch_state.set_network_config(nc.clone());
@@ -3105,7 +3134,7 @@ mod tests {
         let res = cust_state.change_channel_status(ChannelStatus::PendingClose);
         assert!(res.is_err());
 
-        let res = cust_state.change_channel_status(ChannelStatus::Confirmed);
+        let res = cust_state.change_channel_status(ChannelStatus::ConfirmedClose);
         assert!(res.is_err());
 
         // customer initiates close tx
@@ -3137,9 +3166,12 @@ mod tests {
         assert_eq!(cust_state.get_channel_status(), ChannelStatus::PendingClose);
 
         // assume that timelock has passed and there was no dispute
-        let res = cust_state.change_channel_status(ChannelStatus::Confirmed);
+        let res = cust_state.change_channel_status(ChannelStatus::ConfirmedClose);
         assert!(res.is_ok());
-        assert_eq!(cust_state.get_channel_status(), ChannelStatus::Confirmed);
+        assert_eq!(
+            cust_state.get_channel_status(),
+            ChannelStatus::ConfirmedClose
+        );
     }
 
     #[test]
@@ -3184,7 +3216,6 @@ mod tests {
             path: String::from("tmpsock"),
             dest_ip: String::from("127.0.0.1"),
             dest_port: 5000,
-            peer_raw_fd: 0,
         };
         cust_state.set_network_config(nc.clone());
         merch_state.set_network_config(nc.clone());

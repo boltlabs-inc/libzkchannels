@@ -15,8 +15,6 @@ use serde::Deserialize;
 use std::fs::File;
 use std::io::{BufRead, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
-use std::os::unix::io::AsRawFd;
-use std::os::unix::prelude::RawFd;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::thread::sleep;
@@ -325,7 +323,6 @@ pub struct Conn {
     pub out_addr: SocketAddr,
     pub own_port: i32,
     pub other_port: i32,
-    pub raw_fd: RawFd,
 }
 
 impl Conn {
@@ -343,7 +340,6 @@ impl Conn {
             out_addr: out_addr_sock,
             own_port: own_p,
             other_port: other_p,
-            raw_fd: 0,
         }
     }
 
@@ -351,7 +347,6 @@ impl Conn {
         for i in 1..6 {
             match TcpStream::connect(self.out_addr) {
                 Ok(stream) => {
-                    self.raw_fd = stream.as_raw_fd();
                     let mut buf_stream = BufStream::new(stream);
                     for msg0 in msg {
                         buf_stream.write((msg0.to_owned() + "\n").as_ref()).unwrap();
@@ -386,7 +381,6 @@ impl Conn {
         for stream in listener.incoming() {
             match stream {
                 Ok(stream) => {
-                    self.raw_fd = stream.as_raw_fd();
                     let mut buf_stream = BufStream::new(stream);
                     loop {
                         let mut reads = String::new();
@@ -536,6 +530,7 @@ fn main() {
 
 mod cust {
     use super::*;
+    use std::ptr;
     use zkchan_tx::fixed_size_array::FixedSizeArray32;
     use zkchan_tx::transactions::btc::merchant_form_close_transaction;
     use zkchan_tx::txutil::{
@@ -543,13 +538,10 @@ mod cust {
         customer_sign_merch_close_transaction,
     };
     use zkchannels::bindings::ConnType_NETIO;
-    // ConnType_CUSTOM
     use zkchannels::channels_mpc::{
         ChannelMPCState, ChannelMPCToken, CustomerMPCState, NetworkConfig,
     };
     use zkchannels::database::MaskedTxMPCInputs;
-    use std::ptr;
-    // use std::os::unix::io::AsRawFd;
 
     pub fn open(
         conn: &mut Conn,
@@ -755,6 +747,9 @@ mod cust {
         assert!(res);
 
         if got_close_tx {
+            // if broadcast successful, then we can mark the channel as open
+            handle_error_result!(mpc::customer_mark_open_channel(&mut cust_state));
+
             cust_save_state_in_db(
                 &mut db_conn,
                 channel_name,
@@ -902,7 +897,6 @@ mod cust {
             path: String::new(),
             dest_ip: String::from("127.0.0.1"),
             dest_port: conn.own_port,
-            peer_raw_fd: conn.raw_fd,
         };
         cust_state.set_network_config(nc);
 
@@ -1053,6 +1047,7 @@ mod cust {
 
 mod merch {
     use super::*;
+    use std::ptr;
     use zkchan_tx::fixed_size_array::FixedSizeArray32;
     use zkchan_tx::transactions::btc::merchant_form_close_transaction;
     use zkchannels::bindings::ConnType_NETIO;
@@ -1061,7 +1056,6 @@ mod merch {
     };
     use zkchannels::database::{RedisDatabase, StateDatabase};
     use zkchannels::wallet::State;
-    use std::ptr;
 
     static MERCH_STATE_KEY: &str = "merch_state";
     static CHANNEL_STATE_KEY: &str = "channel_state";
@@ -1165,7 +1159,7 @@ mod merch {
                 to_self_delay_be
             ));
 
-        // verify signature from merchant
+        // verify merch signature from customer
         let is_ok =
             handle_error_result!(zkchan_tx::txutil::merchant_verify_merch_close_transaction(
                 &merch_tx_preimage,
@@ -1235,6 +1229,9 @@ mod merch {
         let msg5 = [handle_error_result!(serde_json::to_string(&res))];
 
         conn.send(&msg5);
+
+        // if broadcast successful, then we can mark the channel as open
+        handle_error_result!(mpc::merchant_mark_open_channel(channel_token.escrow_txid.0.clone(), &mut merch_state));
 
         merch_save_state_in_db(&mut db.conn, None, &merch_state)?;
         Ok(())
@@ -1362,7 +1359,6 @@ mod merch {
             path: String::new(),
             dest_ip: String::from("127.0.0.1"),
             dest_port: conn.other_port,
-            peer_raw_fd: conn.raw_fd,
         };
         merch_state.set_network_config(nc);
 

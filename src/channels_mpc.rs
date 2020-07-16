@@ -1,7 +1,7 @@
 use super::*;
 use util::{compute_hash160, hash_to_slice, hmac_sign};
 
-use bindings::{load_circuit_file, ConnType, cb_send, cb_receive};
+use bindings::{cb_receive, cb_send, load_circuit_file, ConnType};
 use database::{MaskedMPCInputs, MaskedTxMPCInputs, SessionState, StateDatabase};
 use mpcwrapper::{mpc_build_masked_tokens_cust, mpc_build_masked_tokens_merch, CIRCUIT_FILE};
 use rand::Rng;
@@ -9,7 +9,6 @@ use sha2::{Digest, Sha256};
 use std::ffi::{c_void, CString};
 use std::fmt::Debug;
 use std::fmt::Display;
-use std::os::unix::io::RawFd;
 use std::{env, ptr};
 use wallet::{State, NONCE_LEN};
 use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32, FixedSizeArray64};
@@ -26,12 +25,7 @@ pub struct NetworkConfig {
     pub path: String,
     pub dest_ip: String,
     pub dest_port: i32,
-    pub peer_raw_fd: RawFd,
 }
-
-// pub struct Circuit {
-//     ptr: *mut c_void
-// }
 
 #[derive(Clone, Debug, PartialEq, Display, Serialize, Deserialize)]
 pub enum ProtocolStatus {
@@ -50,7 +44,7 @@ pub enum ChannelStatus {
     CustomerInitClose,
     Disputed,
     PendingClose,
-    Confirmed,
+    ConfirmedClose,
 }
 
 #[derive(Clone, Debug, PartialEq, Display, Serialize, Deserialize)]
@@ -846,7 +840,8 @@ impl CustomerMPCState {
             self.close_escrow_signature = Some(escrow_sig_hex);
             self.close_merch_signature = Some(merch_sig_hex);
             self.protocol_status = ProtocolStatus::Initialized;
-            Ok(true)
+            let res = self.change_channel_status(ChannelStatus::PendingOpen);
+            Ok(res.is_ok())
         } else {
             let s = String::from(
                 "Could not verify the merchant signature on the initial closing transactions!",
@@ -1011,8 +1006,8 @@ impl CustomerMPCState {
             (ChannelStatus::MerchantInitClose, ChannelStatus::PendingClose) => new_channel_status,
             // can be set if the timelock has passed for the closing transaction
             // and a merchant dispute did not occur
-            (ChannelStatus::PendingClose, ChannelStatus::Confirmed) => new_channel_status,
-            (ChannelStatus::Confirmed, ChannelStatus::None) => new_channel_status,
+            (ChannelStatus::PendingClose, ChannelStatus::ConfirmedClose) => new_channel_status,
+            (ChannelStatus::ConfirmedClose, ChannelStatus::None) => new_channel_status,
             (ChannelStatus::PendingClose, ChannelStatus::Disputed) => new_channel_status,
             (_, _) => {
                 return Err(format!(
@@ -1081,7 +1076,6 @@ pub struct MerchCloseTx {
     fee_mc: i64,
     cust_sig: String,
     self_delay: String,
-    channel_status: ChannelStatus,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1101,6 +1095,7 @@ pub struct MerchantMPCState {
     // for dispute pub key
     pub dispute_pk: secp256k1::PublicKey,
     // replace the following with a fast in-memory key-value DB
+    channel_status_map: HashMap<FixedSizeArray32, ChannelStatus>,
     pub activate_map: HashMap<String, State>,
     pub close_tx: HashMap<FixedSizeArray32, MerchCloseTx>,
     pub net_config: Option<NetworkConfig>,
@@ -1157,6 +1152,7 @@ impl MerchantMPCState {
             payout_pk: payout_pub_key,
             dispute_sk: FixedSizeArray32(_dispute_sk),
             dispute_pk: dispute_pub_key,
+            channel_status_map: HashMap::new(),
             activate_map: HashMap::new(),
             close_tx: HashMap::new(),
             net_config: None,
@@ -1265,6 +1261,15 @@ impl MerchantMPCState {
         let channel_id = channel_token.compute_channel_id().unwrap();
         let channel_id_str = hex::encode(channel_id.to_vec());
 
+        let mut escrow_txid_be = channel_token.escrow_txid.0.clone();
+        escrow_txid_be.reverse();
+
+        // initialize the channel status map for the given escrow txid
+        self.channel_status_map.insert(
+            FixedSizeArray32(escrow_txid_be.clone()),
+            ChannelStatus::None,
+        );
+
         // check if pk_c
         let pk_c = match channel_token.pk_c {
             Some(pk) => pk,
@@ -1287,8 +1292,6 @@ impl MerchantMPCState {
         let mut escrow_prevout = [0u8; 32];
         let mut merch_prevout = [0u8; 32];
 
-        let mut escrow_txid_be = channel_token.escrow_txid.0.clone();
-        escrow_txid_be.reverse();
         let mut merch_txid_be = channel_token.merch_txid.0.clone();
         merch_txid_be.reverse();
 
@@ -1327,6 +1330,14 @@ impl MerchantMPCState {
 
         self.activate_map.insert(channel_id_str, s0);
         db.update_unlink_set(&nonce_hex_str)?;
+
+        let res = self.change_channel_status(escrow_txid_be, ChannelStatus::PendingOpen);
+        if res.is_err() {
+            return Err(format!(
+                "could not change channel status to: {}",
+                ChannelStatus::PendingOpen
+            ));
+        }
 
         Ok(true)
     }
@@ -1542,13 +1553,13 @@ impl MerchantMPCState {
             fee_mc,
             cust_sig: hex::encode(cust_sig),
             self_delay: hex::encode(to_self_delay_be),
-            channel_status: ChannelStatus::None,
         };
 
         let mut escrow_txid = [0u8; 32];
         escrow_txid.copy_from_slice(escrow_txid_be.as_slice());
         self.close_tx
             .insert(FixedSizeArray32(escrow_txid), merch_close);
+        let _res = self.change_channel_status(escrow_txid.clone(), ChannelStatus::None);
     }
 
     pub fn get_closing_tx<N: BitcoinNetwork>(
@@ -1556,13 +1567,13 @@ impl MerchantMPCState {
         escrow_txid: [u8; 32],
         val_cpfp: i64,
     ) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), String> {
-        let escrow_txid = FixedSizeArray32(escrow_txid);
-        let m = match self.close_tx.get(&escrow_txid) {
+        let escrow_txid2 = FixedSizeArray32(escrow_txid);
+        let m = match self.close_tx.get(&escrow_txid2) {
             Some(t) => t,
             None => {
                 return Err(format!(
                     "could not find merch_close_tx for escrow_txid: {}",
-                    hex::encode(escrow_txid.0)
+                    hex::encode(escrow_txid2.0)
                 ));
             }
         };
@@ -1576,7 +1587,7 @@ impl MerchantMPCState {
 
         // move forward to sign the transaction
         let (_, tx_params) = handle_error_util!(merchant_form_close_transaction(
-            escrow_txid.0.to_vec(),
+            escrow_txid2.0.to_vec(),
             cust_pk,
             merch_pk,
             merch_close_pk,
@@ -1600,26 +1611,30 @@ impl MerchantMPCState {
         let signed_merch_close_tx = signed_merch_close_tx.to_transaction_bytes().unwrap();
 
         // let's update the close status
-        let mut m2 = m.clone();
-        m2.channel_status = ChannelStatus::MerchantInitClose;
-        self.close_tx.insert(escrow_txid, m2.clone());
+        let res = self.change_channel_status(escrow_txid.clone(), ChannelStatus::MerchantInitClose);
+        if res.is_err() {
+            return Err(format!(
+                "could not change channel status to: {}",
+                ChannelStatus::MerchantInitClose
+            ));
+        }
 
         Ok((signed_merch_close_tx, txid_be.to_vec(), txid_le))
     }
 
     pub fn get_channel_status(&self, escrow_txid: [u8; 32]) -> Result<ChannelStatus, String> {
         let escrow_txid = FixedSizeArray32(escrow_txid);
-        let m = match self.close_tx.get(&escrow_txid) {
+        let channel_status = match self.channel_status_map.get(&escrow_txid) {
             Some(t) => t,
             None => {
                 return Err(format!(
-                    "could not find <merch_close_tx> for input <escrow_txid>: {}",
+                    "could not find <channel_status> for input <escrow_txid>: {}",
                     hex::encode(escrow_txid.0)
                 ));
             }
         };
 
-        Ok(m.channel_status.clone())
+        Ok(channel_status.clone())
     }
 
     pub fn change_channel_status(
@@ -1628,31 +1643,30 @@ impl MerchantMPCState {
         new_channel_status: ChannelStatus,
     ) -> Result<(), String> {
         let escrow_txid = FixedSizeArray32(escrow_txid);
-        let m = match self.close_tx.get(&escrow_txid) {
+        let m = match self.channel_status_map.get(&escrow_txid) {
             Some(t) => t,
             None => {
                 return Err(format!(
-                    "could not find <merch_close_tx> for input <escrow_txid>: {}",
+                    "could not find <channel_status> for input <escrow_txid>: {}",
                     hex::encode(escrow_txid.0)
                 ));
             }
         };
 
-        let cur_channel_status = m.channel_status.clone();
+        let cur_channel_status = m.clone();
         if cur_channel_status == new_channel_status {
             return Ok(());
         }
 
-        let mut m2 = m.clone();
-        m2.channel_status = match (cur_channel_status.clone(), new_channel_status.clone()) {
+        let channel_status = match (cur_channel_status.clone(), new_channel_status.clone()) {
             (ChannelStatus::None, ChannelStatus::PendingOpen) => new_channel_status,
             (ChannelStatus::PendingOpen, ChannelStatus::Open) => new_channel_status,
             (ChannelStatus::Open, ChannelStatus::CustomerInitClose) => new_channel_status,
             (ChannelStatus::Open, ChannelStatus::MerchantInitClose) => new_channel_status,
             (ChannelStatus::CustomerInitClose, ChannelStatus::PendingClose) => new_channel_status,
             (ChannelStatus::MerchantInitClose, ChannelStatus::PendingClose) => new_channel_status,
-            (ChannelStatus::PendingClose, ChannelStatus::Confirmed) => new_channel_status,
-            (ChannelStatus::Confirmed, ChannelStatus::None) => new_channel_status,
+            (ChannelStatus::PendingClose, ChannelStatus::ConfirmedClose) => new_channel_status,
+            (ChannelStatus::ConfirmedClose, ChannelStatus::None) => new_channel_status,
             (ChannelStatus::PendingClose, ChannelStatus::Disputed) => new_channel_status,
             (_, _) => {
                 return Err(format!(
@@ -1661,7 +1675,7 @@ impl MerchantMPCState {
                 ))
             }
         };
-        self.close_tx.insert(escrow_txid, m2.clone());
+        self.channel_status_map.insert(escrow_txid, channel_status);
 
         Ok(())
     }
@@ -2028,7 +2042,7 @@ mod tests {
         cust_state.update_pay_com(pay_token_mask_com);
 
         // cust_state.set_mpc_connect_type(2);
-        cust_state.set_network_config(NetworkConfig { conn_type: 1, dest_ip: String::from("127.0.0.1"), dest_port: 12347, path: String::from("foobar"), peer_raw_fd: 0 });
+        cust_state.set_network_config(NetworkConfig { conn_type: 1, dest_ip: String::from("127.0.0.1"), dest_port: 12347, path: String::from("foobar") });
         // prepare the customer inputs
         let s0 = s_0.clone();
         let s1 = s_1.clone();
@@ -2235,7 +2249,6 @@ mod tests {
             dest_ip: String::from("127.0.0.1"),
             dest_port: 12347,
             path: String::from("foobar"),
-            peer_raw_fd: 0,
         });
 
         // prepare the merchant inputs
