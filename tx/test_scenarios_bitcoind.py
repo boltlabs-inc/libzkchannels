@@ -149,6 +149,7 @@ MerchClaimFromMerchTxFile = "txdata_%d/signed_merch_claim_merch_tx_%d.txt"
 MerchDisputeFirstCustCloseTxFile = "txdata_%d/signed_dispute_from_escrow_tx_%d.txt"
 MerchDisputeFirstCustCloseFromMerchTxFile = "txdata_%d/signed_dispute_from_merch_tx_%d.txt"
 MerchClaimFromMerchCloseTxFile = "txdata_%d/signed_merch_claim_merch_close_tx_%d.txt"
+MutualCloseTxFile = "txdata_%d/signed_mutual_close_tx_%d.txt"
 
 PURPLE='\033[0;95m'
 RED='\033[0;31m'
@@ -293,6 +294,18 @@ def run_scenario_test5(network, utxo_index, blocks):
     broadcast_transaction(network, merch_claim_tx, "Merch claim from the Merch Close (after timelock)")
     print("==============================================")
 
+def run_scenario_test6(network, utxo_index, blocks):
+    print("==============================================")
+    log(">> Scenario 6: mutual close transaction")
+    escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
+    mutual_close_tx = read_file(MutualCloseTxFile % (utxo_index, utxo_index))
+
+    broadcast_transaction(network, escrow_tx, "Escrow")
+    generate_blocks(network, 1)
+    broadcast_transaction(network, mutual_close_tx, "Mutual Close Tx")
+    print("==============================================")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output_btc", help="amount in btc to pay out to each output", default="1")
@@ -318,7 +331,7 @@ def main():
 
     start_bitcoind(network, ignore_fees, auth_user, auth_pass, verbose)
 
-    tests_to_run = [run_scenario_test1, run_scenario_test2, run_scenario_test3, run_scenario_test4, run_scenario_test5]
+    tests_to_run = [run_scenario_test1, run_scenario_test2, run_scenario_test3, run_scenario_test4, run_scenario_test5, run_scenario_test6]
     
     output_privkeys = gen_privkeys(len(tests_to_run)+1)
 
