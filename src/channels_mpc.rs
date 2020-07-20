@@ -1622,14 +1622,16 @@ impl MerchantMPCState {
         Ok((signed_merch_close_tx, txid_be.to_vec(), txid_le))
     }
 
-    pub fn get_channel_status(&self, escrow_txid: [u8; 32]) -> Result<ChannelStatus, String> {
-        let escrow_txid = FixedSizeArray32(escrow_txid);
+    pub fn get_channel_status(&self, escrow_txid_be: [u8; 32]) -> Result<ChannelStatus, String> {
+        let escrow_txid = FixedSizeArray32(escrow_txid_be);
         let channel_status = match self.channel_status_map.get(&escrow_txid) {
             Some(t) => t,
             None => {
+                let mut txid_le = escrow_txid.0.clone();
+                txid_le.reverse();
                 return Err(format!(
                     "could not find <channel_status> for input <escrow_txid>: {}",
-                    hex::encode(escrow_txid.0)
+                    hex::encode(txid_le)
                 ));
             }
         };
@@ -1639,16 +1641,18 @@ impl MerchantMPCState {
 
     pub fn change_channel_status(
         &mut self,
-        escrow_txid: [u8; 32],
+        escrow_txid_be: [u8; 32],
         new_channel_status: ChannelStatus,
     ) -> Result<(), String> {
-        let escrow_txid = FixedSizeArray32(escrow_txid);
+        let escrow_txid = FixedSizeArray32(escrow_txid_be);
         let m = match self.channel_status_map.get(&escrow_txid) {
             Some(t) => t,
             None => {
+                let mut txid_le = escrow_txid.0.clone();
+                txid_le.reverse();
                 return Err(format!(
                     "could not find <channel_status> for input <escrow_txid>: {}",
-                    hex::encode(escrow_txid.0)
+                    hex::encode(txid_le)
                 ));
             }
         };

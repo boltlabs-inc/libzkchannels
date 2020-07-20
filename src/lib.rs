@@ -1038,6 +1038,15 @@ pub mod mpc {
     ) -> Result<[u8; 32], String> {
         // TODO: implement ZKC-19
         // activate channel - generate pay_token
+        let mut escrow_txid_be = channel_token.escrow_txid.0.clone();
+        escrow_txid_be.reverse();
+        let channel_status = match merch_state.get_channel_status(escrow_txid_be) {
+            Ok(s) => s,
+            Err(e) => return Err(e.to_string())
+        };
+        if channel_status != ChannelStatus::Open {
+            return Err(format!("channel is not open yet: {}", channel_status));
+        }
         merch_state.activate_channel(db, &channel_token, s0)
     }
 
@@ -2349,8 +2358,7 @@ mod tests {
         escrow_txid_be.reverse();
         let rc = cust_state.change_channel_status(ChannelStatus::PendingOpen);
         assert!(rc.is_ok());
-        let rc = merch_state
-            .change_channel_status(escrow_txid_be, ChannelStatus::PendingOpen);
+        let rc = merch_state.change_channel_status(escrow_txid_be, ChannelStatus::PendingOpen);
         assert!(rc.is_ok());
 
         let _rc = mpc::customer_mark_open_channel(&mut cust_state).unwrap();

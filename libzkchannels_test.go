@@ -316,6 +316,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	}
 	/////////////////////////////////////////////////////////
 	fmt.Println("Proceed with channel activation...")
+	(*merchState.ChannelStatusMap)[escrowTxid_BE] = "Open"
 
 	channelId, err := GetChannelId(channelToken)
 	assert.Nil(t, err)
@@ -451,16 +452,20 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("merchDisputePk :=> ", merchDispPk)
 	claimAmount = disputedInAmt - feeCC - feeMC
 	claimOutAmount := claimAmount - txFee
-	disputeTx, merchState, err := MerchantSignDisputeTx(escrowTxid_LE, CloseEscrowTxId_TX3, index, claimAmount, claimOutAmount, toSelfDelay, outputPk, revState.RevLock, FoundRevSecret, custClosePk, merchState)
-	assert.Nil(t, err)
-	fmt.Println("========================================")
-	fmt.Println("TX5: disputeCloseEscrowTx: ", disputeTx)
-	fmt.Println("========================================")
-	WriteToFile(MerchDisputeFirstCustCloseTxFile, disputeTx)
+	{
+		(*merchState.ChannelStatusMap)[escrowTxid_BE] = "CustomerInitClose"
 
-	SignedMerchDisputeTx2, _, err := MerchantSignDisputeTx(escrowTxid_LE, CloseMerchTxId_TX3, index, claimAmount, claimOutAmount, toSelfDelay, outputPk, revState.RevLock, FoundRevSecret, custClosePk, merchState)
-	assert.Nil(t, err)
-	WriteToFile(MerchDisputeFirstCustCloseFromMerchTxFile, SignedMerchDisputeTx2)
+		disputeTx, merchState, err := MerchantSignDisputeTx(escrowTxid_LE, CloseEscrowTxId_TX3, index, claimAmount, claimOutAmount, toSelfDelay, outputPk, revState.RevLock, FoundRevSecret, custClosePk, merchState)
+		assert.Nil(t, err)
+		fmt.Println("========================================")
+		fmt.Println("TX5: disputeCloseEscrowTx: ", disputeTx)
+		fmt.Println("========================================")
+		WriteToFile(MerchDisputeFirstCustCloseTxFile, disputeTx)
+
+		SignedMerchDisputeTx2, _, err := MerchantSignDisputeTx(escrowTxid_LE, CloseMerchTxId_TX3, index, claimAmount, claimOutAmount, toSelfDelay, outputPk, revState.RevLock, FoundRevSecret, custClosePk, merchState)
+		assert.Nil(t, err)
+		WriteToFile(MerchDisputeFirstCustCloseFromMerchTxFile, SignedMerchDisputeTx2)
+	}
 
 	// Merchant can claim tx output from merch-close-tx after timeout
 	fmt.Println("Claim tx from merchant close tx")
