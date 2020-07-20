@@ -1013,6 +1013,12 @@ pub mod mpc {
                 cust_state.protocol_status
             ));
         }
+
+        let channel_status = cust_state.get_channel_status();
+        if channel_status != ChannelStatus::Open {
+            return Err(format!("channel is not open yet: {}", channel_status));
+        }
+
         let _r_com = cust_state.generate_rev_lock_commitment(csprng);
         let _t0 = cust_state.get_randomness();
 
@@ -2337,7 +2343,20 @@ mod tests {
         println!("mpc::validate_channel_params: {}", res2.is_ok());
 
         // TODO: add cust-close tx signing API
+        // transition state manually
         cust_state.protocol_status = ProtocolStatus::Initialized;
+        let mut escrow_txid_be = channel_token.escrow_txid.0.clone();
+        escrow_txid_be.reverse();
+        let rc = cust_state.change_channel_status(ChannelStatus::PendingOpen);
+        assert!(rc.is_ok());
+        let rc = merch_state
+            .change_channel_status(escrow_txid_be, ChannelStatus::PendingOpen);
+        assert!(rc.is_ok());
+
+        let _rc = mpc::customer_mark_open_channel(&mut cust_state).unwrap();
+        let _rc =
+            mpc::merchant_mark_open_channel(channel_token.escrow_txid.0.clone(), &mut merch_state)
+                .unwrap();
 
         let s0 = mpc::activate_customer(&mut rng, &mut cust_state).unwrap();
 
@@ -2459,7 +2478,20 @@ mod tests {
             let res2 = mpc::validate_channel_params(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, init_hash, &mut merch_state);
             println!("mpc::validate_channel_params: {}", res2.is_ok());
 
+            // transition state manually
             cust_state.protocol_status = ProtocolStatus::Initialized;
+            let mut escrow_txid_be = channel_token.escrow_txid.0.clone();
+            escrow_txid_be.reverse();
+            let rc = cust_state.change_channel_status(ChannelStatus::PendingOpen);
+            assert!(rc.is_ok());
+            let rc = merch_state.change_channel_status(escrow_txid_be, ChannelStatus::PendingOpen);
+            assert!(rc.is_ok());
+
+            let rc = mpc::customer_mark_open_channel(&mut cust_state);
+            assert!(rc.is_ok());
+            let rc = mpc::merchant_mark_open_channel(channel_token.escrow_txid.0.clone(), &mut merch_state);
+            assert!(rc.is_ok());
+
             let s0 = mpc::activate_customer(&mut rng, &mut cust_state).unwrap();
 
             let pay_token = mpc::activate_merchant(&mut db as &mut dyn StateDatabase, channel_token.clone(), &s0, &mut merch_state).unwrap();
