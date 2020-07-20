@@ -303,6 +303,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	MerchantGenerateCustClaimTx(CloseEscrowTxId_TX3, custState.MerchBalance, merchState, MerchClaimViaFirstCustCloseEscrowTxFile)
 
 	CloseMerchTx, CloseMerchTxId_LE, custState, err := ForceCustomerCloseTx(channelState, channelToken, false, custState)
+	custState.ChannelStatus = "Open" // set back to Open for remaining tests (bypasses API with appropriate checks)
 	WriteToFile(FirstCustCloseMerchTxFile, CloseMerchTx)
 	assert.NotNil(t, CloseMerchTxId_LE)
 	CloseMerchTxId_TX3 := CloseMerchTxId_LE
@@ -330,6 +331,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	assert.Nil(t, err)
 
 	fmt.Println("channel activated...")
+
 	// unlink should happen at this point (0-value payment)
 	fmt.Println("proceed with pay protocol...")
 
