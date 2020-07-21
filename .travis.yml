@@ -18,6 +18,9 @@ before_install:
 rust:
   - stable
 
+go:
+  - "1.13"
+
 script:
   - . ./env
   - env
