@@ -1001,6 +1001,7 @@ impl CustomerMPCState {
             // can only close if the channel status is already open
             (ChannelStatus::Open, ChannelStatus::CustomerInitClose) => new_channel_status,
             (ChannelStatus::Open, ChannelStatus::MerchantInitClose) => new_channel_status,
+            (ChannelStatus::Open, ChannelStatus::PendingClose) => new_channel_status,
             // can be set if closing has been detected on chain (either by customer or merchant)
             (ChannelStatus::CustomerInitClose, ChannelStatus::PendingClose) => new_channel_status,
             (ChannelStatus::MerchantInitClose, ChannelStatus::PendingClose) => new_channel_status,
@@ -1667,6 +1668,7 @@ impl MerchantMPCState {
             (ChannelStatus::PendingOpen, ChannelStatus::Open) => new_channel_status,
             (ChannelStatus::Open, ChannelStatus::CustomerInitClose) => new_channel_status,
             (ChannelStatus::Open, ChannelStatus::MerchantInitClose) => new_channel_status,
+            (ChannelStatus::Open, ChannelStatus::PendingClose) => new_channel_status,
             (ChannelStatus::CustomerInitClose, ChannelStatus::PendingClose) => new_channel_status,
             (ChannelStatus::MerchantInitClose, ChannelStatus::PendingClose) => new_channel_status,
             (ChannelStatus::PendingClose, ChannelStatus::ConfirmedClose) => new_channel_status,
