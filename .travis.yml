@@ -36,6 +36,8 @@ matrix:
       go: "1.13"
       script:
         - curl -sSf https://build.travis-ci.com/files/rustup-init.sh | sh -s -- --default-toolchain=stable --profile=minimal -y
+        - export PATH=${TRAVIS_HOME}/.cargo/bin:$PATH
+        - cargo --version
         - . ./env
         - env
         - cargo build --release
