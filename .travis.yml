@@ -18,15 +18,24 @@ before_install:
 rust:
   - stable
 
-go:
-  - "1.13"
-
-script:
-  - . ./env
-  - env
-  - cargo build --release
-  - cargo test --release --lib mpcwrapper -- --nocapture
-  - cargo test --release --lib channels_mpc -- --nocapture
-  - ./test_ignored.sh
-  - ./test_gowrapper.sh
-
+matrix:
+  include:
+    - stage: Rust tests
+      language: rust
+      rust: stable
+      script:
+        - . ./env
+        - env
+        - cargo build --release
+        - cargo test --release --lib mpcwrapper -- --nocapture
+        - cargo test --release --lib channels_mpc -- --nocapture
+        - ./test_ignored.sh
+        
+    - stage: Go tests
+      language: go
+      go: "1.13"
+      script:
+        - . ./env
+        - env
+        - cargo build --release
+        - ./test_gowrapper.sh
