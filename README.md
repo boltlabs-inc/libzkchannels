@@ -142,7 +142,7 @@ We now describe the high-level protocol API implemented in module `zkchannels::m
 #### 1.2.2 Initialize & Establish
 
 	let cust_bal = 10000;
-	let merch_bal = 100;
+	let merch_bal = 3000;
 
 	// set the network transaction fees
 	let tx_fee_info = mpc::TransactionFeeInfo { ... };
@@ -160,7 +160,7 @@ We now describe the high-level protocol API implemented in module `zkchannels::m
 	let (init_cust_state, init_hash) = mpc::get_initial_state(&cust_state).unwrap();
 
 	// merchant validates the initial state
-	let res = mpc::validate_initial_state(&channel_token, &init_cust_state, init_hash, &mut merch_state);
+	let res = mpc::validate_channel_params(&channel_token, &init_cust_state, init_hash, &mut merch_state);
 
 	// at this point, both parties proceed with exchanging signatures on their respective closing transactions
 	// customer gets two signed closing transactions from merchant that issues a refund back to customer
@@ -168,6 +168,13 @@ We now describe the high-level protocol API implemented in module `zkchannels::m
 
 	// customer signs & broadcasts <escrow-tx> to the blockchain
 	// both parties wait for the network to confirm the txs
+
+	// customer mark the channel open after a suitable number of confirmations of the funding transactions
+	let res = mpc::customer_mark_channel_open(&mut cust_state);
+
+	// merchant marks the channel open after a suitable number of confirmations of the funding transactions
+	let escrow_txid = &channel_token.escrow_txid.0.clone();
+	let res = mpc::merchant_mark_open_channel(&escrow_txid, &mut merch_state);
 
 #### 1.2.3 Activate & Unlink
 
@@ -181,7 +188,7 @@ We now describe the high-level protocol API implemented in module `zkchannels::m
 	// customer stores the initial pay token
 	mpc::activate_customer_finalize(pay_token, &mut cust_state);
 
-	// customer unlinks initial pay-token by running the following pay protocol with a 0-payment
+	// customer unlinks initial pay-token by running the following pay protocol with a 0-value payment
 
 #### 1.2.4 Unlinkable Payments
 

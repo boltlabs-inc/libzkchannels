@@ -1042,7 +1042,7 @@ pub mod mpc {
         escrow_txid_be.reverse();
         let channel_status = match merch_state.get_channel_status(escrow_txid_be) {
             Ok(s) => s,
-            Err(e) => return Err(e.to_string())
+            Err(e) => return Err(e.to_string()),
         };
         if channel_status != ChannelStatus::Open {
             return Err(format!("channel is not open yet: {}", channel_status));
