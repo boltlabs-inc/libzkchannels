@@ -35,6 +35,7 @@ matrix:
       language: go
       go: "1.13"
       script:
+        - curl -sSf https://build.travis-ci.com/files/rustup-init.sh | sh -s -- --default-toolchain=$TRAVIS_RUST_VERSION --profile=minimal -y
         - . ./env
         - env
         - cargo build --release
