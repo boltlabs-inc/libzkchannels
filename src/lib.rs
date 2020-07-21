@@ -129,7 +129,8 @@ pub mod zkproofs {
     pub struct ChannelcloseC<E: Engine> {
         pub wpk: secp256k1::PublicKey,
         pub message: wallet::Wallet<E>,
-        pub signature: cl::Signature<E>,
+        pub merch_signature: cl::Signature<E>,
+        pub cust_signature: Option<secp256k1::Signature>,
     }
 
     #[derive(Clone, Serialize, Deserialize)]
@@ -505,7 +506,8 @@ pub mod zkproofs {
         ChannelcloseC {
             wpk: cust_state.wpk,
             message: wallet,
-            signature: close_token,
+            merch_signature: close_token,
+            cust_signature: None,
         }
     }
 
@@ -550,7 +552,7 @@ pub mod zkproofs {
         let pk = cp.pub_params.pk.get_pub_key();
         let mut wallet = cust_close.message.clone();
         let close_wallet = wallet.with_close(String::from("close")).clone();
-        let close_token = cust_close.signature.clone();
+        let close_token = cust_close.merch_signature.clone();
 
         let is_valid = pk.verify(&channel_token.mpk, &close_wallet, &close_token);
 
@@ -1623,7 +1625,7 @@ mod tests {
         let cust_close = zkproofs::customer_close(&channel_state, &cust_state);
         println!("Obtained the channel close message");
         println!("{}", cust_close.message);
-        println!("{}", cust_close.signature);
+        println!("{}", cust_close.merch_signature);
     }
 
     #[test]
@@ -1681,7 +1683,7 @@ mod tests {
             let cust_close_msg = zkproofs::customer_close(&channel_state, &cust_state);
             println!("Obtained the channel close message");
             println!("{}", cust_close_msg.message);
-            println!("{}", cust_close_msg.signature);
+            println!("{}", cust_close_msg.merch_signature);
         }
     }
 
@@ -2048,7 +2050,7 @@ mod tests {
         let channelId = channel_token.compute_channel_id();
 
         let original_channelId =
-            "[\"0744645c9cbbf4e47f456fa05e2c6888a59f688641d25b2607610ce03b4ae20c\"]";
+            "[\"e4f4bb9c5c64440788682c5ea06f457f265bd24186689fa50ce24a3be00c6107\"]";
         let computed_channelId = serde_json::to_string(&channelId).unwrap();
 
         println!("channel ID: {}", channelId);
@@ -2202,6 +2204,10 @@ mod tests {
             &mut merch_state,
         );
         assert!(res2.is_ok(), res2.err().unwrap());
+        let _rc = mpc::customer_mark_open_channel(&mut cust_state).unwrap();
+        let _rc =
+            mpc::merchant_mark_open_channel(channel_token.escrow_txid.0.clone(), &mut merch_state)
+                .unwrap();
 
         let s0 = mpc::activate_customer(rng, &mut cust_state).unwrap();
 
@@ -2801,6 +2807,12 @@ mod tests {
         );
         println!("initial channel state validated!");
         // println!("cust_state channel status: {}", cust_state.protocol_status);
+
+        let rc = mpc::customer_mark_open_channel(&mut cust_state);
+        assert!(rc.is_ok());
+        let rc =
+            mpc::merchant_mark_open_channel(channel_token.escrow_txid.0.clone(), &mut merch_state);
+        assert!(rc.is_ok());
 
         activate_channel_helper(
             &mut rng,
