@@ -116,7 +116,7 @@ pub mod zkproofs {
     pub use ped92::CommitmentProof;
     use serde::{Deserialize, Serialize};
     use util::{hash_to_slice, RevokedMessage};
-    pub use wallet::Wallet;
+    pub use wallet::{serialize_compact, Wallet};
     pub use BoltResult;
 
     #[derive(Clone, Serialize, Deserialize)]
@@ -130,7 +130,7 @@ pub mod zkproofs {
         pub wpk: secp256k1::PublicKey,
         pub message: wallet::Wallet<E>,
         pub merch_signature: cl::Signature<E>,
-        pub cust_signature: Option<secp256k1::Signature>,
+        pub cust_signature: secp256k1::Signature,
     }
 
     #[derive(Clone, Serialize, Deserialize)]
@@ -490,7 +490,10 @@ pub mod zkproofs {
     pub fn customer_close<E: Engine>(
         channel_state: &ChannelState<E>,
         cust_state: &CustomerState<E>,
-    ) -> ChannelcloseC<E> {
+    ) -> ChannelcloseC<E>
+    where
+        <E as pairing::Engine>::G1: serde::Serialize,
+    {
         if !channel_state.channel_established {
             panic!("Cannot close a channel that has not been established!");
         }
@@ -503,11 +506,25 @@ pub mod zkproofs {
         let close_wallet = wallet.with_close(String::from("close"));
 
         assert!(pk.verify(&cp.pub_params.mpk, &close_wallet, &close_token));
+
+        let mut m1 = serialize_compact::<E>(&close_wallet);
+        // println!("close wallet ser compact: {}", hex::encode(&m1));
+        let m2 = close_token.serialize_compact();
+        m1.extend_from_slice(&m2);
+        let m = hash_to_slice(&m2);
+        // println!("close token ser compact: {}", hex::encode(&m2));
+
+        let secp = secp256k1::Secp256k1::new();
+        let msg = secp256k1::Message::from_slice(&m).unwrap();
+        // let seckey = secp256k1::SecretKey::from_slice().unwrap();
+        let seckey = cust_state.get_secret_key();
+        let cust_sig = secp.sign(&msg, &seckey);
+
         ChannelcloseC {
             wpk: cust_state.wpk,
             message: wallet,
             merch_signature: close_token,
-            cust_signature: None,
+            cust_signature: cust_sig,
         }
     }
 
@@ -1625,7 +1642,8 @@ mod tests {
         let cust_close = zkproofs::customer_close(&channel_state, &cust_state);
         println!("Obtained the channel close message");
         println!("{}", cust_close.message);
-        println!("{}", cust_close.merch_signature);
+        println!("close_token => {}", cust_close.merch_signature);
+        println!("cust_sig => {}", cust_close.cust_signature);
     }
 
     #[test]

@@ -71,6 +71,16 @@ impl<E: Engine> fmt::Display for Wallet<E> {
     }
 }
 
+pub fn serialize_compact<E: Engine>(v: &Vec<E::Fr>) -> Vec<u8> {
+    let mut m = Vec::new();
+    for i in v {
+        let a = format!("{}", i.into_repr());
+        let b = hex::decode(&a[2..]).unwrap();
+        m.extend_from_slice(&b);
+    }
+    return m;
+}
+
 pub const NONCE_LEN: usize = 16;
 
 static STATE_HASH_PREFIX: &str = "ZKCHANNELS_STATE";

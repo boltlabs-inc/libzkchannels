@@ -172,6 +172,23 @@ impl<E: Engine> Signature<E> {
 
         Signature { h, H }
     }
+
+    pub fn serialize_compact(&self) -> Vec<u8>
+    where
+        <E as pairing::Engine>::G1: serde::Serialize,
+    {
+        let mut s = Vec::new();
+        let h1 = serde_json::to_string(&self.h).unwrap();
+        let last = h1.len() - 1;
+        let b = hex::decode(&h1[1..last]).unwrap();
+        s.extend_from_slice(&b);
+
+        let h2 = serde_json::to_string(&self.H).unwrap();
+        let last = h2.len() - 1;
+        let b = hex::decode(&h2[1..last]).unwrap();
+        s.extend_from_slice(&b);
+        return s;
+    }
 }
 
 #[derive(Clone)]

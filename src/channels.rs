@@ -278,6 +278,10 @@ impl<E: Engine> CustomerState<E> {
         return self.wallet.clone();
     }
 
+    pub fn get_secret_key(&self) -> secp256k1::SecretKey {
+        return self.sk_c.clone();
+    }
+
     pub fn get_public_key(&self) -> E::Fr {
         // hash the channel pub key
         let pk_h = hash_pubkey_to_fr::<E>(&self.pk_c);
