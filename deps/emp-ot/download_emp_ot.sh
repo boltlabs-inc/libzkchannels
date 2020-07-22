@@ -2,16 +2,29 @@
 
 VERSION=0.1
 FORMAT=tar.gz
-LINK=https://github.com/emp-toolkit/emp-ot.git
+LINK=https://github.com/boltlabs-inc/emp-ot.git
 EMP_OT=${1:-emp-ot-${VERSION}}
 
-echo "Clone github repo @ ${LINK}"
-git clone ${LINK} ${EMP_OT}.git
+LOCAL=${2:false} # literally any argument will prevent this from pulling the repo
+
+if [[ ! ${LOCAL} ]]; then
+  echo "Clone github repo @ ${LINK}"
+  git clone ${LINK} ${EMP_OT}.git
+else
+    echo "not cloning bye"
+fi
+
 cd ${EMP_OT}.git
 
 if [[ ! -f ${EMP_OT}.${FORMAT} ]]; then
    echo "Create archive of source (without git files)"
-   git archive --output ../${EMP_OT}.test.${FORMAT} HEAD 
+   if [[ ${LOCAL} ]]; then
+       # archives unstaged changes (but not untracked files)
+       git ls-files | tar Tczf - ../${EMP_OT}.test.${FORMAT}
+   else
+       # archives committed changes
+       git archive --output ../${EMP_OT}.test.${FORMAT} HEAD
+   fi
 
    echo "Create final tarball: ${EMP_OT}.${FORMAT}"
    cd ..

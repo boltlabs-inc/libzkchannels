@@ -1,4 +1,4 @@
-.PHONY: all clean
+.PHONY: all clean local
 
 VERSION=0.1
 TMP=$(shell mktemp -d build-XXXX)
@@ -14,6 +14,11 @@ emp-ot-$(VERSION)/.built: emp-ot-${VERSION}
 
 emp-ot-$(VERSION): emp-ot-$(VERSION).tar.gz
 	tar xf $^
+
+local: emp-ot-$(VERSION).git
+	./download_emp_ot.sh emp-ot-$(VERSION) local
+	make emp-ot-$(VERSION)
+	make emp-ot-$(VERSION)/.built
 
 package: checkenv
 	./download_emp_ot.sh emp-ot-$(VERSION)
