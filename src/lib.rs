@@ -58,7 +58,7 @@ pub mod channels_mpc;
 pub mod cl;
 pub mod database;
 pub mod ecdsa_partial;
-pub mod ffishim;
+pub mod ffishim_bls12;
 pub mod ffishim_bn256;
 pub mod ffishim_mpc;
 pub mod mpcwrapper;
@@ -507,16 +507,15 @@ pub mod zkproofs {
 
         assert!(pk.verify(&cp.pub_params.mpk, &close_wallet, &close_token));
 
+        // hash the closing wallet + close token (merch sig)
         let mut m1 = serialize_compact::<E>(&close_wallet);
-        // println!("close wallet ser compact: {}", hex::encode(&m1));
         let m2 = close_token.serialize_compact();
         m1.extend_from_slice(&m2);
         let m = hash_to_slice(&m2);
-        // println!("close token ser compact: {}", hex::encode(&m2));
 
+        // compute secp256k1 signature on the hash
         let secp = secp256k1::Secp256k1::new();
         let msg = secp256k1::Message::from_slice(&m).unwrap();
-        // let seckey = secp256k1::SecretKey::from_slice().unwrap();
         let seckey = cust_state.get_secret_key();
         let cust_sig = secp.sign(&msg, &seckey);
 
@@ -605,7 +604,7 @@ pub mod zkproofs {
     ///
     /// Used in open-channel WTP for validating that a close_token is a valid signature under <
     ///
-    pub fn wtp_verify_cust_close_message<E: Engine>(
+    pub fn tze_verify_cust_close_message<E: Engine>(
         channel_token: &ChannelToken<E>,
         wpk: &secp256k1::PublicKey,
         close_msg: &wallet::Wallet<E>,
@@ -635,7 +634,7 @@ pub mod zkproofs {
     ///
     /// Used in merch-close WTP for validating that revoke_token is a valid signature under <wpk> and the <revoked || wpk> message
     ///
-    pub fn wtp_verify_revoke_message(
+    pub fn tze_verify_revoke_message(
         wpk: &secp256k1::PublicKey,
         revoke_token: &secp256k1::Signature,
     ) -> bool {
@@ -649,7 +648,7 @@ pub mod zkproofs {
     ///
     /// Used in merch-close WTP for validating that merch_sig is a valid signature under <merch_pk> on <dest_addr || revoke-token> message
     ///
-    pub fn wtp_verify_merch_close_message<E: Engine>(
+    pub fn tze_verify_merch_close_message<E: Engine>(
         channel_token: &ChannelToken<E>,
         merch_close: &ChannelcloseM,
     ) -> bool {
@@ -669,7 +668,7 @@ pub mod zkproofs {
     }
 }
 
-pub mod wtp_utils {
+pub mod tze_utils {
     // Useful routines that simplify the Bolt WTP implementation for Zcash
     pub use channels::ChannelToken;
     use channels::ChannelcloseM;
@@ -815,7 +814,7 @@ pub mod wtp_utils {
     ///
     /// Used in open-channel WTP for validating that a close_token is a valid signature
     ///
-    pub fn wtp_verify_cust_close_message(
+    pub fn tze_verify_cust_close_message(
         channel_token: &ChannelToken<Bls12>,
         wpk: &secp256k1::PublicKey,
         close_msg: &Wallet<Bls12>,
@@ -841,7 +840,7 @@ pub mod wtp_utils {
             );
     }
 
-    pub fn wtp_generate_secp_signature(seckey: &[u8; 32], msg: &[u8; 32]) -> Vec<u8> {
+    pub fn tze_generate_secp_signature(seckey: &[u8; 32], msg: &[u8; 32]) -> Vec<u8> {
         let secp = secp256k1::Secp256k1::signing_only();
 
         let msg = secp256k1::Message::from_slice(msg).unwrap();
@@ -854,7 +853,7 @@ pub mod wtp_utils {
         return ser_sig.to_vec();
     }
 
-    pub fn wtp_verify_secp_signature(
+    pub fn tze_verify_secp_signature(
         pubkey: &secp256k1::PublicKey,
         hash: &Vec<u8>,
         sig: &secp256k1::Signature,
@@ -2059,7 +2058,7 @@ mod tests {
         71dc14f3b1d6a646ed7cc0ca9417d8bde6efc1ac300d8e28f";
         let ser_channel_token = hex::decode(_ser_channel_token).unwrap();
 
-        let option_ct = wtp_utils::reconstruct_channel_token_bls12(&ser_channel_token);
+        let option_ct = tze_utils::reconstruct_channel_token_bls12(&ser_channel_token);
         let channel_token = match option_ct {
             Ok(n) => n.unwrap(),
             Err(e) => panic!("Error reconstructing compact rep of channel token: {}", e),
@@ -2082,7 +2081,7 @@ mod tests {
                               aee9eafd51cfdb0dc567a5d152bc37861727e85088b417cf3ff57c108d0156eee56aff810f1e5f9e76cd6a3590d6db5e";
         let ser_signature = hex::decode(_ser_signature).unwrap();
 
-        let option_sig = wtp_utils::reconstruct_signature_bls12(&ser_signature);
+        let option_sig = tze_utils::reconstruct_signature_bls12(&ser_signature);
 
         let _sig = match option_sig {
             Ok(n) => n.unwrap(),
@@ -2095,7 +2094,7 @@ mod tests {
         let _ser_sig = "3044022064650285b55624f1f64b2c75e76589fa4b1033dabaa7ff50ff026e1dc038279202204ca696e0a829687c87171e8e5dab17069be248ff2595fd9607f3346dadcb579f";
         let ser_sig = hex::decode(_ser_sig).unwrap();
 
-        let signature = wtp_utils::reconstruct_secp_signature(ser_sig.as_slice());
+        let signature = tze_utils::reconstruct_secp_signature(ser_sig.as_slice());
         assert_eq!(format!("{:?}", signature), _ser_sig);
 
         let sk = hex::decode("81361b9bc2f67524dcc59b980dc8b06aadb77db54f6968d2af76ecdb612e07e4")
@@ -2108,7 +2107,7 @@ mod tests {
 
         let mut seckey = [0u8; 32];
         seckey.copy_from_slice(sk.as_slice());
-        let sig = wtp_utils::wtp_generate_secp_signature(&seckey, &hash);
+        let sig = tze_utils::tze_generate_secp_signature(&seckey, &hash);
         assert!(sig.len() > 0);
     }
 
@@ -2120,7 +2119,7 @@ mod tests {
                 .unwrap();
         address.copy_from_slice(address_slice.as_slice());
 
-        let channelClose = wtp_utils::reconstruct_secp_channel_close_m(&address,
+        let channelClose = tze_utils::reconstruct_secp_channel_close_m(&address,
                                                                        &hex::decode("3044022041932b376fe2c5e9e9ad0a3804e2290c3bc40617ea4f7b913be858dbcc3760b50220429d6eb1aabbd4135db4e0776c0b768af844b0af44f2f8f9da5a65e8541b4e9f").unwrap(),
                                                                        &hex::decode("3045022100e76653c5f8cb4c2f39efc7c5450d4f68ef3d84d482305534f5dfc310095a3124022003c4651ce1305cffe5e483ab99925cc4c9c5df2b5449bb18a51d52b21d789716").unwrap());
 

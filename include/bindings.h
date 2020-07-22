@@ -206,20 +206,20 @@ char *ffishim_bls12_pay_verify_payment_token(char *ser_channel_state,
 
 char *ffishim_bls12_pay_verify_revoke_token(char *ser_revoke_token, char *ser_merch_state);
 
-char *ffishim_bls12_verify_close_token(char *ser_channel_state,
-                                       char *ser_customer_state,
-                                       char *ser_close_token);
+char *ffishim_bls12_tze_check_wpk(char *ser_wpk);
 
-char *ffishim_bls12_wtp_check_wpk(char *ser_wpk);
-
-char *ffishim_bls12_wtp_verify_cust_close_message(char *ser_channel_token,
+char *ffishim_bls12_tze_verify_cust_close_message(char *ser_channel_token,
                                                   char *ser_wpk,
                                                   char *ser_close_msg,
                                                   char *ser_close_token);
 
-char *ffishim_bls12_wtp_verify_merch_close_message(char *ser_channel_token,
+char *ffishim_bls12_tze_verify_merch_close_message(char *ser_channel_token,
                                                    char *ser_wpk,
                                                    char *ser_merch_close);
+
+char *ffishim_bls12_verify_close_token(char *ser_channel_state,
+                                       char *ser_customer_state,
+                                       char *ser_close_token);
 
 char *ffishim_bn256_channel_setup(const char *channel_name, uint32_t third_party_support);
 
@@ -287,20 +287,20 @@ char *ffishim_bn256_pay_verify_payment_token(char *ser_channel_state,
 
 char *ffishim_bn256_pay_verify_revoke_token(char *ser_revoke_token, char *ser_merch_state);
 
-char *ffishim_bn256_verify_close_token(char *ser_channel_state,
-                                       char *ser_customer_state,
-                                       char *ser_close_token);
+char *ffishim_bn256_tze_check_wpk(char *ser_wpk);
 
-char *ffishim_bn256_wtp_check_wpk(char *ser_wpk);
-
-char *ffishim_bn256_wtp_verify_cust_close_message(char *ser_channel_token,
+char *ffishim_bn256_tze_verify_cust_close_message(char *ser_channel_token,
                                                   char *ser_wpk,
                                                   char *ser_close_msg,
                                                   char *ser_close_token);
 
-char *ffishim_bn256_wtp_verify_merch_close_message(char *ser_channel_token,
+char *ffishim_bn256_tze_verify_merch_close_message(char *ser_channel_token,
                                                    char *ser_wpk,
                                                    char *ser_merch_close);
+
+char *ffishim_bn256_verify_close_token(char *ser_channel_state,
+                                       char *ser_customer_state,
+                                       char *ser_close_token);
 
 void ffishim_free_string(char *pointer);
 

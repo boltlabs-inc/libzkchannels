@@ -49,7 +49,7 @@ pub mod ffishim_bn256 {
     }
 
     #[no_mangle]
-    pub extern "C" fn ffishim_bn256_wtp_check_wpk(ser_wpk: *mut c_char) -> *mut c_char {
+    pub extern "C" fn ffishim_bn256_tze_check_wpk(ser_wpk: *mut c_char) -> *mut c_char {
         let wpk_result: ResultSerdeType<secp256k1::PublicKey> = deserialize_result_object(ser_wpk);
         let _wpk = handle_errors!(wpk_result);
 
@@ -745,7 +745,7 @@ pub mod ffishim_bn256 {
     }
 
     #[no_mangle]
-    pub extern "C" fn ffishim_bn256_wtp_verify_cust_close_message(
+    pub extern "C" fn ffishim_bn256_tze_verify_cust_close_message(
         ser_channel_token: *mut c_char,
         ser_wpk: *mut c_char,
         ser_close_msg: *mut c_char,
@@ -772,7 +772,7 @@ pub mod ffishim_bn256 {
 
         // check the signatures
         let token_valid =
-            zkproofs::wtp_verify_cust_close_message(&channel_token, &wpk, &close_msg, &close_token);
+            zkproofs::tze_verify_cust_close_message(&channel_token, &wpk, &close_msg, &close_token);
         let ser = [
             "{\"result\":\"",
             serde_json::to_string(&token_valid).unwrap().as_str(),
@@ -784,7 +784,7 @@ pub mod ffishim_bn256 {
     }
 
     #[no_mangle]
-    pub extern "C" fn ffishim_bn256_wtp_verify_merch_close_message(
+    pub extern "C" fn ffishim_bn256_tze_verify_merch_close_message(
         ser_channel_token: *mut c_char,
         ser_wpk: *mut c_char,
         ser_merch_close: *mut c_char,
@@ -805,9 +805,9 @@ pub mod ffishim_bn256 {
         let merch_close = handle_errors!(merch_close_result);
 
         let revoke_token_valid =
-            zkproofs::wtp_verify_revoke_message(&wpk, &merch_close.revoke.unwrap());
+            zkproofs::tze_verify_revoke_message(&wpk, &merch_close.revoke.unwrap());
         let merch_close_valid =
-            zkproofs::wtp_verify_merch_close_message(&channel_token, &merch_close);
+            zkproofs::tze_verify_merch_close_message(&channel_token, &merch_close);
         let token_valid = revoke_token_valid && merch_close_valid;
 
         let ser = [
