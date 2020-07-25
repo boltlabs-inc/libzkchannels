@@ -29,6 +29,7 @@ fn main() {
         .header(path_to_header_file)
         .clang_arg("-x")
         .clang_arg("c++")
+        .clang_arg("-Ideps/root/include")
         .trust_clang_mangling(false)
         // Finish the builder and generate the bindings.
         .generate()

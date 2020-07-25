@@ -1,4 +1,5 @@
 extern crate bufstream;
+extern crate libc;
 extern crate rand;
 extern crate redis;
 extern crate secp256k1;
@@ -9,21 +10,43 @@ extern crate zkchan_tx;
 extern crate zkchannels;
 
 use bufstream::BufStream;
+use libc::{c_int, c_void};
 use rand::Rng;
 use redis::Commands;
 use serde::Deserialize;
+use std::ffi::CString;
 use std::fs::File;
 use std::io::{BufRead, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::PathBuf;
+use std::ptr;
 use std::str::FromStr;
 use std::thread::sleep;
 use std::time;
 use structopt::StructOpt;
 use zkchan_tx::Testnet;
+use zkchannels::bindings::Receive_return;
 use zkchannels::database::create_db_connection;
 use zkchannels::mpc;
 use zkchannels::FundingTxInfo;
+
+extern "C" fn cb_send_data(_data: *mut c_void, _len: c_int, _peer: *mut c_void) -> *mut i8 {
+    println!("Sending some data!");
+    return ptr::null_mut();
+}
+
+extern "C" fn cb_recv_data(_peer: *mut c_void) -> Receive_return {
+    println!("Receiving some data..");
+    let data_str = String::from("some data");
+    let data = CString::new("some data").unwrap().into_raw();
+    let err = CString::new("none").unwrap().into_raw();
+    let r = Receive_return {
+        r0: data,
+        r1: data_str.len() as i32,
+        r2: err,
+    };
+    return r;
+}
 
 macro_rules! handle_error_result {
     ($e:expr) => {
@@ -911,8 +934,8 @@ mod cust {
             amount,
             &mut cust_state,
             ptr::null_mut(),
-            None,
-            None,
+            Some(cb_send_data),
+            Some(cb_recv_data),
         ) {
             Ok(n) => n,
             Err(e) => return Err(e.to_string()),
@@ -1374,8 +1397,8 @@ mod merch {
             pay_token_mask_com,
             merch_state,
             ptr::null_mut(),
-            None,
-            None,
+            Some(cb_send_data),
+            Some(cb_recv_data),
         ));
 
         // confirm customer got mpc output

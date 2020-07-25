@@ -83,7 +83,9 @@ typedef struct {
 typedef char *(*cb_send)(void *arg1, int arg2, void *arg3);
 
 typedef struct {
-  uint8_t _unused[0];
+  char *r0;
+  int r1;
+  char *r2;
 } Receive_return;
 
 typedef Receive_return (*cb_receive)(void *arg1);
