@@ -41,4 +41,5 @@ matrix:
         - . ./env
         - env
         - cargo build --release
+        - make mpctest
         - ./test_gowrapper.sh

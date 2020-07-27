@@ -3200,9 +3200,7 @@ mod tests {
             &mut merch_state,
         );
 
-        let res = cust_state.change_channel_status(ChannelStatus::PendingClose);
-        assert!(res.is_err());
-
+        // channel status should be Open at this point. Open -> ConfirmedClose should fail
         let res = cust_state.change_channel_status(ChannelStatus::ConfirmedClose);
         assert!(res.is_err());
 
