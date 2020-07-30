@@ -57,7 +57,7 @@ def encode_base58_checksum(b):
 
 def pk_to_p2sh_p2wpkh(compressed, network):
     pk_hash = hash160(compressed)
-    redeemScript = bytes.fromhex(f"0014{pk_hash.hex()}")
+    redeemScript = bytes.fromhex("0014"+str(pk_hash.hex()))
     rs_hash = hash160(redeemScript)
     if network == "testnet":
         prefix = b"\xc4"
@@ -72,7 +72,7 @@ def pk_to_p2sh_p2wpkh(compressed, network):
     return encode_base58_checksum(prefix + rs_hash)
 
 
-def gen_privkeys(n) -> list :
+def gen_privkeys(n):
     privkeys = []
     # privkey_prefix is 30 bytes long. The last byte will be incremented to create other privkeys
     privkey_prefix = bytes.fromhex("111111111111111111111111111111111111111111111111111111111111")

@@ -3,6 +3,10 @@ language: rust
 services:
   - redis-server
 
+cache:
+  directories:
+    - ~/bitcoin/bitcoin-0.19.1/bin
+
 before_install:
   - echo $TRAVIS_OS_NAME
   - set -e
@@ -43,3 +47,15 @@ matrix:
         - cargo build --release
         - make mpctest
         - ./test_gowrapper.sh
+    - stage: Test scenarios with bitcoind
+      language: go
+      go: "1.13"
+      script:
+        - bash ./tx/install_bitcoind.sh
+        - curl -sSf https://build.travis-ci.com/files/rustup-init.sh | sh -s -- --default-toolchain=stable --profile=minimal -y
+        - export PATH=${TRAVIS_HOME}/.cargo/bin:$PATH
+        - cargo --version
+        - . ./env
+        - cargo build --release
+        - pip install base58
+        - cd tx/ && python test_scenarios_bitcoind.py
