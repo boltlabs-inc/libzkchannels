@@ -91,6 +91,7 @@ function install_pkgs_debian() {
     sudo apt install -y libboost1.67-dev libboost-system1.67-dev
     sudo apt install -y libcrypto++ llvm-dev libclang-dev clang
     sudo apt install -y redis-server
+    sudo apt install -y python3 python3-pip
 }
 
 INSTALL=.installed
