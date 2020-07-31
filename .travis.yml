@@ -56,6 +56,7 @@ matrix:
         - curl -sSf https://build.travis-ci.com/files/rustup-init.sh | sh -s -- --default-toolchain=stable --profile=minimal -y
         - export PATH=${TRAVIS_HOME}/.cargo/bin:$PATH
         - cargo --version
+        - pip3 --version
         - . ./env
         - cargo build --release
         - pip3 install base58 ecdsa hashlib

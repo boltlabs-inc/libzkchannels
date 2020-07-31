@@ -69,6 +69,7 @@ function install_pkgs_ubuntu() {
         sudo apt-get install -y libcrypto++ libcrypto++-dev 
 	sudo apt-get install -y llvm-dev libclang-dev clang
         sudo apt-get install -y redis-server
+        sudo apt-get install -y python3 python3-pip
     else
         sudo apt-get install -y software-properties-common
         sudo add-apt-repository -y ppa:george-edison55/cmake-3.x
@@ -81,6 +82,7 @@ function install_pkgs_ubuntu() {
         sudo apt-get install -y llvm-dev libclang-dev clang
         sudo apt-get install -y redis-server
         sudo apt-get install -y libcrypto++-dev libcrypto++9v5 
+        sudo apt-get install -y python3 python3-pip
     fi
 }
 
