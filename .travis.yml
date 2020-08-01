@@ -48,16 +48,16 @@ matrix:
         - make mpctest
         - ./test_gowrapper.sh
 
-    - stage: Test scenarios with bitcoind
-      language: go
-      go: "1.13"
-      script:
-        - bash ./tx/install_bitcoind.sh
-        - curl -sSf https://build.travis-ci.com/files/rustup-init.sh | sh -s -- --default-toolchain=stable --profile=minimal -y
-        - export PATH=${TRAVIS_HOME}/.cargo/bin:$PATH
-        - cargo --version
-        - pip3 --version
-        - . ./env
-        - cargo build --release
-        - pip3 install base58 ecdsa
-        - cd tx/ && python3 test_scenarios_bitcoind.py
+          #- stage: Test scenarios with bitcoind
+          #language: go
+          #go: "1.13"
+          #script:
+          #- bash ./tx/install_bitcoind.sh
+          #- curl -sSf https://build.travis-ci.com/files/rustup-init.sh | sh -s -- --default-toolchain=stable --profile=minimal -y
+          #- export PATH=${TRAVIS_HOME}/.cargo/bin:$PATH
+          #- cargo --version
+          #- pip3 --version
+          #- . ./env
+          #- cargo build --release
+          #- pip3 install base58 ecdsa
+          #- cd tx/ && python3 test_scenarios_bitcoind.py
