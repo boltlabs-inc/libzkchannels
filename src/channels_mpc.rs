@@ -129,6 +129,7 @@ pub struct ChannelMPCState {
     pub name: String,
     pub third_party: bool,
     pub merch_payout_pk: Option<secp256k1::PublicKey>,
+    pub merch_child_pk: Option<secp256k1::PublicKey>,
     pub merch_dispute_pk: Option<secp256k1::PublicKey>,
     pub self_delay: u16,
 }
@@ -150,6 +151,7 @@ impl ChannelMPCState {
             name: name.to_string(),
             third_party: third_party_support,
             merch_payout_pk: None,
+            merch_child_pk: None,
             merch_dispute_pk: None,
             self_delay,
         }
@@ -178,9 +180,11 @@ impl ChannelMPCState {
     pub fn set_merchant_public_keys(
         &mut self,
         merch_payout_pk: secp256k1::PublicKey,
+        merch_child_pk: secp256k1::PublicKey,
         merch_dispute_pk: secp256k1::PublicKey,
     ) {
         self.merch_payout_pk = Some(merch_payout_pk);
+        self.merch_child_pk = Some(merch_child_pk);
         self.merch_dispute_pk = Some(merch_dispute_pk);
     }
 
@@ -709,6 +713,7 @@ impl CustomerMPCState {
         let cust_payout_pub_key = self.payout_pk.serialize();
         let merch_escrow_pub_key = channel_token.pk_m.serialize();
         let merch_dispute_key = channel_state.merch_dispute_pk.unwrap().serialize();
+        let merch_child_pub_key = channel_state.merch_child_pk.unwrap().serialize();
         let merch_payout_pub_key = channel_state.merch_payout_pk.unwrap().serialize();
 
         let mut pubkeys = ClosePublicKeys {
@@ -716,6 +721,7 @@ impl CustomerMPCState {
             cust_close_pk: cust_payout_pub_key.to_vec(),
             merch_pk: merch_escrow_pub_key.to_vec(),
             merch_close_pk: merch_payout_pub_key.to_vec(),
+            merch_child_pk: merch_child_pub_key.to_vec(),
             merch_disp_pk: merch_dispute_key.to_vec(),
             rev_lock: FixedSizeArray32([0u8; 32]),
         };
@@ -1092,6 +1098,9 @@ pub struct MerchantMPCState {
     payout_sk: FixedSizeArray32,
     // for payout pub key
     pub payout_pk: secp256k1::PublicKey,
+    // for cpfp output
+    child_sk: FixedSizeArray32,
+    pub child_pk: secp256k1::PublicKey,
     dispute_sk: FixedSizeArray32,
     // for dispute pub key
     pub dispute_pk: secp256k1::PublicKey,
@@ -1131,17 +1140,25 @@ impl MerchantMPCState {
         channel.set_key_com(key_com);
 
         let mut _payout_sk = [0u8; 32];
+        let mut _child_sk = [0u8; 32];
         let mut _dispute_sk = [0u8; 32];
         csprng.fill_bytes(&mut _payout_sk);
+        csprng.fill_bytes(&mut _child_sk);
         csprng.fill_bytes(&mut _dispute_sk);
 
         let payout_sk = secp256k1::SecretKey::from_slice(&_payout_sk).unwrap();
+        let child_sk = secp256k1::SecretKey::from_slice(&_child_sk).unwrap();
         let dispute_sk = secp256k1::SecretKey::from_slice(&_dispute_sk).unwrap();
 
         let payout_pub_key = secp256k1::PublicKey::from_secret_key(&secp, &payout_sk);
+        let child_pub_key = secp256k1::PublicKey::from_secret_key(&secp, &child_sk);
         let dispute_pub_key = secp256k1::PublicKey::from_secret_key(&secp, &dispute_sk);
 
-        channel.set_merchant_public_keys(payout_pub_key, dispute_pub_key);
+        channel.set_merchant_public_keys(
+            payout_pub_key.clone(),
+            child_pub_key.clone(),
+            dispute_pub_key.clone(),
+        );
 
         MerchantMPCState {
             id: id.clone(),
@@ -1151,6 +1168,8 @@ impl MerchantMPCState {
             hmac_key_r: FixedSizeArray16(key_com_r),
             payout_sk: FixedSizeArray32(_payout_sk),
             payout_pk: payout_pub_key,
+            child_sk: FixedSizeArray32(_child_sk),
+            child_pk: child_pub_key,
             dispute_sk: FixedSizeArray32(_dispute_sk),
             dispute_pk: dispute_pub_key,
             channel_status_map: HashMap::new(),
@@ -1167,20 +1186,23 @@ impl MerchantMPCState {
         channel: &mut ChannelMPCState,
         merch_sk: [u8; 32],
         pay_sk: [u8; 32],
+        child_sk: [u8; 32],
         disp_sk: [u8; 32],
     ) -> Result<(), String> {
         let secp = secp256k1::Secp256k1::new();
 
         let sk_m = handle_error_util!(secp256k1::SecretKey::from_slice(&merch_sk));
         let payout_sk = handle_error_util!(secp256k1::SecretKey::from_slice(&pay_sk));
+        let cpfp_sk = handle_error_util!(secp256k1::SecretKey::from_slice(&child_sk));
         let dispute_sk = handle_error_util!(secp256k1::SecretKey::from_slice(&disp_sk));
 
         let pk_m = secp256k1::PublicKey::from_secret_key(&secp, &sk_m);
         let payout_pk = secp256k1::PublicKey::from_secret_key(&secp, &payout_sk);
+        let child_pk = secp256k1::PublicKey::from_secret_key(&secp, &cpfp_sk);
         let dispute_pk = secp256k1::PublicKey::from_secret_key(&secp, &dispute_sk);
 
         // update channel state accordingly
-        channel.set_merchant_public_keys(payout_pk.clone(), dispute_pk.clone());
+        channel.set_merchant_public_keys(payout_pk.clone(), child_pk.clone(), dispute_pk.clone());
 
         // merch-pk
         self.sk_m = FixedSizeArray32(merch_sk);
@@ -1188,6 +1210,9 @@ impl MerchantMPCState {
         // closing pub key
         self.payout_sk = FixedSizeArray32(pay_sk);
         self.payout_pk = payout_pk;
+        // child pub key for cpfp
+        self.child_sk = FixedSizeArray32(child_sk);
+        self.child_pk = child_pk;
         // dispute pub key
         self.dispute_sk = FixedSizeArray32(disp_sk);
         self.dispute_pk = dispute_pk;
@@ -1495,6 +1520,7 @@ impl MerchantMPCState {
             cust_pk: cust_pk.clone(),
             merch_pk: self.pk_m.serialize().to_vec(),
             merch_close_pk: self.payout_pk.serialize().to_vec(),
+            merch_child_pk: self.child_pk.serialize().to_vec(),
             merch_disp_pk: self.dispute_pk.serialize().to_vec(),
             cust_close_pk: cust_close_pk.clone(),
             rev_lock: FixedSizeArray32(rev_lock),
@@ -1581,6 +1607,7 @@ impl MerchantMPCState {
         let cust_pk = handle_error_util!(hex::decode(&m.cust_pk));
         let merch_pk = self.pk_m.serialize().to_vec();
         let merch_close_pk = self.payout_pk.serialize().to_vec();
+        let merch_child_pk = self.child_pk.serialize().to_vec();
         let t = handle_error_util!(hex::decode(&m.self_delay));
         let mut to_self_delay = [0u8; 2];
         to_self_delay.copy_from_slice(t.as_slice());
@@ -1592,6 +1619,7 @@ impl MerchantMPCState {
             cust_pk,
             merch_pk,
             merch_close_pk,
+            merch_child_pk,
             m.bc,
             m.bm,
             m.fee_mc,
@@ -1829,13 +1857,13 @@ impl MerchantMPCState {
         );
 
         // store the rev_lock_com => (pt_mask_bytes, escrow_mask_bytes, merch_mask_bytes)
-        //        println!("=================================================================");
-        //        println!("merchant pt_mask: {:?}", hex::encode(&pay_mask_bytes));
-        //        println!("merchant escrow_mask: {:?}", hex::encode(&escrow_mask_bytes));
-        //        println!("merchant merch_mask: {:?}", hex::encode(&merch_mask_bytes));
-        //        println!("merchant r_escrow_sig: {:?}", hex::encode(&r_esc));
-        //        println!("merchant r_merch_sig: {:?}", hex::encode(&r_merch));
-        //        println!("=================================================================");
+        //    println!("=================================================================");
+        //    println!("merchant pt_mask: {:?}", hex::encode(&pay_mask_bytes));
+        //    println!("merchant escrow_mask: {:?}", hex::encode(&escrow_mask_bytes));
+        //    println!("merchant merch_mask: {:?}", hex::encode(&merch_mask_bytes));
+        //    println!("merchant r_escrow_sig: {:?}", hex::encode(&r_esc));
+        //    println!("merchant r_merch_sig: {:?}", hex::encode(&r_merch));
+        //    println!("=================================================================");
 
         let mask_bytes = MaskedMPCInputs {
             pt_mask: FixedSizeArray32(pay_mask_bytes),
@@ -2074,18 +2102,18 @@ mod tests {
         //assert!(!mask_bytes.is_none());
 
         let mut pt_mask = [0u8; 32];
-        pt_mask.copy_from_slice(hex::decode("142ce9bf56c107f0eb082c751e94c43f7e96bbc96ef378073ac8061200ca7909").unwrap().as_slice());
+        pt_mask.copy_from_slice(hex::decode("37a5641c56c647dcfc8224f8327eca3fe129be06162a29e40d67c638c9b59154").unwrap().as_slice());
         let mut pt_mask_r = [0u8; 16];
-        pt_mask_r.copy_from_slice(hex::decode("37a5641c56c647dcfc8224f8327eca3f").unwrap().as_slice());
+        pt_mask_r.copy_from_slice(hex::decode("9b6f97a36598430eaf68b6052daa50dc").unwrap().as_slice());
 
         let mut escrow_mask = [0u8; 32];
-        escrow_mask.copy_from_slice(hex::decode("8beda3c4cac531d6b33c746052f32c39498e38e251187fba093a2f7b5de0c725").unwrap().as_slice());
+        escrow_mask.copy_from_slice(hex::decode("6a68ab03de4554418fc0a943af057659d3dec60180115fe2fc18ffefd1234d06").unwrap().as_slice());
         let mut merch_mask = [0u8; 32];
-        merch_mask.copy_from_slice(hex::decode("e129be06162a29e40d67c638c9b591549b6f97a36598430eaf68b6052daa50dc").unwrap().as_slice());
+        merch_mask.copy_from_slice(hex::decode("8beda3c4cac531d6b33c746052f32c39498e38e251187fba093a2f7b5de0c725").unwrap().as_slice());
         let mut r_escrow_sig = [0u8; 32];
-        r_escrow_sig.copy_from_slice(hex::decode("073ab5239d02e596408d9e025c5c586ed6cd4779a23ab41901317833d6d1aec2").unwrap().as_slice());
+        r_escrow_sig.copy_from_slice(hex::decode("4c238531af51de9aedf6f6c896226c49252febe3494afd7ac307560405b7576d").unwrap().as_slice());
         let mut r_merch_sig = [0u8; 32];
-        r_merch_sig.copy_from_slice(hex::decode("aac4f29a8a958f846509f07610030da10f5f46d791c8c90bfd8d17a88a7d5c48").unwrap().as_slice());
+        r_merch_sig.copy_from_slice(hex::decode("073ab5239d02e596408d9e025c5c586ed6cd4779a23ab41901317833d6d1aec2").unwrap().as_slice());
 
         let mask_bytes = Some(MaskedMPCInputs {
             pt_mask: FixedSizeArray32(pt_mask),
@@ -2322,9 +2350,10 @@ mod tests {
 
         let merch_sk = [1u8; 32];
         let pay_sk = [2u8; 32];
-        let disp_sk = [3u8; 32];
+        let child_sk = [3u8; 32];
+        let disp_sk = [4u8; 32];
         merch_state
-            .load_external_wallet(&mut channel_state, merch_sk, pay_sk, disp_sk)
+            .load_external_wallet(&mut channel_state, merch_sk, pay_sk, child_sk, disp_sk)
             .unwrap();
 
         let mut db = RedisDatabase::new("test1", merch_state.db_url.clone()).unwrap();

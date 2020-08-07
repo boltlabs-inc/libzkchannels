@@ -52,6 +52,7 @@ type ChannelState struct {
 	Name           string  `json:"name"`
 	ThirdParty     bool    `json:"third_party"`
 	MerchPayOutPk  *string `json:"merch_payout_pk"`
+	MerchChildPk   *string `json:"merch_child_pk"`
 	MerchDisputePk *string `json:"merch_dispute_pk"`
 	SelfDelay      uint16  `json:"self_delay"`
 }
@@ -64,6 +65,8 @@ type MerchState struct {
 	HmacKeyR         string                  `json:"hmac_key_r"`
 	PayoutSk         *string                 `json:"payout_sk"`
 	PayoutPk         *string                 `json:"payout_pk"`
+	ChildSk          *string                 `json:"child_sk"`
+	ChildPk          *string                 `json:"child_pk"`
 	DisputeSk        *string                 `json:"dispute_sk"`
 	DisputePk        *string                 `json:"dispute_pk"`
 	ChannelStatusMap *map[string]interface{} `json:"channel_status_map"`
@@ -218,7 +221,7 @@ func InitMerchant(dbUrl string, channelState ChannelState, name string) (Channel
 	return channelState, merchState, err
 }
 
-func LoadMerchantWallet(merchState MerchState, channelState ChannelState, skC string, payoutSk string, disputeSk string) (ChannelState, MerchState, error) {
+func LoadMerchantWallet(merchState MerchState, channelState ChannelState, skC string, payoutSk string, childSk string, disputeSk string) (ChannelState, MerchState, error) {
 	serMerchState, err := json.Marshal(merchState)
 	if err != nil {
 		return ChannelState{}, MerchState{}, err
@@ -229,7 +232,7 @@ func LoadMerchantWallet(merchState MerchState, channelState ChannelState, skC st
 		return ChannelState{}, MerchState{}, err
 	}
 
-	resp := C.GoString(C.mpc_load_merchant_wallet(C.CString(string(serMerchState)), C.CString(string(serChannelState)), C.CString(skC), C.CString(payoutSk), C.CString(disputeSk)))
+	resp := C.GoString(C.mpc_load_merchant_wallet(C.CString(string(serMerchState)), C.CString(string(serChannelState)), C.CString(skC), C.CString(payoutSk), C.CString(childSk), C.CString(disputeSk)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return ChannelState{}, MerchState{}, err
@@ -331,9 +334,9 @@ func SignEscrowTx(txid string, index uint32, custInputSk string, inputAmt int64,
 	return r.SignedTx, r.TxIdBe, r.TxIdLe, r.HashPrevOut, err
 }
 
-func FormMerchCloseTx(escrowTxId_LE string, custPk string, merchPk string, merchClosePk string, custBal int64, merchBal int64, feeMC int64, valCpfp int64, toSelfDelay string) (string, error) {
+func FormMerchCloseTx(escrowTxId_LE string, custPk string, merchPk string, merchClosePk string, merchChildPk string, custBal int64, merchBal int64, feeMC int64, valCpfp int64, toSelfDelay string) (string, error) {
 	resp := C.GoString(C.form_merch_close_transaction(C.CString(escrowTxId_LE), C.CString(custPk), C.CString(merchPk),
-		C.CString(merchClosePk), C.int64_t(custBal), C.int64_t(merchBal), C.int64_t(feeMC), C.int64_t(valCpfp), C.CString(toSelfDelay)))
+		C.CString(merchClosePk), C.CString(merchChildPk), C.int64_t(custBal), C.int64_t(merchBal), C.int64_t(feeMC), C.int64_t(valCpfp), C.CString(toSelfDelay)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", err
@@ -1012,6 +1015,17 @@ func MerchantSignMutualCloseTx(txid_LE string, index uint32, inputAmount int64, 
 	// call customer sign mutual close tx
 	resp := C.GoString(C.merch_sign_mutual_close_tx(C.CString(txid_LE), C.uint(index), C.int64_t(inputAmount), C.int64_t(custAmount), C.int64_t(merchAmount), C.CString(merchClosePk),
 		C.CString(custClosePk), C.CString(merchPk), C.CString(custPk), C.CString(custSig), C.CString(merchSk)))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return "", "", err
+	}
+
+	return r.SignedTx, r.TxIdLe, err
+}
+
+func CreateChildTx(txid_LE string, index uint32, inputAmount int64, outputAmount int64, outputPk string, theSk string) (string, string, error) {
+	// call create child transaction
+	resp := C.GoString(C.create_child_tx(C.CString(txid_LE), C.uint(index), C.int64_t(inputAmount), C.int64_t(outputAmount), C.CString(outputPk), C.CString(theSk)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", "", err

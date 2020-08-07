@@ -90,6 +90,13 @@ typedef struct {
 
 typedef Receive_return (*cb_receive)(void *arg1);
 
+char *create_child_tx(char *ser_tx_index,
+                      uint32_t index,
+                      int64_t input_amount,
+                      int64_t output_amount,
+                      char *ser_output_pk,
+                      char *ser_sk);
+
 char *cust_change_channel_status_to_confirmed_close(char *ser_cust_state);
 
 char *cust_change_channel_status_to_open(char *ser_cust_state);
@@ -317,6 +324,7 @@ char *form_merch_close_transaction(char *ser_escrow_txid,
                                    char *ser_cust_pk,
                                    char *ser_merch_pk,
                                    char *ser_merch_close_pk,
+                                   char *ser_merch_child_pk,
                                    int64_t cust_bal_sats,
                                    int64_t merch_bal_sats,
                                    int64_t fee_mc,
@@ -464,6 +472,7 @@ char *mpc_load_merchant_wallet(char *ser_merch_state,
                                char *ser_channel_state,
                                char *ser_sk_m,
                                char *ser_payout_sk,
+                               char *ser_child_sk,
                                char *ser_dispute_sk);
 
 char *mpc_pay_unmask_pay_token_customer(char *ser_pt_mask_bytes,

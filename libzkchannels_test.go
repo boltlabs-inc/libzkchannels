@@ -77,8 +77,9 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 
 	skM := "e6e0c5310bb03809e1b2a1595a349f002125fa557d481e51f401ddaf3287e6ae"
 	payoutSkM := "5611111111111111111111111111111100000000000000000000000000000000"
+	childSkM := "5811111111111111111111111111111100000000000000000000000000000000"
 	disputeSkM := "5711111111111111111111111111111100000000000000000000000000000000"
-	channelState, merchState, err = LoadMerchantWallet(merchState, channelState, skM, payoutSkM, disputeSkM)
+	channelState, merchState, err = LoadMerchantWallet(merchState, channelState, skM, payoutSkM, childSkM, disputeSkM)
 	assert.Nil(t, err)
 
 	custBal := int64(1000000)
@@ -141,6 +142,8 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	MerchDisputeFirstCustCloseFromMerchTxFile := ""
 	MerchClaimFromMerchCloseTxFile := ""
 	MutualCloseTxFile := ""
+	SignSeparateClaimChildOutputTxFile := ""
+
 	save_tx_file := os.Getenv("UTXO_SAVE_TX")
 	if save_tx_file == "yes" {
 		index := cust_utxo_index
@@ -176,6 +179,8 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 		MerchClaimFromMerchCloseTxFile = fmt.Sprintf("signed_merch_claim_merch_close_tx_%d.txt", index)
 		// stores mutual close tx for most recent balance of the channel
 		MutualCloseTxFile = fmt.Sprintf("signed_mutual_close_tx_%d.txt", index)
+		// stores claim tx for cpfp output in cust-close-tx
+		SignSeparateClaimChildOutputTxFile = fmt.Sprintf("signed_child_tx_output_%d.txt", index)
 	}
 
 	custSk := fmt.Sprintf("%v", custState.SkC)
@@ -186,6 +191,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	changePk := "037bed6ab680a171ef2ab564af25eff15c0659313df0bbfb96414da7c7d1e65882"
 
 	merchClosePk := fmt.Sprintf("%v", *merchState.PayoutPk)
+	merchChildPk := fmt.Sprintf("%v", *merchState.ChildPk)
 	merchDispPk := fmt.Sprintf("%v", *merchState.DisputePk)
 	// toSelfDelay := "05cf" // 1487 blocks
 	toSelfDelay, err := GetSelfDelayBE(channelState)
@@ -197,6 +203,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("merchSk :=> ", merchSk)
 	fmt.Println("merchPk :=> ", merchPk)
 	fmt.Println("merchClosePk :=> ", merchClosePk)
+	fmt.Println("merchChildPk :=> ", merchChildPk)
 
 	outputSats := custBal + merchBal
 	// escrowTxid_BE, escrowTxid_LE, escrowPrevout, err := FormEscrowTx(cust_utxo_txid, 0, custSk, inputSats, outputSats, custPk, merchPk, changePk, false)
@@ -212,7 +219,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("TX1: signedEscrowTx => ", signedEscrowTx)
 	fmt.Println("========================================")
 
-	merchTxPreimage, err := FormMerchCloseTx(escrowTxid_LE, custPk, merchPk, merchClosePk, custBal, merchBal, feeMC, txFeeInfo.ValCpFp, toSelfDelay)
+	merchTxPreimage, err := FormMerchCloseTx(escrowTxid_LE, custPk, merchPk, merchClosePk, merchChildPk, custBal, merchBal, feeMC, txFeeInfo.ValCpFp, toSelfDelay)
 	assert.Nil(t, err)
 
 	fmt.Println("merch TxPreimage => ", merchTxPreimage)
@@ -228,6 +235,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 
 	if !isOk {
 		t.Error("FAILED to verify the cust signature on merch-close-tx", err)
+		return
 	}
 
 	txInfo := FundingTxInfo{
@@ -241,6 +249,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 
 	fmt.Println("RevLock => ", custState.RevLock)
 
+	custCloseSk := fmt.Sprintf("%v", custState.PayoutSk)
 	custClosePk := custState.PayoutPk
 	escrowSig, merchSig, err := MerchantSignInitCustCloseTx(txInfo, custState.RevLock, custState.PkC, custClosePk, toSelfDelay, merchState, feeCC, feeMC, valCpfp)
 	assert.Nil(t, err)
@@ -251,6 +260,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	isOk, channelToken, custState, err = CustomerVerifyInitCustCloseTx(txInfo, txFeeInfo, channelState, channelToken, escrowSig, merchSig, custState)
 	if !isOk {
 		t.Error("FAILED to verify the merch signatures on init cust-close-tx", err)
+		return
 	}
 	assert.Nil(t, err)
 
@@ -465,6 +475,21 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 		SignedMerchDisputeTx2, _, err := MerchantSignDisputeTx(escrowTxid_LE, CloseMerchTxId_TX3, index, claimAmount, claimOutAmount, toSelfDelay, outputPk, revState.RevLock, FoundRevSecret, custClosePk, merchState)
 		assert.Nil(t, err)
 		WriteToFile(MerchDisputeFirstCustCloseFromMerchTxFile, SignedMerchDisputeTx2)
+	}
+
+	{
+		// claim the cpfp output from final cust close from escrow tx
+		index := uint32(3)
+		inputAmount := valCpfp
+		outputAmount := valCpfp - 100
+		SignedChildTx, txid, err := CreateChildTx(CloseEscrowTxId_LE, index, inputAmount, outputAmount, outputPk, custCloseSk)
+
+		assert.Nil(t, err)
+		//fmt.Println("Signed child tx: ", SignedChildTx)
+		fmt.Println("Signed child tx txid: ", txid)
+		WriteToFile(SignSeparateClaimChildOutputTxFile, SignedChildTx)
+
+		// TODO: bump fee - claim the cpfp output + combine with another utxo to confirm parent transaction on chain
 	}
 
 	// Merchant can claim tx output from merch-close-tx after timeout

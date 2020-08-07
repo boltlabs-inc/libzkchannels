@@ -858,6 +858,12 @@ mod tests {
         )
         .unwrap();
 
+        let merch_child_pub_key = secp256k1::PublicKey::from_slice(
+            hex::decode("03e9e77514212c68df25a35840eceba9d2a68359d46903a224b07d66b55ffc77d8")
+                .unwrap()
+                .as_slice(),
+        )
+        .unwrap();
         let nc = NetworkConfig {
             conn_type: ConnType_NETIO,
             path: String::from("127.0.0.1"),
@@ -957,6 +963,7 @@ mod tests {
             cust_close_pk: cust_payout_pub_key.serialize().to_vec(),
             merch_pk: merch_escrow_pub_key.serialize().to_vec(),
             merch_close_pk: merch_payout_pub_key.serialize().to_vec(),
+            merch_child_pk: merch_child_pub_key.serialize().to_vec(),
             merch_disp_pk: merch_dispute_key.serialize().to_vec(),
             rev_lock: FixedSizeArray32([0u8; 32]),
         };

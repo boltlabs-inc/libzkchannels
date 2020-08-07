@@ -2457,11 +2457,11 @@ mod tests {
         println!("pt_mask_r => {}", hex::encode(&pay_token_mask_r));
         assert_eq!(
             hex::encode(pay_token_mask),
-            "6cd32e3254e7adaf3e742870ecab92aee1b863eabe75342a427d8e1954787822"
+            "4a682bd5d46e3b5c7c6c353636086ed7a943895982cb43deba0a8843459500e4"
         );
         assert_eq!(
             hex::encode(pay_token_mask_r),
-            "4a682bd5d46e3b5c7c6c353636086ed7"
+            "671687f7cecc583745cd86342ddcccd4"
         );
         // db.clear_state();
     }
@@ -2545,13 +2545,13 @@ mod tests {
             assert!(res_cust.is_ok() && res_cust.unwrap());
 
             let mut escrow_mask = [0u8; 32];
-            escrow_mask.copy_from_slice(hex::decode("fddc371be95df8ea164916e88dcd895a1522fcff163fc3d70182c78d91d33699").unwrap().as_slice());
+            escrow_mask.copy_from_slice(hex::decode("28a6c48749023149e45657f824b8d2d710b18575a3d667b4bd56c5f6d9c394b4").unwrap().as_slice());
             let mut merch_mask = [0u8; 32];
-            merch_mask.copy_from_slice(hex::decode("a943895982cb43deba0a8843459500e4671687f7cecc583745cd86342ddcccd4").unwrap().as_slice());
+            merch_mask.copy_from_slice(hex::decode("fddc371be95df8ea164916e88dcd895a1522fcff163fc3d70182c78d91d33699").unwrap().as_slice());
             let mut r_escrow_sig = [0u8; 32];
-            r_escrow_sig.copy_from_slice(hex::decode("c1270ef7f78f7f8f208eb28da447d2e5820c9b7b9e37aee7f2f60af454d7ca31").unwrap().as_slice());
+            r_escrow_sig.copy_from_slice(hex::decode("e9b5a76742e28c1c5a2efb071abb5b37e62756ee0f02cc45ac79b3a5ed3bb824").unwrap().as_slice());
             let mut r_merch_sig = [0u8; 32];
-            r_merch_sig.copy_from_slice(hex::decode("4bdedb34faa1b5374e86d5276cbb6fe31449252e3e959ff86a8506944d8d29d2").unwrap().as_slice());
+            r_merch_sig.copy_from_slice(hex::decode("c1270ef7f78f7f8f208eb28da447d2e5820c9b7b9e37aee7f2f60af454d7ca31").unwrap().as_slice());
 
             let masks = MaskedTxMPCInputs::new(
                 escrow_mask,
@@ -2564,9 +2564,9 @@ mod tests {
             assert!(is_ok.is_ok(), is_ok.err().unwrap());
 
             let mut pt_mask = [0u8; 32];
-            pt_mask.copy_from_slice(hex::decode("6cd32e3254e7adaf3e742870ecab92aee1b863eabe75342a427d8e1954787822").unwrap().as_slice());
+            pt_mask.copy_from_slice(hex::decode("4a682bd5d46e3b5c7c6c353636086ed7a943895982cb43deba0a8843459500e4").unwrap().as_slice());
             let mut pt_mask_r = [0u8; 16];
-            pt_mask_r.copy_from_slice(hex::decode("4a682bd5d46e3b5c7c6c353636086ed7").unwrap().as_slice());
+            pt_mask_r.copy_from_slice(hex::decode("671687f7cecc583745cd86342ddcccd4").unwrap().as_slice());
 
             let is_ok = mpc::pay_unmask_pay_token_customer(pt_mask, pt_mask_r, &mut cust_state).unwrap();
             assert!(is_ok);
@@ -2640,6 +2640,7 @@ mod tests {
                 pubkeys.cust_pk.clone(),
                 pubkeys.merch_pk.clone(),
                 pubkeys.merch_close_pk.clone(),
+                pubkeys.merch_child_pk.clone(),
                 cust_bal,
                 merch_bal,
                 fee_mc,

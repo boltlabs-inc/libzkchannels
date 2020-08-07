@@ -694,12 +694,14 @@ mod cust {
         let cust_bal = cust_state.cust_balance;
         let merch_bal = cust_state.merch_balance;
         let merch_close_pk = channel_state.merch_payout_pk.unwrap().serialize().to_vec();
+        let merch_child_pk = channel_state.merch_child_pk.unwrap().serialize().to_vec();
         let (merch_tx_preimage, _) =
             handle_error_result!(merchant_form_close_transaction::<Testnet>(
                 escrow_txid_be.to_vec(),
                 cust_pk.clone(),
                 merch_pk.clone(),
                 merch_close_pk,
+                merch_child_pk,
                 cust_bal,
                 merch_bal,
                 tx_fee_info.fee_mc,
@@ -1164,6 +1166,7 @@ mod merch {
 
         let merch_pk = merch_state.pk_m.serialize().to_vec();
         let merch_close_pk = merch_state.payout_pk.serialize().to_vec();
+        let merch_child_pk = merch_state.child_pk.serialize().to_vec();
 
         let cust_bal = init_cust_state.cust_bal;
         let merch_bal = init_cust_state.merch_bal;
@@ -1175,6 +1178,7 @@ mod merch {
                 cust_pk.clone(),
                 merch_pk,
                 merch_close_pk,
+                merch_child_pk,
                 cust_bal,
                 merch_bal,
                 tx_fee_info.fee_mc,

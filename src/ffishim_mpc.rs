@@ -177,6 +177,7 @@ pub mod ffishim_mpc {
         ser_channel_state: *mut c_char,
         ser_sk_m: *mut c_char,
         ser_payout_sk: *mut c_char,
+        ser_child_sk: *mut c_char,
         ser_dispute_sk: *mut c_char,
     ) -> *mut c_char {
         // Deserialize the merch_state
@@ -201,6 +202,12 @@ pub mod ffishim_mpc {
         let mut payout_sk = [0u8; 32];
         payout_sk.copy_from_slice(psk_buf.as_slice());
 
+        let csk = deserialize_hex_string(ser_child_sk);
+        let csk_buf = handle_errors!(csk);
+        check_vec_length!(csk_buf, 32);
+        let mut child_sk = [0u8; 32];
+        child_sk.copy_from_slice(csk_buf.as_slice());
+
         let dsk = deserialize_hex_string(ser_dispute_sk);
         let dsk_buf = handle_errors!(dsk);
         check_vec_length!(dsk_buf, 32);
@@ -211,6 +218,7 @@ pub mod ffishim_mpc {
             &mut channel_state,
             merch_sk,
             payout_sk,
+            child_sk,
             dispute_sk
         ));
         let ser = [
@@ -1388,6 +1396,7 @@ pub mod ffishim_mpc {
         ser_cust_pk: *mut c_char,
         ser_merch_pk: *mut c_char,
         ser_merch_close_pk: *mut c_char,
+        ser_merch_child_pk: *mut c_char,
         cust_bal_sats: i64,
         merch_bal_sats: i64,
         fee_mc: i64,
@@ -1407,6 +1416,9 @@ pub mod ffishim_mpc {
         let merch_close_pk_result = deserialize_hex_string(ser_merch_close_pk);
         let merch_close_pk = handle_errors!(merch_close_pk_result);
 
+        let merch_child_pk_result = deserialize_hex_string(ser_merch_child_pk);
+        let merch_child_pk = handle_errors!(merch_child_pk_result);
+
         let self_delay_result = deserialize_hex_string(ser_self_delay);
         let self_delay = handle_errors!(self_delay_result);
         check_vec_length!(self_delay, 2);
@@ -1419,6 +1431,7 @@ pub mod ffishim_mpc {
                 cust_pk,
                 merch_pk,
                 merch_close_pk,
+                merch_child_pk,
                 cust_bal_sats,
                 merch_bal_sats,
                 fee_mc,
@@ -1494,6 +1507,7 @@ pub mod ffishim_mpc {
         let mut merch_state = handle_errors!(merch_state_result);
 
         let merch_pk = merch_state.pk_m.serialize().to_vec();
+        let merch_child_pk = merch_state.child_pk.serialize().to_vec();
         let merch_close_pk = merch_state.payout_pk.serialize().to_vec();
 
         let (merch_tx_preimage, tx_params) = handle_errors!(
@@ -1502,6 +1516,7 @@ pub mod ffishim_mpc {
                 cust_pk.clone(),
                 merch_pk,
                 merch_close_pk,
+                merch_child_pk,
                 cust_bal_sats,
                 merch_bal_sats,
                 fee_mc,
@@ -2056,6 +2071,44 @@ pub mod ffishim_mpc {
                 &cust_sig,
                 &merch_escrow_sk,
             ));
+        let ser = [
+            "{\'signed_tx\': \'",
+            &hex::encode(signed_tx),
+            "\', \'txid_le\':\'",
+            &hex::encode(txid),
+            "\'}",
+        ]
+        .concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern "C" fn create_child_tx(
+        ser_tx_index: *mut c_char,
+        index: u32,
+        input_amount: i64,
+        output_amount: i64,
+        ser_output_pk: *mut c_char,
+        ser_sk: *mut c_char,
+    ) -> *mut c_char {
+        let txid_result = deserialize_hex_string(ser_tx_index);
+        let txid_le = handle_errors!(txid_result);
+
+        let output_pk_result = deserialize_hex_string(ser_output_pk);
+        let output_pk = handle_errors!(output_pk_result);
+
+        let sk_result = deserialize_hex_string(ser_sk);
+        let sk = handle_errors!(sk_result);
+
+        let (signed_tx, txid) = handle_errors!(zkchan_tx::txutil::create_child_transaction(
+            txid_le,
+            index,
+            input_amount,
+            output_amount,
+            &output_pk,
+            &sk
+        ));
         let ser = [
             "{\'signed_tx\': \'",
             &hex::encode(signed_tx),
