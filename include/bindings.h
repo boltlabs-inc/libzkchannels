@@ -97,6 +97,17 @@ char *create_child_tx(char *ser_tx_index,
                       char *ser_output_pk,
                       char *ser_sk);
 
+char *create_child_tx_to_bump_fee_via_p2wpkh_input(char *ser_tx_index1,
+                                                   uint32_t index1,
+                                                   int64_t input_amount1,
+                                                   char *ser_sk1,
+                                                   char *ser_tx_index2,
+                                                   uint32_t index2,
+                                                   int64_t input_amount2,
+                                                   char *ser_sk2,
+                                                   int64_t tx_fee,
+                                                   char *ser_output_pk);
+
 char *cust_change_channel_status_to_confirmed_close(char *ser_cust_state);
 
 char *cust_change_channel_status_to_open(char *ser_cust_state);

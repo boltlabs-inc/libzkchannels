@@ -143,6 +143,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	MerchClaimFromMerchCloseTxFile := ""
 	MutualCloseTxFile := ""
 	SignSeparateClaimChildOutputTxFile := ""
+	SignBumpFeeChildTxFile := ""
 
 	save_tx_file := os.Getenv("UTXO_SAVE_TX")
 	if save_tx_file == "yes" {
@@ -181,14 +182,17 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 		MutualCloseTxFile = fmt.Sprintf("signed_mutual_close_tx_%d.txt", index)
 		// stores claim tx for cpfp output in cust-close-tx
 		SignSeparateClaimChildOutputTxFile = fmt.Sprintf("signed_child_tx_output_%d.txt", index)
+		// store child tx that bumps fee via cpfp + p2wpkh utxo input
+		SignBumpFeeChildTxFile = fmt.Sprintf("signed_bump_fee_child_tx_p2wpkh_%d.txt", index)
 	}
 
 	custSk := fmt.Sprintf("%v", custState.SkC)
 	custPk := fmt.Sprintf("%v", custState.PkC)
 	merchSk := fmt.Sprintf("%v", *merchState.SkM)
 	merchPk := fmt.Sprintf("%v", *merchState.PkM)
-	// changeSk := "4157697b6428532758a9d0f9a73ce58befe3fd665797427d1c5bb3d33f6a132e"
-	changePk := "037bed6ab680a171ef2ab564af25eff15c0659313df0bbfb96414da7c7d1e65882"
+
+	changeSk := "8c5f4b5be9b71eb9c93e9e805b39d445b8fc6c5f8bf6ebecedef9a45ee150b44"
+	changePk := "0376dbe15da5257bfc94c37a8af793e022f01a6d981263a73defe292a564c691d2"
 
 	merchClosePk := fmt.Sprintf("%v", *merchState.PayoutPk)
 	merchChildPk := fmt.Sprintf("%v", *merchState.ChildPk)
@@ -206,7 +210,6 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	fmt.Println("merchChildPk :=> ", merchChildPk)
 
 	outputSats := custBal + merchBal
-	// escrowTxid_BE, escrowTxid_LE, escrowPrevout, err := FormEscrowTx(cust_utxo_txid, 0, custSk, inputSats, outputSats, custPk, merchPk, changePk, false)
 	txFee := int64(500)
 	signedEscrowTx, escrowTxid_BE, escrowTxid_LE, escrowPrevout, err := SignEscrowTx(cust_utxo_txid, cust_utxo_index, custInputSk, inputSats, outputSats, custPk, merchPk, changePk, false, txFee)
 	WriteToFile(EscrowTxFile, signedEscrowTx)
@@ -489,7 +492,19 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 		fmt.Println("Signed child tx txid: ", txid)
 		WriteToFile(SignSeparateClaimChildOutputTxFile, SignedChildTx)
 
-		// TODO: bump fee - claim the cpfp output + combine with another utxo to confirm parent transaction on chain
+		// bump fee - claim the cpfp output + combine with another utxo to confirm parent transaction on chain
+		txid2_LE := escrowTxid_LE
+		index2 := uint32(1)
+		inputAmount2 := int64(97999500)
+		sk2 := changeSk
+		txFee := int64(5000)
+		finalOutputPk := "034db01f7308e30c4ed380713bc09a70d27f19dbdc40229b36fcfae65e7f186baa"
+		SignedChildTx2, txid2, err := CreateChildTxToBumpFeeViaP2WPKH(CloseEscrowTxId_LE, index, inputAmount, custCloseSk, txid2_LE, index2, inputAmount2, sk2, txFee, finalOutputPk)
+		assert.Nil(t, err)
+		fmt.Println("Signed child tx 2: ", SignedChildTx2)
+		fmt.Println("Signed child tx 2 txid: ", txid2)
+		WriteToFile(SignBumpFeeChildTxFile, SignedChildTx2)
+
 	}
 
 	// Merchant can claim tx output from merch-close-tx after timeout

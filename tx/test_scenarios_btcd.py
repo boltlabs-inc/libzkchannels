@@ -274,7 +274,7 @@ MerchDisputeFirstCustCloseFromMerchTxFile = "txdata_%d/signed_dispute_from_merch
 MerchClaimFromMerchCloseTxFile = "txdata_%d/signed_merch_claim_merch_close_tx_%d.txt"
 MutualCloseTxFile = "txdata_%d/signed_mutual_close_tx_%d.txt"
 SignSeparateClaimChildOutputTxFile = "txdata_%d/signed_child_tx_output_%d.txt"
-
+SignBumpFeeChildTxFile = "txdata_%d/signed_bump_fee_child_tx_p2wpkh_%d.txt"
 PURPLE='\033[0;95m'
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -414,6 +414,21 @@ def run_scenario_test6(network, utxo_index, blocks):
     broadcast_transaction(network, mutual_close_tx, "Mutual Close Tx")
     print("==============================================")
 
+def run_scenario_test7(network, utxo_index, blocks):
+    print("==============================================")
+    log(">> Scenario %s: cust close from escrow without dispute (claim cpfp output + escrow change output)" % utxo_index)
+    escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
+    cust_close_tx = read_file(CustCloseEscrowTxFile % (utxo_index, utxo_index))
+    cust_bump_fee_tx = read_file(SignBumpFeeChildTxFile % (utxo_index, utxo_index))
+    merch_claim_tx = read_file(MerchClaimFromEscrowTxFile % (utxo_index, utxo_index))
+    
+    broadcast_transaction(network, escrow_tx, "Escrow")
+    broadcast_transaction(network, cust_close_tx, "Cust Close from Escrow")
+    broadcast_transaction(network, merch_claim_tx, "Merch claim from Cust Close (to_merchant)")
+    broadcast_transaction(network, cust_bump_fee_tx, "Claim cpfp output in Cust close using Escrow change output")
+    print("==============================================")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output_btc", "-btc", help="amount in btc to pay out to each output", default="1")
@@ -437,7 +452,7 @@ def main():
     miner_privkey = "2222222222222222222222222222222222222222222222222222222222222222"
     coinbase_txid, amount_btc = make_coinbase_utxo_for_sk(miner_privkey, network, skip_restart)
     # print("miner's utxo txid (little Endian) => " + coinbase_txid)
-    tests_to_run = [run_scenario_test1, run_scenario_test2, run_scenario_test3, run_scenario_test4, run_scenario_test5, run_scenario_test6]
+    tests_to_run = [run_scenario_test1, run_scenario_test2, run_scenario_test3, run_scenario_test4, run_scenario_test5, run_scenario_test6, run_scenario_test7]
 
     n_outputs = len(tests_to_run)
 
@@ -448,7 +463,7 @@ def main():
     if verbose: print("init_tx utxo txid (little Endian) => %s" % emphasize(utxo_txid))
 
     output_privkeys_hex = [sk.hex() for sk in output_privkeys]
-    if scenario_index in range(0,6):
+    if scenario_index in range(0, len(tests_to_run)):
         index = 0
         out = run_gowrapper(utxo_txid, index, output_privkeys_hex[index], blocks)
         if verbose: print("\n%s\n", out)

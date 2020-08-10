@@ -1034,6 +1034,22 @@ func CreateChildTx(txid_LE string, index uint32, inputAmount int64, outputAmount
 	return r.SignedTx, r.TxIdLe, err
 }
 
+func CreateChildTxToBumpFeeViaP2WPKH(txid1_LE string, index1 uint32, inputAmount1 int64, sk1 string,
+	txid2_LE string, index2 uint32, inputAmount2 int64, sk2 string,
+	txFee int64, outputPk string) (string, string, error) {
+	// call create child transaction to bump fee via cpfp input and p2wpkh input
+	resp := C.GoString(C.create_child_tx_to_bump_fee_via_p2wpkh_input(
+		C.CString(txid1_LE), C.uint(index1), C.int64_t(inputAmount1), C.CString(sk1),
+		C.CString(txid2_LE), C.uint(index2), C.int64_t(inputAmount2), C.CString(sk2),
+		C.int64_t(txFee), C.CString(outputPk)))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return "", "", err
+	}
+
+	return r.SignedTx, r.TxIdLe, err
+}
+
 func processCResponse(resp string) (*setupResp, error) {
 	resp = cleanJson(resp)
 	r := &setupResp{}
