@@ -96,7 +96,9 @@ def start_bitcoind(network, ignore_fees, auth_user, auth_pass, verbose):
     if ignore_fees:
         out = subprocess.getoutput("bitcoind -{net} -daemon {auth}-deprecatedrpc=generate -fallbackfee=0.0002 -minrelaytxfee=0".format(net=network, auth=auth_creds))
     else: # specify specific minrelay
-        out = subprocess.getoutput("bitcoind -{net} -daemon {auth}-deprecatedrpc=generate -fallbackfee=0.0002".format(net=network, auth=auth_creds))
+        # -blockmaxweight=6000 means the block size will be limited to 2 or 
+        # transactions. This is help simulate a tx being stuck in the mempool
+        out = subprocess.getoutput("bitcoind -{net} -daemon {auth}-deprecatedrpc=generate -fallbackfee=0.0002 -blockmaxweight=6000".format(net=network, auth=auth_creds))
     log("-> bitcoind started")
     time.sleep(2)
     if not check_for_sufficient_funds(network, verbose):
@@ -217,9 +219,9 @@ def run_gowrapper(utxo_txid, utxo_index, utxo_sk, blocks):
     log(">> Generate txs: %s" % cmd)
     return subprocess.getoutput(cmd)
 
-def run_scenario_test1(network, utxo_index, blocks):
+def run_scenario_test0(network, utxo_index, blocks):
     print("==============================================")
-    log(">> Scenario 1: cust close from merch-close without dispute")
+    log(">> Scenario 0: cust close from merch-close without dispute")
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     merch_close_tx = read_file(MerchCloseTxFile % (utxo_index, utxo_index))
     cust_close_tx = read_file(CustCloseFromMerchTxFile % (utxo_index, utxo_index))
@@ -236,9 +238,9 @@ def run_scenario_test1(network, utxo_index, blocks):
     broadcast_transaction(network, merch_claim_tx, "Merch claim from Cust Close (to_merchant)") # can be spent immediately
     print("==============================================")
 
-def run_scenario_test2(network, utxo_index, blocks):
+def run_scenario_test1(network, utxo_index, blocks):
     print("==============================================")
-    log(">> Scenario 2: cust close from escrow without dispute")
+    log(">> Scenario 1: cust close from escrow without dispute")
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     cust_close_tx = read_file(CustCloseEscrowTxFile % (utxo_index, utxo_index))
     cust_claim_tx = read_file(CustClaimFromCustCloseEscrowTxFile % (utxo_index, utxo_index))
@@ -251,9 +253,9 @@ def run_scenario_test2(network, utxo_index, blocks):
     broadcast_transaction(network, merch_claim_tx, "Merch claim from Cust Close (to_merchant)")
     print("==============================================")
 
-def run_scenario_test3(network, utxo_index, blocks):
+def run_scenario_test2(network, utxo_index, blocks):
     print("==============================================")
-    log(">> Scenario 3: cust close from escrow with merch dispute")
+    log(">> Scenario 2: cust close from escrow with merch dispute")
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     first_cust_close_tx = read_file(FirstCustCloseEscrowTxFile % (utxo_index, utxo_index))
     merch_dispute_tx = read_file(MerchDisputeFirstCustCloseTxFile % (utxo_index, utxo_index))
@@ -265,9 +267,9 @@ def run_scenario_test3(network, utxo_index, blocks):
     broadcast_transaction(network, merch_claim_tx, "Merch claim from old Cust Close (to_merchant)")
     print("==============================================")
 
-def run_scenario_test4(network, utxo_index, blocks):
+def run_scenario_test3(network, utxo_index, blocks):
     print("==============================================")
-    log(">> Scenario 4: cust close from merch with merch dispute")
+    log(">> Scenario 3: cust close from merch with merch dispute")
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     merch_close_tx = read_file(MerchCloseTxFile % (utxo_index, utxo_index))
     first_cust_close_tx = read_file(FirstCustCloseMerchTxFile % (utxo_index, utxo_index))
@@ -281,9 +283,9 @@ def run_scenario_test4(network, utxo_index, blocks):
     broadcast_transaction(network, merch_claim_tx, "Merch claim from old Cust Close (to_merchant)")
     print("==============================================")
 
-def run_scenario_test5(network, utxo_index, blocks):
+def run_scenario_test4(network, utxo_index, blocks):
     print("==============================================")
-    log(">> Scenario 5: merch claim from merch close after timelock")
+    log(">> Scenario 4: merch claim from merch close after timelock")
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     merch_close_tx = read_file(MerchCloseTxFile % (utxo_index, utxo_index))
     merch_claim_tx = read_file(MerchClaimFromMerchCloseTxFile % (utxo_index, utxo_index))
@@ -294,9 +296,9 @@ def run_scenario_test5(network, utxo_index, blocks):
     broadcast_transaction(network, merch_claim_tx, "Merch claim from the Merch Close (after timelock)")
     print("==============================================")
 
-def run_scenario_test6(network, utxo_index, blocks):
+def run_scenario_test5(network, utxo_index, blocks):
     print("==============================================")
-    log(">> Scenario 6: mutual close transaction")
+    log(">> Scenario 5: mutual close transaction")
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     mutual_close_tx = read_file(MutualCloseTxFile % (utxo_index, utxo_index))
 

@@ -79,7 +79,7 @@ def make_coinbase_utxo_for_sk(input_sk, network, skip_restart=False):
         # start up btcd in simnet mode with Alice's address as coinbase tx output
         # NOTE: This needs to be run in a separate terminal, otherwise it'll get stuck here
         print("\nExecute this command in a separate terminal\n")
-        print("btcd --txindex --{net} --rpcuser=kek --rpcpass=kek --minrelaytxfee=0 --miningaddr={addr}".format(net=network, addr=miner_p2sh_p2wpkh_address))
+        print("btcd --txindex --{net} --rpcuser=kek --rpcpass=kek --minrelaytxfee=0 --blockmaxweight=6000 --miningaddr={addr}".format(net=network, addr=miner_p2sh_p2wpkh_address))
         input("\nPress Enter to begin scenario testing...")
     else:
         # make sure btcd is running
@@ -324,9 +324,9 @@ def run_gowrapper(utxo_txid, utxo_index, utxo_sk, blocks):
     log(">> DEBUG: %s" % cmd)
     return subprocess.getoutput(cmd)
 
-def run_scenario_test1(network, utxo_index, blocks):
+def run_scenario_test0(network, utxo_index, blocks):
     print("==============================================")
-    log(">> Scenario %s: cust close from merch-close without dispute" % utxo_index)
+    log(">> Scenario 0: cust close from merch-close without dispute")
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     merch_close_tx = read_file(MerchCloseTxFile % (utxo_index, utxo_index))
     cust_close_tx = read_file(CustCloseFromMerchTxFile % (utxo_index, utxo_index))
@@ -343,9 +343,9 @@ def run_scenario_test1(network, utxo_index, blocks):
     broadcast_transaction(network, merch_claim_tx, "Merch claim from Cust Close (to_merchant)") # can be spent immediately
     print("==============================================")
 
-def run_scenario_test2(network, utxo_index, blocks):
+def run_scenario_test1(network, utxo_index, blocks):
     print("==============================================")
-    log(">> Scenario %s: cust close from escrow without dispute" % utxo_index)
+    log(">> Scenario 1: cust close from escrow without dispute")
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     cust_close_tx = read_file(CustCloseEscrowTxFile % (utxo_index, utxo_index))
     cust_claim_tx = read_file(CustClaimFromCustCloseEscrowTxFile % (utxo_index, utxo_index))
@@ -360,9 +360,9 @@ def run_scenario_test2(network, utxo_index, blocks):
     broadcast_transaction(network, cust_claim_cpfp_tx, "Cust claim child output in Cust Close from Escrow (to_cpfp)") # cpfp output can be spent immediately (separate tx)
     print("==============================================")
 
-def run_scenario_test3(network, utxo_index, blocks):
+def run_scenario_test2(network, utxo_index, blocks):
     print("==============================================")
-    log(">> Scenario %s: cust close from escrow with merch dispute" % utxo_index)
+    log(">> Scenario 2: cust close from escrow with merch dispute")
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     first_cust_close_tx = read_file(FirstCustCloseEscrowTxFile % (utxo_index, utxo_index))
     merch_dispute_tx = read_file(MerchDisputeFirstCustCloseTxFile % (utxo_index, utxo_index))
@@ -374,9 +374,9 @@ def run_scenario_test3(network, utxo_index, blocks):
     broadcast_transaction(network, merch_claim_tx, "Merch claim from old Cust Close (to_merchant)")
     print("==============================================")
 
-def run_scenario_test4(network, utxo_index, blocks):
+def run_scenario_test3(network, utxo_index, blocks):
     print("==============================================")
-    log(">> Scenario %s: cust close from merch with merch dispute" % utxo_index)
+    log(">> Scenario 3: cust close from merch with merch dispute")
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     merch_close_tx = read_file(MerchCloseTxFile % (utxo_index, utxo_index))
     first_cust_close_tx = read_file(FirstCustCloseMerchTxFile % (utxo_index, utxo_index))
@@ -390,9 +390,9 @@ def run_scenario_test4(network, utxo_index, blocks):
     broadcast_transaction(network, merch_claim_tx, "Merch claim from old Cust Close (to_merchant)")
     print("==============================================")
 
-def run_scenario_test5(network, utxo_index, blocks):
+def run_scenario_test4(network, utxo_index, blocks):
     print("==============================================")
-    log(">> Scenario %s: merch claim from merch close after timelock" % utxo_index)
+    log(">> Scenario 4: merch claim from merch close after timelock")
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     merch_close_tx = read_file(MerchCloseTxFile % (utxo_index, utxo_index))
     merch_claim_tx = read_file(MerchClaimFromMerchCloseTxFile % (utxo_index, utxo_index))
@@ -403,9 +403,9 @@ def run_scenario_test5(network, utxo_index, blocks):
     broadcast_transaction(network, merch_claim_tx, "Merch claim from the Merch Close (after timelock)")
     print("==============================================")
 
-def run_scenario_test6(network, utxo_index, blocks):
+def run_scenario_test5(network, utxo_index, blocks):
     print("==============================================")
-    log(">> Scenario %s: mutual close tx" % utxo_index)
+    log(">> Scenario 5: mutual close tx")
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     mutual_close_tx = read_file(MutualCloseTxFile % (utxo_index, utxo_index))
 
@@ -414,9 +414,9 @@ def run_scenario_test6(network, utxo_index, blocks):
     broadcast_transaction(network, mutual_close_tx, "Mutual Close Tx")
     print("==============================================")
 
-def run_scenario_test7(network, utxo_index, blocks):
+def run_scenario_test6(network, utxo_index, blocks):
     print("==============================================")
-    log(">> Scenario %s: cust close from escrow without dispute (claim cpfp output + escrow change output)" % utxo_index)
+    log(">> Scenario 6: cust close from escrow without dispute (claim cpfp output + escrow change output)")
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     cust_close_tx = read_file(CustCloseEscrowTxFile % (utxo_index, utxo_index))
     cust_bump_fee_tx = read_file(SignBumpFeeChildTxFile % (utxo_index, utxo_index))
@@ -452,7 +452,7 @@ def main():
     miner_privkey = "2222222222222222222222222222222222222222222222222222222222222222"
     coinbase_txid, amount_btc = make_coinbase_utxo_for_sk(miner_privkey, network, skip_restart)
     # print("miner's utxo txid (little Endian) => " + coinbase_txid)
-    tests_to_run = [run_scenario_test1, run_scenario_test2, run_scenario_test3, run_scenario_test4, run_scenario_test5, run_scenario_test6, run_scenario_test7]
+    tests_to_run = [run_scenario_test0, run_scenario_test1, run_scenario_test2, run_scenario_test3, run_scenario_test4, run_scenario_test5, run_scenario_test6]
 
     n_outputs = len(tests_to_run)
 
