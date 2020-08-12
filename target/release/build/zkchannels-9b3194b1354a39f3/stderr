@@ -1,3 +1,0 @@
-error: 'rustfmt' is not installed for the toolchain 'stable-x86_64-apple-darwin'
-To install, run `rustup component add rustfmt`
-Failed to run rustfmt: Internal rustfmt error (non-fatal, continuing)

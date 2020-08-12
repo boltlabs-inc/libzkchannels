@@ -1,3 +1,0 @@
-src/time-rusage-kb.o: src/rusage-kb.c config.h
-
-config.h:
