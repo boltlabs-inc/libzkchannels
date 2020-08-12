@@ -1,6 +1,7 @@
 go/include/bindings.h
 src/bindings.rs
 .idea
+.DS_Store
 deps/root/*
 deps/time/*.tar.gz
 deps/time/time*
