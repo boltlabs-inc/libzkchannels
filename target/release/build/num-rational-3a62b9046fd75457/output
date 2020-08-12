@@ -1,0 +1,2 @@
+cargo:rustc-cfg=has_int_exp_fmt
+cargo:rerun-if-changed=/Users/dariuscognac/.cargo/registry/src/github.com-1ecc6299db9ec823/num-rational-0.3.0/build.rs

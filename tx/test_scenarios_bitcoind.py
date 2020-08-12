@@ -333,7 +333,7 @@ def main():
 
     start_bitcoind(network, ignore_fees, auth_user, auth_pass, verbose)
 
-    tests_to_run = [run_scenario_test1, run_scenario_test2, run_scenario_test3, run_scenario_test4, run_scenario_test5, run_scenario_test6]
+    tests_to_run = [run_scenario_test0, run_scenario_test1, run_scenario_test2, run_scenario_test3, run_scenario_test4, run_scenario_test5]
     
     output_privkeys = gen_privkeys(len(tests_to_run)+1)
 

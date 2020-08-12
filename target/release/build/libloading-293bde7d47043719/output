@@ -1,0 +1,24 @@
+TARGET = Some("x86_64-apple-darwin")
+OPT_LEVEL = Some("3")
+HOST = Some("x86_64-apple-darwin")
+CC_x86_64-apple-darwin = None
+CC_x86_64_apple_darwin = None
+HOST_CC = None
+CC = None
+CFLAGS_x86_64-apple-darwin = None
+CFLAGS_x86_64_apple_darwin = None
+HOST_CFLAGS = None
+CFLAGS = None
+CRATE_CC_NO_DEFAULTS = None
+DEBUG = Some("false")
+CARGO_CFG_TARGET_FEATURE = Some("fxsr,sse,sse2,sse3,ssse3")
+running: "cc" "-O3" "-ffunction-sections" "-fdata-sections" "-fPIC" "-m64" "-Wall" "-Wextra" "-o" "/Users/dariuscognac/Documents/GitHub/lnd/libzkchannels/target/release/build/libloading-293bde7d47043719/out/src/os/unix/global_static.o" "-c" "src/os/unix/global_static.c"
+exit code: 0
+AR_x86_64-apple-darwin = None
+AR_x86_64_apple_darwin = None
+HOST_AR = None
+AR = None
+running: "ar" "crs" "/Users/dariuscognac/Documents/GitHub/lnd/libzkchannels/target/release/build/libloading-293bde7d47043719/out/libglobal_static.a" "/Users/dariuscognac/Documents/GitHub/lnd/libzkchannels/target/release/build/libloading-293bde7d47043719/out/src/os/unix/global_static.o"
+exit code: 0
+cargo:rustc-link-lib=static=global_static
+cargo:rustc-link-search=native=/Users/dariuscognac/Documents/GitHub/lnd/libzkchannels/target/release/build/libloading-293bde7d47043719/out

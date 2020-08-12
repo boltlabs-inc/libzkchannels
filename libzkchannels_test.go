@@ -493,9 +493,9 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 		WriteToFile(SignSeparateClaimChildOutputTxFile, SignedChildTx)
 
 		// bump fee - claim the cpfp output + combine with another utxo to confirm parent transaction on chain
-		txid2_LE := escrowTxid_LE
+		txid2_LE := escrowTxid_LE // use the change output from escrowTx
 		index2 := uint32(1)
-		inputAmount2 := int64(97999500)
+		inputAmount2 := int64(inputSats - txFee - outputSats)
 		sk2 := changeSk
 		txFee := int64(5000)
 		finalOutputPk := "034db01f7308e30c4ed380713bc09a70d27f19dbdc40229b36fcfae65e7f186baa"

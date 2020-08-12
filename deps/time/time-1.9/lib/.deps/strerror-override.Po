@@ -1,0 +1,27 @@
+lib/strerror-override.o: lib/strerror-override.c config.h \
+  lib/strerror-override.h /usr/include/errno.h /usr/include/sys/errno.h \
+  /usr/include/sys/cdefs.h /usr/include/sys/_symbol_aliasing.h \
+  /usr/include/sys/_posix_availability.h \
+  /usr/include/sys/_types/_errno_t.h \
+  /Library/Developer/CommandLineTools/usr/lib/clang/10.0.0/include/stddef.h \
+  /Library/Developer/CommandLineTools/usr/lib/clang/10.0.0/include/__stddef_max_align_t.h
+
+config.h:
+
+lib/strerror-override.h:
+
+/usr/include/errno.h:
+
+/usr/include/sys/errno.h:
+
+/usr/include/sys/cdefs.h:
+
+/usr/include/sys/_symbol_aliasing.h:
+
+/usr/include/sys/_posix_availability.h:
+
+/usr/include/sys/_types/_errno_t.h:
+
+/Library/Developer/CommandLineTools/usr/lib/clang/10.0.0/include/stddef.h:
+
+/Library/Developer/CommandLineTools/usr/lib/clang/10.0.0/include/__stddef_max_align_t.h:

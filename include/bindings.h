@@ -3,8 +3,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define _LIBCPP_HAS_MERGED_TYPEINFO_NAMES_DEFAULT 1
-
 typedef struct {
   uint32_t nonce[4];
 } Nonce_l;
