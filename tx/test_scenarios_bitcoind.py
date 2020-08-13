@@ -209,9 +209,9 @@ def clear_mempool(network):
     n = get_mempool_size(network)
     if n > 0:
         print("Generating blocks to clear mempool")
-        generate_blocks(network, n//5)
+        generate_blocks(network, (n+5)//5)
         if get_mempool_size(network) == n:
-            print("Error: Some transactions are not getting mined, possibly because they are too big. Delete regtest and start fresh.")
+            print("Error: Some transactions are not getting mined, possibly because they are too big for the reduced blockmaxweight. Delete regtest data and start fresh.")
             exit(0)            
         clear_mempool(network)
     return
@@ -271,6 +271,7 @@ def run_gowrapper(utxo_txid, utxo_index, utxo_sk, blocks):
 def run_scenario_test0(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario 0: cust close from merch-close without dispute")
+    clear_mempool(network)
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     merch_close_tx = read_file(MerchCloseTxFile % (utxo_index, utxo_index))
     cust_close_tx = read_file(CustCloseFromMerchTxFile % (utxo_index, utxo_index))
@@ -292,6 +293,7 @@ def run_scenario_test0(network, utxo_index, blocks):
 def run_scenario_test1(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario 1: cust close from escrow without dispute")
+    clear_mempool(network)
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     cust_close_tx = read_file(CustCloseEscrowTxFile % (utxo_index, utxo_index))
     cust_claim_tx = read_file(CustClaimFromCustCloseEscrowTxFile % (utxo_index, utxo_index))
@@ -307,6 +309,7 @@ def run_scenario_test1(network, utxo_index, blocks):
 def run_scenario_test2(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario 2: cust close from escrow with merch dispute")
+    clear_mempool(network)
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     first_cust_close_tx = read_file(FirstCustCloseEscrowTxFile % (utxo_index, utxo_index))
     merch_dispute_tx = read_file(MerchDisputeFirstCustCloseTxFile % (utxo_index, utxo_index))
@@ -321,6 +324,7 @@ def run_scenario_test2(network, utxo_index, blocks):
 def run_scenario_test3(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario 3: cust close from merch with merch dispute")
+    clear_mempool(network)
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     merch_close_tx = read_file(MerchCloseTxFile % (utxo_index, utxo_index))
     first_cust_close_tx = read_file(FirstCustCloseMerchTxFile % (utxo_index, utxo_index))
@@ -337,6 +341,7 @@ def run_scenario_test3(network, utxo_index, blocks):
 def run_scenario_test4(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario 4: merch claim from merch close after timelock")
+    clear_mempool(network)
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     merch_close_tx = read_file(MerchCloseTxFile % (utxo_index, utxo_index))
     merch_claim_tx = read_file(MerchClaimFromMerchCloseTxFile % (utxo_index, utxo_index))
@@ -350,6 +355,7 @@ def run_scenario_test4(network, utxo_index, blocks):
 def run_scenario_test5(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario 5: mutual close transaction")
+    clear_mempool(network)
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     mutual_close_tx = read_file(MutualCloseTxFile % (utxo_index, utxo_index))
 
@@ -361,6 +367,7 @@ def run_scenario_test5(network, utxo_index, blocks):
 def run_scenario_test6(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario 6: cust close from escrow without dispute (claim cpfp output + escrow change output)")
+    clear_mempool(network)
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     cust_close_tx = read_file(CustCloseEscrowTxFile % (utxo_index, utxo_index))
     cust_bump_fee_tx = read_file(SignBumpFeeChildTxFile % (utxo_index, utxo_index))
