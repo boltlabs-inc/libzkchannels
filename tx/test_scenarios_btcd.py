@@ -415,14 +415,12 @@ def run_scenario_test1(network, utxo_index, blocks):
     cust_close_tx = read_file(CustCloseEscrowTxFile % (utxo_index, utxo_index))
     cust_claim_tx = read_file(CustClaimFromCustCloseEscrowTxFile % (utxo_index, utxo_index))
     merch_claim_tx = read_file(MerchClaimFromEscrowTxFile % (utxo_index, utxo_index))
-    # cust_claim_cpfp_tx = read_file(SignSeparateClaimChildOutputTxFile % (utxo_index, utxo_index))
 
     broadcast_transaction(network, escrow_tx, "Escrow")
     broadcast_transaction(network, cust_close_tx, "Cust Close from Escrow")
     broadcast_transaction(network, merch_claim_tx, "Merch claim from Cust Close (to_merchant)")
     generate_blocks(network, blocks)
     broadcast_transaction(network, cust_claim_tx, "Cust claim from Cust Close after timelock (to_customer)")
-    # broadcast_transaction(network, cust_claim_cpfp_tx, "Cust claim child output in Cust Close from Escrow (to_cpfp)") # cpfp output can be spent immediately (separate tx)
     print("==============================================")
 
 def run_scenario_test2(network, utxo_index, blocks):
