@@ -546,8 +546,7 @@ def main():
     coinbase_txid, amount_btc = make_n_coinbase_utxo_for_sk(miner_privkey, network, 1, skip_restart)
     print(coinbase_txid)
     # print("miner's utxo txid (little Endian) => " + coinbase_txid)
-    # tests_to_run = [run_scenario_test0, run_scenario_test1, run_scenario_test2, run_scenario_test3, run_scenario_test4, run_scenario_test5, run_scenario_test6]
-    tests_to_run = [run_scenario_test6]
+    tests_to_run = [run_scenario_test0, run_scenario_test1, run_scenario_test2, run_scenario_test3, run_scenario_test4, run_scenario_test5, run_scenario_test6]
 
     n_outputs = len(tests_to_run)
 
