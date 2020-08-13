@@ -67,7 +67,7 @@ def pk_to_p2sh_p2wpkh(compressed, network):
         return "Enter the network: tesnet/simnet/mainnet"
     return encode_base58_checksum(prefix + rs_hash)
 
-def make_coinbase_utxo_for_sk(input_sk, network, skip_restart=False, show_output=True):
+def make_n_coinbase_utxo_for_sk(input_sk, network, n_tx, skip_restart=False, show_output=True):
     miner_pubkey_bytes = privkey_to_pubkey(bytes.fromhex(input_sk))
     miner_p2sh_p2wpkh_address = pk_to_p2sh_p2wpkh(miner_pubkey_bytes, network)
     if show_output:
@@ -80,7 +80,7 @@ def make_coinbase_utxo_for_sk(input_sk, network, skip_restart=False, show_output
         # start up btcd in simnet mode with Alice's address as coinbase tx output
         # NOTE: This needs to be run in a separate terminal, otherwise it'll get stuck here
         print("\nExecute this command in a separate terminal\n")
-        print("btcd --txindex --{net} --rpcuser=kek --rpcpass=kek --minrelaytxfee=0 --blockmaxweight=4000 --miningaddr={addr}".format(net=network, addr=miner_p2sh_p2wpkh_address))
+        print("btcd --txindex --{net} --rpcuser=kek --rpcpass=kek --blockprioritysize=0 --blockmaxweight=6000 --miningaddr={addr}".format(net=network, addr=miner_p2sh_p2wpkh_address))
         input("\nPress Enter to begin scenario testing...")
     else:
         # make sure btcd is running
@@ -93,25 +93,32 @@ def make_coinbase_utxo_for_sk(input_sk, network, skip_restart=False, show_output
     # Make sure at least 300 blocks have been mined so that segwit is active
     current_block_height = subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek getblockcount".format(net=network))
 
+    if int(current_block_height) > 10000:
+        print("%s" % red("Mining difficulty of simnet too high and would cause the test to run slowly. Remove blockchain data and start from scratch using:\nrm -r  ~/Library/Application\ Support/Btcd/data/simnet"))
+        exit(0)
+
     if int(current_block_height) < 300:
         block_needed=300-int(current_block_height)
         subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek generate {blocks}".format(net=network, blocks=block_needed))
 
+
     # generate 1 block to fund Alice
     # get block hash to find the coinbase transaction
-    blockhash = json.loads(subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek generate 1".format(net=network)))
-    block = json.loads(subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek getblock {block}".format(net=network, block=blockhash[0])))
+    mined_txid =[]
+    amount=[]
+    for i in range(n_tx):
+        blockhash = json.loads(subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek generate 1".format(net=network)))
+        block = json.loads(subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek getblock {block}".format(net=network, block=blockhash[0])))
+        # get the coinbase txid
+        mined_txid.append(block["tx"][0])
+
+        full_tx = subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek getrawtransaction {txid}".format(net=network, txid=mined_txid[i]))
+        decoded_tx = json.loads(subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek decoderawtransaction {full_tx}".format(net=network, full_tx=full_tx)))
+
+        amount.append(decoded_tx["vout"][0]["value"])
 
     # and so that the coinbase tx is spendable (>100 confirmations)
     subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek generate 100".format(net=network))
-
-    # get the coinbase txid
-    mined_txid = block["tx"][0]
-
-    full_tx = subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek getrawtransaction {txid}".format(net=network, txid=mined_txid))
-    decoded_tx = json.loads(subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek decoderawtransaction {full_tx}".format(net=network, full_tx=full_tx)))
-
-    amount = decoded_tx["vout"][0]["value"]
 
     return mined_txid, amount
 
@@ -291,14 +298,23 @@ NC='\033[0m'
 def log(msg, verbose=True):
     if verbose: print("%s[+] %s%s" % (PURPLE, msg, NC))
 
-def get_status(bool_val):
+def accepted_status(bool_val):
     if bool_val:
-        return "%sPASSED%s" % (GREEN, NC)
+        return "%sACCEPTED%s" % (GREEN, NC)
     else:
-        return "%sFAILED%s" % (RED, NC)
+        return "%sREJECTED%s" % (RED, NC)
+
+def confirmed_status(bool_val):
+    if bool_val:
+        return "%sCONFIRMED%s" % (GREEN, NC)
+    else:
+        return "%sUNCONFIRMED%s" % (RED, NC)
 
 def emphasize(msg):
     return "%s%s%s" % (BLUE, msg, NC)
+
+def red(msg):
+    return "%s%s%s" % (RED, msg, NC)
 
 def read_file(tx_file):
     f = open(tx_file)
@@ -307,22 +323,27 @@ def read_file(tx_file):
     assert len(tx_hex) % 2 == 0
     return tx_hex
 
-def check_transaction_on_chain(network, txid, tx_hex):
+def check_transaction_accepted(network, txid, tx_hex):
     full_tx = subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek getrawtransaction {txid}".format(net=network, txid=txid))
     return full_tx == tx_hex
 
+def check_transaction_confirmed(network, tx_type_str, txid):
+    details = subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek gettxout {txid} 0".format(net=network, txid=txid))
+    j = json.loads(details)
+    is_confirmed = int(j["confirmations"]) > 0    
+    print("%s Txid: %s, On-chain Status : %s" % (tx_type_str, emphasize(txid), confirmed_status(is_confirmed)))
+    return is_confirmed
+
+def get_mempool_size(network):
+    details = subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek getmempoolinfo".format(net=network))
+    j = json.loads(details)
+    return int(j["size"])
+
 def broadcast_transaction(network, tx_hex, tx_type_str):
     txid = subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek sendrawtransaction {tx_hex}".format(net=network, tx_hex=tx_hex))
-    time.sleep(1)
-    rc = check_transaction_on_chain(network, txid, tx_hex)
-    print("%s Txid: %s, Tx Status: %s" % (tx_type_str, emphasize(txid), get_status(rc)))
-    return
-
-def broadcast_transaction_txid(network, tx_hex, tx_type_str):
-    txid = subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek sendrawtransaction {tx_hex}".format(net=network, tx_hex=tx_hex))
-    time.sleep(1)
-    rc = check_transaction_on_chain(network, txid, tx_hex)
-    print("%s Txid: %s, Tx Status: %s" % (tx_type_str, emphasize(txid), get_status(rc)))
+    time.sleep(0.5)
+    rc = check_transaction_accepted(network, txid, tx_hex)
+    print("%s Txid: %s, Tx Status: %s" % (tx_type_str, emphasize(txid), accepted_status(rc)))
     return txid
 
 def generate_blocks(network, blocks):
@@ -332,32 +353,33 @@ def generate_blocks(network, blocks):
     else:
         print("Failed to advance chain! :-(")
     return
-
+    
 def create_tx_backlog(network, miner_privkey, n_tx, sat_per_weight):
     '''
     Creates and broadcasts many transactions which will cause the next block to
     become full. This is used to set up the situation where we can test CPFP as
     a method for bumping up the fee rate of a close tx.
     '''    
+    print("Creating %s filler txs..." % n_tx)
+    coinbase_txid_list, amount_btc_list = make_n_coinbase_utxo_for_sk(miner_privkey, network, n_tx, skip_restart=True, show_output=False)
     tx_list = []
-    for _ in range(n_tx):
+    for i in range(n_tx):
         # Create a new coinbase UTXO to fund the filler transactions
-        coinbase_txid, amount_btc = make_coinbase_utxo_for_sk(miner_privkey, network, skip_restart=True, show_output=False)
         n_outputs = 1
         weight_estimate = 533  # nested p2wpkh with one input/output
         tx_fee = (weight_estimate * sat_per_weight) *0.00000001 # convert to btc
-        output_btc = amount_btc - tx_fee 
-        tx = np2wkh_to_n_p2wkh(coinbase_txid, 0, amount_btc, miner_privkey, n_outputs, output_btc)
+        output_btc = amount_btc_list[i] - tx_fee 
+        tx = np2wkh_to_n_p2wkh(coinbase_txid_list[i], 0, amount_btc_list[i], miner_privkey, n_outputs, output_btc)
         tx_list.append(tx)
 
     for tx_hex in tx_list:
         txid = subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek sendrawtransaction {tx_hex}".format(net=network, tx_hex=tx_hex))
         time.sleep(1)
-        rc = check_transaction_on_chain(network, txid, tx_hex)
+        rc = check_transaction_accepted(network, txid, tx_hex)
         if not rc:
-            print("%s Filler txs failed to broadcast: %s" % (n_tx, get_status(rc)))
+            print("%s Filler txs failed to broadcast: %s" % (n_tx, accepted_status(rc)))
 
-    print("%s Filler txs were broadcast Status: %s" % (n_tx, get_status(rc)))
+    print("%s Filler txs were broadcast Status: %s" % (n_tx, accepted_status(rc)))
 
 
 def run_gowrapper(utxo_txid, utxo_index, utxo_sk, blocks):
@@ -375,9 +397,11 @@ def run_scenario_test0(network, utxo_index, blocks):
     merch_claim_tx = read_file(MerchClaimFromMerchTxFile % (utxo_index, utxo_index))
 
     broadcast_transaction(network, escrow_tx, "Escrow")
-    broadcast_transaction(network, merch_close_tx, "Merch Close")
+    generate_blocks(network, 1)
+    broadcast_transaction(network, merch_close_tx, "Merch Close")    
+    generate_blocks(network, 1)
     broadcast_transaction(network, cust_close_tx, "Cust Close from Merch Close")
-    generate_blocks(network, blocks)
+    generate_blocks(network, blocks-1)
     broadcast_transaction(network, cust_claim_tx, "Cust claim from Cust Close after timelock (to_customer) - should fail") # should fail
     generate_blocks(network, 1)
     broadcast_transaction(network, cust_claim_tx, "Cust claim from Cust Close after timelock (to_customer)") # now should succeed
@@ -469,26 +493,31 @@ def run_scenario_test6(network, utxo_index, blocks):
     # create full blocks to prevent cust-close being broadcast. Set the fee for 
     # filler txs. Minmum (minRelayTxFee) would be 0.253. For the test we want 
     # to choose a value high enough to block custClose but to allow CPFP.
-    create_tx_backlog(network, miner_privkey, n_tx=10, sat_per_weight = 1 )
-    cust_close_txid = broadcast_transaction_txid(network, cust_close_tx, "Cust Close from Escrow")
+    create_tx_backlog(network, miner_privkey, n_tx=40, sat_per_weight = 0.8725) 
+    #872415 - 872425
+    cust_close_txid = broadcast_transaction(network, cust_close_tx, "Cust Close from Escrow")
     broadcast_transaction(network, merch_claim_tx, "Merch claim from Cust Close (to_merchant)")
     # mine one block to prove that cust-close was not able to get confirmed
-    blockhash = json.loads(subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek generate 1".format(net=network)))
-    block = json.loads(subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek getblock {block}".format(net=network, block=blockhash[0])))
-    if cust_close_txid not in block["tx"]:
+    
+    print("Mempool size:", get_mempool_size(network))
+    generate_blocks(network, 1)
+    print("Mempool size:", get_mempool_size(network))
+    if not check_transaction_confirmed(network, "Cust Close from Escrow - should not get confirmed", cust_close_txid):
         print("%s" % emphasize("Cust close is waiting in the mempool"))
     else:
-        print("%s %s" % (emphasize("Cust close was confirmed on chain, original cust close tx fee was high enough to not need CPFP: "), get_status(False)))
+        print("%s" % red("SCENARIO ERROR: This scenario is supposed to test fee-bumping with CPFP, but cust-close-tx was confirmed on chain instead of getting stuck in the mempool"))
+        return
     # now with the help of the child tx, we should see that cust-close is 
     # confirmed in the next block
     broadcast_transaction(network, cust_bump_fee_tx, "Claim cpfp output in Cust close using Escrow change output")
-    blockhash = json.loads(subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek generate 1".format(net=network)))
-    block = json.loads(subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek getblock {block}".format(net=network, block=blockhash[0])))
+    print("Mempool size:", get_mempool_size(network))
+    generate_blocks(network, 1)
+    print("Mempool size:", get_mempool_size(network))
 
-    if cust_close_txid not in block["tx"]:
-        print("%s %s" % (emphasize("CPFP was not sufficient to bump cust close tx into the next block: "), get_status(False)))
+    if not check_transaction_confirmed(network, "Cust Close from Escrow - should be confirmed", cust_close_txid):
+        print("%s %s" % (emphasize("CPFP was not sufficient to bump cust close tx into the next block: "), confirmed_status(False)))
     else:
-        print("%s %s" % (emphasize("CPFP successfully bumped up cust close tx into the next block: "), get_status(True)))
+        print("%s %s" % (emphasize("CPFP successfully bumped up cust close tx into the next block: "), confirmed_status(True)))
 
     print("==============================================")
 
@@ -514,14 +543,16 @@ def main():
     print("Network: ", network)
 
     miner_privkey = "2222222222222222222222222222222222222222222222222222222222222222"
-    coinbase_txid, amount_btc = make_coinbase_utxo_for_sk(miner_privkey, network, skip_restart)
+    coinbase_txid, amount_btc = make_n_coinbase_utxo_for_sk(miner_privkey, network, 1, skip_restart)
+    print(coinbase_txid)
     # print("miner's utxo txid (little Endian) => " + coinbase_txid)
-    tests_to_run = [run_scenario_test0, run_scenario_test1, run_scenario_test2, run_scenario_test3, run_scenario_test4, run_scenario_test5, run_scenario_test6]
+    # tests_to_run = [run_scenario_test0, run_scenario_test1, run_scenario_test2, run_scenario_test3, run_scenario_test4, run_scenario_test5, run_scenario_test6]
+    tests_to_run = [run_scenario_test6]
 
     n_outputs = len(tests_to_run)
 
     output_privkeys = gen_privkeys(n_outputs)
-    init_tx = np2wkh_to_n_p2wkh(coinbase_txid, 0, amount_btc, miner_privkey, n_outputs, output_btc)
+    init_tx = np2wkh_to_n_p2wkh(coinbase_txid[0], 0, amount_btc[0], miner_privkey, n_outputs, output_btc)
 
     utxo_txid = subprocess.getoutput("btcctl --{net} --rpcuser=kek --rpcpass=kek sendrawtransaction {init_tx}".format(net=network, init_tx=init_tx))
     if verbose: print("init_tx utxo txid (little Endian) => %s" % emphasize(utxo_txid))

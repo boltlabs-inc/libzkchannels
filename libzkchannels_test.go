@@ -497,7 +497,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 		index2 := uint32(1)
 		inputAmount2 := int64(inputSats - txFee - outputSats)
 		sk2 := changeSk
-		txFee := int64(5000)
+		txFee := int64(500000)
 		finalOutputPk := "034db01f7308e30c4ed380713bc09a70d27f19dbdc40229b36fcfae65e7f186baa"
 		SignedChildTx2, txid2, err := CreateChildTxToBumpFeeViaP2WPKH(CloseEscrowTxId_LE, index, inputAmount, custCloseSk, txid2_LE, index2, inputAmount2, sk2, txFee, finalOutputPk)
 		assert.Nil(t, err)
