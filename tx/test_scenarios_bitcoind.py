@@ -83,22 +83,26 @@ def gen_privkeys(n):
     return privkeys
 
 
-def start_bitcoind(network, ignore_fees, auth_user, auth_pass, verbose):
+def start_bitcoind(network, ignore_fees, small_blocks, auth_user, auth_pass, verbose):
     print("Starting bitcoin node ...")
     # Make sure bitcoind is not already running
     log("-> First stop existing bitcoind ...")
     out = subprocess.getoutput("bitcoin-cli -{net} stop".format(net=network))
     log("-> %s" % out, verbose)
     time.sleep(2)
+
     auth_creds = ""
     if auth_user != "" and auth_pass != "":
         auth_creds = "-rpcuser=%s -rpcpassword=%s " % (auth_user, auth_pass)
-    if ignore_fees:
-        out = subprocess.getoutput("bitcoind -{net} -daemon {auth}-deprecatedrpc=generate -fallbackfee=0.0002 -minrelaytxfee=0".format(net=network, auth=auth_creds))
-    else: # specify specific minrelay
-        # -blockmaxweight=6000 means the block size will be limited to 2 or 
-        # transactions. This is help simulate a tx being stuck in the mempool
-        out = subprocess.getoutput("bitcoind -{net} -daemon {auth}-deprecatedrpc=generate -fallbackfee=0.0002 -blockmaxweight=10000".format(net=network, auth=auth_creds))
+    minrelaytxfee = ""
+    if ignore_fees: 
+        minrelaytxfee = "-minrelaytxfee=0"
+    blockmaxweight = ""
+    if small_blocks:
+        blockmaxweight = "-blockmaxweight=10000"
+
+    out = subprocess.getoutput("bitcoind -{net} -daemon {auth}-deprecatedrpc=generate -fallbackfee=0.0002 {minfee} {blocksize}".format(net=network, auth=auth_creds, minfee=minrelaytxfee, blocksize=blockmaxweight))
+
     log("-> bitcoind started")
     time.sleep(2)
     if not check_for_sufficient_funds(network, verbose):
@@ -208,10 +212,10 @@ def clear_mempool(network):
     n = get_mempool_size(network)
     if n > 0:
         print("Generating blocks to clear mempool")
-        generate_blocks(network, (n+5)//5)
+        generate_blocks(network, 10)
         if get_mempool_size(network) == n:
-            print("Error: Some transactions are not getting mined, possibly because they are too big for the reduced blockmaxweight. Delete regtest data and start fresh.")
-            exit(0)            
+            print("Warning: Some transactions could not be mined.")
+            return
         clear_mempool(network)
     return
 
@@ -270,7 +274,6 @@ def run_gowrapper(utxo_txid, utxo_index, utxo_sk, blocks):
 def run_scenario_test0(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario 0: cust close from merch-close without dispute")
-    clear_mempool(network)
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     merch_close_tx = read_file(MerchCloseTxFile % (utxo_index, utxo_index))
     cust_close_tx = read_file(CustCloseFromMerchTxFile % (utxo_index, utxo_index))
@@ -278,9 +281,7 @@ def run_scenario_test0(network, utxo_index, blocks):
     merch_claim_tx = read_file(MerchClaimFromMerchTxFile % (utxo_index, utxo_index))
 
     broadcast_transaction(network, escrow_tx, "Escrow")
-    generate_blocks(network, 1)
     broadcast_transaction(network, merch_close_tx, "Merch Close")
-    generate_blocks(network, 1)
     broadcast_transaction(network, cust_close_tx, "Cust Close from Merch Close")
     generate_blocks(network, blocks-1)
     broadcast_transaction(network, cust_claim_tx, "Cust claim from Cust Close after timelock (to_customer) - should fail") # should fail
@@ -292,7 +293,6 @@ def run_scenario_test0(network, utxo_index, blocks):
 def run_scenario_test1(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario 1: cust close from escrow without dispute")
-    clear_mempool(network)
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     cust_close_tx = read_file(CustCloseEscrowTxFile % (utxo_index, utxo_index))
     cust_claim_tx = read_file(CustClaimFromCustCloseEscrowTxFile % (utxo_index, utxo_index))
@@ -308,7 +308,6 @@ def run_scenario_test1(network, utxo_index, blocks):
 def run_scenario_test2(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario 2: cust close from escrow with merch dispute")
-    clear_mempool(network)
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     first_cust_close_tx = read_file(FirstCustCloseEscrowTxFile % (utxo_index, utxo_index))
     merch_dispute_tx = read_file(MerchDisputeFirstCustCloseTxFile % (utxo_index, utxo_index))
@@ -323,7 +322,6 @@ def run_scenario_test2(network, utxo_index, blocks):
 def run_scenario_test3(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario 3: cust close from merch with merch dispute")
-    clear_mempool(network)
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     merch_close_tx = read_file(MerchCloseTxFile % (utxo_index, utxo_index))
     first_cust_close_tx = read_file(FirstCustCloseMerchTxFile % (utxo_index, utxo_index))
@@ -340,7 +338,6 @@ def run_scenario_test3(network, utxo_index, blocks):
 def run_scenario_test4(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario 4: merch claim from merch close after timelock")
-    clear_mempool(network)
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     merch_close_tx = read_file(MerchCloseTxFile % (utxo_index, utxo_index))
     merch_claim_tx = read_file(MerchClaimFromMerchCloseTxFile % (utxo_index, utxo_index))
@@ -354,41 +351,35 @@ def run_scenario_test4(network, utxo_index, blocks):
 def run_scenario_test5(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario 5: mutual close transaction")
-    clear_mempool(network)
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     mutual_close_tx = read_file(MutualCloseTxFile % (utxo_index, utxo_index))
 
     broadcast_transaction(network, escrow_tx, "Escrow")
-    generate_blocks(network, 1)
     broadcast_transaction(network, mutual_close_tx, "Mutual Close Tx")
     print("==============================================")
 
 def run_scenario_test6(network, utxo_index, blocks):
     print("==============================================")
     log(">> Scenario 6: cust close from escrow without dispute (claim cpfp output + escrow change output)")
-    clear_mempool(network)
+    start_bitcoind(network, ignore_fees=False, small_blocks=True, auth_user="", auth_pass="", verbose=False)
     escrow_tx = read_file(EscrowTxFile % (utxo_index, utxo_index))
     cust_close_tx = read_file(CustCloseEscrowTxFile % (utxo_index, utxo_index))
     cust_bump_fee_tx = read_file(SignBumpFeeChildTxFile % (utxo_index, utxo_index))
     merch_claim_tx = read_file(MerchClaimFromEscrowTxFile % (utxo_index, utxo_index))
 
-    clear_mempool(network)
-
     escrow_txid = broadcast_transaction(network, escrow_tx, "Escrow")
     generate_blocks(network, 1) 
     check_transaction_confirmed(network, "Escrow", escrow_txid)
     
-    # create full blocks to prevent cust-close being broadcast. Set the fee for 
-    # filler txs. Minmum (minRelayTxFee) would be 0.253. For the test we want 
-    # to choose a value high enough to block custClose but to allow CPFP.
-    create_tx_backlog(network, n_tx=50)
+    create_tx_backlog(network, n_tx=30)
     print("Mempool size:", get_mempool_size(network))
 
     cust_close_txid = broadcast_transaction(network, cust_close_tx, "Cust Close from Escrow")
     broadcast_transaction(network, merch_claim_tx, "Merch claim from Cust Close (to_merchant)")
     generate_blocks(network, 1) 
     print("Mempool size:", get_mempool_size(network))
-    log("Attempt to broadcast cust close from escrow, but we want to simulate it getting stuck in the mempool")
+    
+    log("Attempt to broadcast cust close from escrow, but we simulate it getting stuck in the mempool")
     check_transaction_confirmed(network, "Cust Close from Escrow - should be unconfirmed", cust_close_txid)
 
     log("Broadcast child tx to bump up the fee associated with Cust Close")
@@ -422,13 +413,15 @@ def main():
     auth_user = args.rpcuser
     auth_pass = args.rpcpass
     verbose = args.verbose
+    small_blocks=False
 
     print("Network: ", network)
     print(subprocess.getoutput("bitcoin-cli -version"))
 
-    start_bitcoind(network, ignore_fees, auth_user, auth_pass, verbose)
+    start_bitcoind(network, ignore_fees, small_blocks, auth_user, auth_pass, verbose)
 
     tests_to_run = [run_scenario_test0, run_scenario_test1, run_scenario_test2, run_scenario_test3, run_scenario_test4, run_scenario_test5, run_scenario_test6]
+    # tests_to_run = [run_scenario_test0]
     
     output_privkeys = gen_privkeys(len(tests_to_run)+1)
 
@@ -437,10 +430,11 @@ def main():
 
         run_gowrapper(utxo_txid, tx_index, output_privkeys[i].hex(), blocks)
         time.sleep(2)
+        clear_mempool(network)
         scenario(network, tx_index, blocks)
 
-    # out = subprocess.getoutput("bitcoin-cli -{net} stop".format(net=network))
-    # log("Stop bitcoind ... %s" % out)
+    out = subprocess.getoutput("bitcoin-cli -{net} stop".format(net=network))
+    log("Stop bitcoind ... %s" % out)
     exit(0)
 
 main()
