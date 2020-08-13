@@ -1937,13 +1937,13 @@ pub mod ffishim_mpc {
                 txid_le,
                 index,
                 input_amount,
+                cust_sk,
                 output_amount,
                 self_delay_be,
                 output_pk,
                 rev_lock,
                 cust_close_pk,
-                merch_disp_pk,
-                cust_sk
+                merch_disp_pk
             )
         );
         let ser = ["{\'signed_tx\': \'", &hex::encode(signed_tx), "\'}"].concat();
@@ -2083,43 +2083,43 @@ pub mod ffishim_mpc {
         cser.into_raw()
     }
 
-    #[no_mangle]
-    pub extern "C" fn create_child_tx(
-        ser_tx_index: *mut c_char,
-        index: u32,
-        input_amount: i64,
-        output_amount: i64,
-        ser_output_pk: *mut c_char,
-        ser_sk: *mut c_char,
-    ) -> *mut c_char {
-        let txid_result = deserialize_hex_string(ser_tx_index);
-        let txid_le = handle_errors!(txid_result);
+    // #[no_mangle]
+    // pub extern "C" fn create_child_tx(
+    //     ser_tx_index: *mut c_char,
+    //     index: u32,
+    //     input_amount: i64,
+    //     output_amount: i64,
+    //     ser_output_pk: *mut c_char,
+    //     ser_sk: *mut c_char,
+    // ) -> *mut c_char {
+    //     let txid_result = deserialize_hex_string(ser_tx_index);
+    //     let txid_le = handle_errors!(txid_result);
 
-        let output_pk_result = deserialize_hex_string(ser_output_pk);
-        let output_pk = handle_errors!(output_pk_result);
+    //     let output_pk_result = deserialize_hex_string(ser_output_pk);
+    //     let output_pk = handle_errors!(output_pk_result);
 
-        let sk_result = deserialize_hex_string(ser_sk);
-        let sk = handle_errors!(sk_result);
+    //     let sk_result = deserialize_hex_string(ser_sk);
+    //     let sk = handle_errors!(sk_result);
 
-        let (signed_tx, txid) = handle_errors!(zkchan_tx::txutil::create_child_transaction(
-            txid_le,
-            index,
-            input_amount,
-            output_amount,
-            &output_pk,
-            &sk
-        ));
-        let ser = [
-            "{\'signed_tx\': \'",
-            &hex::encode(signed_tx),
-            "\', \'txid_le\':\'",
-            &hex::encode(txid),
-            "\'}",
-        ]
-        .concat();
-        let cser = CString::new(ser).unwrap();
-        cser.into_raw()
-    }
+    //     let (signed_tx, txid) = handle_errors!(zkchan_tx::txutil::create_child_transaction(
+    //         txid_le,
+    //         index,
+    //         input_amount,
+    //         output_amount,
+    //         &output_pk,
+    //         &sk
+    //     ));
+    //     let ser = [
+    //         "{\'signed_tx\': \'",
+    //         &hex::encode(signed_tx),
+    //         "\', \'txid_le\':\'",
+    //         &hex::encode(txid),
+    //         "\'}",
+    //     ]
+    //     .concat();
+    //     let cser = CString::new(ser).unwrap();
+    //     cser.into_raw()
+    // }
 
     #[no_mangle]
     pub extern "C" fn create_child_tx_to_bump_fee_via_p2wpkh_input(
@@ -2131,6 +2131,7 @@ pub mod ffishim_mpc {
         index2: u32,
         input_amount2: i64,
         ser_sk2: *mut c_char,
+        ser_redeem_script: *mut c_char,
         tx_fee: i64,
         ser_output_pk: *mut c_char,
     ) -> *mut c_char {
@@ -2149,8 +2150,13 @@ pub mod ffishim_mpc {
         let sk_result2 = deserialize_hex_string(ser_sk2);
         let utxo_input_sk2 = handle_errors!(sk_result2);
 
-        let address_format2 = String::from("p2wpkh");
-        let redeem_script = None;
+        let rscript = handle_errors!(deserialize_string(ser_redeem_script));
+        let mut address_format2 = String::from("p2wpkh");
+        let mut redeem_script = None;
+        if rscript != "" {
+            address_format2 = String::from("p2wsh");
+            redeem_script = Some(handle_errors!(hex::decode(&rscript)));
+        }
 
         let (signed_tx, txid) =
             handle_errors!(zkchan_tx::txutil::create_child_transaction_to_bump_fee(

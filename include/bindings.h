@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#define _LIBCPP_HAS_MERGED_TYPEINFO_NAMES_DEFAULT 1
+
 typedef struct {
   uint32_t nonce[4];
 } Nonce_l;
@@ -88,13 +90,6 @@ typedef struct {
 
 typedef Receive_return (*cb_receive)(void *arg1);
 
-char *create_child_tx(char *ser_tx_index,
-                      uint32_t index,
-                      int64_t input_amount,
-                      int64_t output_amount,
-                      char *ser_output_pk,
-                      char *ser_sk);
-
 char *create_child_tx_to_bump_fee_via_p2wpkh_input(char *ser_tx_index1,
                                                    uint32_t index1,
                                                    int64_t input_amount1,
@@ -103,6 +98,7 @@ char *create_child_tx_to_bump_fee_via_p2wpkh_input(char *ser_tx_index1,
                                                    uint32_t index2,
                                                    int64_t input_amount2,
                                                    char *ser_sk2,
+                                                   char *ser_redeem_script,
                                                    int64_t tx_fee,
                                                    char *ser_output_pk);
 

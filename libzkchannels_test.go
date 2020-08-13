@@ -142,7 +142,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	MerchDisputeFirstCustCloseFromMerchTxFile := ""
 	MerchClaimFromMerchCloseTxFile := ""
 	MutualCloseTxFile := ""
-	SignSeparateClaimChildOutputTxFile := ""
+	// SignSeparateClaimChildOutputTxFile := ""
 	SignBumpFeeChildTxFile := ""
 
 	save_tx_file := os.Getenv("UTXO_SAVE_TX")
@@ -181,7 +181,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 		// stores mutual close tx for most recent balance of the channel
 		MutualCloseTxFile = fmt.Sprintf("signed_mutual_close_tx_%d.txt", index)
 		// stores claim tx for cpfp output in cust-close-tx
-		SignSeparateClaimChildOutputTxFile = fmt.Sprintf("signed_child_tx_output_%d.txt", index)
+		// SignSeparateClaimChildOutputTxFile = fmt.Sprintf("signed_child_tx_output_%d.txt", index)
 		// store child tx that bumps fee via cpfp + p2wpkh utxo input
 		SignBumpFeeChildTxFile = fmt.Sprintf("signed_bump_fee_child_tx_p2wpkh_%d.txt", index)
 	}
@@ -481,16 +481,9 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	}
 
 	{
-		// claim the cpfp output from final cust close from escrow tx
-		index := uint32(3)
+		// cpfp output of final cust close from escrow tx
+		index1 := uint32(3)
 		inputAmount := valCpfp
-		outputAmount := valCpfp - 100
-		SignedChildTx, txid, err := CreateChildTx(CloseEscrowTxId_LE, index, inputAmount, outputAmount, outputPk, custCloseSk)
-
-		assert.Nil(t, err)
-		//fmt.Println("Signed child tx: ", SignedChildTx)
-		fmt.Println("Signed child tx txid: ", txid)
-		WriteToFile(SignSeparateClaimChildOutputTxFile, SignedChildTx)
 
 		// bump fee - claim the cpfp output + combine with another utxo to confirm parent transaction on chain
 		txid2_LE := escrowTxid_LE // use the change output from escrowTx
@@ -499,7 +492,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 		sk2 := changeSk
 		txFee := int64(500000)
 		finalOutputPk := "034db01f7308e30c4ed380713bc09a70d27f19dbdc40229b36fcfae65e7f186baa"
-		SignedChildTx2, txid2, err := CreateChildTxToBumpFeeViaP2WPKH(CloseEscrowTxId_LE, index, inputAmount, custCloseSk, txid2_LE, index2, inputAmount2, sk2, txFee, finalOutputPk)
+		SignedChildTx2, txid2, err := CreateChildTxToBumpFeeViaP2WPKH(CloseEscrowTxId_LE, index1, inputAmount, custCloseSk, txid2_LE, index2, inputAmount2, sk2, txFee, finalOutputPk)
 		assert.Nil(t, err)
 		fmt.Println("Signed child tx 2: ", SignedChildTx2)
 		fmt.Println("Signed child tx 2 txid: ", txid2)

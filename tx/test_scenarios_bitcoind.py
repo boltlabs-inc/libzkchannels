@@ -152,7 +152,6 @@ MerchDisputeFirstCustCloseTxFile = "txdata_%d/signed_dispute_from_escrow_tx_%d.t
 MerchDisputeFirstCustCloseFromMerchTxFile = "txdata_%d/signed_dispute_from_merch_tx_%d.txt"
 MerchClaimFromMerchCloseTxFile = "txdata_%d/signed_merch_claim_merch_close_tx_%d.txt"
 MutualCloseTxFile = "txdata_%d/signed_mutual_close_tx_%d.txt"
-SignSeparateClaimChildOutputTxFile = "txdata_%d/signed_child_tx_output_%d.txt"
 SignBumpFeeChildTxFile = "txdata_%d/signed_bump_fee_child_tx_p2wpkh_%d.txt"
 
 PURPLE='\033[0;95m'

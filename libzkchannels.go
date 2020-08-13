@@ -946,7 +946,7 @@ func MerchantSignDisputeTx(escrow_txid_LE string, close_txid_LE string, index ui
 	return r.SignedTx, merchState, err
 }
 
-func CustomerSignClaimTx(channelState ChannelState, txid_LE string, index uint32, inputAmount int64, outputAmount int64, toSelfDelay string, outputPk string, revLock string, custClosePk string, custState CustState) (string, error) {
+func CustomerSignClaimTx(channelState ChannelState, txid1_LE string, index1 uint32, inputAmount1 int64, outputAmount int64, toSelfDelay string, outputPk string, revLock string, custClosePk string, custState CustState) (string, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
 		return "", err
@@ -957,7 +957,7 @@ func CustomerSignClaimTx(channelState ChannelState, txid_LE string, index uint32
 		return "", err
 	}
 
-	resp := C.GoString(C.cust_claim_tx_from_cust_close(C.CString(string(serChannelState)), C.CString(txid_LE), C.uint(index), C.int64_t(inputAmount), C.int64_t(outputAmount),
+	resp := C.GoString(C.cust_claim_tx_from_cust_close(C.CString(string(serChannelState)), C.CString(txid1_LE), C.uint(index1), C.int64_t(inputAmount1), C.int64_t(outputAmount),
 		C.CString(toSelfDelay), C.CString(outputPk), C.CString(revLock), C.CString(custClosePk), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
@@ -1023,9 +1023,14 @@ func MerchantSignMutualCloseTx(txid_LE string, index uint32, inputAmount int64, 
 	return r.SignedTx, r.TxIdLe, err
 }
 
-func CreateChildTx(txid_LE string, index uint32, inputAmount int64, outputAmount int64, outputPk string, theSk string) (string, string, error) {
-	// call create child transaction
-	resp := C.GoString(C.create_child_tx(C.CString(txid_LE), C.uint(index), C.int64_t(inputAmount), C.int64_t(outputAmount), C.CString(outputPk), C.CString(theSk)))
+func CreateChildTxToBumpFeeViaP2WPKH(txid1_LE string, index1 uint32, inputAmount1 int64, sk1 string,
+	txid2_LE string, index2 uint32, inputAmount2 int64, sk2 string,
+	txFee int64, outputPk string) (string, string, error) {
+	// call create child transaction to bump fee via cpfp input and p2wpkh input
+	resp := C.GoString(C.create_child_tx_to_bump_fee_via_p2wpkh_input(
+		C.CString(txid1_LE), C.uint(index1), C.int64_t(inputAmount1), C.CString(sk1),
+		C.CString(txid2_LE), C.uint(index2), C.int64_t(inputAmount2), C.CString(sk2),
+		C.CString(""), C.int64_t(txFee), C.CString(outputPk)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", "", err
@@ -1034,14 +1039,14 @@ func CreateChildTx(txid_LE string, index uint32, inputAmount int64, outputAmount
 	return r.SignedTx, r.TxIdLe, err
 }
 
-func CreateChildTxToBumpFeeViaP2WPKH(txid1_LE string, index1 uint32, inputAmount1 int64, sk1 string,
-	txid2_LE string, index2 uint32, inputAmount2 int64, sk2 string,
+func CreateChildTxToBumpFeeViaP2WSH(txid1_LE string, index1 uint32, inputAmount1 int64, sk1 string,
+	txid2_LE string, index2 uint32, inputAmount2 int64, sk2 string, redeemScript string,
 	txFee int64, outputPk string) (string, string, error) {
 	// call create child transaction to bump fee via cpfp input and p2wpkh input
 	resp := C.GoString(C.create_child_tx_to_bump_fee_via_p2wpkh_input(
 		C.CString(txid1_LE), C.uint(index1), C.int64_t(inputAmount1), C.CString(sk1),
 		C.CString(txid2_LE), C.uint(index2), C.int64_t(inputAmount2), C.CString(sk2),
-		C.int64_t(txFee), C.CString(outputPk)))
+		C.CString(redeemScript), C.int64_t(txFee), C.CString(outputPk)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", "", err
