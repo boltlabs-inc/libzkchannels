@@ -1887,13 +1887,13 @@ pub mod ffishim_mpc {
         ser_tx_index: *mut c_char,
         index: u32,
         input_amount: i64,
-        cpfp_index: u32,
-        cpfp_amount: i64,
         output_amount: i64,
         ser_self_delay: *mut c_char,
         ser_output_pk: *mut c_char,
         ser_rev_lock: *mut c_char,
         ser_cust_close_pk: *mut c_char,
+        cpfp_index: u32,
+        cpfp_amount: i64,
         ser_cust_state: *mut c_char,
     ) -> *mut c_char {
         // Deserialize the channel_state
@@ -1932,22 +1932,29 @@ pub mod ffishim_mpc {
                 ))
             }
         };
+
         let cust_sk = cust_state.get_close_secret_key();
+        let mut cpfp_utxo = None;
+        let mut cpfp_sk = None;
+        if cpfp_index > 0 && cpfp_amount > 0 {
+            cpfp_utxo = Some((cpfp_index, cpfp_amount));
+            cpfp_sk = Some(cust_sk.clone());
+        }
+
         let signed_tx = handle_errors!(
             zkchan_tx::txutil::customer_sign_cust_close_claim_transaction(
                 txid_le,
                 index,
                 input_amount,
-                cust_sk.clone(),
-                cpfp_index,
-                cpfp_amount,
                 cust_sk,
                 output_amount,
                 self_delay_be,
                 output_pk,
                 rev_lock,
                 cust_close_pk,
-                merch_disp_pk
+                merch_disp_pk,
+                cpfp_utxo,
+                cpfp_sk
             )
         );
         let ser = ["{\'signed_tx\': \'", &hex::encode(signed_tx), "\'}"].concat();

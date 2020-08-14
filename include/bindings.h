@@ -112,13 +112,13 @@ char *cust_claim_tx_from_cust_close(char *ser_channel_state,
                                     char *ser_tx_index,
                                     uint32_t index,
                                     int64_t input_amount,
-                                    uint32_t cpfp_index,
-                                    int64_t cpfp_amount,
                                     int64_t output_amount,
                                     char *ser_self_delay,
                                     char *ser_output_pk,
                                     char *ser_rev_lock,
                                     char *ser_cust_close_pk,
+                                    uint32_t cpfp_index,
+                                    int64_t cpfp_amount,
                                     char *ser_cust_state);
 
 char *cust_clear_channel_status(char *ser_cust_state);

@@ -413,7 +413,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	cpfpAmount := int64(valCpfp)
 	cpfpIndex := uint32(3)
 	claimAmount := inputAmount0 + cpfpAmount - txFee
-	SignedCustClaimTx, err := CustomerSignClaimTx(channelState, CloseEscrowTxId_LE, uint32(0), inputAmount0, cpfpIndex, cpfpAmount, claimAmount, toSelfDelay, outputPk, custState.RevLock, custClosePk, custState)
+	SignedCustClaimTx, err := CustomerSignClaimTx(channelState, CloseEscrowTxId_LE, uint32(0), inputAmount0, claimAmount, toSelfDelay, outputPk, custState.RevLock, custClosePk, cpfpIndex, cpfpAmount, custState)
 	assert.Nil(t, err)
 	fmt.Println("TX5-cust-claim-tx: ", SignedCustClaimTx)
 	WriteToFile(CustClaimFromCustCloseEscrowTxFile, SignedCustClaimTx)
@@ -432,11 +432,11 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 
 	{
 		// try to claim from cust-close-from-merch-tx
-		cpfpAmount := int64(valCpfp)
-		cpfpIndex := uint32(3)
+		// cpfpAmount := int64(valCpfp)
+		// cpfpIndex := uint32(3)
 		inputAmount1 := custState.CustBalance - feeCC - feeMC
-		claimAmount := inputAmount1 + cpfpAmount - txFee
-		SignedCustClaimTx2, err := CustomerSignClaimTx(channelState, CloseMerchTxId_LE, uint32(0), inputAmount1, cpfpIndex, cpfpAmount, claimAmount, toSelfDelay, outputPk, custState.RevLock, custClosePk, custState)
+		claimAmount := inputAmount1 - txFee
+		SignedCustClaimTx2, err := CustomerSignClaimTx(channelState, CloseMerchTxId_LE, uint32(0), inputAmount1, claimAmount, toSelfDelay, outputPk, custState.RevLock, custClosePk, uint32(0), int64(0), custState)
 		assert.Nil(t, err)
 		WriteToFile(CustClaimFromCustCloseMerchTxFile, SignedCustClaimTx2)
 
