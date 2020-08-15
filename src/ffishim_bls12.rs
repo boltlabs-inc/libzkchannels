@@ -4,11 +4,17 @@ pub mod ffishim {
 
     use ff::ScalarEngine;
     use pairing::bls12_381::Bls12;
+    use pairing::CurveProjective;
+    use pairing::{
+        bls12_381::{G1Uncompressed, G2Uncompressed},
+        EncodedPoint,
+    };
     use zkproofs;
 
     use serde::Deserialize;
 
     use libc::c_char;
+    use std::collections::HashMap;
     use std::ffi::{CStr, CString};
     use std::str;
 
@@ -693,6 +699,76 @@ pub mod ffishim {
         let ser = [
             "{\'cust_close\':\'",
             serde_json::to_string(&cust_close).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern "C" fn ffishim_bls12_decompress_cust_close_message(
+        ser_channel_state: *mut c_char,
+        ser_cust_close: *mut c_char,
+    ) -> *mut c_char {
+        // Deserialize the channel state
+        let channel_state_result: ResultSerdeType<zkproofs::ChannelState<CURVE>> =
+            deserialize_result_object(ser_channel_state);
+        let channel_state = handle_errors!(channel_state_result);
+
+        // Deserialize the customer close structure
+        let cust_close_result: ResultSerdeType<zkproofs::ChannelcloseC<CURVE>> =
+            deserialize_result_object(ser_cust_close);
+        let cust_close = handle_errors!(cust_close_result);
+
+        let cp = channel_state.cp.unwrap();
+        let close_str = match cust_close.message.close {
+            Some(s) => serde_json::to_string(&s).unwrap(),
+            None => return error_message("'close' field missing in close message".to_string())
+        };
+
+        let mut merch_pk_map = HashMap::new();
+        let mut message_list = Vec::new();
+        let mut signature_map = HashMap::new();
+
+        // encode the merch public key
+        let g2 = G2Uncompressed::from_affine(cp.pub_params.mpk.g2.into_affine());
+        let X2 = G2Uncompressed::from_affine(cp.pub_params.pk.X2.into_affine());
+
+        // encode the signature
+        let h1 = G1Uncompressed::from_affine(cust_close.merch_signature.h.into_affine());
+        let h2 = G1Uncompressed::from_affine(cust_close.merch_signature.H.into_affine());
+
+        // encode the message
+        let cid = serde_json::to_string(&cust_close.message.channelId).unwrap();
+        let wpk = serde_json::to_string(&cust_close.message.wpk).unwrap();
+        let bc = cust_close.message.bc.to_string();
+        let bm = cust_close.message.bm.to_string();
+        message_list.push(cid);
+        message_list.push(wpk);
+        message_list.push(bc);
+        message_list.push(bm);
+        message_list.push(close_str);
+        
+        merch_pk_map.insert("g2".to_string(), hex::encode(&g2));
+        merch_pk_map.insert("X".to_string(), hex::encode(&X2));
+        let l = cp.pub_params.pk.Y2.len();
+        for i in 0..l {
+            let key = format!("Y{}", i);
+            let y = G2Uncompressed::from_affine(cp.pub_params.pk.Y2[i].into_affine());
+            merch_pk_map.insert(key, hex::encode(&y));
+        }
+
+        signature_map.insert("h1".to_string(), hex::encode(&h1));
+        signature_map.insert("h2".to_string(), hex::encode(&h2));
+
+        let ser = [
+            "{\'merch_pk\':\'",
+            serde_json::to_string(&merch_pk_map).unwrap().as_str(),
+            "\', \'message\':\'",
+            serde_json::to_string(&message_list).unwrap().as_str(),
+            "\', \'signature\':\'",
+            serde_json::to_string(&signature_map).unwrap().as_str(),
             "\'}",
         ]
         .concat();

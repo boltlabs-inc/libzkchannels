@@ -160,6 +160,8 @@ char *ffishim_bls12_channel_setup(const char *channel_name, uint32_t third_party
 
 char *ffishim_bls12_customer_close(char *ser_channel_state, char *ser_cust_state);
 
+char *ffishim_bls12_decompress_cust_close_message(char *ser_channel_state, char *ser_cust_close);
+
 char *ffishim_bls12_establish_customer_final(char *ser_channel_state,
                                              char *ser_customer_state,
                                              char *ser_pay_token);
