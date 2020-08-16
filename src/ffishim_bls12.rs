@@ -728,7 +728,7 @@ pub mod ffishim {
         };
 
         let mut merch_pk_map = HashMap::new();
-        let mut message_list = Vec::new();
+        let mut message_map = HashMap::new();
         let mut signature_map = HashMap::new();
 
         // encode the merch public key
@@ -744,11 +744,11 @@ pub mod ffishim {
         let wpk = serde_json::to_string(&cust_close.message.wpk).unwrap();
         let bc = cust_close.message.bc.to_string();
         let bm = cust_close.message.bm.to_string();
-        message_list.push(cid);
-        message_list.push(wpk);
-        message_list.push(bc);
-        message_list.push(bm);
-        message_list.push(close_str);
+        message_map.insert("channelId", cid);
+        message_map.insert("wpk", wpk);
+        message_map.insert("bc", bc);
+        message_map.insert("bm", bm);
+        message_map.insert("close", close_str);
         
         merch_pk_map.insert("g2".to_string(), hex::encode(&g2));
         merch_pk_map.insert("X".to_string(), hex::encode(&X2));
@@ -766,7 +766,7 @@ pub mod ffishim {
             "{\'merch_pk\':\'",
             serde_json::to_string(&merch_pk_map).unwrap().as_str(),
             "\', \'message\':\'",
-            serde_json::to_string(&message_list).unwrap().as_str(),
+            serde_json::to_string(&message_map).unwrap().as_str(),
             "\', \'signature\':\'",
             serde_json::to_string(&signature_map).unwrap().as_str(),
             "\'}",
