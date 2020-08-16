@@ -4,11 +4,17 @@ pub mod ffishim_bn256 {
 
     use ff::ScalarEngine;
     use pairing::bn256::Bn256;
+    use pairing::CurveProjective;
+    use pairing::{
+        bn256::{G1Uncompressed, G2Uncompressed},
+        EncodedPoint,
+    };
     use zkproofs;
 
     use serde::Deserialize;
 
     use libc::c_char;
+    use std::collections::HashMap;
     use std::ffi::{CStr, CString};
     use std::str;
 
@@ -683,6 +689,57 @@ pub mod ffishim_bn256 {
         let ser = [
             "{\'cust_close\':\'",
             serde_json::to_string(&cust_close).unwrap().as_str(),
+            "\'}",
+        ]
+        .concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern "C" fn ffishim_bn256_decompress_cust_close_message(
+        ser_channel_state: *mut c_char,
+        ser_cust_close: *mut c_char,
+    ) -> *mut c_char {
+        // Deserialize the channel state
+        let channel_state_result: ResultSerdeType<zkproofs::ChannelState<CURVE>> =
+            deserialize_result_object(ser_channel_state);
+        let channel_state = handle_errors!(channel_state_result);
+
+        // Deserialize the customer close structure
+        let cust_close_result: ResultSerdeType<zkproofs::ChannelcloseC<CURVE>> =
+            deserialize_result_object(ser_cust_close);
+        let cust_close = handle_errors!(cust_close_result);
+
+        let cp = channel_state.cp.unwrap();
+        let mut merch_pk_map = HashMap::new();
+        let mut signature_map = HashMap::new();
+
+        // encode the merch public key
+        let g2 = G2Uncompressed::from_affine(cp.pub_params.mpk.g2.into_affine());
+        let X2 = G2Uncompressed::from_affine(cp.pub_params.pk.X2.into_affine());
+
+        // encode the signature
+        let h1 = G1Uncompressed::from_affine(cust_close.merch_signature.h.into_affine());
+        let h2 = G1Uncompressed::from_affine(cust_close.merch_signature.H.into_affine());
+
+        merch_pk_map.insert("g2".to_string(), hex::encode(&g2));
+        merch_pk_map.insert("X".to_string(), hex::encode(&X2));
+        let l = cp.pub_params.pk.Y2.len();
+        for i in 0..l {
+            let key = format!("Y{}", i);
+            let y = G2Uncompressed::from_affine(cp.pub_params.pk.Y2[i].into_affine());
+            merch_pk_map.insert(key, hex::encode(&y));
+        }
+
+        signature_map.insert("h1".to_string(), hex::encode(&h1));
+        signature_map.insert("h2".to_string(), hex::encode(&h2));
+
+        let ser = [
+            "{\'merch_pk\':\'",
+            serde_json::to_string(&merch_pk_map).unwrap().as_str(),
+            "\', \'signature\':\'",
+            serde_json::to_string(&signature_map).unwrap().as_str(),
             "\'}",
         ]
         .concat();
