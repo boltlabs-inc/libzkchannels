@@ -27,8 +27,11 @@ use structopt::StructOpt;
 use zkchan_tx::Testnet;
 use zkchannels::bindings::Receive_return;
 use zkchannels::database::create_db_connection;
+use zkchannels::database::{RedisDatabase, StateDatabase};
 use zkchannels::mpc;
 use zkchannels::FundingTxInfo;
+
+static TX_FEE_INFO_KEY: &str = "tx_fee_info";
 
 extern "C" fn cb_send_data(_data: *mut c_void, _len: c_int, _peer: *mut c_void) -> *mut i8 {
     println!("Sending some data!");
@@ -95,6 +98,24 @@ impl FromStr for Party {
 }
 
 #[derive(Clone, Debug, StructOpt, Deserialize)]
+pub struct SetFees {
+    #[structopt(short = "d", long = "bal-min-cust", default_value = "546")]
+    bal_min_cust: i64,
+    #[structopt(short = "e", long = "bal-min-merch", default_value = "546")]
+    bal_min_merch: i64,
+    #[structopt(short = "v", long = "val-cpfp", default_value = "1000")]
+    val_cpfp: i64,
+    #[structopt(short = "f", long = "fee-cc", default_value = "1000")]
+    fee_cc: i64,
+    #[structopt(short = "m", long = "min-fee", default_value = "0")]
+    min_fee: i64,
+    #[structopt(short = "s", long = "max-fee", default_value = "10000")]
+    max_fee: i64,
+    #[structopt(short = "g", long = "fee-mc", default_value = "1000")]
+    fee_mc: i64,
+}
+
+#[derive(Clone, Debug, StructOpt, Deserialize)]
 pub struct Open {
     #[structopt(long = "party")]
     party: Party,
@@ -114,24 +135,6 @@ pub struct Open {
     self_delay: u16,
     #[structopt(short = "n", long = "channel-name", default_value = "")]
     channel_name: String,
-}
-
-#[derive(Clone, Debug, StructOpt, Deserialize)]
-pub struct SetFees {
-    #[structopt(short = "d", long = "bal-min-cust", default_value = "546")]
-    bal_min_cust: i64,
-    #[structopt(short = "e", long = "bal-min-merch", default_value = "546")]
-    bal_min_merch: i64,
-    #[structopt(short = "v", long = "val-cpfp", default_value = "1000")]
-    val_cpfp: i64,
-    #[structopt(short = "f", long = "fee-cc", default_value = "1000")]
-    fee_cc: i64,
-    #[structopt(short = "m", long = "min-fee", default_value = "0")]
-    min_fee: i64,
-    #[structopt(short = "s", long = "max-fee", default_value = "10000")]
-    max_fee: i64,
-    #[structopt(short = "g", long = "fee-mc", default_value = "1000")]
-    fee_mc: i64,
 }
 
 #[derive(Clone, Debug, StructOpt, Deserialize)]
@@ -233,6 +236,10 @@ impl FromStr for Command {
     }
 }
 
+pub fn get_db_connection(db_url: String) -> Result<RedisDatabase, String> {
+    return RedisDatabase::new("cli", db_url);
+}
+
 pub fn read_file(file_name: &'static str) -> Result<String, String> {
     let mut file = match File::open(file_name) {
         Ok(n) => n,
@@ -329,6 +336,40 @@ fn get_tx_fee_info() -> mpc::TransactionFeeInfo {
         max_fee: 10000,
     };
     return tx_fee_info;
+}
+
+pub fn load_tx_fee_info(
+    db_conn: &mut redis::Connection,
+) -> Result<mpc::TransactionFeeInfo, String> {
+    // let mut db = handle_error_result!(get_db_connection(db_url));
+    let key = String::from("cli:tx_fee");
+
+    // load the channel state from DB
+    let ser_tx_fee_info = handle_error_with_string!(
+        get_file_from_db(db_conn, &key, &TX_FEE_INFO_KEY.to_string()),
+        "Could not load the merchant channel state"
+    );
+    let tx_fee_info: mpc::TransactionFeeInfo =
+        handle_error_result!(serde_json::from_str(&ser_tx_fee_info));
+
+    return Ok(tx_fee_info);
+}
+
+pub fn store_tx_fee_info(
+    db_url: String,
+    tx_fee_info: &mpc::TransactionFeeInfo,
+) -> Result<(), String> {
+    let mut db = handle_error_result!(get_db_connection(db_url));
+    let key = String::from("cli:tx_fee");
+
+    let tx_fee_info_str = handle_error_result!(serde_json::to_string(tx_fee_info));
+    store_file_in_db(
+        &mut db.conn,
+        &key,
+        &TX_FEE_INFO_KEY.to_string(),
+        &tx_fee_info_str,
+    )?;
+    Ok(())
 }
 
 #[derive(StructOpt, Debug)]
@@ -435,8 +476,18 @@ fn main() {
     println!("******************************************");
 
     match args.command {
-        Command::SETFEES(_setfees) => {
-            println!("Setting tx fees config: ");
+        Command::SETFEES(setfees) => {
+            let tx_fee_info = mpc::TransactionFeeInfo {
+                bal_min_cust: setfees.bal_min_cust,
+                bal_min_merch: setfees.bal_min_merch,
+                val_cpfp: setfees.val_cpfp,
+                fee_cc: setfees.fee_cc,
+                fee_mc: setfees.fee_mc,
+                min_fee: setfees.min_fee,
+                max_fee: setfees.max_fee,
+            };
+            println!("{}", tx_fee_info);
+            print_error_result!(store_tx_fee_info(db_url.clone(), &tx_fee_info));
         }
         Command::OPEN(open) => match open.party {
             Party::MERCH => match merch::open(create_connection!(open), &db_url, open.self_delay) {
@@ -580,7 +631,7 @@ mod cust {
         let rng = &mut rand::thread_rng();
         let mut db_conn = handle_error_result!(create_db_connection(db_url.clone()));
 
-        let tx_fee_info = get_tx_fee_info();
+        let tx_fee_info = handle_error_result!(load_tx_fee_info(&mut db_conn)); // get_tx_fee_info();
 
         println!("Waiting for merchant's channel_state and pk_m...");
         let msg0 = conn.wait_for(None, false);

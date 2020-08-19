@@ -120,6 +120,17 @@ pub struct TransactionFeeInfo {
     pub max_fee: i64,
 }
 
+impl fmt::Display for TransactionFeeInfo {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "TransactionFees : (\nbal_min_cust={}\nbal_min_merch={}\nval_cpfp={}\nfee_cc={}\nfee_mc={}\nmin_fee={}\nmax_fee={}\n)",
+            self.bal_min_cust, self.bal_min_merch, self.val_cpfp, self.fee_cc, self.fee_mc, self.min_fee, self.max_fee
+        )
+
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ChannelMPCState {
     bal_min_cust: i64,
