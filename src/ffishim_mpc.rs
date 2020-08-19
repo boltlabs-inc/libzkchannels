@@ -1835,6 +1835,8 @@ pub mod ffishim_mpc {
         ser_self_delay: *mut c_char,
         ser_cust_pk: *mut c_char,
         ser_output_pk: *mut c_char,
+        cpfp_index: u32,
+        cpfp_amount: i64,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
         let txid_le_result = deserialize_hex_string(ser_tx_index);
@@ -1859,6 +1861,7 @@ pub mod ffishim_mpc {
 
         let merch_pk = merch_state.pk_m.serialize().to_vec();
         let merch_close_sk = merch_state.get_close_secret_key();
+        let merch_child_sk = merch_state.get_cpfp_secret_key();
         let merch_close_pk = merch_state.payout_pk.serialize().to_vec();
 
         let signed_tx = handle_errors!(
@@ -1872,7 +1875,9 @@ pub mod ffishim_mpc {
                 cust_pk,
                 merch_pk,
                 merch_close_pk,
-                merch_close_sk
+                merch_close_sk,
+                Some((cpfp_index, cpfp_amount)),
+                Some(merch_child_sk)
             )
         );
         let ser = ["{\'signed_tx\': \'", &hex::encode(signed_tx), "\'}"].concat();

@@ -507,7 +507,7 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	claimAmount = custBal + merchBal
 	claimAmount = claimAmount - feeCC - feeMC
 	claimOutAmount = claimAmount - txFee
-	SignedMerchClaimTx, err := MerchantSignMerchClaimTx(merchTxid_LE, index, claimAmount, claimOutAmount, toSelfDelay, custPk, outputPk, merchState)
+	SignedMerchClaimTx, err := MerchantSignMerchClaimTx(merchTxid_LE, index, claimAmount, claimOutAmount, toSelfDelay, custPk, outputPk, 0, 0, merchState)
 	assert.Nil(t, err)
 	fmt.Println("TX2-merch-close-claim-tx: ", SignedMerchClaimTx)
 	fmt.Println("========================================")

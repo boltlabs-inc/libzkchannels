@@ -407,6 +407,8 @@ char *merch_claim_tx_from_merch_close(char *ser_tx_index,
                                       char *ser_self_delay,
                                       char *ser_cust_pk,
                                       char *ser_output_pk,
+                                      uint32_t cpfp_index,
+                                      int64_t cpfp_amount,
                                       char *ser_merch_state);
 
 char *merch_clear_channel_status(char *ser_escrow_txid, char *ser_merch_state);

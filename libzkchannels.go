@@ -985,14 +985,14 @@ func MerchantSignCustClaimTx(txid string, index uint32, inputAmount int64, outpu
 	return r.SignedTx, err
 }
 
-func MerchantSignMerchClaimTx(txid_LE string, index uint32, inputAmount int64, outputAmount int64, toSelfDelay string, custPk string, outputPk string, merchState MerchState) (string, error) {
+func MerchantSignMerchClaimTx(txid_LE string, index uint32, inputAmount int64, outputAmount int64, toSelfDelay string, custPk string, outputPk string, cpfpIndex uint32, cpfpAmount int64, merchState MerchState) (string, error) {
 	serMerchState, err := json.Marshal(merchState)
 	if err != nil {
 		return "", err
 	}
 
 	resp := C.GoString(C.merch_claim_tx_from_merch_close(C.CString(txid_LE), C.uint(index), C.int64_t(inputAmount), C.int64_t(outputAmount), C.CString(toSelfDelay),
-		C.CString(custPk), C.CString(outputPk), C.CString(string(serMerchState))))
+		C.CString(custPk), C.CString(outputPk), C.uint(cpfpIndex), C.int64_t(cpfpAmount), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", err

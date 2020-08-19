@@ -1236,6 +1236,10 @@ impl MerchantMPCState {
         return self.dispute_sk.0.to_vec();
     }
 
+    pub fn get_cpfp_secret_key(&self) -> Vec<u8> {
+        return self.child_sk.0.to_vec();
+    }
+
     pub fn activate_channel(
         &self,
         db: &mut dyn StateDatabase,
