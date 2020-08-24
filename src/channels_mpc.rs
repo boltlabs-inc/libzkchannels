@@ -127,7 +127,6 @@ impl fmt::Display for TransactionFeeInfo {
             "TransactionFees : (\nbal_min_cust={}\nbal_min_merch={}\nval_cpfp={}\nfee_cc={}\nfee_mc={}\nmin_fee={}\nmax_fee={}\n)",
             self.bal_min_cust, self.bal_min_merch, self.val_cpfp, self.fee_cc, self.fee_mc, self.min_fee, self.max_fee
         )
-
     }
 }
 

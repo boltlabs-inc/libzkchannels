@@ -1,4 +1,5 @@
 extern crate bufstream;
+extern crate confy;
 extern crate libc;
 extern crate rand;
 extern crate redis;
@@ -13,7 +14,7 @@ use bufstream::BufStream;
 use libc::{c_int, c_void};
 use rand::Rng;
 use redis::Commands;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::ffi::CString;
 use std::fs::File;
 use std::io::{BufRead, Read, Write};
@@ -84,6 +85,22 @@ macro_rules! create_connection {
     };
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ZKChannelConfig {
+    version: u8,
+    db_url: String,
+    // set_fees: bool,
+}
+
+impl Default for ZKChannelConfig {
+    fn default() -> Self {
+        ZKChannelConfig {
+            version: 0,
+            db_url: "redis://127.0.0.1/".to_string(),
+            // set_fees: false,
+        }
+    }
+}
 #[derive(Clone, Debug, Deserialize)]
 enum Party {
     MERCH,
@@ -236,7 +253,7 @@ impl FromStr for Command {
     }
 }
 
-pub fn get_db_connection(db_url: String) -> Result<RedisDatabase, String> {
+pub fn get_merch_db_connection(db_url: String) -> Result<RedisDatabase, String> {
     return RedisDatabase::new("cli", db_url);
 }
 
@@ -341,16 +358,17 @@ fn get_tx_fee_info() -> mpc::TransactionFeeInfo {
 pub fn load_tx_fee_info(
     db_conn: &mut redis::Connection,
 ) -> Result<mpc::TransactionFeeInfo, String> {
-    // let mut db = handle_error_result!(get_db_connection(db_url));
     let key = String::from("cli:tx_fee");
 
     // load the channel state from DB
     let ser_tx_fee_info = handle_error_with_string!(
         get_file_from_db(db_conn, &key, &TX_FEE_INFO_KEY.to_string()),
-        "Could not load the merchant channel state"
+        "could not load the tx fee info"
     );
-    let tx_fee_info: mpc::TransactionFeeInfo =
-        handle_error_result!(serde_json::from_str(&ser_tx_fee_info));
+    let tx_fee_info: mpc::TransactionFeeInfo = handle_error_with_string!(
+        serde_json::from_str(&ser_tx_fee_info),
+        "tx fee info json string is malformed"
+    );
 
     return Ok(tx_fee_info);
 }
@@ -359,7 +377,7 @@ pub fn store_tx_fee_info(
     db_url: String,
     tx_fee_info: &mpc::TransactionFeeInfo,
 ) -> Result<(), String> {
-    let mut db = handle_error_result!(get_db_connection(db_url));
+    let mut db = handle_error_result!(get_merch_db_connection(db_url));
     let key = String::from("cli:tx_fee");
 
     let tx_fee_info_str = handle_error_result!(serde_json::to_string(tx_fee_info));
@@ -469,9 +487,11 @@ impl Conn {
     }
 }
 
-fn main() {
+fn main() -> Result<(), confy::ConfyError> {
     let args = Cli::from_args();
-    let db_url = "redis://127.0.0.1/".to_string(); // make constant
+    let cfg: ZKChannelConfig = confy::load("zkchannel_cfg")?;
+    // println!("Loaded config: {:#?}", cfg);
+    let db_url = cfg.db_url.clone();
 
     println!("******************************************");
 
@@ -487,13 +507,17 @@ fn main() {
                 max_fee: setfees.max_fee,
             };
             println!("{}", tx_fee_info);
-            print_error_result!(store_tx_fee_info(db_url.clone(), &tx_fee_info));
+            print_error_result!(store_tx_fee_info(db_url, &tx_fee_info));
+            // TODO: integrate setting tx fees and other config items
+            // confy::store("zkchannel_cfg", &cfg)?;
         }
         Command::OPEN(open) => match open.party {
-            Party::MERCH => match merch::open(create_connection!(open), &db_url, open.self_delay) {
-                Err(e) => println!("Channel opening phase failed with error: {}", e),
-                _ => (),
-            },
+            Party::MERCH => {
+                match merch::open(&cfg, create_connection!(open), &db_url, open.self_delay) {
+                    Err(e) => println!("Channel opening phase failed with error: {}", e),
+                    _ => (),
+                }
+            }
             Party::CUST => {
                 match cust::open(
                     create_connection!(open),
@@ -600,6 +624,7 @@ fn main() {
     }
 
     println!("******************************************");
+    Ok(())
 }
 
 mod cust {
@@ -631,7 +656,7 @@ mod cust {
         let rng = &mut rand::thread_rng();
         let mut db_conn = handle_error_result!(create_db_connection(db_url.clone()));
 
-        let tx_fee_info = handle_error_result!(load_tx_fee_info(&mut db_conn)); // get_tx_fee_info();
+        let tx_fee_info = handle_error_result!(load_tx_fee_info(&mut db_conn));
 
         println!("Waiting for merchant's channel_state and pk_m...");
         let msg0 = conn.wait_for(None, false);
@@ -1130,13 +1155,18 @@ mod merch {
     use zkchannels::channels_mpc::{
         ChannelMPCState, ChannelMPCToken, InitCustState, MerchantMPCState, NetworkConfig,
     };
-    use zkchannels::database::{RedisDatabase, StateDatabase};
+    use zkchannels::database::StateDatabase;
     use zkchannels::wallet::State;
 
     static MERCH_STATE_KEY: &str = "merch_state";
     static CHANNEL_STATE_KEY: &str = "channel_state";
 
-    pub fn open(conn: &mut Conn, db_url: &String, self_delay: u16) -> Result<(), String> {
+    pub fn open(
+        _cfg: &ZKChannelConfig,
+        conn: &mut Conn,
+        db_url: &String,
+        self_delay: u16,
+    ) -> Result<(), String> {
         let merch_state_info = load_merchant_state_info(&db_url);
         let tx_fee_info = get_tx_fee_info();
         let (channel_state, merch_state) = match merch_state_info {
@@ -1157,10 +1187,10 @@ mod merch {
                     return Err(s);
                 }
 
-                let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
-
                 let merch_state =
                     mpc::init_merchant(rng, db_url.clone(), &mut channel_state, "Merchant");
+
+                let mut db = handle_error_result!(get_merch_db_connection(db_url.clone()));
 
                 merch_save_state_in_db(&mut db.conn, Some(&channel_state), &merch_state)?;
 
@@ -1181,7 +1211,7 @@ mod merch {
 
     pub fn init(conn: &mut Conn, db_url: &String) -> Result<(), String> {
         // build tx and sign it
-        let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
+        let mut db = handle_error_result!(get_merch_db_connection(db_url.clone()));
         let key = String::from("cli:merch_db");
         let tx_fee_info = get_tx_fee_info();
 
@@ -1319,7 +1349,7 @@ mod merch {
     }
 
     pub fn activate(conn: &mut Conn, db_url: &String) -> Result<(), String> {
-        let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
+        let mut db = handle_error_result!(get_merch_db_connection(db_url.clone()));
         let key = String::from("cli:merch_db");
 
         let ser_merch_state = handle_error_with_string!(
@@ -1353,7 +1383,7 @@ mod merch {
     pub fn load_merchant_state_info(
         db_url: &String,
     ) -> Result<(ChannelMPCState, MerchantMPCState), String> {
-        let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
+        let mut db = handle_error_result!(get_merch_db_connection(db_url.clone()));
         let key = String::from("cli:merch_db");
 
         // load the channel state from DB
@@ -1383,7 +1413,7 @@ mod merch {
         merch_state: &mut MerchantMPCState,
     ) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
-        let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
+        let mut db = handle_error_result!(get_merch_db_connection(db_url.clone()));
 
         let msg0 = conn.wait_for(None, false);
         // get the session id
@@ -1556,7 +1586,7 @@ mod merch {
 
     pub fn close(db_url: &String, out_file: PathBuf, channel_id: String) -> Result<(), String> {
         // output the merch-close-tx (only thing merchant can broadcast to close channel)
-        let mut db = handle_error_result!(RedisDatabase::new("cli", db_url.clone()));
+        let mut db = handle_error_result!(get_merch_db_connection(db_url.clone()));
 
         if channel_id == "" {
             list_channels(&mut db.conn);
