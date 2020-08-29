@@ -33,7 +33,18 @@ The `zkchannels-mpc` shows the following subcommands which reflects each phase o
         init        
         open        
         pay         
+	setfees
         unlink    
+
+# Set transaction fees info
+
+Use the default values:
+
+    zkchannels-mpc setfees
+
+Can set individual fees as follows:
+
+    zkchannels-mpc setfees --bal-min-cust 500 --bal-min-merch 500 --val-cpfp 1000 --fee-cc 1000 --fee-mc 1000 --min-fee 0 --max-fee 10000
 
 # Open
 
