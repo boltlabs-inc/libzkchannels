@@ -391,14 +391,14 @@ mod tests {
     fn test_proof_commitment() {
         let rng = &mut rand::thread_rng();
         let channelId = Fr::rand(rng);
-        let wpk = Fr::rand(rng);
+        let rl = Fr::rand(rng);
         let t = Fr::rand(rng);
 
         let bc = rng.gen_range(100, 1000);
         let bm = rng.gen_range(100, 1000);
         let wallet = Wallet::<Bls12> {
             channelId: channelId,
-            wpk: wpk,
+            rev_lock: rl,
             bc: bc,
             bm: bm,
             close: None,

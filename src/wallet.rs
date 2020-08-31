@@ -10,7 +10,8 @@ use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
 #[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>"))]
 pub struct Wallet<E: Engine> {
     pub channelId: E::Fr,
-    pub wpk: E::Fr,
+    // pub wpk: E::Fr,
+    pub rev_lock: E::Fr,
     pub bc: i64,
     pub bm: i64,
     pub close: Option<E::Fr>,
@@ -21,7 +22,7 @@ impl<E: Engine> Wallet<E> {
         if self.close.is_some() {
             vec![
                 self.channelId,
-                self.wpk,
+                self.rev_lock,
                 E::Fr::from_str(&self.bc.to_string()).unwrap(),
                 E::Fr::from_str(&self.bm.to_string()).unwrap(),
                 self.close.unwrap(),
@@ -29,7 +30,7 @@ impl<E: Engine> Wallet<E> {
         } else {
             vec![
                 self.channelId,
-                self.wpk,
+                self.rev_lock,
                 E::Fr::from_str(&self.bc.to_string()).unwrap(),
                 E::Fr::from_str(&self.bm.to_string()).unwrap(),
             ]
@@ -39,7 +40,7 @@ impl<E: Engine> Wallet<E> {
     pub fn without_close(&self) -> Vec<E::Fr> {
         vec![
             self.channelId,
-            self.wpk,
+            self.rev_lock,
             E::Fr::from_str(&self.bc.to_string()).unwrap(),
             E::Fr::from_str(&self.bm.to_string()).unwrap(),
         ]
@@ -58,14 +59,14 @@ impl<E: Engine> fmt::Display for Wallet<E> {
             let close_str = self.close.unwrap();
             write!(
                 f,
-                "Wallet : (\nchannelId={}\nwpk={}\nbc={}\nbm={}\nclose={}\n)",
-                &self.channelId, &self.wpk, &self.bc, &self.bm, close_str
+                "Wallet : (\nchannelId={}\nrev_lock={}\nbc={}\nbm={}\nclose={}\n)",
+                &self.channelId, &self.rev_lock, &self.bc, &self.bm, close_str
             )
         } else {
             write!(
                 f,
-                "Wallet : (\nchannelId={}\nwpk={}\nbc={}\nbm={}\nclose=None\n)",
-                &self.channelId, &self.wpk, &self.bc, &self.bm
+                "Wallet : (\nchannelId={}\nrev_lock={}\nbc={}\nbm={}\nclose=None\n)",
+                &self.channelId, &self.rev_lock, &self.bc, &self.bm
             )
         }
     }

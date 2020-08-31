@@ -64,6 +64,7 @@ pub mod ffishim_mpc;
 pub mod mpcwrapper;
 pub mod nizk;
 pub mod ped92;
+pub mod tze_utils;
 pub mod util;
 pub mod wallet;
 
@@ -107,7 +108,7 @@ pub mod zkproofs {
 
     pub use channels::{
         BoltError, ChannelParams, ChannelState, ChannelToken, ChannelcloseM, CustomerState,
-        MerchantState, PubKeyMap, ResultBoltType,
+        MerchantState, ResultBoltType, RevLockPair,
     };
     pub use cl::PublicParams;
     pub use cl::{PublicKey, Signature};
@@ -115,8 +116,9 @@ pub mod zkproofs {
     pub use ped92::Commitment;
     pub use ped92::CommitmentProof;
     use serde::{Deserialize, Serialize};
-    use util::{hash_to_slice, RevokedMessage};
+    use util::hash_to_slice;
     pub use wallet::{serialize_compact, Wallet};
+    use zkchan_tx::fixed_size_array::FixedSizeArray32;
     pub use BoltResult;
 
     #[derive(Clone, Serialize, Deserialize)]
@@ -127,7 +129,7 @@ pub mod zkproofs {
                              <E as pairing::Engine>::G1: serde::Deserialize<'de>")
     )]
     pub struct ChannelcloseC<E: Engine> {
-        pub wpk: secp256k1::PublicKey,
+        pub rev_lock: FixedSizeArray32,
         pub message: wallet::Wallet<E>,
         pub merch_signature: cl::Signature<E>,
         pub cust_signature: secp256k1::Signature,
@@ -147,15 +149,15 @@ pub mod zkproofs {
     pub struct Payment<E: Engine> {
         proof: NIZKProof<E>,
         com: Commitment<E>,
-        wpk: secp256k1::PublicKey,
+        rev_lock: FixedSizeArray32,
         amount: i64,
     }
 
-    #[derive(Clone, Serialize, Deserialize)]
-    pub struct RevokeToken {
-        message: util::RevokedMessage,
-        pub signature: secp256k1::Signature,
-    }
+    // #[derive(Clone, Serialize, Deserialize)]
+    // pub struct RevokeToken {
+    //     message: util::RevokedMessage,
+    //     pub signature: secp256k1::Signature,
+    // }
 
     ///
     /// init_merchant - takes as input the public params, merchant balance and keypair.
@@ -302,12 +304,12 @@ pub mod zkproofs {
             true => amount + tx_fee,
             false => amount,
         };
-        let (proof, com, wpk, new_cust_state) =
+        let (proof, com, rev_lock, new_cust_state) =
             cust_state.generate_payment(csprng, &channel_state, payment_amount);
         let payment = Payment {
             proof,
             com,
-            wpk,
+            rev_lock,
             amount,
         };
         return (payment, new_cust_state);
@@ -337,12 +339,12 @@ pub mod zkproofs {
                 &channel_state,
                 &payment.proof,
                 &payment.com,
-                &payment.wpk,
+                &payment.rev_lock,
                 payment_amount,
             )
             .unwrap();
-        // store the wpk since it has been revealed
-        update_merchant_state(&mut merch_state.keys, &payment.wpk, None);
+        // store the rev_lock since it has been revealed
+        update_merchant_state(&mut merch_state.keys, &payment.rev_lock, None);
         return new_close_token;
     }
 
@@ -369,7 +371,7 @@ pub mod zkproofs {
                 &channel_state,
                 &sender_payment.proof,
                 &sender_payment.com,
-                &sender_payment.wpk,
+                &sender_payment.rev_lock,
                 sender_payment.amount + tx_fee,
             )
             .unwrap();
@@ -380,83 +382,79 @@ pub mod zkproofs {
                 &channel_state,
                 &receiver_payment.proof,
                 &receiver_payment.com,
-                &receiver_payment.wpk,
+                &receiver_payment.rev_lock,
                 receiver_payment.amount + tx_fee,
             )
             .unwrap();
 
         // store the wpk since it has been revealed
-        update_merchant_state(&mut merch_state.keys, &sender_payment.wpk, None);
-        update_merchant_state(&mut merch_state.keys, &receiver_payment.wpk, None);
+        update_merchant_state(&mut merch_state.keys, &sender_payment.rev_lock, None);
+        update_merchant_state(&mut merch_state.keys, &receiver_payment.rev_lock, None);
 
         return Ok(Some((new_close_token, cond_close_token)));
     }
 
     ///
-    /// generate_revoke_token (phase 2) - takes as input the public params, old wallet, new wallet,
+    /// get_revoke_lock_pair (phase 2) - takes as input the public params, old wallet, new wallet,
     /// merchant's verification key and refund token. If the refund token is valid, generate
     /// a revocation token for the old wallet public key.
     ///
-    pub fn generate_revoke_token<E: Engine>(
+    pub fn get_revoke_lock_pair<E: Engine>(
         channel_state: &ChannelState<E>,
         old_cust_state: &mut CustomerState<E>,
         new_cust_state: CustomerState<E>,
         new_close_token: &cl::Signature<E>,
-    ) -> RevokeToken {
+    ) -> ResultBoltType<RevLockPair> {
         // let's update the old wallet
         assert!(old_cust_state.update(new_cust_state));
+
         // generate the token after verifying that the close token is valid
-        let (message, signature) = old_cust_state
-            .generate_revoke_token(channel_state, new_close_token)
-            .unwrap();
-        // return the revoke token (msg + sig pair)
-        return RevokeToken { message, signature };
+        let (rev_lock, rev_secret) =
+            old_cust_state.get_old_rev_lock_pair(channel_state, new_close_token)?;
+
+        return Ok(RevLockPair {
+            rev_lock: rev_lock,
+            rev_secret: rev_secret,
+        });
     }
 
     ///
-    /// verify_revoke_token (phase 2) - takes as input revoke message and signature
+    /// verify_revoke_message (phase 2) - takes as input revoke message and signature
     /// from the customer and the merchant state. If the revocation token is valid,
     /// generate a new signature for the new wallet (from the PoK of committed values in new wallet).
     ///
-    pub fn verify_revoke_token<E: Engine>(
-        rt: &RevokeToken,
+    pub fn verify_revoke_message<E: Engine>(
+        rt: &RevLockPair,
         merch_state: &mut MerchantState<E>,
     ) -> BoltResult<cl::Signature<E>> {
-        let pay_token_result =
-            merch_state.verify_revoke_token(&rt.signature, &rt.message, &rt.message.wpk);
+        let pay_token_result = merch_state.verify_revoke_message(&rt.rev_lock, &rt.rev_secret);
         let new_pay_token = match pay_token_result {
             Ok(n) => n,
             Err(err) => return Err(String::from(err.to_string())),
         };
         update_merchant_state(
             &mut merch_state.keys,
-            &rt.message.wpk,
-            Some(rt.signature.clone()),
+            &rt.rev_lock,
+            Some(rt.rev_secret.clone()),
         );
         Ok(Some(new_pay_token))
     }
 
     ///
-    /// verify_multiple_revoke_tokens (phase 2) - takes as input revoke messages and signatures
+    /// verify_multiple_revoke_messages (phase 2) - takes as input revoke messages and signatures
     /// from the sender and receiver and the merchant state of the intermediary.
     /// If the revocation tokens are valid, generate new signatures for the new wallets of both
     /// sender and receiver (from the PoK of committed values in new wallet).
     ///
-    pub fn verify_multiple_revoke_tokens<E: Engine>(
-        rt_sender: &RevokeToken,
-        rt_receiver: &RevokeToken,
+    pub fn verify_multiple_revoke_messages<E: Engine>(
+        rt_sender: &RevLockPair,
+        rt_receiver: &RevLockPair,
         merch_state: &mut MerchantState<E>,
     ) -> BoltResult<(cl::Signature<E>, cl::Signature<E>)> {
-        let pay_token_sender_result = merch_state.verify_revoke_token(
-            &rt_sender.signature,
-            &rt_sender.message,
-            &rt_sender.message.wpk,
-        );
-        let pay_token_receiver_result = merch_state.verify_revoke_token(
-            &rt_receiver.signature,
-            &rt_receiver.message,
-            &rt_receiver.message.wpk,
-        );
+        let pay_token_sender_result =
+            merch_state.verify_revoke_message(&rt_sender.rev_lock, &rt_sender.rev_secret);
+        let pay_token_receiver_result =
+            merch_state.verify_revoke_message(&rt_receiver.rev_lock, &rt_receiver.rev_secret);
         let new_pay_token_sender = match pay_token_sender_result {
             Ok(n) => n,
             Err(err) => return Err(String::from(err.to_string())),
@@ -468,13 +466,13 @@ pub mod zkproofs {
 
         update_merchant_state(
             &mut merch_state.keys,
-            &rt_sender.message.wpk,
-            Some(rt_sender.signature.clone()),
+            &rt_sender.rev_lock,
+            Some(rt_sender.rev_secret.clone()),
         );
         update_merchant_state(
             &mut merch_state.keys,
-            &rt_receiver.message.wpk,
-            Some(rt_receiver.signature.clone()),
+            &rt_receiver.rev_lock,
+            Some(rt_receiver.rev_secret.clone()),
         );
 
         Ok(Some((new_pay_token_sender, new_pay_token_receiver)))
@@ -487,15 +485,17 @@ pub mod zkproofs {
     /// customer_close - takes as input the channel state, merchant's verification
     /// key, and customer state. Generates a channel closure message for customer.
     ///
-    pub fn customer_close<E: Engine>(
+    pub fn force_customer_close<E: Engine>(
         channel_state: &ChannelState<E>,
         cust_state: &CustomerState<E>,
-    ) -> ChannelcloseC<E>
+    ) -> Result<ChannelcloseC<E>, BoltError>
     where
         <E as pairing::Engine>::G1: serde::Serialize,
     {
         if !channel_state.channel_established {
-            panic!("Cannot close a channel that has not been established!");
+            return Err(BoltError::new(
+                "Cannot close a channel that has not been established!",
+            ));
         }
 
         let mut wallet = cust_state.get_wallet();
@@ -519,34 +519,25 @@ pub mod zkproofs {
         let seckey = cust_state.get_secret_key();
         let cust_sig = secp.sign(&msg, &seckey);
 
-        ChannelcloseC {
-            wpk: cust_state.wpk,
+        Ok(ChannelcloseC {
+            rev_lock: FixedSizeArray32(cust_state.rev_lock.0.clone()),
             message: wallet,
             merch_signature: close_token,
             cust_signature: cust_sig,
-        }
+        })
     }
 
     fn update_merchant_state(
-        db: &mut HashMap<String, PubKeyMap>,
-        wpk: &secp256k1::PublicKey,
-        rev: Option<secp256k1::Signature>,
+        db: &mut HashMap<String, String>,
+        rev_lock: &FixedSizeArray32,
+        rev_secret: Option<FixedSizeArray32>,
     ) {
-        let fingerprint = util::compute_pub_key_fingerprint(wpk);
-        //println!("Print fingerprint: {}", fingerprint);
-        if !rev.is_none() {
-            let cust_pub_key = PubKeyMap {
-                wpk: wpk.clone(),
-                revoke_token: Some(rev.unwrap().clone()),
-            };
-            db.insert(fingerprint, cust_pub_key);
-        } else {
-            let cust_pub_key = PubKeyMap {
-                wpk: wpk.clone(),
-                revoke_token: None,
-            };
-            db.insert(fingerprint, cust_pub_key);
-        }
+        let rev_lock_str = hex::encode(&rev_lock.0);
+        let rev_secret_str = match rev_secret {
+            Some(s) => hex::encode(&s.0),
+            None => String::from(""),
+        };
+        db.insert(rev_lock_str, rev_secret_str);
     }
 
     ///
@@ -554,14 +545,14 @@ pub mod zkproofs {
     /// Returns tokens for merchant close transaction (only if customer close message is found to be a
     /// double spend). If not, then None is returned.
     ///
-    pub fn merchant_close<E: Engine>(
+    pub fn force_merchant_close<E: Engine>(
         channel_state: &ChannelState<E>,
         channel_token: &ChannelToken<E>,
         cust_close: &ChannelcloseC<E>,
         merch_state: &MerchantState<E>,
-    ) -> BoltResult<PubKeyMap> {
+    ) -> Result<RevLockPair, BoltError> {
         if (!channel_state.channel_established) {
-            return Err(String::from("merchant_close - Channel not established! Cannot generate channel closure message."));
+            return Err(BoltError::new("force_merchant_close - Channel not established! Cannot generate channel closure message."));
         }
 
         let cp = channel_state.cp.as_ref().unwrap();
@@ -571,312 +562,110 @@ pub mod zkproofs {
         let close_token = cust_close.merch_signature.clone();
 
         let is_valid = pk.verify(&channel_token.mpk, &close_wallet, &close_token);
+        // check that cust_close.rev_lock == close_wallet.rev_lock
 
         if is_valid {
-            let wpk = cust_close.wpk;
-            // found the wpk, which means old close token
-            let fingerprint = util::compute_pub_key_fingerprint(&wpk);
-            if merch_state.keys.contains_key(&fingerprint) {
-                let revoked_state = merch_state.keys.get(&fingerprint).unwrap();
-                if !revoked_state.revoke_token.is_none() {
-                    let revoke_token = revoked_state.revoke_token.unwrap().clone();
-                    // verify the revoked state first before returning
-                    let secp = secp256k1::Secp256k1::new();
-                    let revoke_msg = RevokedMessage::new(String::from("revoked"), wpk.clone());
-                    let msg = secp256k1::Message::from_slice(&revoke_msg.hash_to_slice()).unwrap();
-                    // verify that the revocation token is valid
-                    if secp.verify(&msg, &revoke_token, &wpk).is_ok() {
-                        // compute signature on
-                        return Ok(Some(revoked_state.clone()));
-                    }
-                }
-                return Err(String::from("merchant_close - Found wpk but could not find the revoke token. Merchant abort detected."));
+            let rev_lock = cust_close.rev_lock;
+            // found the rev_lock, which means close token on old state
+            let rev_lock_key = hex::encode(&rev_lock.0);
+            if merch_state.keys.contains_key(&rev_lock_key) {
+                let rev_secret_str = merch_state.keys.get(&rev_lock_key).unwrap();
+                let rev_secret = hex::decode(&rev_secret_str).unwrap();
+                let mut rs_buf = [0u8; 32];
+                // TODO: check that rev_secret is 32 len
+                rs_buf.copy_from_slice(&rev_secret);
+                return Ok(RevLockPair {
+                    rev_lock: rev_lock,
+                    rev_secret: FixedSizeArray32(rs_buf),
+                });
+                // if !revoked_state.revoke_token.is_none() {
+                //     let revoke_token = revoked_state.revoke_token.unwrap().clone();
+                //     // verify the revoked state first before returning
+                //     let secp = secp256k1::Secp256k1::new();
+                //     let revoke_msg = RevokedMessage::new(String::from("revoked"), wpk.clone());
+                //     let msg = secp256k1::Message::from_slice(&revoke_msg.hash_to_slice()).unwrap();
+                //     // verify that the revocation token is valid
+                //     if secp.verify(&msg, &revoke_token, &wpk).is_ok() {
+                //         // compute signature on
+                //         return Ok(Some(revoked_state.clone()));
+                //     }
+                // }
+                // return Err(String::from("merchant_close - Found rev_lock entry but could not find a rev_secret. Merchant abort detected."));
             }
-            return Err(String::from(
-                "merchant_close - Could not find entry for wpk & revoke token pair. Valid close!",
+            return Err(BoltError::new(
+                "force_merchant_close - Could not find entry for rev_lock/rev_secret pair. Valid close!",
             ));
         }
-        Err(String::from(
-            "merchant_close - Customer close message not valid!",
+        Err(BoltError::new(
+            "force_merchant_close - Customer close message not valid!",
         ))
     }
 
-    ///
-    /// Used in open-channel WTP for validating that a close_token is a valid signature under <
-    ///
-    pub fn tze_verify_cust_close_message<E: Engine>(
-        channel_token: &ChannelToken<E>,
-        wpk: &secp256k1::PublicKey,
-        close_msg: &wallet::Wallet<E>,
-        close_token: &Signature<E>,
-    ) -> bool {
-        // close_msg => <pkc> || <wpk> || <balance-cust> || <balance-merch> || CLOSE
-        // close_token = regular CL signature on close_msg
-        // channel_token => <pk_c, CL_PK_m, pk_m, mpk, comParams>
+    //
+    // Used in open-channel WTP for validating that a close_token is a valid signature under <
+    //
+    // pub fn tze_verify_cust_close_message<E: Engine>(
+    //     channel_token: &ChannelToken<E>,
+    //     wpk: &secp256k1::PublicKey,
+    //     close_msg: &wallet::Wallet<E>,
+    //     close_token: &Signature<E>,
+    // ) -> bool {
+    //     // close_msg => <pkc> || <wpk> || <balance-cust> || <balance-merch> || CLOSE
+    //     // close_token = regular CL signature on close_msg
+    //     // channel_token => <pk_c, CL_PK_m, pk_m, mpk, comParams>
 
-        // (1) check that channel token and close msg are consistent (e.g., close_msg.pk_c == H(channel_token.pk_c) &&
-        let pk_c = channel_token.pk_c.unwrap();
-        let chan_token_pk_c = util::hash_pubkey_to_fr::<E>(&pk_c);
-        let chan_token_wpk = util::hash_pubkey_to_fr::<E>(&wpk);
+    //     // (1) check that channel token and close msg are consistent (e.g., close_msg.pk_c == H(channel_token.pk_c) &&
+    //     let pk_c = channel_token.pk_c.unwrap();
+    //     let chan_token_pk_c = util::hash_pubkey_to_fr::<E>(&pk_c);
+    //     let chan_token_wpk = util::hash_pubkey_to_fr::<E>(&wpk);
 
-        let pkc_thesame = (close_msg.channelId == chan_token_pk_c);
-        // (2) check that wpk matches what's in the close msg
-        let wpk_thesame = (close_msg.wpk == chan_token_wpk);
-        return pkc_thesame
-            && wpk_thesame
-            && channel_token.cl_pk_m.verify(
-                &channel_token.mpk,
-                &close_msg.as_fr_vec(),
-                &close_token,
-            );
-    }
+    //     let pkc_thesame = (close_msg.channelId == chan_token_pk_c);
+    //     // (2) check that wpk matches what's in the close msg
+    //     let wpk_thesame = (close_msg.wpk == chan_token_wpk);
+    //     return pkc_thesame
+    //         && wpk_thesame
+    //         && channel_token.cl_pk_m.verify(
+    //             &channel_token.mpk,
+    //             &close_msg.as_fr_vec(),
+    //             &close_token,
+    //         );
+    // }
 
-    ///
-    /// Used in merch-close WTP for validating that revoke_token is a valid signature under <wpk> and the <revoked || wpk> message
-    ///
-    pub fn tze_verify_revoke_message(
-        wpk: &secp256k1::PublicKey,
-        revoke_token: &secp256k1::Signature,
-    ) -> bool {
-        let secp = secp256k1::Secp256k1::verification_only();
-        let revoke_msg = RevokedMessage::new(String::from("revoked"), wpk.clone());
-        let msg = secp256k1::Message::from_slice(&revoke_msg.hash_to_slice()).unwrap();
-        // verify that the revocation token is valid with respect to revoked || wpk
-        return secp.verify(&msg, &revoke_token, &wpk).is_ok();
-    }
+    //
+    // Used in merch-close WTP for validating that revoke_token is a valid signature under <wpk> and the <revoked || wpk> message
+    //
+    // pub fn tze_verify_revoke_message(
+    //     wpk: &secp256k1::PublicKey,
+    //     revoke_token: &secp256k1::Signature,
+    // ) -> bool {
+    //     let secp = secp256k1::Secp256k1::verification_only();
+    //     let revoke_msg = RevokedMessage::new(String::from("revoked"), wpk.clone());
+    //     let msg = secp256k1::Message::from_slice(&revoke_msg.hash_to_slice()).unwrap();
+    //     // verify that the revocation token is valid with respect to revoked || wpk
+    //     return secp.verify(&msg, &revoke_token, &wpk).is_ok();
+    // }
 
-    ///
-    /// Used in merch-close WTP for validating that merch_sig is a valid signature under <merch_pk> on <dest_addr || revoke-token> message
-    ///
-    pub fn tze_verify_merch_close_message<E: Engine>(
-        channel_token: &ChannelToken<E>,
-        merch_close: &ChannelcloseM,
-    ) -> bool {
-        let secp = secp256k1::Secp256k1::verification_only();
-        let mut msg = Vec::new();
-        msg.extend(merch_close.address.as_bytes());
-        if !merch_close.revoke.is_none() {
-            // serialize signature in DER format
-            let r = merch_close.revoke.unwrap().serialize_der().to_vec();
-            msg.extend(r);
-        }
-        let msg2 = secp256k1::Message::from_slice(&hash_to_slice(&msg)).unwrap();
-        // verify that merch sig is valid with respect to dest_address
-        return secp
-            .verify(&msg2, &merch_close.signature, &channel_token.pk_m)
-            .is_ok();
-    }
-}
-
-pub mod tze_utils {
-    // Useful routines that simplify the Bolt WTP implementation for Zcash
-    pub use channels::ChannelToken;
-    use channels::ChannelcloseM;
-    use cl;
-    pub use cl::Signature;
-    use pairing::bls12_381::Bls12;
-    use ped92::CSMultiParams;
-    pub use wallet::Wallet;
-    use {util, BoltResult};
-
-    const BLS12_381_CHANNEL_TOKEN_LEN: usize = 1074;
-    const BLS12_381_G1_LEN: usize = 48;
-    const BLS12_381_G2_LEN: usize = 96;
-    const SECP256K1_PK_LEN: usize = 33;
-    const ADDRESS_LEN: usize = 33;
-
-    pub fn reconstruct_secp_public_key(pk_bytes: &[u8; SECP256K1_PK_LEN]) -> secp256k1::PublicKey {
-        return secp256k1::PublicKey::from_slice(pk_bytes).unwrap();
-    }
-
-    pub fn reconstruct_secp_signature(sig_bytes: &[u8]) -> secp256k1::Signature {
-        return secp256k1::Signature::from_der(sig_bytes).unwrap();
-    }
-
-    pub fn reconstruct_close_wallet_bls12(
-        channel_token: &ChannelToken<Bls12>,
-        wpk: &secp256k1::PublicKey,
-        cust_bal: u32,
-        merch_bal: u32,
-    ) -> Wallet<Bls12> {
-        let channelId = channel_token.compute_channel_id();
-        let wpk_h = util::hash_pubkey_to_fr::<Bls12>(&wpk);
-        let close = util::hash_to_fr::<Bls12>(String::from("close").into_bytes());
-
-        return Wallet {
-            channelId,
-            wpk: wpk_h,
-            bc: cust_bal as i64,
-            bm: merch_bal as i64,
-            close: Some(close),
-        };
-    }
-
-    pub fn reconstruct_signature_bls12(sig: &Vec<u8>) -> BoltResult<cl::Signature<Bls12>> {
-        if (sig.len() != BLS12_381_G1_LEN * 2) {
-            return Err(String::from("signature has invalid length"));
-        }
-
-        let mut cur_index = 0;
-        let mut end_index = BLS12_381_G1_LEN;
-        let ser_cl_h = sig[cur_index..end_index].to_vec();
-        let str_cl_h = util::encode_as_hexstring(&ser_cl_h);
-        let h = str_cl_h.as_bytes();
-
-        cur_index = end_index;
-        end_index += BLS12_381_G1_LEN;
-        let ser_cl_H = sig[cur_index..end_index].to_vec();
-        let str_cl_H = util::encode_as_hexstring(&ser_cl_H);
-        let H = str_cl_H.as_bytes();
-
-        let cl_sig = cl::Signature::<Bls12>::from_slice(&h, &H);
-
-        Ok(Some(cl_sig))
-    }
-
-    pub fn reconstruct_channel_token_bls12(
-        channel_token: &Vec<u8>,
-    ) -> BoltResult<ChannelToken<Bls12>> {
-        // parse pkc, pkm, pkM, mpk and comParams
-        if channel_token.len() != BLS12_381_CHANNEL_TOKEN_LEN {
-            return Err(String::from("could not reconstruct the channel token!"));
-        }
-
-        let num_y_elems = 5;
-        let num_com_params = 6;
-
-        let mut cur_index = 0;
-        let mut end_index = SECP256K1_PK_LEN;
-        let pkc = secp256k1::PublicKey::from_slice(&channel_token[cur_index..end_index]).unwrap();
-
-        cur_index = end_index;
-        end_index += SECP256K1_PK_LEN;
-        let pkm = secp256k1::PublicKey::from_slice(&channel_token[cur_index..end_index]).unwrap();
-
-        cur_index = end_index;
-        end_index += BLS12_381_G2_LEN; // pk_M => (X, Y)
-        let ser_cl_x = channel_token[cur_index..end_index].to_vec();
-        let str_cl_x = util::encode_as_hexstring(&ser_cl_x);
-        let X = str_cl_x.as_bytes();
-
-        let mut Y = Vec::new();
-        for _ in 0..num_y_elems {
-            cur_index = end_index;
-            end_index += BLS12_381_G2_LEN;
-            let cl_y = channel_token[cur_index..end_index].to_vec();
-            let ser_cl_y = util::encode_as_hexstring(&cl_y);
-            let str_cl_y = ser_cl_y.as_bytes();
-            Y.extend(str_cl_y);
-        }
-        let cl_pk =
-            cl::PublicKey::<Bls12>::from_slice(&X, &Y.as_slice(), str_cl_x.len(), num_y_elems);
-
-        cur_index = end_index;
-        end_index += BLS12_381_G1_LEN;
-        let g1 = channel_token[cur_index..end_index].to_vec();
-        let ser_mpk_g1 = util::encode_as_hexstring(&g1);
-
-        cur_index = end_index;
-        end_index += BLS12_381_G2_LEN;
-        let g2 = channel_token[cur_index..end_index].to_vec();
-        let ser_mpk_g2 = util::encode_as_hexstring(&g2);
-
-        let ser_g1 = ser_mpk_g1.as_bytes();
-        let ser_g2 = ser_mpk_g2.as_bytes();
-
-        let mpk = cl::PublicParams::<Bls12>::from_slice(&ser_g1, &ser_g2);
-
-        let mut comparams = Vec::new();
-        for _ in 0..num_com_params {
-            cur_index = end_index;
-            end_index += BLS12_381_G1_LEN;
-            let com = channel_token[cur_index..end_index].to_vec();
-            let ser_com = util::encode_as_hexstring(&com);
-            let str_com = ser_com.as_bytes();
-            comparams.extend(str_com);
-        }
-
-        let com_params = CSMultiParams::<Bls12>::from_slice(
-            &comparams.as_slice(),
-            ser_mpk_g1.len(),
-            num_com_params,
-        );
-
-        Ok(Some(ChannelToken {
-            pk_c: Some(pkc),
-            pk_m: pkm,
-            cl_pk_m: cl_pk,
-            mpk: mpk,
-            comParams: com_params,
-        }))
-    }
-
-    ///
-    /// Used in open-channel WTP for validating that a close_token is a valid signature
-    ///
-    pub fn tze_verify_cust_close_message(
-        channel_token: &ChannelToken<Bls12>,
-        wpk: &secp256k1::PublicKey,
-        close_msg: &Wallet<Bls12>,
-        close_token: &cl::Signature<Bls12>,
-    ) -> bool {
-        // close_msg => <pkc> || <wpk> || <balance-cust> || <balance-merch> || CLOSE
-        // close_token = regular CL signature on close_msg
-        // channel_token => <pk_c, CL_PK_m, pk_m, mpk, comParams>
-
-        // (1) check that channel token and close msg are consistent (e.g., close_msg.channelId == H(channel_token.pk_c) &&
-        let chan_token_cid = channel_token.compute_channel_id(); // util::hash_pubkey_to_fr::<Bls12>(&pk_c);
-        let chan_token_wpk = util::hash_pubkey_to_fr::<Bls12>(&wpk);
-
-        let cid_thesame = (close_msg.channelId == chan_token_cid);
-        // (2) check that wpk matches what's in the close msg
-        let wpk_thesame = (close_msg.wpk == chan_token_wpk);
-        return cid_thesame
-            && wpk_thesame
-            && channel_token.cl_pk_m.verify(
-                &channel_token.mpk,
-                &close_msg.as_fr_vec(),
-                &close_token,
-            );
-    }
-
-    pub fn tze_generate_secp_signature(seckey: &[u8; 32], msg: &[u8; 32]) -> Vec<u8> {
-        let secp = secp256k1::Secp256k1::signing_only();
-
-        let msg = secp256k1::Message::from_slice(msg).unwrap();
-        let seckey = secp256k1::SecretKey::from_slice(seckey).unwrap();
-        let sig = secp.sign(&msg, &seckey);
-
-        // get serialized signature
-        let ser_sig = sig.serialize_der();
-
-        return ser_sig.to_vec();
-    }
-
-    pub fn tze_verify_secp_signature(
-        pubkey: &secp256k1::PublicKey,
-        hash: &Vec<u8>,
-        sig: &secp256k1::Signature,
-    ) -> bool {
-        let secp = secp256k1::Secp256k1::verification_only();
-        let msg = secp256k1::Message::from_slice(hash.as_slice()).unwrap();
-
-        return secp.verify(&msg, &sig, &pubkey).is_ok();
-    }
-
-    pub fn reconstruct_secp_channel_close_m(
-        address: &[u8; ADDRESS_LEN],
-        ser_revoke_token: &Vec<u8>,
-        ser_sig: &Vec<u8>,
-    ) -> ChannelcloseM {
-        let revoke_token = secp256k1::Signature::from_der(&ser_revoke_token.as_slice()).unwrap();
-        let sig = secp256k1::Signature::from_der(&ser_sig.as_slice()).unwrap();
-        ChannelcloseM {
-            address: hex::encode(&address.to_vec()),
-            revoke: Some(revoke_token),
-            signature: sig,
-        }
-    }
+    //
+    // Used in merch-close WTP for validating that merch_sig is a valid signature under <merch_pk> on <dest_addr || revoke-token> message
+    //
+    // pub fn tze_verify_merch_close_message<E: Engine>(
+    //     channel_token: &ChannelToken<E>,
+    //     merch_close: &ChannelcloseM,
+    // ) -> bool {
+    //     let secp = secp256k1::Secp256k1::verification_only();
+    //     let mut msg = Vec::new();
+    //     msg.extend(merch_close.address.as_bytes());
+    //     if !merch_close.revoke.is_none() {
+    //         // serialize signature in DER format
+    //         let r = merch_close.revoke.unwrap().serialize_der().to_vec();
+    //         msg.extend(r);
+    //     }
+    //     let msg2 = secp256k1::Message::from_slice(&hash_to_slice(&msg)).unwrap();
+    //     // verify that merch sig is valid with respect to dest_address
+    //     return secp
+    //         .verify(&msg2, &merch_close.signature, &channel_token.pk_m)
+    //         .is_ok();
+    // }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1543,16 +1332,17 @@ mod tests {
         let new_close_token =
             zkproofs::verify_payment_proof(rng, &channel_state, &payment, merch_state);
 
-        let revoke_token = zkproofs::generate_revoke_token(
+        let rev_lock_pair = zkproofs::get_revoke_lock_pair(
             &channel_state,
             cust_state,
             new_cust_state,
             &new_close_token,
-        );
+        )
+        .unwrap();
 
         // send revoke token and get pay-token in response
         let new_pay_token_result: BoltResult<cl::Signature<Bls12>> =
-            zkproofs::verify_revoke_token(&revoke_token, merch_state);
+            zkproofs::verify_revoke_message(&rev_lock_pair, merch_state);
         let new_pay_token = handle_bolt_result!(new_pay_token_result);
 
         // verify the pay token and update internal state
@@ -1621,16 +1411,17 @@ mod tests {
         let new_close_token =
             zkproofs::verify_payment_proof(rng, &channel_state, &payment, &mut merch_state);
 
-        let revoke_token = zkproofs::generate_revoke_token(
+        let rt_pair = zkproofs::get_revoke_lock_pair(
             &channel_state,
             &mut cust_state,
             new_cust_state,
             &new_close_token,
-        );
+        )
+        .unwrap();
 
         // send revoke token and get pay-token in response
         let new_pay_token_result: BoltResult<cl::Signature<Bls12>> =
-            zkproofs::verify_revoke_token(&revoke_token, &mut merch_state);
+            zkproofs::verify_revoke_message(&rt_pair, &mut merch_state);
         let new_pay_token = handle_bolt_result!(new_pay_token_result);
 
         // verify the pay token and update internal state
@@ -1638,7 +1429,7 @@ mod tests {
 
         println!("Successful payment!");
 
-        let cust_close = zkproofs::customer_close(&channel_state, &cust_state);
+        let cust_close = zkproofs::force_customer_close(&channel_state, &cust_state).unwrap();
         println!("Obtained the channel close message");
         println!("{}", cust_close.message);
         println!("close_token => {}", cust_close.merch_signature);
@@ -1697,7 +1488,8 @@ mod tests {
                 );
             }
 
-            let cust_close_msg = zkproofs::customer_close(&channel_state, &cust_state);
+            let cust_close_msg =
+                zkproofs::force_customer_close(&channel_state, &cust_state).unwrap();
             println!("Obtained the channel close message");
             println!("{}", cust_close_msg.message);
             println!("{}", cust_close_msg.merch_signature);
@@ -1791,7 +1583,8 @@ mod tests {
         );
 
         // let's close then move state forward
-        let old_cust_close_msg = zkproofs::customer_close(&channel_state, &cust_state);
+        let old_cust_close_msg =
+            zkproofs::force_customer_close(&channel_state, &cust_state).unwrap();
 
         execute_payment_protocol_helper(
             &mut channel_state,
@@ -1806,24 +1599,25 @@ mod tests {
             &mut cust_state,
             pay_increment,
         );
-        let _cur_cust_close_msg = zkproofs::customer_close(&channel_state, &cust_state);
+        let _cur_cust_close_msg =
+            zkproofs::force_customer_close(&channel_state, &cust_state).unwrap();
 
-        let merch_close_result = zkproofs::merchant_close(
+        let merch_close_result = zkproofs::force_merchant_close(
             &channel_state,
             &channel_token,
             &old_cust_close_msg,
             &merch_state,
         );
-        let merch_close_msg = match merch_close_result {
-            Ok(n) => n.unwrap(),
-            Err(err) => panic!("Merchant close msg: {}", err),
-        };
 
+        let merch_close_msg = merch_close_result.unwrap();
         println!("Double spend attempt by customer! Evidence below...");
-        println!("Merchant close: wpk = {}", merch_close_msg.wpk);
         println!(
-            "Merchant close: revoke_token = {}",
-            merch_close_msg.revoke_token.unwrap()
+            "Merchant close: rev_lock = {}",
+            hex::encode(merch_close_msg.rev_lock.0)
+        );
+        println!(
+            "Merchant close: rev_secret = {}",
+            hex::encode(merch_close_msg.rev_secret.0)
         );
     }
 
@@ -1883,16 +1677,16 @@ mod tests {
             pay_increment,
         );
 
-        let cust_close_msg = zkproofs::customer_close(&channel_state, &cust_state);
+        let cust_close_msg = zkproofs::force_customer_close(&channel_state, &cust_state).unwrap();
 
-        let merch_close_result = zkproofs::merchant_close(
+        let merch_close_result = zkproofs::force_merchant_close(
             &channel_state,
             &channel_token,
             &cust_close_msg,
             &merch_state,
         );
         let _merch_close_msg = match merch_close_result {
-            Ok(n) => n.unwrap(),
+            Ok(n) => n,
             Err(err) => panic!("Merchant close msg: {}", err),
         };
     }
@@ -1972,22 +1766,24 @@ mod tests {
             handle_bolt_result!(close_token_result).unwrap();
 
         // both alice and bob generate a revoke token
-        let revoke_token_alice = zkproofs::generate_revoke_token(
+        let revoke_token_alice = zkproofs::get_revoke_lock_pair(
             &channel_state,
             &mut alice_cust_state,
             new_alice_cust_state,
             &alice_close_token,
-        );
-        let revoke_token_bob = zkproofs::generate_revoke_token(
+        )
+        .unwrap();
+        let revoke_token_bob = zkproofs::get_revoke_lock_pair(
             &channel_state,
             &mut bob_cust_state,
             new_bob_cust_state,
             &bob_cond_close_token,
-        );
+        )
+        .unwrap();
 
         // send both revoke tokens to intermediary and get pay-tokens in response
         let new_pay_token_result: BoltResult<(cl::Signature<Bls12>, cl::Signature<Bls12>)> =
-            zkproofs::verify_multiple_revoke_tokens(
+            zkproofs::verify_multiple_revoke_messages(
                 &revoke_token_alice,
                 &revoke_token_bob,
                 &mut merch_state,

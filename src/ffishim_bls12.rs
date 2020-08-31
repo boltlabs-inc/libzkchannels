@@ -525,123 +525,123 @@ pub mod ffishim {
         cser.into_raw()
     }
 
-    #[no_mangle]
-    pub extern "C" fn ffishim_bls12_pay_generate_revoke_token(
-        ser_channel_state: *mut c_char,
-        ser_cust_state: *mut c_char,
-        ser_new_cust_state: *mut c_char,
-        ser_close_token: *mut c_char,
-    ) -> *mut c_char {
-        // Deserialize the channel state
-        let channel_state_result: ResultSerdeType<zkproofs::ChannelState<CURVE>> =
-            deserialize_result_object(ser_channel_state);
-        let channel_state = handle_errors!(channel_state_result);
+    // #[no_mangle]
+    // pub extern "C" fn ffishim_bls12_pay_generate_revoke_token(
+    //     ser_channel_state: *mut c_char,
+    //     ser_cust_state: *mut c_char,
+    //     ser_new_cust_state: *mut c_char,
+    //     ser_close_token: *mut c_char,
+    // ) -> *mut c_char {
+    //     // Deserialize the channel state
+    //     let channel_state_result: ResultSerdeType<zkproofs::ChannelState<CURVE>> =
+    //         deserialize_result_object(ser_channel_state);
+    //     let channel_state = handle_errors!(channel_state_result);
 
-        // Deserialize the cust state
-        let cust_state_result: ResultSerdeType<zkproofs::CustomerState<CURVE>> =
-            deserialize_result_object(ser_cust_state);
-        let mut cust_state = handle_errors!(cust_state_result);
+    //     // Deserialize the cust state
+    //     let cust_state_result: ResultSerdeType<zkproofs::CustomerState<CURVE>> =
+    //         deserialize_result_object(ser_cust_state);
+    //     let mut cust_state = handle_errors!(cust_state_result);
 
-        // Deserialize the cust state
-        let new_cust_state_result: ResultSerdeType<zkproofs::CustomerState<CURVE>> =
-            deserialize_result_object(ser_new_cust_state);
-        let new_cust_state = handle_errors!(new_cust_state_result);
+    //     // Deserialize the cust state
+    //     let new_cust_state_result: ResultSerdeType<zkproofs::CustomerState<CURVE>> =
+    //         deserialize_result_object(ser_new_cust_state);
+    //     let new_cust_state = handle_errors!(new_cust_state_result);
 
-        // Deserialize the close token
-        let close_token_result: ResultSerdeType<zkproofs::Signature<CURVE>> =
-            deserialize_result_object(ser_close_token);
-        let close_token = handle_errors!(close_token_result);
+    //     // Deserialize the close token
+    //     let close_token_result: ResultSerdeType<zkproofs::Signature<CURVE>> =
+    //         deserialize_result_object(ser_close_token);
+    //     let close_token = handle_errors!(close_token_result);
 
-        let revoke_token = zkproofs::generate_revoke_token(
-            &channel_state,
-            &mut cust_state,
-            new_cust_state,
-            &close_token,
-        );
-        let ser = [
-            "{\'revoke_token\':\'",
-            serde_json::to_string(&revoke_token).unwrap().as_str(),
-            "\', \'cust_state\':\'",
-            serde_json::to_string(&cust_state).unwrap().as_str(),
-            "\'}",
-        ]
-        .concat();
-        let cser = CString::new(ser).unwrap();
-        cser.into_raw()
-    }
+    //     let revoke_token = zkproofs::generate_revoke_token(
+    //         &channel_state,
+    //         &mut cust_state,
+    //         new_cust_state,
+    //         &close_token,
+    //     );
+    //     let ser = [
+    //         "{\'revoke_token\':\'",
+    //         serde_json::to_string(&revoke_token).unwrap().as_str(),
+    //         "\', \'cust_state\':\'",
+    //         serde_json::to_string(&cust_state).unwrap().as_str(),
+    //         "\'}",
+    //     ]
+    //     .concat();
+    //     let cser = CString::new(ser).unwrap();
+    //     cser.into_raw()
+    // }
 
-    #[no_mangle]
-    pub extern "C" fn ffishim_bls12_pay_verify_revoke_token(
-        ser_revoke_token: *mut c_char,
-        ser_merch_state: *mut c_char,
-    ) -> *mut c_char {
-        // Deserialize the revoke token
-        let revoke_token_result: ResultSerdeType<zkproofs::RevokeToken> =
-            deserialize_result_object(ser_revoke_token);
-        let revoke_token = handle_errors!(revoke_token_result);
+    // #[no_mangle]
+    // pub extern "C" fn ffishim_bls12_pay_verify_revoke_token(
+    //     ser_revoke_token: *mut c_char,
+    //     ser_merch_state: *mut c_char,
+    // ) -> *mut c_char {
+    //     // Deserialize the revoke token
+    //     let revoke_token_result: ResultSerdeType<zkproofs::RevokeToken> =
+    //         deserialize_result_object(ser_revoke_token);
+    //     let revoke_token = handle_errors!(revoke_token_result);
 
-        // Deserialize the cust state
-        let merch_state_result: ResultSerdeType<zkproofs::MerchantState<CURVE>> =
-            deserialize_result_object(ser_merch_state);
-        let mut merch_state = handle_errors!(merch_state_result);
+    //     // Deserialize the cust state
+    //     let merch_state_result: ResultSerdeType<zkproofs::MerchantState<CURVE>> =
+    //         deserialize_result_object(ser_merch_state);
+    //     let mut merch_state = handle_errors!(merch_state_result);
 
-        // send revoke token and get pay-token in response
-        let pay_token_result = zkproofs::verify_revoke_token(&revoke_token, &mut merch_state);
-        let pay_token = handle_errors!(pay_token_result);
+    //     // send revoke token and get pay-token in response
+    //     let pay_token_result = zkproofs::verify_revoke_token(&revoke_token, &mut merch_state);
+    //     let pay_token = handle_errors!(pay_token_result);
 
-        let ser = [
-            "{\'pay_token\':\'",
-            serde_json::to_string(&pay_token.unwrap()).unwrap().as_str(),
-            "\', \'merch_state\':\'",
-            serde_json::to_string(&merch_state).unwrap().as_str(),
-            "\'}",
-        ]
-        .concat();
-        let cser = CString::new(ser).unwrap();
-        cser.into_raw()
-    }
+    //     let ser = [
+    //         "{\'pay_token\':\'",
+    //         serde_json::to_string(&pay_token.unwrap()).unwrap().as_str(),
+    //         "\', \'merch_state\':\'",
+    //         serde_json::to_string(&merch_state).unwrap().as_str(),
+    //         "\'}",
+    //     ]
+    //     .concat();
+    //     let cser = CString::new(ser).unwrap();
+    //     cser.into_raw()
+    // }
 
-    #[no_mangle]
-    pub extern "C" fn ffishim_bls12_pay_verify_multiple_revoke_tokens(
-        ser_sender_revoke_token: *mut c_char,
-        ser_receiver_revoke_token: *mut c_char,
-        ser_merch_state: *mut c_char,
-    ) -> *mut c_char {
-        // Deserialize the revoke tokens
-        let sender_revoke_token_result: ResultSerdeType<zkproofs::RevokeToken> =
-            deserialize_result_object(ser_sender_revoke_token);
-        let sender_revoke_token = handle_errors!(sender_revoke_token_result);
+    // #[no_mangle]
+    // pub extern "C" fn ffishim_bls12_pay_verify_multiple_revoke_tokens(
+    //     ser_sender_revoke_token: *mut c_char,
+    //     ser_receiver_revoke_token: *mut c_char,
+    //     ser_merch_state: *mut c_char,
+    // ) -> *mut c_char {
+    //     // Deserialize the revoke tokens
+    //     let sender_revoke_token_result: ResultSerdeType<zkproofs::RevokeToken> =
+    //         deserialize_result_object(ser_sender_revoke_token);
+    //     let sender_revoke_token = handle_errors!(sender_revoke_token_result);
 
-        let receiver_revoke_token_result: ResultSerdeType<zkproofs::RevokeToken> =
-            deserialize_result_object(ser_receiver_revoke_token);
-        let receiver_revoke_token = handle_errors!(receiver_revoke_token_result);
+    //     let receiver_revoke_token_result: ResultSerdeType<zkproofs::RevokeToken> =
+    //         deserialize_result_object(ser_receiver_revoke_token);
+    //     let receiver_revoke_token = handle_errors!(receiver_revoke_token_result);
 
-        // Deserialize the cust state
-        let merch_state_result: ResultSerdeType<zkproofs::MerchantState<CURVE>> =
-            deserialize_result_object(ser_merch_state);
-        let mut merch_state = handle_errors!(merch_state_result);
+    //     // Deserialize the cust state
+    //     let merch_state_result: ResultSerdeType<zkproofs::MerchantState<CURVE>> =
+    //         deserialize_result_object(ser_merch_state);
+    //     let mut merch_state = handle_errors!(merch_state_result);
 
-        // send revoke token and get pay-token in response
-        let pay_token_result = zkproofs::verify_multiple_revoke_tokens(
-            &sender_revoke_token,
-            &receiver_revoke_token,
-            &mut merch_state,
-        );
-        let (sender_pay_token, receiver_pay_token) = handle_errors!(pay_token_result).unwrap();
+    //     // send revoke token and get pay-token in response
+    //     let pay_token_result = zkproofs::verify_multiple_revoke_tokens(
+    //         &sender_revoke_token,
+    //         &receiver_revoke_token,
+    //         &mut merch_state,
+    //     );
+    //     let (sender_pay_token, receiver_pay_token) = handle_errors!(pay_token_result).unwrap();
 
-        let ser = [
-            "{\'sender_pay_token\':\'",
-            serde_json::to_string(&sender_pay_token).unwrap().as_str(),
-            "\', \'receiver_pay_token\':\'",
-            serde_json::to_string(&receiver_pay_token).unwrap().as_str(),
-            "\', \'merch_state\':\'",
-            serde_json::to_string(&merch_state).unwrap().as_str(),
-            "\'}",
-        ]
-        .concat();
-        let cser = CString::new(ser).unwrap();
-        cser.into_raw()
-    }
+    //     let ser = [
+    //         "{\'sender_pay_token\':\'",
+    //         serde_json::to_string(&sender_pay_token).unwrap().as_str(),
+    //         "\', \'receiver_pay_token\':\'",
+    //         serde_json::to_string(&receiver_pay_token).unwrap().as_str(),
+    //         "\', \'merch_state\':\'",
+    //         serde_json::to_string(&merch_state).unwrap().as_str(),
+    //         "\'}",
+    //     ]
+    //     .concat();
+    //     let cser = CString::new(ser).unwrap();
+    //     cser.into_raw()
+    // }
 
     #[no_mangle]
     pub extern "C" fn ffishim_bls12_pay_verify_payment_token(
@@ -695,7 +695,8 @@ pub mod ffishim {
             deserialize_result_object(ser_cust_state);
         let cust_state = handle_errors!(cust_state_result);
 
-        let cust_close = zkproofs::customer_close(&channel_state, &cust_state);
+        let cust_close =
+            handle_errors!(zkproofs::force_customer_close(&channel_state, &cust_state));
         let ser = [
             "{\'cust_close\':\'",
             serde_json::to_string(&cust_close).unwrap().as_str(),
@@ -789,21 +790,21 @@ pub mod ffishim {
         let ser_addr_bytes = unsafe { CStr::from_ptr(ser_address).to_bytes() };
         let address: &str = str::from_utf8(ser_addr_bytes).unwrap(); // make sure the bytes are UTF-8
 
-        let option =
-            zkproofs::merchant_close(&channel_state, &channel_token, &cust_close, &merch_state);
-        let keys = match option {
-            Ok(n) => n.unwrap(),
-            Err(err) => return error_message(err),
-        };
+        let keys = handle_errors!(zkproofs::force_merchant_close(
+            &channel_state,
+            &channel_token,
+            &cust_close,
+            &merch_state,
+        ));
 
-        let merch_close: zkproofs::ChannelcloseM =
-            merch_state.sign_revoke_message(address.to_string(), &keys.revoke_token);
+        // let merch_close: zkproofs::ChannelcloseM =
+        //     merch_state.sign_revoke_message(address.to_string(), &keys.revoke_token);
 
         let ser = [
-            "{\'wpk\':\'",
-            serde_json::to_string(&keys.wpk).unwrap().as_str(),
-            "\', \'merch_close\':\'",
-            serde_json::to_string(&merch_close).unwrap().as_str(),
+            "{\'rev_lock\':\'",
+            serde_json::to_string(&keys.rev_lock).unwrap().as_str(),
+            // "\', \'merch_close\':\'",
+            // serde_json::to_string(&merch_close).unwrap().as_str(),
             "\'}",
         ]
         .concat();
@@ -811,79 +812,79 @@ pub mod ffishim {
         cser.into_raw()
     }
 
-    #[no_mangle]
-    pub extern "C" fn ffishim_bls12_tze_verify_cust_close_message(
-        ser_channel_token: *mut c_char,
-        ser_wpk: *mut c_char,
-        ser_close_msg: *mut c_char,
-        ser_close_token: *mut c_char,
-    ) -> *mut c_char {
-        // Deserialize the channel token
-        let channel_token_result: ResultSerdeType<zkproofs::ChannelToken<CURVE>> =
-            deserialize_result_object(ser_channel_token);
-        let channel_token = handle_errors!(channel_token_result);
+    // #[no_mangle]
+    // pub extern "C" fn ffishim_bls12_tze_verify_cust_close_message(
+    //     ser_channel_token: *mut c_char,
+    //     ser_wpk: *mut c_char,
+    //     ser_close_msg: *mut c_char,
+    //     ser_close_token: *mut c_char,
+    // ) -> *mut c_char {
+    //     // Deserialize the channel token
+    //     let channel_token_result: ResultSerdeType<zkproofs::ChannelToken<CURVE>> =
+    //         deserialize_result_object(ser_channel_token);
+    //     let channel_token = handle_errors!(channel_token_result);
 
-        // Deserialize the wpk
-        let wpk_result: ResultSerdeType<secp256k1::PublicKey> = deserialize_result_object(ser_wpk);
-        let wpk = handle_errors!(wpk_result);
+    //     // Deserialize the wpk
+    //     let wpk_result: ResultSerdeType<secp256k1::PublicKey> = deserialize_result_object(ser_wpk);
+    //     let wpk = handle_errors!(wpk_result);
 
-        // Deserialize the close wallet
-        let close_msg_result: ResultSerdeType<zkproofs::Wallet<CURVE>> =
-            deserialize_result_object(ser_close_msg);
-        let close_msg = handle_errors!(close_msg_result);
+    //     // Deserialize the close wallet
+    //     let close_msg_result: ResultSerdeType<zkproofs::Wallet<CURVE>> =
+    //         deserialize_result_object(ser_close_msg);
+    //     let close_msg = handle_errors!(close_msg_result);
 
-        // Deserialize the close token
-        let close_token_result: ResultSerdeType<zkproofs::Signature<CURVE>> =
-            deserialize_result_object(ser_close_token);
-        let close_token = handle_errors!(close_token_result);
+    //     // Deserialize the close token
+    //     let close_token_result: ResultSerdeType<zkproofs::Signature<CURVE>> =
+    //         deserialize_result_object(ser_close_token);
+    //     let close_token = handle_errors!(close_token_result);
 
-        // check the signatures
-        let token_valid =
-            zkproofs::tze_verify_cust_close_message(&channel_token, &wpk, &close_msg, &close_token);
-        let ser = [
-            "{\"result\":\"",
-            serde_json::to_string(&token_valid).unwrap().as_str(),
-            "\"}",
-        ]
-        .concat();
-        let cser = CString::new(ser).unwrap();
-        cser.into_raw()
-    }
+    //     // check the signatures
+    //     let token_valid =
+    //         zkproofs::tze_verify_cust_close_message(&channel_token, &wpk, &close_msg, &close_token);
+    //     let ser = [
+    //         "{\"result\":\"",
+    //         serde_json::to_string(&token_valid).unwrap().as_str(),
+    //         "\"}",
+    //     ]
+    //     .concat();
+    //     let cser = CString::new(ser).unwrap();
+    //     cser.into_raw()
+    // }
 
-    #[no_mangle]
-    pub extern "C" fn ffishim_bls12_tze_verify_merch_close_message(
-        ser_channel_token: *mut c_char,
-        ser_wpk: *mut c_char,
-        ser_merch_close: *mut c_char,
-    ) -> *mut c_char {
-        // Deserialize the channel token
-        let channel_token_result: ResultSerdeType<zkproofs::ChannelToken<CURVE>> =
-            deserialize_result_object(ser_channel_token);
-        let channel_token = handle_errors!(channel_token_result);
+    // #[no_mangle]
+    // pub extern "C" fn ffishim_bls12_tze_verify_merch_close_message(
+    //     ser_channel_token: *mut c_char,
+    //     ser_wpk: *mut c_char,
+    //     ser_merch_close: *mut c_char,
+    // ) -> *mut c_char {
+    //     // Deserialize the channel token
+    //     let channel_token_result: ResultSerdeType<zkproofs::ChannelToken<CURVE>> =
+    //         deserialize_result_object(ser_channel_token);
+    //     let channel_token = handle_errors!(channel_token_result);
 
-        // Deserialize the wpk
-        let wpk_result: ResultSerdeType<secp256k1::PublicKey> = deserialize_result_object(ser_wpk);
-        let wpk = handle_errors!(wpk_result);
+    //     // Deserialize the wpk
+    //     let wpk_result: ResultSerdeType<secp256k1::PublicKey> = deserialize_result_object(ser_wpk);
+    //     let wpk = handle_errors!(wpk_result);
 
-        // Deserialize the merch close
-        //let revoke_token: secp256k1::Signature = deserialize_object(ser_revoke_token);
-        let merch_close_result: ResultSerdeType<zkproofs::ChannelcloseM> =
-            deserialize_result_object(ser_merch_close);
-        let merch_close = handle_errors!(merch_close_result);
+    //     // Deserialize the merch close
+    //     //let revoke_token: secp256k1::Signature = deserialize_object(ser_revoke_token);
+    //     let merch_close_result: ResultSerdeType<zkproofs::ChannelcloseM> =
+    //         deserialize_result_object(ser_merch_close);
+    //     let merch_close = handle_errors!(merch_close_result);
 
-        let revoke_token_valid =
-            zkproofs::tze_verify_revoke_message(&wpk, &merch_close.revoke.unwrap());
-        let merch_close_valid =
-            zkproofs::tze_verify_merch_close_message(&channel_token, &merch_close);
-        let token_valid = revoke_token_valid && merch_close_valid;
+    //     let revoke_token_valid =
+    //         zkproofs::tze_verify_revoke_message(&wpk, &merch_close.revoke.unwrap());
+    //     let merch_close_valid =
+    //         zkproofs::tze_verify_merch_close_message(&channel_token, &merch_close);
+    //     let token_valid = revoke_token_valid && merch_close_valid;
 
-        let ser = [
-            "{\'result\':\'",
-            serde_json::to_string(&token_valid).unwrap().as_str(),
-            "\'}",
-        ]
-        .concat();
-        let cser = CString::new(ser).unwrap();
-        cser.into_raw()
-    }
+    //     let ser = [
+    //         "{\'result\':\'",
+    //         serde_json::to_string(&token_valid).unwrap().as_str(),
+    //         "\'}",
+    //     ]
+    //     .concat();
+    //     let cser = CString::new(ser).unwrap();
+    //     cser.into_raw()
+    // }
 }

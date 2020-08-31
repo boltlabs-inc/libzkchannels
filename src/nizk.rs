@@ -91,14 +91,14 @@ impl<E: Engine> NIZKSecretParams<E> {
         proof: A NIZK proof created by the Customer
         epsilon: The transaction amount of the payment
         com: Commitment of the new wallet that needs to be signed
-        wpk: reveal of wallet public key of the old wallet.
+        rev_lock: reveal of wallet revocation lock of the old wallet.
     */
     pub fn verify(
         &self,
         proof: NIZKProof<E>,
         epsilon: E::Fr,
         com: &Commitment<E>,
-        wpk: E::Fr,
+        rev_lock: E::Fr,
     ) -> bool {
         //verify signature is not the identity
         let r0 = proof.sig.h != E::G1::one();
@@ -116,9 +116,9 @@ impl<E: Engine> NIZKSecretParams<E> {
             proof.sigProof.clone(),
             challenge,
         );
-        let mut wpkc = wpk.clone();
-        wpkc.mul_assign(&challenge.clone());
-        r1 = r1 && proof.sigProof.zsig[1] == wpkc;
+        let mut rlc = rev_lock.clone();
+        rlc.mul_assign(&challenge.clone());
+        r1 = r1 && proof.sigProof.zsig[1] == rlc;
 
         //verify knowledge of commitment
         let r2 = proof.comProof.verify_proof(
@@ -312,8 +312,8 @@ mod tests {
     fn nizk_proof_works() {
         let rng = &mut rand::thread_rng();
         let channelId = Fr::rand(rng);
-        let wpk = Fr::rand(rng);
-        let wpkprime = Fr::rand(rng);
+        let rl = Fr::rand(rng);
+        let rlprime = Fr::rand(rng);
         let bc = rng.gen_range(100, 1000);
         let mut bc2 = bc.clone();
         let bm = rng.gen_range(100, 1000);
@@ -327,7 +327,7 @@ mod tests {
         let secParams = NIZKSecretParams::<Bls12>::setup(rng, 4);
         let wallet1 = Wallet {
             channelId: channelId,
-            wpk,
+            rev_lock: rl,
             bc,
             bm,
             close: None,
@@ -338,7 +338,7 @@ mod tests {
             .commit(&wallet1.as_fr_vec(), &r);
         let wallet2 = Wallet {
             channelId: channelId,
-            wpk: wpkprime,
+            rev_lock: rlprime,
             bc: bc2,
             bm: bm2,
             close: None,
@@ -362,15 +362,15 @@ mod tests {
             &paymentToken,
         );
         let fr = convert_int_to_fr::<Bls12>(epsilon);
-        assert_eq!(secParams.verify(proof, fr, &commitment2, wpk), true);
+        assert_eq!(secParams.verify(proof, fr, &commitment2, rl), true);
     }
 
     #[test]
     fn nizk_proof_negative_value_works() {
         let rng = &mut rand::thread_rng();
         let channelId = Fr::rand(rng);
-        let wpk = Fr::rand(rng);
-        let wpkprime = Fr::rand(rng);
+        let rl = Fr::rand(rng);
+        let rlprime = Fr::rand(rng);
         let bc = rng.gen_range(100, 1000);
         let mut bc2 = bc.clone();
         let bm = rng.gen_range(100, 1000);
@@ -384,7 +384,7 @@ mod tests {
         let secParams = NIZKSecretParams::<Bls12>::setup(rng, 4);
         let wallet1 = Wallet {
             channelId: channelId,
-            wpk,
+            rev_lock: rl,
             bc,
             bm,
             close: None,
@@ -395,7 +395,7 @@ mod tests {
             .commit(&wallet1.as_fr_vec(), &r);
         let wallet2 = Wallet {
             channelId: channelId,
-            wpk: wpkprime,
+            rev_lock: rlprime,
             bc: bc2,
             bm: bm2,
             close: None,
@@ -419,15 +419,15 @@ mod tests {
             &paymentToken,
         );
         let fr = convert_int_to_fr::<Bls12>(epsilon);
-        assert_eq!(secParams.verify(proof, fr, &commitment2, wpk), true);
+        assert_eq!(secParams.verify(proof, fr, &commitment2, rl), true);
     }
 
     #[test]
     fn nizk_proof_close_works() {
         let rng = &mut rand::thread_rng();
         let channelId = Fr::rand(rng);
-        let wpk = Fr::rand(rng);
-        let wpkprime = Fr::rand(rng);
+        let rl = Fr::rand(rng);
+        let rlprime = Fr::rand(rng);
         let bc = rng.gen_range(100, 1000);
         let mut bc2 = bc.clone();
         let bm = rng.gen_range(100, 1000);
@@ -442,7 +442,7 @@ mod tests {
         let secParams = NIZKSecretParams::<Bls12>::setup(rng, 5);
         let wallet1 = Wallet {
             channelId: channelId,
-            wpk,
+            rev_lock: rl,
             bc,
             bm,
             close: None,
@@ -453,7 +453,7 @@ mod tests {
             .commit(&wallet1.as_fr_vec(), &r);
         let wallet2 = Wallet {
             channelId: channelId,
-            wpk: wpkprime,
+            rev_lock: rlprime,
             bc: bc2,
             bm: bm2,
             close: Some(_closeToken),
@@ -499,7 +499,7 @@ mod tests {
                 proof,
                 Fr::from_str(&epsilon.to_string()).unwrap(),
                 &commitment2,
-                wpk
+                rl
             ),
             true
         );
@@ -509,8 +509,8 @@ mod tests {
     fn nizk_proof_false_statements() {
         let rng = &mut rand::thread_rng();
         let channelId = Fr::rand(rng);
-        let wpk = Fr::rand(rng);
-        let wpkprime = Fr::rand(rng);
+        let rl = Fr::rand(rng);
+        let rlprime = Fr::rand(rng);
         let bc = rng.gen_range(100, 1000);
         let mut bc2 = bc.clone();
         let bm = rng.gen_range(100, 1000);
@@ -524,7 +524,7 @@ mod tests {
         let secParams = NIZKSecretParams::<Bls12>::setup(rng, 4);
         let wallet1 = Wallet {
             channelId: channelId,
-            wpk,
+            rev_lock: rl,
             bc,
             bm,
             close: None,
@@ -533,7 +533,7 @@ mod tests {
         let bc2Prime = bc.clone();
         let wallet3 = Wallet {
             channelId: channelId,
-            wpk: wpkprime,
+            rev_lock: rlprime,
             bc: bc2Prime,
             bm: bm2,
             close: None,
@@ -564,7 +564,7 @@ mod tests {
                 proof,
                 Fr::from_str(&epsilon.to_string()).unwrap(),
                 &commitment2,
-                wpk
+                rl
             ),
             false
         );
@@ -572,7 +572,7 @@ mod tests {
         let bm2Prime = bm.clone();
         let wallet4 = Wallet {
             channelId: channelId,
-            wpk: wpkprime,
+            rev_lock: rlprime,
             bc: bc2,
             bm: bm2Prime,
             close: None,
@@ -594,14 +594,14 @@ mod tests {
                 proof,
                 Fr::from_str(&epsilon.to_string()).unwrap(),
                 &commitment2,
-                wpk
+                rl
             ),
             false
         );
 
         let wallet5 = Wallet {
             channelId: Fr::rand(rng),
-            wpk: wpkprime,
+            rev_lock: rlprime,
             bc: bc2,
             bm: bm2,
             close: None,
@@ -623,7 +623,7 @@ mod tests {
                 proof,
                 Fr::from_str(&epsilon.to_string()).unwrap(),
                 &commitment2,
-                wpk
+                rl
             ),
             false
         );
@@ -633,14 +633,14 @@ mod tests {
     fn nizk_proof_commitment_opening_works() {
         let rng = &mut rand::thread_rng();
         let channelId = Fr::rand(rng);
-        let wpk = Fr::rand(rng);
+        let rl = Fr::rand(rng);
         let t = Fr::rand(rng);
 
         let bc = rng.gen_range(100, 1000);
         let bm = rng.gen_range(100, 1000);
         let wallet = Wallet::<Bls12> {
             channelId: channelId,
-            wpk: wpk,
+            rev_lock: rl,
             bc: bc,
             bm: bm,
             close: None,
@@ -675,7 +675,7 @@ mod tests {
     fn nizk_proof_false_commitment() {
         let rng = &mut rand::thread_rng();
         let channelId = Fr::rand(rng);
-        let wpk = Fr::rand(rng);
+        let rl = Fr::rand(rng);
         let t = Fr::rand(rng);
 
         let bc = rng.gen_range(100, 1000);
@@ -683,14 +683,14 @@ mod tests {
         let bm = rng.gen_range(100, 1000);
         let wallet1 = Wallet::<Bls12> {
             channelId: channelId,
-            wpk: wpk,
+            rev_lock: rl,
             bc: bc,
             bm: bm,
             close: None,
         };
         let wallet2 = Wallet::<Bls12> {
             channelId: channelId,
-            wpk: wpk,
+            rev_lock: rl,
             bc: bc2,
             bm: bm,
             close: None,
