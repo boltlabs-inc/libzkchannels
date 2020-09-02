@@ -312,6 +312,7 @@ mod tests {
     fn nizk_proof_works() {
         let rng = &mut rand::thread_rng();
         let channelId = Fr::rand(rng);
+        let nonce = Fr::rand(rng);
         let rl = Fr::rand(rng);
         let rlprime = Fr::rand(rng);
         let bc = rng.gen_range(100, 1000);
@@ -327,6 +328,7 @@ mod tests {
         let secParams = NIZKSecretParams::<Bls12>::setup(rng, 4);
         let wallet1 = Wallet {
             channelId: channelId,
+            nonce: nonce,
             rev_lock: rl,
             bc,
             bm,
@@ -338,6 +340,7 @@ mod tests {
             .commit(&wallet1.as_fr_vec(), &r);
         let wallet2 = Wallet {
             channelId: channelId,
+            nonce: nonce,
             rev_lock: rlprime,
             bc: bc2,
             bm: bm2,
@@ -369,6 +372,7 @@ mod tests {
     fn nizk_proof_negative_value_works() {
         let rng = &mut rand::thread_rng();
         let channelId = Fr::rand(rng);
+        let nonce = Fr::rand(rng);
         let rl = Fr::rand(rng);
         let rlprime = Fr::rand(rng);
         let bc = rng.gen_range(100, 1000);
@@ -384,6 +388,7 @@ mod tests {
         let secParams = NIZKSecretParams::<Bls12>::setup(rng, 4);
         let wallet1 = Wallet {
             channelId: channelId,
+            nonce: nonce,
             rev_lock: rl,
             bc,
             bm,
@@ -395,6 +400,7 @@ mod tests {
             .commit(&wallet1.as_fr_vec(), &r);
         let wallet2 = Wallet {
             channelId: channelId,
+            nonce: nonce,
             rev_lock: rlprime,
             bc: bc2,
             bm: bm2,
@@ -426,6 +432,7 @@ mod tests {
     fn nizk_proof_close_works() {
         let rng = &mut rand::thread_rng();
         let channelId = Fr::rand(rng);
+        let nonce = Fr::rand(rng);
         let rl = Fr::rand(rng);
         let rlprime = Fr::rand(rng);
         let bc = rng.gen_range(100, 1000);
@@ -442,6 +449,7 @@ mod tests {
         let secParams = NIZKSecretParams::<Bls12>::setup(rng, 5);
         let wallet1 = Wallet {
             channelId: channelId,
+            nonce: nonce,
             rev_lock: rl,
             bc,
             bm,
@@ -453,6 +461,7 @@ mod tests {
             .commit(&wallet1.as_fr_vec(), &r);
         let wallet2 = Wallet {
             channelId: channelId,
+            nonce: nonce,
             rev_lock: rlprime,
             bc: bc2,
             bm: bm2,
@@ -509,6 +518,7 @@ mod tests {
     fn nizk_proof_false_statements() {
         let rng = &mut rand::thread_rng();
         let channelId = Fr::rand(rng);
+        let nonce = Fr::rand(rng);
         let rl = Fr::rand(rng);
         let rlprime = Fr::rand(rng);
         let bc = rng.gen_range(100, 1000);
@@ -524,6 +534,7 @@ mod tests {
         let secParams = NIZKSecretParams::<Bls12>::setup(rng, 4);
         let wallet1 = Wallet {
             channelId: channelId,
+            nonce: nonce,
             rev_lock: rl,
             bc,
             bm,
@@ -533,6 +544,7 @@ mod tests {
         let bc2Prime = bc.clone();
         let wallet3 = Wallet {
             channelId: channelId,
+            nonce: nonce,
             rev_lock: rlprime,
             bc: bc2Prime,
             bm: bm2,
@@ -572,6 +584,7 @@ mod tests {
         let bm2Prime = bm.clone();
         let wallet4 = Wallet {
             channelId: channelId,
+            nonce: nonce,
             rev_lock: rlprime,
             bc: bc2,
             bm: bm2Prime,
@@ -601,6 +614,7 @@ mod tests {
 
         let wallet5 = Wallet {
             channelId: Fr::rand(rng),
+            nonce: Fr::rand(rng),
             rev_lock: rlprime,
             bc: bc2,
             bm: bm2,
@@ -633,6 +647,7 @@ mod tests {
     fn nizk_proof_commitment_opening_works() {
         let rng = &mut rand::thread_rng();
         let channelId = Fr::rand(rng);
+        let nonce = Fr::rand(rng);
         let rl = Fr::rand(rng);
         let t = Fr::rand(rng);
 
@@ -640,6 +655,7 @@ mod tests {
         let bm = rng.gen_range(100, 1000);
         let wallet = Wallet::<Bls12> {
             channelId: channelId,
+            nonce: nonce,
             rev_lock: rl,
             bc: bc,
             bm: bm,
@@ -675,6 +691,7 @@ mod tests {
     fn nizk_proof_false_commitment() {
         let rng = &mut rand::thread_rng();
         let channelId = Fr::rand(rng);
+        let nonce = Fr::rand(rng);
         let rl = Fr::rand(rng);
         let t = Fr::rand(rng);
 
@@ -683,6 +700,7 @@ mod tests {
         let bm = rng.gen_range(100, 1000);
         let wallet1 = Wallet::<Bls12> {
             channelId: channelId,
+            nonce: nonce,
             rev_lock: rl,
             bc: bc,
             bm: bm,
@@ -690,6 +708,7 @@ mod tests {
         };
         let wallet2 = Wallet::<Bls12> {
             channelId: channelId,
+            nonce: nonce,
             rev_lock: rl,
             bc: bc2,
             bm: bm,

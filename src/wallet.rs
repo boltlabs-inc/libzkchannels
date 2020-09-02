@@ -10,7 +10,7 @@ use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
 #[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>"))]
 pub struct Wallet<E: Engine> {
     pub channelId: E::Fr,
-    // pub wpk: E::Fr,
+    pub nonce: E::Fr,
     pub rev_lock: E::Fr,
     pub bc: i64,
     pub bm: i64,

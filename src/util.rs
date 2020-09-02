@@ -90,6 +90,22 @@ pub fn encode_bytes_to_fr<E: Engine>(bytes: [u8; 32]) -> E::Fr {
     return E::Fr::from_str(&hexresult).unwrap();
 }
 
+pub fn encode_short_bytes_to_fr<E: Engine>(bytes: [u8; 16]) -> E::Fr {
+    let mut result: String = "".to_string();
+    for byte in bytes.iter() {
+        // Decide if you want upper- or lowercase results,
+        // padding the values to two characters, spaces
+        // between bytes, etc.
+        let s = format!("{}", *byte as u8);
+        result = result + &s;
+    }
+    let hexresult = match result.starts_with('0') {
+        true => result[1..].to_string(),
+        false => result.to_string(),
+    };
+    return E::Fr::from_str(&hexresult).unwrap();
+}
+
 pub fn convert_int_to_fr<E: Engine>(value: i64) -> E::Fr {
     if value > 0 {
         return E::Fr::from_str(value.to_string().as_str()).unwrap();

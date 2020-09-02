@@ -6,7 +6,7 @@ pub use cl::Signature;
 use pairing::bls12_381::Bls12;
 use ped92::CSMultiParams;
 pub use wallet::Wallet;
-use zkchan_tx::fixed_size_array::FixedSizeArray32;
+use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
 use {util, BoltResult};
 
 const BLS12_381_CHANNEL_TOKEN_LEN: usize = 1074;
@@ -25,16 +25,19 @@ pub fn reconstruct_secp_signature(sig_bytes: &[u8]) -> secp256k1::Signature {
 
 pub fn reconstruct_close_wallet_bls12(
     channel_token: &ChannelToken<Bls12>,
+    nonce: &FixedSizeArray16,
     rev_lock: &FixedSizeArray32,
     cust_bal: u32,
     merch_bal: u32,
 ) -> Wallet<Bls12> {
     let channelId = channel_token.compute_channel_id();
+    let nonce = util::encode_short_bytes_to_fr::<Bls12>(nonce.0);
     let rl = util::hash_to_fr::<Bls12>(rev_lock.0.to_vec());
     let close = util::hash_to_fr::<Bls12>(String::from("close").into_bytes());
 
     return Wallet {
         channelId,
+        nonce: nonce,
         rev_lock: rl,
         bc: cust_bal as i64,
         bm: merch_bal as i64,

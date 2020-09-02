@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
-use util::{encode_bytes_to_fr, hash_pubkey_to_fr, hash_to_fr, hash_to_slice};
+use util::{encode_bytes_to_fr, encode_short_bytes_to_fr, hash_pubkey_to_fr, hash_to_fr, hash_to_slice};
 use wallet::Wallet;
 
 #[derive(Debug)]
@@ -237,6 +237,11 @@ impl<E: Engine> CustomerState<E> {
         let mut rev_secret = [0u8; 32];
         csprng.fill_bytes(&mut rev_secret);
 
+        // generate the initial nonce
+        let mut nonce_bytes = [0u8; 16];
+        csprng.fill_bytes(&mut nonce_bytes);
+        let nonce = encode_short_bytes_to_fr::<E>(nonce_bytes);
+
         // compute hash of the revocation secret
         let rev_lock = hash_to_slice(&rev_secret.to_vec());
         let rl = encode_bytes_to_fr::<E>(rev_lock);
@@ -251,6 +256,7 @@ impl<E: Engine> CustomerState<E> {
         // initialize wallet vector
         let wallet = Wallet {
             channelId: channelId,
+            nonce: nonce,
             rev_lock: rl,
             bc: cust_bal,
             bm: merch_bal,
@@ -409,6 +415,11 @@ impl<E: Engine> CustomerState<E> {
         let new_rev_lock = hash_to_slice(&new_rev_secret.to_vec());
         let new_wallet_rl = encode_bytes_to_fr::<E>(new_rev_lock);
 
+        // generate a new nonce
+        let mut new_nonce = [0u8; 16];
+        csprng.fill_bytes(&mut new_nonce);
+        let new_wallet_nonce = encode_short_bytes_to_fr::<E>(new_nonce);
+
         // 2 - form new wallet and commitment
         let new_cust_bal = self.cust_balance - amount;
         let new_merch_bal = self.merch_balance + amount;
@@ -417,6 +428,7 @@ impl<E: Engine> CustomerState<E> {
         let cp = channel.cp.as_ref().unwrap();
         let old_wallet = Wallet {
             channelId: self.wallet.channelId.clone(),
+            nonce: self.wallet.nonce.clone(),
             rev_lock: self.wallet.rev_lock.clone(),
             bc: self.cust_balance,
             bm: self.merch_balance,
@@ -424,11 +436,14 @@ impl<E: Engine> CustomerState<E> {
         };
         let new_wallet = Wallet {
             channelId: self.wallet.channelId.clone(),
+            nonce: new_wallet_nonce,
             rev_lock: new_wallet_rl,
             bc: new_cust_bal,
             bm: new_merch_bal,
             close: Some(self.wallet.close.unwrap()),
         };
+
+        // TODO: update commitments
         let new_wcom = cp
             .pub_params
             .comParams
@@ -587,10 +602,8 @@ impl<E: Engine> MerchantState<E> {
         id: String,
     ) -> (Self, ChannelState<E>) {
         let l = 5;
-        // generate keys here
+        // generate keys
         let secp = secp256k1::Secp256k1::new();
-        // tx_kp.randomize(csprng);
-        // let (rev_secret, rev_lock) = tx_kp.generate_keypair(csprng);
         let mut seckey = [0u8; 32];
         csprng.fill_bytes(&mut seckey);
         let rev_wsk = secp256k1::SecretKey::from_slice(&seckey).unwrap();
