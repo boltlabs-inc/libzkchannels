@@ -3,84 +3,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define _LIBCPP_HAS_MERGED_TYPEINFO_NAMES_DEFAULT 1
+#define _LIBCPP_HAS_MERGED_TYPEINFO_NAMES_DEFAULT 0
 
-typedef struct {
-  uint32_t nonce[4];
-} Nonce_l;
-
-typedef struct {
-  uint32_t revlock[8];
-} RevLock_l;
-
-typedef struct {
-  uint32_t balance[2];
-} Balance_l;
-
-typedef struct {
-  uint32_t txid[8];
-} Txid_l;
-
-typedef struct {
-  Nonce_l nonce;
-  RevLock_l rl;
-  Balance_l balance_cust;
-  Balance_l balance_merch;
-  Txid_l txid_merch;
-  Txid_l txid_escrow;
-  Txid_l HashPrevOuts_merch;
-  Txid_l HashPrevOuts_escrow;
-  Balance_l min_fee;
-  Balance_l max_fee;
-  Balance_l fee_mc;
-} State_l;
-
-typedef struct {
-  uint32_t paytoken[8];
-} PayToken_l;
-
-typedef struct {
-  uint32_t key[9];
-} BitcoinPublicKey_l;
-
-typedef struct {
-  uint32_t randomness[4];
-} CommitmentRandomness_l;
-
-typedef struct {
-  uint32_t hash[5];
-} PublicKeyHash_l;
-
-typedef struct {
-  uint32_t key[16];
-} HMACKey_l;
-
-typedef struct {
-  uint32_t mask[8];
-} Mask_l;
-
-typedef struct {
-  char r[256];
-  char k_inv[256];
-} EcdsaPartialSig_l;
-
-typedef struct {
-  uint32_t commitment[8];
-} HMACKeyCommitment_l;
-
-typedef struct {
-  uint32_t commitment[8];
-} MaskCommitment_l;
-
-typedef struct {
-  uint32_t commitment[8];
-} RevLockCommitment_l;
-
-typedef struct {
-  uint32_t sig[8];
-} EcdsaSig_l;
-
-typedef char *(*cb_send)(void *arg1, int arg2, void *arg3);
+typedef char *(*cb_send)(void *arg1, int arg2, void *arg3, int arg4);
 
 typedef struct {
   char *r0;
@@ -88,7 +13,9 @@ typedef struct {
   char *r2;
 } Receive_return;
 
-typedef Receive_return (*cb_receive)(void *arg1);
+typedef Receive_return (*cb_receive)(void *arg1, int arg2);
+
+typedef void *(*cb_duplicate)(void *arg1);
 
 char *create_child_tx_to_bump_fee_via_p2wpkh_input(char *ser_tx_index1,
                                                    uint32_t index1,
@@ -346,39 +273,6 @@ extern void *get_gonetio_ptr(void *raw_stream_fd, int party);
 
 char *get_self_delay_be_hex(char *ser_channel_state);
 
-extern void issue_tokens(State_l old_state_l,
-                         State_l new_state_l,
-                         Balance_l fee_cc,
-                         PayToken_l old_paytoken_l,
-                         BitcoinPublicKey_l cust_escrow_pub_key_l,
-                         BitcoinPublicKey_l cust_payout_pub_key_l,
-                         CommitmentRandomness_l revlock_commitment_randomness_l,
-                         PublicKeyHash_l cust_publickey_hash_l,
-                         HMACKey_l hmac_key_l,
-                         Mask_l paytoken_mask_l,
-                         Mask_l merch_mask_l,
-                         Mask_l escrow_mask_l,
-                         EcdsaPartialSig_l sig1,
-                         EcdsaPartialSig_l sig2,
-                         CommitmentRandomness_l hmac_commitment_randomness_l,
-                         CommitmentRandomness_l paytoken_mask_commitment_randomness_l,
-                         Balance_l epsilon_l,
-                         HMACKeyCommitment_l hmac_key_commitment_l,
-                         MaskCommitment_l paytoken_mask_commitment_l,
-                         RevLockCommitment_l rlc_l,
-                         Nonce_l nonce_l,
-                         Balance_l val_cpfp,
-                         Balance_l bal_min_cust,
-                         Balance_l bal_min_merch,
-                         uint16_t self_delay,
-                         BitcoinPublicKey_l merch_escrow_pub_key_l,
-                         BitcoinPublicKey_l merch_dispute_key_l,
-                         BitcoinPublicKey_l merch_payout_pub_key_l,
-                         PublicKeyHash_l merch_publickey_hash_l,
-                         PayToken_l *pt_return,
-                         EcdsaSig_l *ct_escrow,
-                         EcdsaSig_l *ct_merch);
-
 extern void *load_circuit_file(const char *path);
 
 char *merch_change_channel_status_to_confirmed_close(char *ser_escrow_txid, char *ser_merch_state);
@@ -507,7 +401,8 @@ char *mpc_pay_update_customer(char *ser_channel_state,
                               char *ser_cust_state,
                               void *p_ptr,
                               cb_send send_cb,
-                              cb_receive receive_cb);
+                              cb_receive receive_cb,
+                              cb_duplicate duplicate_cb);
 
 char *mpc_pay_update_merchant(char *ser_channel_state,
                               char *ser_session_id,
@@ -515,7 +410,8 @@ char *mpc_pay_update_merchant(char *ser_channel_state,
                               char *ser_merch_state,
                               void *p_ptr,
                               cb_send send_cb,
-                              cb_receive receive_cb);
+                              cb_receive receive_cb,
+                              cb_duplicate duplicate_cb);
 
 char *mpc_pay_validate_rev_lock_merchant(char *ser_session_id,
                                          char *ser_revoked_state,

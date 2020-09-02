@@ -890,7 +890,7 @@ pub struct FundingTxInfo {
 }
 
 pub mod mpc {
-    use bindings::{cb_receive, cb_send, ConnType_LNDNETIO, ConnType_NETIO};
+    use bindings::{cb_receive, cb_send, ConnType_LNDNETIO, ConnType_NETIO, cb_duplicate};
     pub use channels_mpc::{
         ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState, RevokedState,
         TransactionFeeInfo,
@@ -1186,6 +1186,7 @@ pub mod mpc {
         p_ptr: *mut c_void,
         send_cb: cb_send,
         receive_cb: cb_receive,
+        duplicate_cb: cb_duplicate,
     ) -> Result<bool, String> {
         // verify that channel status is already activated or established (unlink)
         if (cust_state.protocol_status == ProtocolStatus::Activated && amount >= 0)
@@ -1218,6 +1219,7 @@ pub mod mpc {
                 p_ptr,
                 send_cb,
                 receive_cb,
+                duplicate_cb,
             )
         } else {
             return Err(format!(
@@ -1243,6 +1245,7 @@ pub mod mpc {
         p_ptr: *mut c_void,
         send_cb: cb_send,
         receive_cb: cb_receive,
+        duplicate_cb: cb_duplicate,
     ) -> Result<bool, String> {
         if merch_state.net_config.is_none() {
             // use default ip/port
@@ -1268,6 +1271,7 @@ pub mod mpc {
             p_ptr,
             send_cb,
             receive_cb,
+            duplicate_cb,
         );
     }
 

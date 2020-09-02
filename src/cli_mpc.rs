@@ -34,12 +34,12 @@ use zkchannels::FundingTxInfo;
 
 static TX_FEE_INFO_KEY: &str = "tx_fee_info";
 
-extern "C" fn cb_send_data(_data: *mut c_void, _len: c_int, _peer: *mut c_void) -> *mut i8 {
+extern "C" fn cb_send_data(_data: *mut c_void, _len: c_int, _peer: *mut c_void, _id: c_int) -> *mut i8 {
     println!("Sending some data!");
     return ptr::null_mut();
 }
 
-extern "C" fn cb_recv_data(_peer: *mut c_void) -> Receive_return {
+extern "C" fn cb_recv_data(_peer: *mut c_void, _id: c_int) -> Receive_return {
     println!("Receiving some data..");
     let data_str = String::from("some data");
     let data = CString::new("some data").unwrap().into_raw();
@@ -50,6 +50,10 @@ extern "C" fn cb_recv_data(_peer: *mut c_void) -> Receive_return {
         r2: err,
     };
     return r;
+}
+
+extern "C" fn cb_duplicate(peer: *mut c_void) -> *mut c_void {
+    return peer;
 }
 
 macro_rules! handle_error_result {
@@ -1014,6 +1018,7 @@ mod cust {
             ptr::null_mut(),
             Some(cb_send_data),
             Some(cb_recv_data),
+            Some(cb_duplicate),
         ) {
             Ok(n) => n,
             Err(e) => return Err(e.to_string()),
@@ -1484,6 +1489,7 @@ mod merch {
             ptr::null_mut(),
             Some(cb_send_data),
             Some(cb_recv_data),
+            Some(cb_duplicate),
         ));
 
         // confirm customer got mpc output

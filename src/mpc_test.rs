@@ -136,6 +136,7 @@ fn main() {
         ptr::null_mut(),
         None,
         None,
+        None,
     );
     assert!(res_merch.is_ok(), res_merch.err().unwrap());
 

@@ -2,7 +2,7 @@
 pub mod ffishim_mpc {
     extern crate libc;
 
-    use bindings::{cb_receive, cb_send};
+    use bindings::{cb_receive, cb_send, cb_duplicate};
     use channels_mpc::{
         ChannelMPCState, ChannelMPCToken, CustomerMPCState, InitCustState, MerchantMPCState,
         TransactionFeeInfo,
@@ -634,6 +634,7 @@ pub mod ffishim_mpc {
         p_ptr: *mut c_void,
         send_cb: cb_send,
         receive_cb: cb_receive,
+        duplicate_cb: cb_duplicate,
     ) -> *mut c_char {
         // Deserialize the channel_state
         let channel_state_result: ResultSerdeType<ChannelMPCState> =
@@ -684,6 +685,7 @@ pub mod ffishim_mpc {
             p_ptr,
             send_cb,
             receive_cb,
+            duplicate_cb,
         );
         let is_ok: bool = handle_errors!(result);
         let ser = [
@@ -707,6 +709,7 @@ pub mod ffishim_mpc {
         p_ptr: *mut c_void,
         send_cb: cb_send,
         receive_cb: cb_receive,
+        duplicate_cb: cb_duplicate,
     ) -> *mut c_char {
         let rng = &mut rand::thread_rng();
 
@@ -749,6 +752,7 @@ pub mod ffishim_mpc {
             p_ptr,
             send_cb,
             receive_cb,
+            duplicate_cb,
         );
         let is_ok = handle_errors!(result);
         let ser = [

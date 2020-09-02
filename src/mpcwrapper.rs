@@ -1,10 +1,4 @@
-use bindings::{
-    build_masked_tokens_cust, build_masked_tokens_merch, cb_receive, cb_send, get_netio_ptr,
-    get_unixnetio_ptr, Balance_l, BitcoinPublicKey_l, CommitmentRandomness_l, ConnType_NETIO,
-    ConnType_TORNETIO, ConnType_UNIXNETIO, Conn_l, EcdsaSig_l, HMACKeyCommitment_l, HMACKey_l,
-    MaskCommitment_l, Mask_l, Nonce_l, PayToken_l, PublicKeyHash_l, RevLockCommitment_l, RevLock_l,
-    State_l, Txid_l,
-};
+use bindings::{build_masked_tokens_cust, build_masked_tokens_merch, cb_receive, cb_send, get_netio_ptr, get_unixnetio_ptr, Balance_l, BitcoinPublicKey_l, CommitmentRandomness_l, ConnType_NETIO, ConnType_TORNETIO, ConnType_UNIXNETIO, Conn_l, EcdsaSig_l, HMACKeyCommitment_l, HMACKey_l, MaskCommitment_l, Mask_l, Nonce_l, PayToken_l, PublicKeyHash_l, RevLockCommitment_l, RevLock_l, State_l, Txid_l, cb_duplicate};
 // ConnType_CUSTOM, get_gonetio_ptr
 use channels_mpc::NetworkConfig;
 use ecdsa_partial::EcdsaPartialSig;
@@ -53,6 +47,7 @@ pub fn mpc_build_masked_tokens_cust(
     p_ptr: *mut c_void,
     send_cb: cb_send,
     receive_cb: cb_receive,
+    duplicate_cb: cb_duplicate,
     circuit_ptr: *mut c_void,
     amount: i64,
     bal_min_cust: i64,
@@ -142,6 +137,7 @@ pub fn mpc_build_masked_tokens_cust(
             p_ptr,
             send_cb,
             receive_cb,
+            duplicate_cb,
             circuit_ptr,
             translate_balance(amount),
             rl_c,
@@ -331,6 +327,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(
     p_ptr: *mut c_void,
     send_cb: cb_send,
     receive_cb: cb_receive,
+    duplicate_cb: cb_duplicate,
     circuit_ptr: *mut c_void,
     amount: i64,
     bal_min_cust: i64,
@@ -426,6 +423,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(
             p_ptr,
             send_cb,
             receive_cb,
+            duplicate_cb,
             circuit_ptr,
             translate_balance(amount),
             rl_c,

@@ -1,7 +1,7 @@
 use super::*;
 use util::{compute_hash160, hash_to_slice, hmac_sign};
 
-use bindings::{cb_receive, cb_send, load_circuit_file, ConnType};
+use bindings::{cb_receive, cb_send, load_circuit_file, ConnType, cb_duplicate};
 use database::{MaskedMPCInputs, MaskedTxMPCInputs, SessionState, StateDatabase};
 use mpcwrapper::{mpc_build_masked_tokens_cust, mpc_build_masked_tokens_merch, CIRCUIT_FILE};
 use rand::Rng;
@@ -606,6 +606,7 @@ impl CustomerMPCState {
         p_ptr: *mut c_void,
         send_cb: cb_send,
         receive_cb: cb_receive,
+        duplicate_cb: cb_duplicate,
     ) -> Result<bool, String> {
         let min_cust_bal = channel_state.bal_min_cust + self.fee_cc + channel_state.val_cpfp;
         if new_state.bc <= min_cust_bal {
@@ -676,6 +677,7 @@ impl CustomerMPCState {
                 p_ptr,
                 send_cb,
                 receive_cb,
+                duplicate_cb,
                 circuit,
                 amount,
                 channel_state.bal_min_cust,
@@ -1768,6 +1770,7 @@ impl MerchantMPCState {
         p_ptr: *mut c_void,
         send_cb: cb_send,
         receive_cb: cb_receive,
+        duplicate_cb: cb_duplicate,
     ) -> Result<bool, String> {
         // // if epsilon > 0, check if acceptable (above dust limit).
         // if amount > 0 && amount < channel_state.get_min_threshold() {
@@ -1847,6 +1850,7 @@ impl MerchantMPCState {
             p_ptr,
             send_cb,
             receive_cb,
+            duplicate_cb,
             circuit,
             amount,
             channel_state.bal_min_cust,
