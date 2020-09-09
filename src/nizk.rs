@@ -107,9 +107,11 @@ impl<E: Engine> NIZKSecretParams<E> {
         let r0 = proof.sig.h != E::G1::one();
 
         //compute challenge
+        let mut T = self.pubParams.comParams.pub_bases.clone();
+        T.append(&mut vec![proof.rlComProof.T, proof.comProof.T, proof.comBarProof.T, proof.rpBC.D, proof.rpBM.D]);
         let challenge = NIZKPublicParams::<E>::hash(
             proof.sigProof.a,
-            vec![proof.rlComProof.T, proof.comProof.T, proof.comBarProof.T, proof.rpBC.D, proof.rpBM.D],
+            T,
         );
 
         //verify knowledge of signature
@@ -240,8 +242,10 @@ impl<E: Engine> NIZKPublicParams<E> {
             .prove_ul_commitment(rng, newWallet.bm.clone(), 5, None, None);
 
         //Compute challenge
+        let mut T = self.comParams.pub_bases.clone();
+        T.append(&mut vec![D1, D2, D3, rpStateBC.D, rpStateBM.D]);
         let challenge =
-            NIZKPublicParams::<E>::hash(proofState.a, vec![D1, D2, D3, rpStateBC.D, rpStateBM.D]);
+            NIZKPublicParams::<E>::hash(proofState.a, T);
 
         //Response phase
         //response for signature
