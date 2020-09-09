@@ -207,12 +207,12 @@ impl<E: Engine> CommitmentProof<E> {
         csprng: &mut R,
         com_params: &CSMultiParams<E>,
         com: &E::G1,
-        wallet: &Vec<E::Fr>,
+        message: &Vec<E::Fr>,
         r: &E::Fr,
         reveal_index: &Vec<usize>,
     ) -> Self {
         let mut rt = Vec::new();
-        for i in 0..wallet.len() + 1 {
+        for i in 0..message.len() + 1 {
             if reveal_index.contains(&i) {
                 rt.push(E::Fr::zero());
             } else {
@@ -221,27 +221,27 @@ impl<E: Engine> CommitmentProof<E> {
         }
 
         let (Tvals, t) =
-            CommitmentProof::<E>::prove_commitment::<R>(csprng, com_params, wallet, Some(rt));
+            CommitmentProof::<E>::prove_commitment::<R>(csprng, com_params, message, Some(rt));
 
         // compute the challenge
         let x: Vec<E::G1> = vec![Tvals, com.clone()];
         let challenge = util::hash_g1_to_fr::<E>(&x);
 
         // compute the response
-        CommitmentProof::<E>::prove_response(wallet, r, Tvals, &t, &challenge)
+        CommitmentProof::<E>::prove_response(message, r, Tvals, &t, &challenge)
     }
 
     pub fn prove_commitment<R: Rng>(
         csprng: &mut R,
         com_params: &CSMultiParams<E>,
-        wallet: &Vec<E::Fr>,
+        message: &Vec<E::Fr>,
         tOptional: Option<Vec<E::Fr>>,
     ) -> (E::G1, Vec<E::Fr>) {
         let mut Tvals = E::G1::zero();
-        assert!(wallet.len() <= com_params.pub_bases.len());
-        let mut t = tOptional.unwrap_or(Vec::<E::Fr>::with_capacity(wallet.len() + 1));
+        assert!(message.len() <= com_params.pub_bases.len());
+        let mut t = tOptional.unwrap_or(Vec::<E::Fr>::with_capacity(message.len() + 1));
         // aspects of wallet being revealed
-        for i in 0..wallet.len() + 1 {
+        for i in 0..message.len() + 1 {
             if t.len() == i {
                 t.push(E::Fr::rand(csprng));
             }
@@ -254,7 +254,7 @@ impl<E: Engine> CommitmentProof<E> {
     }
 
     pub fn prove_response(
-        wallet: &Vec<E::Fr>,
+        message: &Vec<E::Fr>,
         r: &E::Fr,
         Tvals: E::G1,
         t: &Vec<E::Fr>,
@@ -266,7 +266,7 @@ impl<E: Engine> CommitmentProof<E> {
         z0.add_assign(&t[0]);
         z.push(z0);
         for i in 1..t.len() {
-            let mut zi = wallet[i - 1].clone();
+            let mut zi = message[i - 1].clone();
             zi.mul_assign(&challenge);
             zi.add_assign(&t[i]);
             z.push(zi);
@@ -393,7 +393,9 @@ mod tests {
         let channelId = Fr::rand(rng);
         let nonce = Fr::rand(rng);
         let rl = Fr::rand(rng);
-        let t = Fr::rand(rng);
+        let rho = Fr::rand(rng);
+        let tau = Fr::rand(rng);
+        let tau_bar = Fr::rand(rng);
 
         let bc = rng.gen_range(100, 1000);
         let bm = rng.gen_range(100, 1000);
@@ -403,25 +405,58 @@ mod tests {
             rev_lock: rl,
             bc: bc,
             bm: bm,
-            close: None,
         };
 
-        let comParams = CSMultiParams::setup_gen_params(rng, 4);
-        let com = comParams.commit(&wallet.as_fr_vec().clone(), &t);
+        let comParams = CSMultiParams::setup_gen_params(rng, 5);
+        let rl_com = comParams.commit(&vec!(wallet.rev_lock), &rho);
+        let s_com = comParams.commit(&wallet.as_fr_vec().clone(), &tau);
+        let s_bar_com = comParams.commit(&wallet.as_fr_vec_bar().clone(), &tau_bar);
 
-        let proof = CommitmentProof::<Bls12>::new(
+        let rl_proof = CommitmentProof::<Bls12>::new(
             rng,
             &comParams,
-            &com.c,
-            &wallet.as_fr_vec(),
-            &t,
+            &rl_com.c,
+            &vec!(wallet.rev_lock),
+            &rho,
             &vec![],
         );
 
-        let xvec: Vec<G1> = vec![proof.T.clone(), com.c];
+        let xvec: Vec<G1> = vec![rl_proof.T.clone(), rl_com.c];
         let challenge = util::hash_g1_to_fr::<Bls12>(&xvec);
         assert_eq!(
-            proof.verify_proof(&comParams, &com.c, &challenge, None),
+            rl_proof.verify_proof(&comParams, &rl_com.c, &challenge, None),
+            true
+        );
+
+        let s_proof = CommitmentProof::<Bls12>::new(
+            rng,
+            &comParams,
+            &s_com.c,
+            &wallet.as_fr_vec(),
+            &tau,
+            &vec![],
+        );
+
+        let xvec: Vec<G1> = vec![s_proof.T.clone(), s_com.c];
+        let challenge = util::hash_g1_to_fr::<Bls12>(&xvec);
+        assert_eq!(
+            s_proof.verify_proof(&comParams, &s_com.c, &challenge, None),
+            true
+        );
+
+        let s_bar_proof = CommitmentProof::<Bls12>::new(
+            rng,
+            &comParams,
+            &s_bar_com.c,
+            &wallet.as_fr_vec_bar(),
+            &tau_bar,
+            &vec![],
+        );
+
+        let xvec: Vec<G1> = vec![s_bar_proof.T.clone(), s_bar_com.c];
+        let challenge = util::hash_g1_to_fr::<Bls12>(&xvec);
+        assert_eq!(
+            s_bar_proof.verify_proof(&comParams, &s_bar_com.c, &challenge, None),
             true
         );
     }

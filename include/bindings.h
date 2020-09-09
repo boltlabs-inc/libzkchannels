@@ -3,11 +3,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define _LIBCPP_DEBUG_LEVEL 0
-
-#define _LIBCPP_HAS_MERGED_TYPEINFO_NAMES_DEFAULT 1
-
-#define __STDCPP_THREADS__ 1
+#define _LIBCPP_HAS_MERGED_TYPEINFO_NAMES_DEFAULT 0
 
 typedef struct {
   uint32_t nonce[4];
@@ -84,7 +80,7 @@ typedef struct {
   uint32_t sig[8];
 } EcdsaSig_l;
 
-typedef char *(*cb_send)(void *arg1, int arg2, void *arg3);
+typedef char *(*cb_send)(void *arg1, int arg2, void *arg3, int arg4);
 
 typedef struct {
   char *r0;
@@ -92,7 +88,7 @@ typedef struct {
   char *r2;
 } Receive_return;
 
-typedef Receive_return (*cb_receive)(void *arg1);
+typedef Receive_return (*cb_receive)(void *arg1, int arg2);
 
 char *create_child_tx_to_bump_fee_via_p2wpkh_input(char *ser_tx_index1,
                                                    uint32_t index1,
@@ -174,8 +170,10 @@ char *ffishim_bls12_establish_customer_generate_proof(char *ser_channel_token,
                                                       char *ser_customer_state);
 
 char *ffishim_bls12_establish_merchant_issue_close_token(char *ser_channel_state,
-                                                         char *ser_com,
+                                                         char *ser_s_com,
+                                                         char *ser_s_bar_com,
                                                          char *ser_com_proof,
+                                                         char *ser_com_bar_proof,
                                                          char *ser_channel_id,
                                                          int64_t init_cust_bal,
                                                          int64_t init_merch_bal,
@@ -196,7 +194,7 @@ char *ffishim_bls12_init_merchant(char *ser_channel_state, const char *name_ptr)
 
 char *ffishim_bls12_merchant_close(char *ser_channel_state,
                                    char *ser_channel_token,
-                                   const char *ser_address,
+                                   const char *_ser_address,
                                    char *ser_cust_close,
                                    char *ser_merch_state);
 
@@ -237,8 +235,10 @@ char *ffishim_bn256_establish_customer_generate_proof(char *ser_channel_token,
                                                       char *ser_customer_state);
 
 char *ffishim_bn256_establish_merchant_issue_close_token(char *ser_channel_state,
-                                                         char *ser_com,
+                                                         char *ser_s_com,
+                                                         char *ser_s_bar_com,
                                                          char *ser_com_proof,
+                                                         char *ser_com_bar_proof,
                                                          char *ser_channel_id,
                                                          int64_t init_cust_bal,
                                                          int64_t init_merch_bal,
@@ -259,7 +259,7 @@ char *ffishim_bn256_init_merchant(char *ser_channel_state, const char *name_ptr)
 
 char *ffishim_bn256_merchant_close(char *ser_channel_state,
                                    char *ser_channel_token,
-                                   const char *ser_address,
+                                   const char *_ser_address,
                                    char *ser_cust_close,
                                    char *ser_merch_state);
 

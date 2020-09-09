@@ -99,7 +99,6 @@ pub mod zkproofs {
     use cl;
     use pairing::Engine;
     use rand::Rng;
-    use util;
     use wallet;
     // for blind signature
     use secp256k1;
@@ -118,8 +117,9 @@ pub mod zkproofs {
     use serde::{Deserialize, Serialize};
     use util::hash_to_slice;
     pub use wallet::{serialize_compact, Wallet};
-    use zkchan_tx::fixed_size_array::FixedSizeArray32;
+    use zkchan_tx::fixed_size_array::{FixedSizeArray32, FixedSizeArray16};
     pub use BoltResult;
+    use channels::ClosedCommitments;
 
     #[derive(Clone, Serialize, Deserialize)]
     #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
@@ -148,7 +148,8 @@ pub mod zkproofs {
     )]
     pub struct Payment<E: Engine> {
         proof: NIZKProof<E>,
-        com: Commitment<E>,
+        coms: ClosedCommitments<E>,
+        nonce: FixedSizeArray16,
         rev_lock: FixedSizeArray32,
         amount: i64,
     }
@@ -211,9 +212,9 @@ pub mod zkproofs {
         csprng: &mut R,
         channel_token: &ChannelToken<E>,
         cust_state: &CustomerState<E>,
-    ) -> (Commitment<E>, CommitmentProof<E>) {
-        let cust_com_proof = cust_state.generate_proof(csprng, channel_token);
-        return (cust_state.w_com.clone(), cust_com_proof);
+    ) -> (Commitment<E>, Commitment<E>, CommitmentProof<E>, CommitmentProof<E>) {
+        let (cust_com_proof, cust_com_bar_proof) = cust_state.generate_proof(csprng, channel_token);
+        return (cust_state.coms.s_com.clone(), cust_state.coms.s_bar_com.clone(), cust_com_proof, cust_com_bar_proof);
     }
 
     ///
@@ -224,8 +225,10 @@ pub mod zkproofs {
     pub fn establish_merchant_issue_close_token<R: Rng, E: Engine>(
         csprng: &mut R,
         channel_state: &ChannelState<E>,
-        com: &Commitment<E>,
+        s_com: &Commitment<E>,
+        s_bar_com: &Commitment<E>,
         com_proof: &CommitmentProof<E>,
+        com_bar_proof: &CommitmentProof<E>,
         channel_id: &E::Fr,
         init_cust_balance: i64,
         init_merch_balance: i64,
@@ -235,8 +238,10 @@ pub mod zkproofs {
         match merch_state.verify_proof(
             csprng,
             channel_state,
-            com,
+            s_com,
+            s_bar_com,
             com_proof,
+            com_bar_proof,
             channel_id,
             init_cust_balance,
             init_merch_balance,
@@ -258,7 +263,7 @@ pub mod zkproofs {
         merch_state: &MerchantState<E>,
     ) -> cl::Signature<E> {
         let cp = channel_state.cp.as_ref().unwrap();
-        let pay_token = merch_state.issue_pay_token(csprng, cp, com, false);
+        let pay_token = merch_state.issue_pay_token(csprng, cp, com);
         return pay_token;
     }
 
@@ -304,11 +309,12 @@ pub mod zkproofs {
             true => amount + tx_fee,
             false => amount,
         };
-        let (proof, com, rev_lock, new_cust_state) =
+        let (proof, coms, nonce, rev_lock, new_cust_state) =
             cust_state.generate_payment(csprng, &channel_state, payment_amount);
         let payment = Payment {
             proof,
-            com,
+            coms,
+            nonce,
             rev_lock,
             amount,
         };
@@ -338,7 +344,8 @@ pub mod zkproofs {
                 csprng,
                 &channel_state,
                 &payment.proof,
-                &payment.com,
+                &payment.coms,
+                &payment.nonce,
                 &payment.rev_lock,
                 payment_amount,
             )
@@ -370,7 +377,8 @@ pub mod zkproofs {
                 csprng,
                 &channel_state,
                 &sender_payment.proof,
-                &sender_payment.com,
+                &sender_payment.coms,
+                &sender_payment.nonce,
                 &sender_payment.rev_lock,
                 sender_payment.amount + tx_fee,
             )
@@ -381,7 +389,8 @@ pub mod zkproofs {
                 csprng,
                 &channel_state,
                 &receiver_payment.proof,
-                &receiver_payment.com,
+                &receiver_payment.coms,
+                &receiver_payment.nonce,
                 &receiver_payment.rev_lock,
                 receiver_payment.amount + tx_fee,
             )
@@ -498,12 +507,12 @@ pub mod zkproofs {
             ));
         }
 
-        let mut wallet = cust_state.get_wallet();
+        let wallet = cust_state.get_wallet();
         let close_token = cust_state.get_close_token();
 
         let cp = channel_state.cp.as_ref().unwrap();
         let pk = cp.pub_params.pk.get_pub_key();
-        let close_wallet = wallet.with_close(String::from("close"));
+        let close_wallet = wallet.as_fr_vec();
 
         assert!(pk.verify(&cp.pub_params.mpk, &close_wallet, &close_token));
 
@@ -557,8 +566,8 @@ pub mod zkproofs {
 
         let cp = channel_state.cp.as_ref().unwrap();
         let pk = cp.pub_params.pk.get_pub_key();
-        let mut wallet = cust_close.message.clone();
-        let close_wallet = wallet.with_close(String::from("close")).clone();
+        let wallet = cust_close.message.clone();
+        let close_wallet = wallet.as_fr_vec();
         let close_token = cust_close.merch_signature.clone();
 
         let is_valid = pk.verify(&channel_token.mpk, &close_wallet, &close_token);
@@ -1279,7 +1288,7 @@ mod tests {
         let rng = &mut rand::thread_rng();
 
         // lets establish the channel
-        let (com, com_proof) =
+        let (s_com, s_bar_com, com_proof, com_bar_proof) =
             zkproofs::establish_customer_generate_proof(rng, channel_token, cust_state);
 
         // obtain close token for closing out channel
@@ -1287,8 +1296,10 @@ mod tests {
         let option = zkproofs::establish_merchant_issue_close_token(
             rng,
             &channel_state,
-            &com,
+            &s_com,
+            &s_bar_com,
             &com_proof,
+            &com_bar_proof,
             &cust_state.get_wallet().channelId,
             cust_balance,
             merch_balance,
@@ -1307,7 +1318,7 @@ mod tests {
 
         // obtain payment token for pay protocol
         let pay_token =
-            zkproofs::establish_merchant_issue_pay_token(rng, &channel_state, &com, &merch_state);
+            zkproofs::establish_merchant_issue_pay_token(rng, &channel_state, &s_com, &merch_state);
         //assert!(cust_state.verify_pay_token(&channel_state, &pay_token));
 
         assert!(zkproofs::establish_customer_final(
@@ -1368,15 +1379,17 @@ mod tests {
         println!("{}", cust_state);
 
         // lets establish the channel
-        let (com, com_proof) =
+        let (s_com, s_bar_com, com_proof, com_bar_proof) =
             zkproofs::establish_customer_generate_proof(rng, &mut channel_token, &mut cust_state);
 
         // obtain close token for closing out channel
         let option = zkproofs::establish_merchant_issue_close_token(
             rng,
             &channel_state,
-            &com,
+            &s_com,
+            &s_bar_com,
             &com_proof,
+            &com_bar_proof,
             &cust_state.get_wallet().channelId,
             b0_customer,
             b0_merchant,
@@ -1395,7 +1408,7 @@ mod tests {
 
         // obtain payment token for pay protocol
         let pay_token =
-            zkproofs::establish_merchant_issue_pay_token(rng, &channel_state, &com, &merch_state);
+            zkproofs::establish_merchant_issue_pay_token(rng, &channel_state, &s_com, &merch_state);
         //assert!(cust_state.verify_pay_token(&channel_state, &pay_token));
 
         assert!(zkproofs::establish_customer_final(

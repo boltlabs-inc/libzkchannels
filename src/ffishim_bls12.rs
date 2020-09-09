@@ -192,7 +192,7 @@ pub mod ffishim {
             deserialize_result_object(ser_customer_state);
         let mut cust_state = handle_errors!(cust_state_result);
 
-        let (com, com_proof) =
+        let (s_com, s_bar_com, com_proof, com_bar_proof) =
             zkproofs::establish_customer_generate_proof(rng, &mut channel_token, &mut cust_state);
 
         let ser = [
@@ -200,10 +200,14 @@ pub mod ffishim {
             serde_json::to_string(&cust_state).unwrap().as_str(),
             "\', \'channel_token\':\'",
             serde_json::to_string(&channel_token).unwrap().as_str(),
-            "\', \'com\':\'",
-            serde_json::to_string(&com).unwrap().as_str(),
+            "\', \'s_com\':\'",
+            serde_json::to_string(&s_com).unwrap().as_str(),
+            "\', \'s_bar_com\':\'",
+            serde_json::to_string(&s_bar_com).unwrap().as_str(),
             "\', \'com_proof\':\'",
             serde_json::to_string(&com_proof).unwrap().as_str(),
+            "\', \'com_bar_proof\':\'",
+            serde_json::to_string(&com_bar_proof).unwrap().as_str(),
             "\'}",
         ]
         .concat();
@@ -234,8 +238,10 @@ pub mod ffishim {
     #[no_mangle]
     pub extern "C" fn ffishim_bls12_establish_merchant_issue_close_token(
         ser_channel_state: *mut c_char,
-        ser_com: *mut c_char,
+        ser_s_com: *mut c_char,
+        ser_s_bar_com: *mut c_char,
         ser_com_proof: *mut c_char,
+        ser_com_bar_proof: *mut c_char,
         ser_channel_id: *mut c_char,
         init_cust_bal: i64,
         init_merch_bal: i64,
@@ -248,14 +254,20 @@ pub mod ffishim {
         let channel_state = handle_errors!(channel_state_result);
 
         // Deserialize the com proof
-        let com_result: ResultSerdeType<zkproofs::Commitment<CURVE>> =
-            deserialize_result_object(ser_com);
-        let com = handle_errors!(com_result);
+        let s_com_result: ResultSerdeType<zkproofs::Commitment<CURVE>> =
+            deserialize_result_object(ser_s_com);
+        let s_com = handle_errors!(s_com_result);
+        let s_bar_com_result: ResultSerdeType<zkproofs::Commitment<CURVE>> =
+            deserialize_result_object(ser_s_bar_com);
+        let s_bar_com = handle_errors!(s_bar_com_result);
 
         // Deserialize the com proof
         let com_proof_result: ResultSerdeType<zkproofs::CommitmentProof<CURVE>> =
             deserialize_result_object(ser_com_proof);
         let com_proof = handle_errors!(com_proof_result);
+        let com_bar_proof_result: ResultSerdeType<zkproofs::CommitmentProof<CURVE>> =
+            deserialize_result_object(ser_com_bar_proof);
+        let com_bar_proof = handle_errors!(com_bar_proof_result);
 
         // Deserialize the merchant state
         let merch_state_result: ResultSerdeType<zkproofs::MerchantState<CURVE>> =
@@ -270,8 +282,10 @@ pub mod ffishim {
         let close_token = bolt_try!(zkproofs::establish_merchant_issue_close_token(
             rng,
             &channel_state,
-            &com,
+            &s_com,
+            &s_bar_com,
             &com_proof,
+            &com_bar_proof,
             &channel_id_fr,
             init_cust_bal,
             init_merch_bal,
@@ -762,7 +776,7 @@ pub mod ffishim {
     pub extern "C" fn ffishim_bls12_merchant_close(
         ser_channel_state: *mut c_char,
         ser_channel_token: *mut c_char,
-        ser_address: *const c_char,
+        _ser_address: *const c_char,
         ser_cust_close: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
@@ -786,9 +800,9 @@ pub mod ffishim {
             deserialize_result_object(ser_merch_state);
         let merch_state = handle_errors!(merch_state_result);
 
-        // Deserialize the destination address as a string
-        let ser_addr_bytes = unsafe { CStr::from_ptr(ser_address).to_bytes() };
-        let address: &str = str::from_utf8(ser_addr_bytes).unwrap(); // make sure the bytes are UTF-8
+        // // Deserialize the destination address as a string
+        // let ser_addr_bytes = unsafe { CStr::from_ptr(ser_address).to_bytes() };
+        // let address: &str = str::from_utf8(ser_addr_bytes).unwrap(); // make sure the bytes are UTF-8
 
         let keys = handle_errors!(zkproofs::force_merchant_close(
             &channel_state,

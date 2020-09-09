@@ -28,6 +28,15 @@ macro_rules! measure_two_arg {
     };};
 }
 
+macro_rules! measure_four_arg {
+    ($x: expr) => {{
+        let s = Instant::now();
+        let (res1, res2, res3, res4) = $x;
+        let e = s.elapsed();
+        (res1, res2, res3, res4, e.as_millis())
+    };};
+}
+
 fn main() {
     println!("******************************************");
     let mut channel_state =
@@ -48,7 +57,7 @@ fn main() {
     println!("{}", cust_state);
 
     // lets establish the channel
-    let (com, com_proof, est_time) = measure_two_arg!(zkproofs::establish_customer_generate_proof(
+    let (s_com, s_bar_com, com_proof, com_bar_proof, est_time) = measure_four_arg!(zkproofs::establish_customer_generate_proof(
         rng,
         &mut channel_token,
         &mut cust_state
@@ -60,8 +69,10 @@ fn main() {
     let option = zkproofs::establish_merchant_issue_close_token(
         rng,
         &channel_state,
-        &com,
+        &s_com,
+        &s_bar_com,
         &com_proof,
+        &com_bar_proof,
         &channel_id,
         b0_customer,
         b0_merchant,
@@ -81,7 +92,7 @@ fn main() {
 
     // obtain payment token for pay protocol
     let pay_token =
-        zkproofs::establish_merchant_issue_pay_token(rng, &channel_state, &com, &merch_state);
+        zkproofs::establish_merchant_issue_pay_token(rng, &channel_state, &s_com, &merch_state);
     //assert!(cust_state.verify_pay_token(&channel_state, &pay_token));
 
     assert!(zkproofs::establish_customer_final(

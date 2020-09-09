@@ -33,7 +33,6 @@ pub fn reconstruct_close_wallet_bls12(
     let channelId = channel_token.compute_channel_id();
     let nonce = util::encode_short_bytes_to_fr::<Bls12>(nonce.0);
     let rl = util::hash_to_fr::<Bls12>(rev_lock.0.to_vec());
-    let close = util::hash_to_fr::<Bls12>(String::from("close").into_bytes());
 
     return Wallet {
         channelId,
@@ -41,7 +40,6 @@ pub fn reconstruct_close_wallet_bls12(
         rev_lock: rl,
         bc: cust_bal as i64,
         bm: merch_bal as i64,
-        close: Some(close),
     };
 }
 
