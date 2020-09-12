@@ -408,7 +408,7 @@ mod tests {
         };
 
         let comParams = CSMultiParams::setup_gen_params(rng, 5);
-        let rl_com = comParams.commit(&vec!(wallet.rev_lock), &rho);
+        let rl_com = comParams.commit(&vec![wallet.rev_lock], &rho);
         let s_com = comParams.commit(&wallet.as_fr_vec().clone(), &tau);
         let s_bar_com = comParams.commit(&wallet.as_fr_vec_bar().clone(), &tau_bar);
 
@@ -416,7 +416,7 @@ mod tests {
             rng,
             &comParams,
             &rl_com.c,
-            &vec!(wallet.rev_lock),
+            &vec![wallet.rev_lock],
             &rho,
             &vec![],
         );

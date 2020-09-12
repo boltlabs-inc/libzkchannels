@@ -57,11 +57,9 @@ fn main() {
     println!("{}", cust_state);
 
     // lets establish the channel
-    let (s_com, s_bar_com, com_proof, com_bar_proof, est_time) = measure_four_arg!(zkproofs::establish_customer_generate_proof(
-        rng,
-        &mut channel_token,
-        &mut cust_state
-    ));
+    let (s_com, s_bar_com, com_proof, com_bar_proof, est_time) = measure_four_arg!(
+        zkproofs::establish_customer_generate_proof(rng, &mut channel_token, &mut cust_state)
+    );
     println!(">> Time to generate proof for establish: {} ms", est_time);
 
     // obtain close token for closing out channel

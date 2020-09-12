@@ -1,5 +1,6 @@
 use super::*;
 use ccs08::{ParamsUL, ProofUL, SecretParamsUL};
+use channels::ClosedCommitments;
 use cl::{setup, BlindKeyPair, BlindPublicKey, PublicParams, Signature, SignatureProof};
 use pairing::{CurveProjective, Engine};
 use ped92::{CSMultiParams, Commitment, CommitmentProof};
@@ -7,7 +8,6 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 use util;
 use wallet::Wallet;
-use channels::ClosedCommitments;
 
 /// NIZKProof is the object that represents the NIZK Proof of Knowledge during the payment and closing protocol
 #[derive(Clone, Serialize, Deserialize)]
@@ -16,7 +16,7 @@ use channels::ClosedCommitments;
                            <E as pairing::Engine>::G2: serde::Serialize, \
                            <E as pairing::Engine>::Fqk: serde::Serialize"))]
 #[serde(
-bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+    bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G2: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::Fqk: serde::Deserialize<'de>")
@@ -37,7 +37,7 @@ pub struct NIZKProof<E: Engine> {
                            <E as pairing::Engine>::G1: serde::Serialize, \
                            <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(
-bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+    bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G2: serde::Deserialize<'de>")
 )]
@@ -54,7 +54,7 @@ pub struct NIZKPublicParams<E: Engine> {
                            <E as pairing::Engine>::G1: serde::Serialize, \
                            <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(
-bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+    bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G2: serde::Deserialize<'de>")
 )]
@@ -108,11 +108,14 @@ impl<E: Engine> NIZKSecretParams<E> {
 
         //compute challenge
         let mut T = self.pubParams.comParams.pub_bases.clone();
-        T.append(&mut vec![proof.rlComProof.T, proof.comProof.T, proof.comBarProof.T, proof.rpBC.D, proof.rpBM.D]);
-        let challenge = NIZKPublicParams::<E>::hash(
-            proof.sigProof.a,
-            T,
-        );
+        T.append(&mut vec![
+            proof.rlComProof.T,
+            proof.comProof.T,
+            proof.comBarProof.T,
+            proof.rpBC.D,
+            proof.rpBM.D,
+        ]);
+        let challenge = NIZKPublicParams::<E>::hash(proof.sigProof.a, T);
 
         //verify knowledge of signature
         let mut r1 = self.keypair.public.verify_proof(
@@ -207,7 +210,7 @@ impl<E: Engine> NIZKPublicParams<E> {
         let (D1, t1) = CommitmentProof::<E>::prove_commitment(
             rng,
             &self.comParams,
-            &vec!(oldWallet.rev_lock),
+            &vec![oldWallet.rev_lock],
             None,
         );
 
@@ -223,7 +226,7 @@ impl<E: Engine> NIZKPublicParams<E> {
             rng,
             &self.comParams,
             &newWallet.as_fr_vec_bar(),
-            Some(vec!(t3_0, t2[1], t2[3], t2[4], t2[5])),
+            Some(vec![t3_0, t2[1], t2[3], t2[4], t2[5]]),
         );
 
         //commit signature
@@ -244,8 +247,7 @@ impl<E: Engine> NIZKPublicParams<E> {
         //Compute challenge
         let mut T = self.comParams.pub_bases.clone();
         T.append(&mut vec![D1, D2, D3, rpStateBC.D, rpStateBM.D]);
-        let challenge =
-            NIZKPublicParams::<E>::hash(proofState.a, T);
+        let challenge = NIZKPublicParams::<E>::hash(proofState.a, T);
 
         //Response phase
         //response for signature
@@ -255,8 +257,13 @@ impl<E: Engine> NIZKPublicParams<E> {
             .prove_response(&proofState, challenge, &mut oldWalletVec.clone());
 
         //response commitment
-        let rlComProof =
-            CommitmentProof::<E>::prove_response(&vec!(oldWallet.rev_lock), &rho, D1, &t1, &challenge);
+        let rlComProof = CommitmentProof::<E>::prove_response(
+            &vec![oldWallet.rev_lock],
+            &rho,
+            D1,
+            &t1,
+            &challenge,
+        );
         let newWalletVec = newWallet.as_fr_vec();
         let comProof =
             CommitmentProof::<E>::prove_response(&newWalletVec, &newTau, D2, &t2, &challenge);
@@ -423,10 +430,7 @@ mod tests {
             bc: bc2,
             bm: bm2,
         };
-        let rl_com2 = secParams
-            .pubParams
-            .comParams
-            .commit(&vec!(rl), &rho);
+        let rl_com2 = secParams.pubParams.comParams.commit(&vec![rl], &rho);
         let s_com2 = secParams
             .pubParams
             .comParams
@@ -452,7 +456,19 @@ mod tests {
             &paymentToken,
         );
         let fr = convert_int_to_fr::<Bls12>(epsilon);
-        assert_eq!(secParams.verify(proof, fr, &ClosedCommitments { s_com: s_com2, s_bar_com: s_bar_com2, rl_com: rl_com2 }, nonce), true);
+        assert_eq!(
+            secParams.verify(
+                proof,
+                fr,
+                &ClosedCommitments {
+                    s_com: s_com2,
+                    s_bar_com: s_bar_com2,
+                    rl_com: rl_com2
+                },
+                nonce
+            ),
+            true
+        );
     }
 
     #[test]
@@ -493,10 +509,7 @@ mod tests {
             bc: bc2,
             bm: bm2,
         };
-        let rl_com2 = secParams
-            .pubParams
-            .comParams
-            .commit(&vec!(rl), &rho);
+        let rl_com2 = secParams.pubParams.comParams.commit(&vec![rl], &rho);
         let s_com2 = secParams
             .pubParams
             .comParams
@@ -522,7 +535,19 @@ mod tests {
             &paymentToken,
         );
         let fr = convert_int_to_fr::<Bls12>(epsilon);
-        assert_eq!(secParams.verify(proof, fr, &ClosedCommitments { s_com: s_com2, s_bar_com: s_bar_com2, rl_com: rl_com2 }, nonce), true);
+        assert_eq!(
+            secParams.verify(
+                proof,
+                fr,
+                &ClosedCommitments {
+                    s_com: s_com2,
+                    s_bar_com: s_bar_com2,
+                    rl_com: rl_com2
+                },
+                nonce
+            ),
+            true
+        );
     }
 
     #[test]
@@ -564,10 +589,7 @@ mod tests {
             bc: bc2,
             bm: bm2,
         };
-        let rl_com2 = secParams
-            .pubParams
-            .comParams
-            .commit(&vec!(rl), &rho);
+        let rl_com2 = secParams.pubParams.comParams.commit(&vec![rl], &rho);
         let s_com2 = secParams
             .pubParams
             .comParams
@@ -597,7 +619,11 @@ mod tests {
         ));
 
         println!("close => {}", &wallet2);
-        assert!(pk.verify(&secParams.pubParams.mpk, &wallet2.as_fr_vec_bar(), &closeToken));
+        assert!(pk.verify(
+            &secParams.pubParams.mpk,
+            &wallet2.as_fr_vec_bar(),
+            &closeToken
+        ));
 
         let proof = secParams.pubParams.prove(
             rng,
@@ -614,7 +640,11 @@ mod tests {
             secParams.verify(
                 proof,
                 Fr::from_str(&epsilon.to_string()).unwrap(),
-                &ClosedCommitments { s_com: s_com2, s_bar_com: s_bar_com2, rl_com: rl_com2 },
+                &ClosedCommitments {
+                    s_com: s_com2,
+                    s_bar_com: s_bar_com2,
+                    rl_com: rl_com2
+                },
                 nonce,
             ),
             true
@@ -661,10 +691,7 @@ mod tests {
             .pubParams
             .comParams
             .commit(&wallet1.as_fr_vec().clone(), &tau);
-        let rl_com2 = secParams
-            .pubParams
-            .comParams
-            .commit(&vec!(rl), &rho);
+        let rl_com2 = secParams.pubParams.comParams.commit(&vec![rl], &rho);
         let s_com2 = secParams
             .pubParams
             .comParams
@@ -692,7 +719,11 @@ mod tests {
             secParams.verify(
                 proof,
                 Fr::from_str(&epsilon.to_string()).unwrap(),
-                &ClosedCommitments { s_com: s_com2.clone(), s_bar_com: s_bar_com2.clone(), rl_com: rl_com2.clone() },
+                &ClosedCommitments {
+                    s_com: s_com2.clone(),
+                    s_bar_com: s_bar_com2.clone(),
+                    rl_com: rl_com2.clone()
+                },
                 nonce,
             ),
             false
@@ -724,7 +755,11 @@ mod tests {
             secParams.verify(
                 proof,
                 Fr::from_str(&epsilon.to_string()).unwrap(),
-                &ClosedCommitments { s_com: s_com2.clone(), s_bar_com: s_bar_com2.clone(), rl_com: rl_com2.clone() },
+                &ClosedCommitments {
+                    s_com: s_com2.clone(),
+                    s_bar_com: s_bar_com2.clone(),
+                    rl_com: rl_com2.clone()
+                },
                 nonce,
             ),
             false
@@ -755,7 +790,11 @@ mod tests {
             secParams.verify(
                 proof,
                 Fr::from_str(&epsilon.to_string()).unwrap(),
-                &ClosedCommitments { s_com: s_com2, s_bar_com: s_bar_com2, rl_com: rl_com2 },
+                &ClosedCommitments {
+                    s_com: s_com2,
+                    s_bar_com: s_bar_com2,
+                    rl_com: rl_com2
+                },
                 nonce,
             ),
             false

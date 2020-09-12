@@ -105,6 +105,7 @@ pub mod zkproofs {
     // for on-chain keys
     use HashMap;
 
+    use channels::ClosedCommitments;
     pub use channels::{
         BoltError, ChannelParams, ChannelState, ChannelToken, ChannelcloseM, CustomerState,
         MerchantState, ResultBoltType, RevLockPair,
@@ -117,9 +118,8 @@ pub mod zkproofs {
     use serde::{Deserialize, Serialize};
     use util::hash_to_slice;
     pub use wallet::{serialize_compact, Wallet};
-    use zkchan_tx::fixed_size_array::{FixedSizeArray32, FixedSizeArray16};
+    use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
     pub use BoltResult;
-    use channels::ClosedCommitments;
 
     #[derive(Clone, Serialize, Deserialize)]
     #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
@@ -212,9 +212,19 @@ pub mod zkproofs {
         csprng: &mut R,
         channel_token: &ChannelToken<E>,
         cust_state: &CustomerState<E>,
-    ) -> (Commitment<E>, Commitment<E>, CommitmentProof<E>, CommitmentProof<E>) {
+    ) -> (
+        Commitment<E>,
+        Commitment<E>,
+        CommitmentProof<E>,
+        CommitmentProof<E>,
+    ) {
         let (cust_com_proof, cust_com_bar_proof) = cust_state.generate_proof(csprng, channel_token);
-        return (cust_state.coms.s_com.clone(), cust_state.coms.s_bar_com.clone(), cust_com_proof, cust_com_bar_proof);
+        return (
+            cust_state.coms.s_com.clone(),
+            cust_state.coms.s_bar_com.clone(),
+            cust_com_proof,
+            cust_com_bar_proof,
+        );
     }
 
     ///
@@ -512,7 +522,7 @@ pub mod zkproofs {
 
         let cp = channel_state.cp.as_ref().unwrap();
         let pk = cp.pub_params.pk.get_pub_key();
-        let close_wallet = wallet.as_fr_vec();
+        let close_wallet = wallet.as_fr_vec_bar();
 
         assert!(pk.verify(&cp.pub_params.mpk, &close_wallet, &close_token));
 
@@ -567,7 +577,7 @@ pub mod zkproofs {
         let cp = channel_state.cp.as_ref().unwrap();
         let pk = cp.pub_params.pk.get_pub_key();
         let wallet = cust_close.message.clone();
-        let close_wallet = wallet.as_fr_vec();
+        let close_wallet = wallet.as_fr_vec_bar();
         let close_token = cust_close.merch_signature.clone();
 
         let is_valid = pk.verify(&channel_token.mpk, &close_wallet, &close_token);

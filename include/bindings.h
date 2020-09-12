@@ -3,7 +3,11 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define _LIBCPP_HAS_MERGED_TYPEINFO_NAMES_DEFAULT 0
+#define _LIBCPP_DEBUG_LEVEL 0
+
+#define _LIBCPP_HAS_MERGED_TYPEINFO_NAMES_DEFAULT 1
+
+#define __STDCPP_THREADS__ 1
 
 typedef struct {
   uint32_t nonce[4];
@@ -80,7 +84,7 @@ typedef struct {
   uint32_t sig[8];
 } EcdsaSig_l;
 
-typedef char *(*cb_send)(void *arg1, int arg2, void *arg3, int arg4);
+typedef char *(*cb_send)(void *arg1, int arg2, void *arg3);
 
 typedef struct {
   char *r0;
@@ -88,7 +92,7 @@ typedef struct {
   char *r2;
 } Receive_return;
 
-typedef Receive_return (*cb_receive)(void *arg1, int arg2);
+typedef Receive_return (*cb_receive)(void *arg1);
 
 char *create_child_tx_to_bump_fee_via_p2wpkh_input(char *ser_tx_index1,
                                                    uint32_t index1,
