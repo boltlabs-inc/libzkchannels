@@ -273,7 +273,7 @@ The first part of setting up bi-directional payment channels involve generating 
 	// generate fresh public parameters
 	channel_state.setup(&mut rng);
 
-#### 2.1.2 Initialization
+#### 2.1.2 Intialize
 
 To initialize state/keys for both parties, call the ``zkproofs::init_merchant()`` and ``zkproofs::init_customer()``:
 
@@ -291,7 +291,7 @@ To initialize state/keys for both parties, call the ``zkproofs::init_merchant()`
 	                                              "Alice")); // channel name/purpose
 
 
-#### 2.1.3 Establish Protocol
+#### 2.1.3 Establish protocol
 
 When opening a payment channel, execute the establishment protocol API to escrow funds privately as follows:
 
@@ -309,7 +309,7 @@ When opening a payment channel, execute the establishment protocol API to escrow
 	// obtain payment token after confirming funding tx
 	let pay_token = zkproofs::establish_merchant_issue_pay_token(rng, &channel_state, &com, &merch_state);
 
-	// customer
+	// customer verifies the initial pay token and stores for future payments
 	assert!(zkproofs::establish_final(&mut channel_state, &mut cust_state, &pay_token));
 
 	// confirm that the channel state is now established
