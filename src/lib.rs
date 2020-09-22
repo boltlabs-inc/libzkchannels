@@ -271,6 +271,19 @@ pub mod zkproofs {
         generate_payment_proof(csprng, channel_state, cust_state, -channel_state.get_channel_fee())
     }
 
+    pub fn unlink_channel_merchant<R: Rng, E: Engine>(
+        csprng: &mut R,
+        channel_state: &ChannelState<E>,
+        payment: &Payment<E>,
+        merch_state: &mut MerchantState<E>,
+    ) -> BoltResult<cl::Signature<E>> {
+        if merch_state.unlink_nonces.contains(&encode_short_bytes_to_fr::<E>(payment.nonce.0).to_string()) {
+            Ok(Some(verify_payment_proof(csprng, channel_state, payment, merch_state)))
+        } else {
+            Err(String::from("The nonce is not a valid unlink nonce."))
+        }
+    }
+
     ///
     /// generate_payment_proof (phase 1) - takes as input the public params, channel state, channel token,
     /// merchant public keys, old wallet and balance increment. Generate a new wallet commitment
@@ -298,19 +311,6 @@ pub mod zkproofs {
             amount,
         };
         return (payment, new_cust_state);
-    }
-
-    pub fn unlink_channel_merchant<R: Rng, E: Engine>(
-        csprng: &mut R,
-        channel_state: &ChannelState<E>,
-        payment: &Payment<E>,
-        merch_state: &mut MerchantState<E>,
-    ) -> BoltResult<cl::Signature<E>> {
-        if merch_state.unlink_nonces.contains(&encode_short_bytes_to_fr::<E>(payment.nonce.0).to_string()) {
-            Ok(Some(verify_payment_proof(csprng, channel_state, payment, merch_state)))
-        } else {
-            Err(String::from("The nonce is not a valid unlink nonce."))
-        }
     }
 
     ///

@@ -160,20 +160,17 @@ char *cust_verify_init_cust_close_txs(char *ser_funding_tx,
 
 char *customer_sign_merch_close_tx(char *ser_cust_sk, char *ser_merch_tx_preimage);
 
+char *ffishim_bls12_activate_customer_final(char *ser_channel_state,
+                                            char *ser_customer_state,
+                                            char *ser_pay_token);
+
+char *ffishim_bls12_activate_merchant_issue_pay_token(char *ser_init_state, char *ser_merch_state);
+
 char *ffishim_bls12_channel_setup(const char *channel_name, uint32_t third_party_support);
 
 char *ffishim_bls12_customer_close(char *ser_channel_state, char *ser_cust_state);
 
 char *ffishim_bls12_decompress_cust_close_message(char *ser_channel_state, char *ser_cust_close);
-
-char *ffishim_bls12_establish_customer_final(char *ser_channel_state,
-                                             char *ser_customer_state,
-                                             char *ser_pay_token);
-
-char *ffishim_bls12_establish_merchant_issue_close_token(char *ser_init_state,
-                                                         char *ser_merch_state);
-
-char *ffishim_bls12_establish_merchant_issue_pay_token(char *ser_init_state, char *ser_merch_state);
 
 char *ffishim_bls12_generate_channel_id(char *ser_channel_token);
 
@@ -183,6 +180,8 @@ char *ffishim_bls12_init_customer(char *ser_channel_token,
                                   const char *name_ptr);
 
 char *ffishim_bls12_init_merchant(char *ser_channel_state, const char *name_ptr);
+
+char *ffishim_bls12_init_merchant_issue_close_token(char *ser_init_state, char *ser_merch_state);
 
 char *ffishim_bls12_merchant_close(char *ser_channel_state,
                                    char *ser_channel_token,
@@ -209,24 +208,37 @@ char *ffishim_bls12_pay_verify_payment_token(char *ser_channel_state,
 
 char *ffishim_bls12_tze_check_wpk(char *ser_wpk);
 
+char *ffishim_bls12_unlink_channel_customer(char *ser_channel_state,
+                                            char *ser_customer_state,
+                                            int64_t amount);
+
+char *ffishim_bls12_unlink_channel_merchant(char *ser_channel_state,
+                                            char *ser_pay_proof,
+                                            char *ser_merch_state);
+
+char *ffishim_bls12_unlink_verify_pay_token(char *ser_channel_state,
+                                            char *ser_cust_state,
+                                            char *ser_pay_token);
+
 char *ffishim_bls12_verify_close_token(char *ser_channel_state,
                                        char *ser_customer_state,
                                        char *ser_close_token);
+
+char *ffishim_bls12_verify_init_close_token(char *ser_channel_state,
+                                            char *ser_customer_state,
+                                            char *ser_close_token);
+
+char *ffishim_bn256_activate_customer_final(char *ser_channel_state,
+                                            char *ser_customer_state,
+                                            char *ser_pay_token);
+
+char *ffishim_bn256_activate_merchant_issue_pay_token(char *ser_init_state, char *ser_merch_state);
 
 char *ffishim_bn256_channel_setup(const char *channel_name, uint32_t third_party_support);
 
 char *ffishim_bn256_customer_close(char *ser_channel_state, char *ser_cust_state);
 
 char *ffishim_bn256_decompress_cust_close_message(char *ser_channel_state, char *ser_cust_close);
-
-char *ffishim_bn256_establish_customer_final(char *ser_channel_state,
-                                             char *ser_customer_state,
-                                             char *ser_pay_token);
-
-char *ffishim_bn256_establish_merchant_issue_close_token(char *ser_init_wallet,
-                                                         char *ser_merch_state);
-
-char *ffishim_bn256_establish_merchant_issue_pay_token(char *ser_init_state, char *ser_merch_state);
 
 char *ffishim_bn256_generate_channel_id(char *ser_channel_token);
 
@@ -236,6 +248,8 @@ char *ffishim_bn256_init_customer(char *ser_channel_token,
                                   const char *name_ptr);
 
 char *ffishim_bn256_init_merchant(char *ser_channel_state, const char *name_ptr);
+
+char *ffishim_bn256_init_merchant_issue_close_token(char *ser_init_wallet, char *ser_merch_state);
 
 char *ffishim_bn256_merchant_close(char *ser_channel_state,
                                    char *ser_channel_token,
@@ -262,9 +276,25 @@ char *ffishim_bn256_pay_verify_payment_token(char *ser_channel_state,
 
 char *ffishim_bn256_tze_check_wpk(char *ser_wpk);
 
+char *ffishim_bn256_unlink_channel_customer(char *ser_channel_state,
+                                            char *ser_customer_state,
+                                            int64_t amount);
+
+char *ffishim_bn256_unlink_channel_merchant(char *ser_channel_state,
+                                            char *ser_pay_proof,
+                                            char *ser_merch_state);
+
+char *ffishim_bn256_unlink_verify_pay_token(char *ser_channel_state,
+                                            char *ser_cust_state,
+                                            char *ser_pay_token);
+
 char *ffishim_bn256_verify_close_token(char *ser_channel_state,
                                        char *ser_customer_state,
                                        char *ser_close_token);
+
+char *ffishim_bn256_verify_init_close_token(char *ser_channel_state,
+                                            char *ser_customer_state,
+                                            char *ser_close_token);
 
 void ffishim_free_string(char *pointer);
 

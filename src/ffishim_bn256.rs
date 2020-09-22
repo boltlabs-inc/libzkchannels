@@ -177,7 +177,7 @@ pub mod ffishim_bn256 {
     }
 
     #[no_mangle]
-    pub extern "C" fn ffishim_bn256_establish_merchant_issue_close_token(
+    pub extern "C" fn ffishim_bn256_init_merchant_issue_close_token(
         ser_init_wallet: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
@@ -209,7 +209,7 @@ pub mod ffishim_bn256 {
     }
 
     #[no_mangle]
-    pub extern "C" fn ffishim_bn256_establish_merchant_issue_pay_token(
+    pub extern "C" fn ffishim_bn256_activate_merchant_issue_pay_token(
         ser_init_state: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
@@ -235,6 +235,45 @@ pub mod ffishim_bn256 {
             "\'}",
         ]
         .concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern "C" fn ffishim_bn256_verify_init_close_token(
+        ser_channel_state: *mut c_char,
+        ser_customer_state: *mut c_char,
+        ser_close_token: *mut c_char,
+    ) -> *mut c_char {
+        // Deserialize the channel state
+        let channel_state_result: ResultSerdeType<zkproofs::ChannelState<CURVE>> =
+            deserialize_result_object(ser_channel_state);
+        let mut channel_state = handle_errors!(channel_state_result);
+
+        // Deserialize the cust state
+        let cust_state_result: ResultSerdeType<zkproofs::CustomerState<CURVE>> =
+            deserialize_result_object(ser_customer_state);
+        let mut cust_state = handle_errors!(cust_state_result);
+
+        // Deserialize the close token
+        let close_result: ResultSerdeType<zkproofs::Signature<CURVE>> =
+            deserialize_result_object(ser_close_token);
+        let close_token = handle_errors!(close_result);
+
+        let is_close_token_valid = cust_state.verify_init_close_token(&mut channel_state, close_token);
+
+        let ser = [
+            "{\'cust_state\':\'",
+            serde_json::to_string(&cust_state).unwrap().as_str(),
+            "\', \'is_token_valid\':\'",
+            serde_json::to_string(&is_close_token_valid)
+                .unwrap()
+                .as_str(),
+            "\', \'channel_state\':\'",
+            serde_json::to_string(&channel_state).unwrap().as_str(),
+            "\'}",
+        ]
+            .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -279,7 +318,7 @@ pub mod ffishim_bn256 {
     }
 
     #[no_mangle]
-    pub extern "C" fn ffishim_bn256_establish_customer_final(
+    pub extern "C" fn ffishim_bn256_activate_customer_final(
         ser_channel_state: *mut c_char,
         ser_customer_state: *mut c_char,
         ser_pay_token: *mut c_char,
@@ -314,6 +353,112 @@ pub mod ffishim_bn256 {
             "\'}",
         ]
         .concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern "C" fn ffishim_bn256_unlink_channel_customer(
+        ser_channel_state: *mut c_char,
+        ser_customer_state: *mut c_char,
+        amount: i64,
+    ) -> *mut c_char {
+        let rng = &mut rand::thread_rng();
+        // Deserialize the channel state
+        let channel_state_result: ResultSerdeType<zkproofs::ChannelState<CURVE>> =
+            deserialize_result_object(ser_channel_state);
+        let channel_state = handle_errors!(channel_state_result);
+
+        // Deserialize the cust state
+        let cust_state_result: ResultSerdeType<zkproofs::CustomerState<CURVE>> =
+            deserialize_result_object(ser_customer_state);
+        let cust_state = handle_errors!(cust_state_result);
+
+        // Generate the payment proof
+        let (payment, new_cust_state) =
+            zkproofs::unlink_channel_customer(rng, &channel_state, &cust_state);
+        // Serialize the results and return to caller
+        let ser = [
+            "{\'payment\':\'",
+            serde_json::to_string(&payment).unwrap().as_str(),
+            "\', \'cust_state\':\'",
+            serde_json::to_string(&new_cust_state).unwrap().as_str(),
+            "\'}",
+        ]
+            .concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern "C" fn ffishim_bn256_unlink_channel_merchant(
+        ser_channel_state: *mut c_char,
+        ser_pay_proof: *mut c_char,
+        ser_merch_state: *mut c_char,
+    ) -> *mut c_char {
+        let rng = &mut rand::thread_rng();
+        // Deserialize the channel state
+        let channel_state_result: ResultSerdeType<zkproofs::ChannelState<CURVE>> =
+            deserialize_result_object(ser_channel_state);
+        let channel_state = handle_errors!(channel_state_result);
+
+        // Deserialize the payment proof
+        let payment_result: ResultSerdeType<zkproofs::Payment<CURVE>> =
+            deserialize_result_object(ser_pay_proof);
+        let payment = handle_errors!(payment_result);
+
+        // Deserialize the merch state
+        let merch_state_result: ResultSerdeType<zkproofs::MerchantState<CURVE>> =
+            deserialize_result_object(ser_merch_state);
+        let mut merch_state = handle_errors!(merch_state_result);
+
+        let close_token =
+            zkproofs::unlink_channel_merchant(rng, &channel_state, &payment, &mut merch_state);
+        let ser = [
+            "{\'close_token\':\'",
+            serde_json::to_string(&close_token).unwrap().as_str(),
+            "\', \'merch_state\':\'",
+            serde_json::to_string(&merch_state).unwrap().as_str(),
+            "\'}",
+        ]
+            .concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern "C" fn ffishim_bn256_unlink_verify_pay_token(
+        ser_channel_state: *mut c_char,
+        ser_cust_state: *mut c_char,
+        ser_pay_token: *mut c_char,
+    ) -> *mut c_char {
+        // Deserialize the channel state
+        let channel_state_result: ResultSerdeType<zkproofs::ChannelState<CURVE>> =
+            deserialize_result_object(ser_channel_state);
+        let mut channel_state = handle_errors!(channel_state_result);
+
+        // Deserialize the cust state
+        let cust_state_result: ResultSerdeType<zkproofs::CustomerState<CURVE>> =
+            deserialize_result_object(ser_cust_state);
+        let mut cust_state = handle_errors!(cust_state_result);
+
+        // Deserialize the pay token
+        let pay_token_result: ResultSerdeType<zkproofs::Signature<CURVE>> =
+            deserialize_result_object(ser_pay_token);
+        let pay_token = handle_errors!(pay_token_result);
+
+        // verify the pay token and update internal state
+        let is_pay_valid = cust_state.unlink_verify_pay_token(&mut channel_state, &pay_token);
+        let ser = [
+            "{\'cust_state\':\'",
+            serde_json::to_string(&cust_state).unwrap().as_str(),
+            "\', \'channel_state\':\'",
+            serde_json::to_string(&channel_state).unwrap().as_str(),
+            "\', \'is_pay_valid\':\'",
+            serde_json::to_string(&is_pay_valid).unwrap().as_str(),
+            "\'}",
+        ]
+            .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
