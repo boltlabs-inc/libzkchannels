@@ -255,7 +255,7 @@ impl<E: Engine> SecretKey<E> {
         let h = E::G1::rand(csprng);
         let mut s = E::Fr::zero();
         // check vector length first
-        assert_eq!(self.y.len(), message.len());
+        assert!(self.y.len() >= message.len());
         for i in 0..message.len() {
             // s = s + (self.y[i] * message[i]);
             let mut res_yi = self.y[i];
@@ -308,7 +308,7 @@ impl<E: Engine> PublicKey<E> {
         };
 
         for i in 0..l {
-            if (i < message.len()) {
+            if i < message.len() {
                 // bounds check on message vector
                 // L = L + self.Y[i].mul(message[i]);
                 let mut Y = self.Y[i];
@@ -373,12 +373,12 @@ impl<E: Engine> BlindPublicKey<E> {
         //println!("verify - m.len = {}, l = {}", message.len(), l);
         assert!(message.len() <= l + 1);
 
-        let last_elem = match l == message.len() {
+        let last_elem = match l >= message.len() {
             true => message.len() - 1,
             false => l,
         };
 
-        let l = match l == message.len() {
+        let l = match l >= message.len() {
             true => message.len() - 1,
             false => l,
         };

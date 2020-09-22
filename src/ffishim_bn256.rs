@@ -2,7 +2,6 @@
 pub mod ffishim_bn256 {
     extern crate libc;
 
-    use ff::ScalarEngine;
     use pairing::bn256::Bn256;
     use pairing::CurveProjective;
     use pairing::{
@@ -22,15 +21,6 @@ pub mod ffishim_bn256 {
         let ser = ["{\'error\':\'", &s, "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
-    }
-
-    macro_rules! bolt_try {
-        ($e:expr) => {
-            match $e {
-                Ok(val) => val.unwrap(),
-                Err(err) => return error_message(err),
-            }
-        };
     }
 
     macro_rules! handle_errors {
@@ -167,45 +157,6 @@ pub mod ffishim_bn256 {
     // ESTABLISH
 
     #[no_mangle]
-    pub extern "C" fn ffishim_bn256_establish_customer_generate_proof(
-        ser_channel_token: *mut c_char,
-        ser_customer_state: *mut c_char,
-    ) -> *mut c_char {
-        let rng = &mut rand::thread_rng();
-        // Deserialize the channel token
-        let channel_token_result: ResultSerdeType<zkproofs::ChannelToken<CURVE>> =
-            deserialize_result_object(ser_channel_token);
-        let mut channel_token = handle_errors!(channel_token_result);
-
-        // Deserialize the cust state
-        let cust_state_result: ResultSerdeType<zkproofs::CustomerState<CURVE>> =
-            deserialize_result_object(ser_customer_state);
-        let mut cust_state = handle_errors!(cust_state_result);
-
-        let (s_com, s_bar_com, com_proof, com_bar_proof) =
-            zkproofs::establish_customer_generate_proof(rng, &mut channel_token, &mut cust_state);
-
-        let ser = [
-            "{\'cust_state\':\'",
-            serde_json::to_string(&cust_state).unwrap().as_str(),
-            "\', \'channel_token\':\'",
-            serde_json::to_string(&channel_token).unwrap().as_str(),
-            "\', \'s_com\':\'",
-            serde_json::to_string(&s_com).unwrap().as_str(),
-            "\', \'s_bar_com\':\'",
-            serde_json::to_string(&s_bar_com).unwrap().as_str(),
-            "\', \'com_proof\':\'",
-            serde_json::to_string(&com_proof).unwrap().as_str(),
-            "\', \'com_bar_proof\':\'",
-            serde_json::to_string(&com_bar_proof).unwrap().as_str(),
-            "\'}",
-        ]
-        .concat();
-        let cser = CString::new(ser).unwrap();
-        cser.into_raw()
-    }
-
-    #[no_mangle]
     pub extern "C" fn ffishim_bn256_generate_channel_id(
         ser_channel_token: *mut c_char,
     ) -> *mut c_char {
@@ -227,60 +178,25 @@ pub mod ffishim_bn256 {
 
     #[no_mangle]
     pub extern "C" fn ffishim_bn256_establish_merchant_issue_close_token(
-        ser_channel_state: *mut c_char,
-        ser_s_com: *mut c_char,
-        ser_s_bar_com: *mut c_char,
-        ser_com_proof: *mut c_char,
-        ser_com_bar_proof: *mut c_char,
-        ser_channel_id: *mut c_char,
-        init_cust_bal: i64,
-        init_merch_bal: i64,
+        ser_init_wallet: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
         let rng = &mut rand::thread_rng();
         // Deserialize the channel state
-        let channel_state_result: ResultSerdeType<zkproofs::ChannelState<CURVE>> =
-            deserialize_result_object(ser_channel_state);
-        let channel_state = handle_errors!(channel_state_result);
-
-        // Deserialize the com proof
-        let s_com_result: ResultSerdeType<zkproofs::Commitment<CURVE>> =
-            deserialize_result_object(ser_s_com);
-        let s_com = handle_errors!(s_com_result);
-        let s_bar_com_result: ResultSerdeType<zkproofs::Commitment<CURVE>> =
-            deserialize_result_object(ser_s_bar_com);
-        let s_bar_com = handle_errors!(s_bar_com_result);
-
-        // Deserialize the com proof
-        let com_proof_result: ResultSerdeType<zkproofs::CommitmentProof<CURVE>> =
-            deserialize_result_object(ser_com_proof);
-        let com_proof = handle_errors!(com_proof_result);
-        let com_bar_proof_result: ResultSerdeType<zkproofs::CommitmentProof<CURVE>> =
-            deserialize_result_object(ser_com_bar_proof);
-        let com_bar_proof = handle_errors!(com_bar_proof_result);
+        let init_wallet_result: ResultSerdeType<zkproofs::Wallet<CURVE>> =
+            deserialize_result_object(ser_init_wallet);
+        let init_wallet = handle_errors!(init_wallet_result);
 
         // Deserialize the merchant state
         let merch_state_result: ResultSerdeType<zkproofs::MerchantState<CURVE>> =
             deserialize_result_object(ser_merch_state);
         let merch_state = handle_errors!(merch_state_result);
 
-        // Deserialize the pk_c
-        let channel_id_result: ResultSerdeType<<CURVE as ScalarEngine>::Fr> =
-            deserialize_result_object(ser_channel_id);
-        let channel_id_fr = handle_errors!(channel_id_result);
-
-        let close_token = bolt_try!(zkproofs::establish_merchant_issue_close_token(
+        let close_token = zkproofs::init_merchant_issue_close_token(
             rng,
-            &channel_state,
-            &s_com,
-            &s_bar_com,
-            &com_proof,
-            &com_bar_proof,
-            &channel_id_fr,
-            init_cust_bal,
-            init_merch_bal,
+            &init_wallet,
             &merch_state
-        ));
+        );
 
         let ser = [
             "{\'close_token\':\'",
@@ -294,31 +210,27 @@ pub mod ffishim_bn256 {
 
     #[no_mangle]
     pub extern "C" fn ffishim_bn256_establish_merchant_issue_pay_token(
-        ser_channel_state: *mut c_char,
-        ser_com: *mut c_char,
+        ser_init_state: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
         let rng = &mut rand::thread_rng();
         // Deserialize the channel state
-        let channel_state_result: ResultSerdeType<zkproofs::ChannelState<CURVE>> =
-            deserialize_result_object(ser_channel_state);
-        let channel_state = handle_errors!(channel_state_result);
-
-        // Deserialize the commitment
-        let com_result: ResultSerdeType<zkproofs::Commitment<CURVE>> =
-            deserialize_result_object(ser_com);
-        let com = handle_errors!(com_result);
+        let init_state_result: ResultSerdeType<zkproofs::Wallet<CURVE>> =
+            deserialize_result_object(ser_init_state);
+        let init_state = handle_errors!(init_state_result);
 
         // Deserialize the merchant state
         let merch_state_result: ResultSerdeType<zkproofs::MerchantState<CURVE>> =
             deserialize_result_object(ser_merch_state);
-        let merch_state = handle_errors!(merch_state_result);
+        let mut merch_state = handle_errors!(merch_state_result);
 
         let pay_token =
-            zkproofs::establish_merchant_issue_pay_token(rng, &channel_state, &com, &merch_state);
+            zkproofs::activate_merchant_issue_pay_token(rng, &init_state, &mut merch_state);
 
         let ser = [
-            "{\'pay_token\':\'",
+            "{\'merch_state\':\'",
+            serde_json::to_string(&merch_state).unwrap().as_str(),
+            "\', \'pay_token\':\'",
             serde_json::to_string(&pay_token).unwrap().as_str(),
             "\'}",
         ]
@@ -388,7 +300,7 @@ pub mod ffishim_bn256 {
         let pay_token = handle_errors!(pay_token_result);
 
         let is_channel_established =
-            zkproofs::establish_customer_final(&mut channel_state, &mut cust_state, &pay_token);
+            zkproofs::activate_customer_final(&mut channel_state, &mut cust_state, pay_token);
 
         let ser = [
             "{\'cust_state\':\'",
