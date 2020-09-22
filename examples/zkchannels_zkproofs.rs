@@ -10,6 +10,7 @@ use std::time::Instant;
 use zkchannels::{handle_bolt_result, BoltResult};
 use zkchannels::zkproofs;
 use zkchannels::cl::Signature;
+use zkchannels::util::encode_short_bytes_to_fr;
 
 macro_rules! measure_one_arg {
     ($x: expr) => {{
@@ -26,15 +27,6 @@ macro_rules! measure_two_arg {
         let (res1, res2) = $x;
         let e = s.elapsed();
         (res1, res2, e.as_millis())
-    };};
-}
-
-macro_rules! measure_four_arg {
-    ($x: expr) => {{
-        let s = Instant::now();
-        let (res1, res2, res3, res4) = $x;
-        let e = s.elapsed();
-        (res1, res2, res3, res4, e.as_millis())
     };};
 }
 
@@ -58,7 +50,6 @@ fn main() {
     println!("{}", cust_state);
 
     // obtain close token for closing out channel
-    let channel_id = channel_token.compute_channel_id();
     let close_token = zkproofs::init_merchant_issue_close_token(
         rng,
         &cust_state.get_wallet(),
@@ -72,6 +63,7 @@ fn main() {
     // obtain payment token for pay protocol
     let pay_token =
         zkproofs::activate_merchant_issue_pay_token(rng, &cust_state.get_wallet(), &mut merch_state);
+    assert!(merch_state.unlink_nonces.contains(&encode_short_bytes_to_fr::<Bls12>(cust_state.nonce.0).to_string()));
     //assert!(cust_state.verify_pay_token(&channel_state, &pay_token));
 
     assert!(zkproofs::activate_customer_final(
@@ -81,7 +73,8 @@ fn main() {
     ));
 
     let (unlink_info, unlinked_cust_state) = zkproofs::unlink_channel_customer(rng, &channel_state, &cust_state);
-    let new_close_token = zkproofs::unlink_channel_merchant(rng, &channel_state, &unlink_info, &mut merch_state);
+    let new_close_token_result = zkproofs::unlink_channel_merchant(rng, &channel_state, &unlink_info, &mut merch_state);
+    let new_close_token = handle_bolt_result!(new_close_token_result).unwrap();
     let rt_pair = zkproofs::get_revoke_lock_pair(
         &channel_state,
         &mut cust_state,

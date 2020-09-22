@@ -116,7 +116,7 @@ pub mod zkproofs {
     pub use ped92::Commitment;
     pub use ped92::CommitmentProof;
     use serde::{Deserialize, Serialize};
-    use util::hash_to_slice;
+    use util::{hash_to_slice, encode_short_bytes_to_fr};
     pub use wallet::{serialize_compact, Wallet};
     use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
     pub use BoltResult;
@@ -305,8 +305,12 @@ pub mod zkproofs {
         channel_state: &ChannelState<E>,
         payment: &Payment<E>,
         merch_state: &mut MerchantState<E>,
-    ) -> cl::Signature<E> {
-        verify_payment_proof(csprng, channel_state, payment, merch_state)
+    ) -> BoltResult<cl::Signature<E>> {
+        if merch_state.unlink_nonces.contains(&encode_short_bytes_to_fr::<E>(payment.nonce.0).to_string()) {
+            Ok(Some(verify_payment_proof(csprng, channel_state, payment, merch_state)))
+        } else {
+            Err(String::from("The nonce is not a valid unlink nonce."))
+        }
     }
 
     ///
@@ -1305,7 +1309,8 @@ mod tests {
     ) {
         let rng = &mut rand::thread_rng();
         let (unlink_info, unlinked_cust_state) = zkproofs::unlink_channel_customer(rng, &channel_state, &cust_state);
-        let new_close_token = zkproofs::unlink_channel_merchant(rng, &channel_state, &unlink_info, merch_state);
+        let new_close_token_result = zkproofs::unlink_channel_merchant(rng, &channel_state, &unlink_info, merch_state);
+        let new_close_token = handle_bolt_result!(new_close_token_result).unwrap();
         let rt_pair = zkproofs::get_revoke_lock_pair(
             &channel_state,
             cust_state,
@@ -1398,7 +1403,8 @@ mod tests {
         ));
 
         let (unlink_info, mut unlinked_cust_state) = zkproofs::unlink_channel_customer(rng, &channel_state, &cust_state);
-        let new_close_token = zkproofs::unlink_channel_merchant(rng, &channel_state, &unlink_info, &mut merch_state);
+        let new_close_token_result = zkproofs::unlink_channel_merchant(rng, &channel_state, &unlink_info, &mut merch_state);
+        let new_close_token = handle_bolt_result!(new_close_token_result).unwrap();
         let rt_pair = zkproofs::get_revoke_lock_pair(
             &channel_state,
             &mut cust_state,
