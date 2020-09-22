@@ -3,7 +3,193 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define _LIBCPP_HAS_MERGED_TYPEINFO_NAMES_DEFAULT 1
+#define INT16_WIDTH 16
+
+#define INT32_WIDTH 32
+
+#define INT64_WIDTH 64
+
+#define INT8_WIDTH 8
+
+#define INTMAX_WIDTH 64
+
+#define INTPTR_WIDTH 64
+
+#define INT_FAST16_WIDTH 64
+
+#define INT_FAST32_WIDTH 64
+
+#define INT_FAST64_WIDTH 64
+
+#define INT_FAST8_WIDTH 8
+
+#define INT_LEAST16_WIDTH 16
+
+#define INT_LEAST32_WIDTH 32
+
+#define INT_LEAST64_WIDTH 64
+
+#define INT_LEAST8_WIDTH 8
+
+#define PTRDIFF_WIDTH 64
+
+#define SIG_ATOMIC_WIDTH 32
+
+#define SIZE_WIDTH 64
+
+#define UINT16_WIDTH 16
+
+#define UINT32_WIDTH 32
+
+#define UINT64_WIDTH 64
+
+#define UINT8_WIDTH 8
+
+#define UINTMAX_WIDTH 64
+
+#define UINTPTR_WIDTH 64
+
+#define UINT_FAST16_WIDTH 64
+
+#define UINT_FAST32_WIDTH 64
+
+#define UINT_FAST64_WIDTH 64
+
+#define UINT_FAST8_WIDTH 8
+
+#define UINT_LEAST16_WIDTH 16
+
+#define UINT_LEAST32_WIDTH 32
+
+#define UINT_LEAST64_WIDTH 64
+
+#define UINT_LEAST8_WIDTH 8
+
+#define WCHAR_WIDTH 32
+
+#define WINT_WIDTH 32
+
+#define _ATFILE_SOURCE 1
+
+#define _BITS_STDINT_INTN_H 1
+
+#define _BITS_STDINT_UINTN_H 1
+
+#define _BITS_TYPESIZES_H 1
+
+#define _BITS_TYPES_H 1
+
+#define _BITS_WCHAR_H 1
+
+#define _DEFAULT_SOURCE 1
+
+#define _FEATURES_H 1
+
+#define _ISOC11_SOURCE 1
+
+#define _ISOC95_SOURCE 1
+
+#define _ISOC99_SOURCE 1
+
+#define _LARGEFILE64_SOURCE 1
+
+#define _LARGEFILE_SOURCE 1
+
+#define _POSIX_C_SOURCE 200809
+
+#define _POSIX_SOURCE 1
+
+#define _STDC_PREDEF_H 1
+
+#define _STDINT_H 1
+
+#define _SYS_CDEFS_H 1
+
+#define _XOPEN_SOURCE 700
+
+#define _XOPEN_SOURCE_EXTENDED 1
+
+#define __FD_SETSIZE 1024
+
+#define __GLIBC_MINOR__ 27
+
+#define __GLIBC_USE_DEPRECATED_GETS 0
+
+#define __GLIBC_USE_IEC_60559_BFP_EXT 1
+
+#define __GLIBC_USE_IEC_60559_FUNCS_EXT 1
+
+#define __GLIBC_USE_IEC_60559_TYPES_EXT 1
+
+#define __GLIBC_USE_LIB_EXT2 1
+
+#define __GLIBC__ 2
+
+#define __GNU_LIBRARY__ 6
+
+#define __HAVE_GENERIC_SELECTION 0
+
+#define __INO_T_MATCHES_INO64_T 1
+
+#define __OFF_T_MATCHES_OFF64_T 1
+
+#define __RLIM_T_MATCHES_RLIM64_T 1
+
+#define __STDC_IEC_559_COMPLEX__ 1
+
+#define __STDC_IEC_559__ 1
+
+#define __STDC_ISO_10646__ 201706
+
+#define __STDC_NO_THREADS__ 1
+
+#define __SYSCALL_WORDSIZE 64
+
+#define __USE_ATFILE 1
+
+#define __USE_FORTIFY_LEVEL 0
+
+#define __USE_GNU 1
+
+#define __USE_ISOC11 1
+
+#define __USE_ISOC95 1
+
+#define __USE_ISOC99 1
+
+#define __USE_ISOCXX11 1
+
+#define __USE_LARGEFILE 1
+
+#define __USE_LARGEFILE64 1
+
+#define __USE_MISC 1
+
+#define __USE_POSIX 1
+
+#define __USE_POSIX199309 1
+
+#define __USE_POSIX199506 1
+
+#define __USE_POSIX2 1
+
+#define __USE_UNIX98 1
+
+#define __USE_XOPEN 1
+
+#define __USE_XOPEN2K 1
+
+#define __USE_XOPEN2K8 1
+
+#define __USE_XOPEN2K8XSI 1
+
+#define __USE_XOPEN2KXSI 1
+
+#define __USE_XOPEN_EXTENDED 1
+
+#define __WORDSIZE_TIME64_COMPAT32 1
+
+#define __glibc_c99_flexarr_available 1
 
 typedef struct {
   uint32_t nonce[4];
