@@ -448,14 +448,14 @@ impl<E: Engine> CustomerState<E> {
         channel: &mut ChannelState<E>,
         pay_token: &Signature<E>,
     ) -> bool {
-        let verified = self.verify_pay_token(channel, pay_token);
+        let verified = self.pay_unmask_customer(channel, pay_token);
         if verified {
             channel.channel_status = UNLINKED;
         }
         return verified
     }
 
-    pub fn verify_pay_token(
+    pub fn pay_unmask_customer(
         &mut self,
         channel: &ChannelState<E>,
         pay_token: &Signature<E>,
@@ -721,6 +721,7 @@ pub struct MerchantState<E: Engine> {
     comParams: CSMultiParams<E>,
     pub keys: HashMap<String, String>,
     pub unlink_nonces: HashSet<String>,
+    pub spent_nonces: HashSet<String>,
     pub pay_tokens: HashMap<String, cl::Signature<E>>,
 }
 
@@ -756,6 +757,7 @@ impl<E: Engine> MerchantState<E> {
                 comParams: nizkParams.pubParams.comParams.clone(),
                 keys: HashMap::new(), // store rev_locks/revoke_tokens
                 unlink_nonces: HashSet::new(),
+                spent_nonces: HashSet::new(),
                 pay_tokens: HashMap::new(),
             },
             ch,
@@ -990,7 +992,7 @@ mod tests {
         let new_pay_token = merch_state
             .verify_revoke_message(&rev_lock, &rev_secret)
             .unwrap();
-        assert!(cust_state.verify_pay_token(&channel, &new_pay_token));
+        assert!(cust_state.pay_unmask_customer(&channel, &new_pay_token));
 
         //println!("Validated revoke token!");
     }
@@ -1095,7 +1097,7 @@ mod tests {
         let new_pay_token = merch_state
             .verify_revoke_message(&rev_lock, &rev_secret)
             .unwrap();
-        assert!(cust_state.verify_pay_token(&channel, &new_pay_token));
+        assert!(cust_state.pay_unmask_customer(&channel, &new_pay_token));
 
         //println!("Validated revoke token!");
     }

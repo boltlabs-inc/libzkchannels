@@ -189,9 +189,22 @@ char *ffishim_bls12_merchant_close(char *ser_channel_state,
                                    char *ser_cust_close,
                                    char *ser_merch_state);
 
+char *ffishim_bls12_multi_pay_unmask_merchant(char *ser_sender_revoke_token,
+                                              char *ser_receiver_revoke_token,
+                                              char *ser_merch_state);
+
 char *ffishim_bls12_pay_generate_payment_proof(char *ser_channel_state,
                                                char *ser_customer_state,
                                                int64_t amount);
+
+char *ffishim_bls12_pay_get_revoke_lock_pair(char *ser_channel_state,
+                                             char *ser_cust_state,
+                                             char *ser_new_cust_state,
+                                             char *ser_close_token);
+
+char *ffishim_bls12_pay_prepare_merchant(char *ser_nonce, int64_t amount, char *ser_merchant_state);
+
+char *ffishim_bls12_pay_unmask_merchant(char *ser_revoke_token, char *ser_merch_state);
 
 char *ffishim_bls12_pay_verify_multiple_payment_proofs(char *ser_channel_state,
                                                        char *ser_sender_pay_proof,
@@ -208,9 +221,7 @@ char *ffishim_bls12_pay_verify_payment_token(char *ser_channel_state,
 
 char *ffishim_bls12_tze_check_wpk(char *ser_wpk);
 
-char *ffishim_bls12_unlink_channel_customer(char *ser_channel_state,
-                                            char *ser_customer_state,
-                                            int64_t amount);
+char *ffishim_bls12_unlink_channel_customer(char *ser_channel_state, char *ser_customer_state);
 
 char *ffishim_bls12_unlink_channel_merchant(char *ser_channel_state,
                                             char *ser_pay_proof,
@@ -257,18 +268,31 @@ char *ffishim_bn256_merchant_close(char *ser_channel_state,
                                    char *ser_cust_close,
                                    char *ser_merch_state);
 
-char *ffishim_bn256_pay_generate_payment_proof(char *ser_channel_state,
-                                               char *ser_customer_state,
-                                               int64_t amount);
+char *ffishim_bn256_multi_pay_unmask_merchant(char *ser_sender_revoke_token,
+                                              char *ser_receiver_revoke_token,
+                                              char *ser_merch_state);
+
+char *ffishim_bn256_pay_get_revoke_lock_pair(char *ser_channel_state,
+                                             char *ser_cust_state,
+                                             char *ser_new_cust_state,
+                                             char *ser_close_token);
+
+char *ffishim_bn256_pay_prepare_merchant(char *ser_nonce, int64_t amount, char *ser_merchant_state);
+
+char *ffishim_bn256_pay_unmask_merchant(char *ser_revoke_token, char *ser_merch_state);
+
+char *ffishim_bn256_pay_update_state_customer(char *ser_channel_state,
+                                              char *ser_customer_state,
+                                              int64_t amount);
+
+char *ffishim_bn256_pay_update_state_merchant(char *ser_channel_state,
+                                              char *ser_pay_proof,
+                                              char *ser_merch_state);
 
 char *ffishim_bn256_pay_verify_multiple_payment_proofs(char *ser_channel_state,
                                                        char *ser_sender_pay_proof,
                                                        char *ser_receiver_pay_proof,
                                                        char *ser_merch_state);
-
-char *ffishim_bn256_pay_verify_payment_proof(char *ser_channel_state,
-                                             char *ser_pay_proof,
-                                             char *ser_merch_state);
 
 char *ffishim_bn256_pay_verify_payment_token(char *ser_channel_state,
                                              char *ser_cust_state,
@@ -276,9 +300,7 @@ char *ffishim_bn256_pay_verify_payment_token(char *ser_channel_state,
 
 char *ffishim_bn256_tze_check_wpk(char *ser_wpk);
 
-char *ffishim_bn256_unlink_channel_customer(char *ser_channel_state,
-                                            char *ser_customer_state,
-                                            int64_t amount);
+char *ffishim_bn256_unlink_channel_customer(char *ser_channel_state, char *ser_customer_state);
 
 char *ffishim_bn256_unlink_channel_merchant(char *ser_channel_state,
                                             char *ser_pay_proof,
