@@ -218,6 +218,15 @@ pub mod zkproofs {
     }
 
     ///
+    /// activate_customer() - takes as input the customer state.
+    /// Prepares to activate the channel for the customer (call activate_customer_finalize to finalize activation)
+    /// output: initial state
+    ///
+    pub fn activate_customer<E: Engine>(cust_state: &CustomerState<E>) -> Wallet<E> {
+        return cust_state.get_wallet();
+    }
+
+    ///
     /// activate_merchant (Phase 1) - takes as input the channel state,
     /// the commitment from the customer. Generates close token (a blinded
     /// signature) over the contents of the customer's wallet.
@@ -1311,8 +1320,11 @@ mod tests {
 
         // wait for funding tx to be confirmed, etc
 
+        // prepare channel for activation
+        let init_state = zkproofs::activate_customer(&cust_state);
+
         // obtain payment token for pay protocol
-        let pay_token = zkproofs::activate_merchant(rng, &cust_state.get_wallet(), merch_state);
+        let pay_token = zkproofs::activate_merchant(rng, &init_state, merch_state);
         //assert!(cust_state.verify_pay_token(&channel_state, &pay_token));
 
         assert!(zkproofs::activate_customer_finalize(
@@ -1417,9 +1429,11 @@ mod tests {
 
         // proceed to funding tx and wait for it be confirmed on payment network
 
+        // prepare channel for activation
+        let init_state = zkproofs::activate_customer(&cust_state);
+
         // obtain payment token for pay protocol
-        let pay_token =
-            zkproofs::activate_merchant(rng, &cust_state.get_wallet(), &mut merch_state);
+        let pay_token = zkproofs::activate_merchant(rng, &init_state, &mut merch_state);
         //assert!(cust_state.verify_pay_token(&channel_state, &pay_token));
 
         // customer verifies pay token and completes the activate phase

@@ -178,12 +178,11 @@ We now describe the high-level protocol API implemented in module `zkchannels::m
 
 #### 1.2.3 Activate & Unlink
 
-	// prepare to active the channel by generating initial rev lock commitment and initial randomness
-	// returns the initial state of channel
-	let old_state = mpc::activate_customer(&mut rng, &mut cust_state);
+	// prepare to active the channel by retrieving the initial state (rev lock commitment, etc)
+	let init_state = mpc::activate_customer(&mut rng, &mut cust_state);
 
 	// merchant returns an initial pay token for channel
-	let pay_token = mpc::activate_merchant(&mut db, channel_token, &old_state, &mut merch_state);
+	let pay_token = mpc::activate_merchant(&mut db, channel_token, &init_state, &mut merch_state);
 
 	// customer stores the initial pay token
 	mpc::activate_customer_finalize(pay_token, &mut cust_state);
@@ -315,7 +314,21 @@ When opening a payment channel, execute the establishment protocol API to escrow
 	// confirm that the channel state is now established
 	assert!(channel_state.channel_established);
 
-#### 2.1.4 Pay protocol
+#### 2.1.4 Activate & Unlink
+
+	// prepare to active the channel by retrieving the initial state (rev lock commitment, etc)
+	let init_state = mpc::activate_customer(&mut rng, &mut cust_state);
+
+	// merchant returns an initial pay token for channel
+	let pay_token = mpc::activate_merchant(&mut db, channel_token, &init_state, &mut merch_state);
+
+	// customer stores the initial pay token
+	mpc::activate_customer_finalize(pay_token, &mut cust_state);
+
+	// customer unlinks initial pay-token by running the following pay protocol with a 0-value payment
+
+
+#### 2.1.5 Pay protocol
 
 To spend on the channel, execute the pay protocol API (can be executed as many times as necessary):
 
@@ -334,7 +347,7 @@ To spend on the channel, execute the pay protocol API (can be executed as many t
 	// final - customer verifies the pay token and updates internal state
 	assert!(cust_state.verify_pay_token(&channel_state, &new_pay_token));
 
-#### 2.1.5 Channel Closure
+#### 2.1.6 Channel Closure
 
 To close a channel, the customer must execute the `zkproofs::customer_close()` routine as follows:
 
