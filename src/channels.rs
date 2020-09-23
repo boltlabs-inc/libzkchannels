@@ -1,4 +1,5 @@
 use super::*;
+use channels::ChannelStatus::{NEW, UNLINKED};
 use cl::{BlindKeyPair, Signature};
 use nizk::{NIZKProof, NIZKPublicParams, NIZKSecretParams};
 use pairing::Engine;
@@ -13,7 +14,6 @@ use util::{
 };
 use wallet::Wallet;
 use zkchan_tx::fixed_size_array::FixedSizeArray16;
-use channels::ChannelStatus::{NEW, UNLINKED};
 
 #[derive(Debug)]
 pub struct BoltError {
@@ -53,7 +53,7 @@ pub struct RevLockPair {
                            <E as pairing::Engine>::G1: serde::Serialize, \
                            <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(
-bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+    bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G2: serde::Deserialize<'de>")
 )]
@@ -77,7 +77,7 @@ pub enum ChannelStatus {
                            <E as pairing::Engine>::G1: serde::Serialize, \
                            <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(
-bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+    bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G2: serde::Deserialize<'de>")
 )]
@@ -96,7 +96,7 @@ pub struct ChannelState<E: Engine> {
                            <E as pairing::Engine>::G1: serde::Serialize, \
                            <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(
-bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+    bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G2: serde::Deserialize<'de>")
 )]
@@ -122,10 +122,10 @@ impl<E: Engine> ChannelToken<E> {
     }
 
     pub fn compute_channel_id(&self) -> E::Fr
-        where
-            <E as pairing::Engine>::G1: serde::Serialize,
-            <E as pairing::Engine>::G2: serde::Serialize,
-            <E as ff::ScalarEngine>::Fr: serde::Serialize,
+    where
+        <E as pairing::Engine>::G1: serde::Serialize,
+        <E as pairing::Engine>::G2: serde::Serialize,
+        <E as ff::ScalarEngine>::Fr: serde::Serialize,
     {
         if self.pk_c.is_none() {
             panic!("pk_c is not initialized yet");
@@ -193,7 +193,7 @@ struct WalletKeyPair {
                            <E as pairing::Engine>::G1: serde::Serialize, \
                            <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(
-bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+    bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G2: serde::Deserialize<'de>")
 )]
@@ -225,7 +225,7 @@ pub struct CustomerState<E: Engine> {
                            <E as pairing::Engine>::G1: serde::Serialize, \
                            <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(
-bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+    bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G2: serde::Deserialize<'de>")
 )]
@@ -253,7 +253,7 @@ impl<E: Engine> fmt::Display for Commitments<E> {
                            <E as pairing::Engine>::G1: serde::Serialize, \
                            <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(
-bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+    bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G2: serde::Deserialize<'de>")
 )]
@@ -281,10 +281,10 @@ impl<E: Engine> CustomerState<E> {
         merch_bal: i64,
         name: String,
     ) -> Self
-        where
-            <E as pairing::Engine>::G1: serde::Serialize,
-            <E as pairing::Engine>::G2: serde::Serialize,
-            <E as ff::ScalarEngine>::Fr: serde::Serialize,
+    where
+        <E as pairing::Engine>::G1: serde::Serialize,
+        <E as pairing::Engine>::G2: serde::Serialize,
+        <E as ff::ScalarEngine>::Fr: serde::Serialize,
     {
         let secp = secp256k1::Secp256k1::new();
 
@@ -401,13 +401,18 @@ impl<E: Engine> CustomerState<E> {
         let mpk = cp.pub_params.mpk.clone();
         //println!("verify_close_token - Wallet: {}", &self.wallet);
 
-        let is_close_valid =
-            cp.pub_params
-                .pk
-                .verify_blind(&mpk, &close_wallet, &self.coms.clone().unwrap().tau_bar, &close_token);
+        let is_close_valid = cp.pub_params.pk.verify_blind(
+            &mpk,
+            &close_wallet,
+            &self.coms.clone().unwrap().tau_bar,
+            &close_token,
+        );
         if is_close_valid {
             //println!("verify_close_token - Blinded close token is valid!!");
-            let unblind_close_token = cp.pub_params.pk.unblind(&self.coms.clone().unwrap().tau_bar, &close_token);
+            let unblind_close_token = cp
+                .pub_params
+                .pk
+                .unblind(&self.coms.clone().unwrap().tau_bar, &close_token);
             let pk = cp.pub_params.pk.get_pub_key();
             let is_valid = pk.verify(&mpk, &close_wallet, &unblind_close_token);
             if is_valid {
@@ -452,7 +457,7 @@ impl<E: Engine> CustomerState<E> {
         if verified {
             channel.channel_status = UNLINKED;
         }
-        return verified
+        return verified;
     }
 
     pub fn pay_unmask_customer(
@@ -467,13 +472,18 @@ impl<E: Engine> CustomerState<E> {
         let wallet = self.wallet.as_fr_vec();
         //println!("verify_pay_token - Wallet: {}", &self.wallet);
 
-        let is_pay_valid = cp
-            .pub_params
-            .pk
-            .verify_blind(&mpk, &wallet, &self.coms.clone().unwrap().tau, &pay_token);
+        let is_pay_valid = cp.pub_params.pk.verify_blind(
+            &mpk,
+            &wallet,
+            &self.coms.clone().unwrap().tau,
+            &pay_token,
+        );
         if is_pay_valid {
             //println!("verify_pay_token - Blinded pay token is valid!!");
-            let unblind_pay_token = cp.pub_params.pk.unblind(&self.coms.clone().unwrap().tau, &pay_token);
+            let unblind_pay_token = cp
+                .pub_params
+                .pk
+                .unblind(&self.coms.clone().unwrap().tau, &pay_token);
             let pk = cp.pub_params.pk.get_pub_key();
             let is_valid = pk.verify(&mpk, &wallet, &unblind_pay_token);
             if is_valid {
@@ -706,7 +716,7 @@ pub struct ChannelcloseM {
                            <E as pairing::Engine>::G1: serde::Serialize, \
                            <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(
-bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+    bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G2: serde::Deserialize<'de>")
 )]
@@ -806,9 +816,7 @@ impl<E: Engine> MerchantState<E> {
         csprng: &mut R,
         init_state: &Wallet<E>,
     ) -> Signature<E> {
-        self
-            .keypair
-            .sign(csprng, &init_state.as_fr_vec_bar())
+        self.keypair.sign(csprng, &init_state.as_fr_vec_bar())
     }
 
     pub fn issue_init_pay_token<R: Rng>(
@@ -816,9 +824,7 @@ impl<E: Engine> MerchantState<E> {
         csprng: &mut R,
         init_state: &Wallet<E>,
     ) -> Signature<E> {
-        self
-            .keypair
-            .sign(csprng, &init_state.as_fr_vec())
+        self.keypair.sign(csprng, &init_state.as_fr_vec())
     }
 
     fn store_rev_lock_with_token(&mut self, rev_lock: &FixedSizeArray32, pay_token: Signature<E>) {
@@ -936,19 +942,11 @@ mod tests {
         // then send the pay-token after confirmation
         let channelId = channel_token.compute_channel_id();
         assert_eq!(channelId, cust_state.get_wallet().channelId);
-        let close_token = merch_state
-            .issue_init_close_token(
-                rng,
-                &cust_state.get_wallet(),
-            );
+        let close_token = merch_state.issue_init_close_token(rng, &cust_state.get_wallet());
         // unblind tokens and verify signatures
         assert!(cust_state.verify_init_close_token(&channel, close_token));
 
-        let pay_token = merch_state
-            .issue_init_pay_token(
-                rng,
-                &cust_state.get_wallet(),
-            );
+        let pay_token = merch_state.issue_init_pay_token(rng, &cust_state.get_wallet());
         assert!(cust_state.verify_init_pay_token(&channel, pay_token));
 
         println!("Done!");
@@ -1043,19 +1041,11 @@ mod tests {
         // then send the pay-token after confirmation
         let channelId = channel_token.compute_channel_id();
         assert_eq!(channelId, cust_state.get_wallet().channelId);
-        let close_token = merch_state
-            .issue_init_close_token(
-                rng,
-                &cust_state.get_wallet(),
-            );
+        let close_token = merch_state.issue_init_close_token(rng, &cust_state.get_wallet());
         // unblind tokens and verify signatures
         assert!(cust_state.verify_init_close_token(&channel, close_token));
 
-        let pay_token = merch_state
-            .issue_init_pay_token(
-                rng,
-                &cust_state.get_wallet(),
-            );
+        let pay_token = merch_state.issue_init_pay_token(rng, &cust_state.get_wallet());
         assert!(cust_state.verify_init_pay_token(&channel, pay_token));
 
         // pay protocol tests

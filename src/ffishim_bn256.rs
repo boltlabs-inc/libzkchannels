@@ -193,11 +193,8 @@ pub mod ffishim_bn256 {
             deserialize_result_object(ser_merch_state);
         let merch_state = handle_errors!(merch_state_result);
 
-        let close_token = zkproofs::init_merchant_issue_close_token(
-            rng,
-            &init_wallet,
-            &merch_state
-        );
+        let close_token =
+            zkproofs::init_merchant_issue_close_token(rng, &init_wallet, &merch_state);
 
         let ser = [
             "{\'close_token\':\'",
@@ -210,7 +207,7 @@ pub mod ffishim_bn256 {
     }
 
     #[no_mangle]
-    pub extern "C" fn ffishim_bn256_activate_merchant_issue_pay_token(
+    pub extern "C" fn ffishim_bn256_activate_merchant(
         ser_init_state: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
@@ -225,8 +222,7 @@ pub mod ffishim_bn256 {
             deserialize_result_object(ser_merch_state);
         let mut merch_state = handle_errors!(merch_state_result);
 
-        let pay_token =
-            zkproofs::activate_merchant_issue_pay_token(rng, &init_state, &mut merch_state);
+        let pay_token = zkproofs::activate_merchant(rng, &init_state, &mut merch_state);
 
         let ser = [
             "{\'merch_state\':\'",
@@ -261,7 +257,8 @@ pub mod ffishim_bn256 {
             deserialize_result_object(ser_close_token);
         let close_token = handle_errors!(close_result);
 
-        let is_close_token_valid = cust_state.verify_init_close_token(&mut channel_state, close_token);
+        let is_close_token_valid =
+            cust_state.verify_init_close_token(&mut channel_state, close_token);
 
         let ser = [
             "{\'cust_state\':\'",
@@ -274,7 +271,7 @@ pub mod ffishim_bn256 {
             serde_json::to_string(&channel_state).unwrap().as_str(),
             "\'}",
         ]
-            .concat();
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -319,7 +316,7 @@ pub mod ffishim_bn256 {
     }
 
     #[no_mangle]
-    pub extern "C" fn ffishim_bn256_activate_customer_final(
+    pub extern "C" fn ffishim_bn256_activate_customer_finalize(
         ser_channel_state: *mut c_char,
         ser_customer_state: *mut c_char,
         ser_pay_token: *mut c_char,
@@ -340,7 +337,7 @@ pub mod ffishim_bn256 {
         let pay_token = handle_errors!(pay_token_result);
 
         let is_channel_established =
-            zkproofs::activate_customer_final(&mut channel_state, &mut cust_state, pay_token);
+            zkproofs::activate_customer_finalize(&mut channel_state, &mut cust_state, pay_token);
 
         let ser = [
             "{\'cust_state\':\'",
@@ -385,7 +382,7 @@ pub mod ffishim_bn256 {
             serde_json::to_string(&new_cust_state).unwrap().as_str(),
             "\'}",
         ]
-            .concat();
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -421,7 +418,7 @@ pub mod ffishim_bn256 {
             serde_json::to_string(&merch_state).unwrap().as_str(),
             "\'}",
         ]
-            .concat();
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -458,7 +455,7 @@ pub mod ffishim_bn256 {
             serde_json::to_string(&is_pay_valid).unwrap().as_str(),
             "\'}",
         ]
-            .concat();
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -473,9 +470,8 @@ pub mod ffishim_bn256 {
     ) -> *mut c_char {
         //Deserialize nonce
         let nonce = unsafe { CStr::from_ptr(ser_nonce).to_bytes() };
-        let mut nonce_fixed: [u8; 16] = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+        let mut nonce_fixed: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         nonce_fixed.copy_from_slice(nonce);
-
 
         // Deserialize the cust state
         let merch_state_result: ResultSerdeType<zkproofs::MerchantState<CURVE>> =
@@ -493,7 +489,7 @@ pub mod ffishim_bn256 {
             serde_json::to_string(&merch_state).unwrap().as_str(),
             "\'}",
         ]
-            .concat();
+        .concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }

@@ -5,7 +5,7 @@
 
 #define _LIBCPP_DEBUG_LEVEL 0
 
-#define _LIBCPP_HAS_MERGED_TYPEINFO_NAMES_DEFAULT 0
+#define _LIBCPP_HAS_MERGED_TYPEINFO_NAMES_DEFAULT 1
 
 #define __STDCPP_THREADS__ 1
 
@@ -84,7 +84,7 @@ typedef struct {
   uint32_t sig[8];
 } EcdsaSig_l;
 
-typedef char *(*cb_send)(void *arg1, int arg2, void *arg3, int arg4);
+typedef char *(*cb_send)(void *arg1, int arg2, void *arg3);
 
 typedef struct {
   char *r0;
@@ -92,7 +92,7 @@ typedef struct {
   char *r2;
 } Receive_return;
 
-typedef Receive_return (*cb_receive)(void *arg1, int arg2);
+typedef Receive_return (*cb_receive)(void *arg1);
 
 char *create_child_tx_to_bump_fee_via_p2wpkh_input(char *ser_tx_index1,
                                                    uint32_t index1,
@@ -160,11 +160,11 @@ char *cust_verify_init_cust_close_txs(char *ser_funding_tx,
 
 char *customer_sign_merch_close_tx(char *ser_cust_sk, char *ser_merch_tx_preimage);
 
-char *ffishim_bls12_activate_customer_final(char *ser_channel_state,
-                                            char *ser_customer_state,
-                                            char *ser_pay_token);
+char *ffishim_bls12_activate_customer_finalize(char *ser_channel_state,
+                                               char *ser_customer_state,
+                                               char *ser_pay_token);
 
-char *ffishim_bls12_activate_merchant_issue_pay_token(char *ser_init_state, char *ser_merch_state);
+char *ffishim_bls12_activate_merchant(char *ser_init_state, char *ser_merch_state);
 
 char *ffishim_bls12_channel_setup(const char *channel_name, uint32_t third_party_support);
 
@@ -239,11 +239,11 @@ char *ffishim_bls12_verify_init_close_token(char *ser_channel_state,
                                             char *ser_customer_state,
                                             char *ser_close_token);
 
-char *ffishim_bn256_activate_customer_final(char *ser_channel_state,
-                                            char *ser_customer_state,
-                                            char *ser_pay_token);
+char *ffishim_bn256_activate_customer_finalize(char *ser_channel_state,
+                                               char *ser_customer_state,
+                                               char *ser_pay_token);
 
-char *ffishim_bn256_activate_merchant_issue_pay_token(char *ser_init_state, char *ser_merch_state);
+char *ffishim_bn256_activate_merchant(char *ser_init_state, char *ser_merch_state);
 
 char *ffishim_bn256_channel_setup(const char *channel_name, uint32_t third_party_support);
 
