@@ -1,6 +1,6 @@
 use super::*;
 use ccs08::{ParamsUL, ProofUL, SecretParamsUL};
-use channels::ClosedCommitments;
+use channels_zk::ClosedCommitments;
 use cl::{setup, BlindKeyPair, BlindPublicKey, PublicParams, Signature, SignatureProof};
 use pairing::{CurveProjective, Engine};
 use ped92::{CSMultiParams, Commitment, CommitmentProof};

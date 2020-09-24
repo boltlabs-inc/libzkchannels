@@ -51,7 +51,7 @@ fn main() {
 
     // obtain close token for closing out channel
     let close_token =
-        zkproofs::init_merchant_issue_close_token(rng, &cust_state.get_wallet(), &merch_state);
+        zkproofs::validate_channel_params(rng, &cust_state.get_wallet(), &merch_state);
 
     assert!(cust_state.verify_init_close_token(&channel_state, close_token));
 

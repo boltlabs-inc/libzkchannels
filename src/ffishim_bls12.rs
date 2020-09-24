@@ -188,7 +188,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern "C" fn ffishim_bls12_init_merchant_issue_close_token(
+    pub extern "C" fn ffishim_bls12_validate_channel_params(
         ser_init_state: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
@@ -203,7 +203,7 @@ pub mod ffishim {
             deserialize_result_object(ser_merch_state);
         let merch_state = handle_errors!(merch_state_result);
 
-        let close_token = zkproofs::init_merchant_issue_close_token(rng, &init_state, &merch_state);
+        let close_token = zkproofs::validate_channel_params(rng, &init_state, &merch_state);
 
         let ser = [
             "{\'close_token\':\'",

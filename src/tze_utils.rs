@@ -1,6 +1,6 @@
 // Useful routines that simplify the Bolt TZE implementation for Zcash
-pub use channels::ChannelToken;
-use channels::ChannelcloseM;
+pub use channels_zk::ChannelToken;
+use channels_zk::ChannelcloseM;
 use cl;
 pub use cl::Signature;
 use pairing::bls12_381::Bls12;

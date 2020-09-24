@@ -1,5 +1,5 @@
 use super::*;
-use channels::ChannelStatus::{NEW, UNLINKED};
+use channels_util::{ChannelStatus, ProtocolStatus};
 use cl::{BlindKeyPair, Signature};
 use nizk::{NIZKProof, NIZKPublicParams, NIZKSecretParams};
 use pairing::Engine;
@@ -64,13 +64,13 @@ pub struct ChannelParams<E: Engine> {
     extra_verify: bool, // extra verification for certain points in the establish/pay protocol
 }
 
-#[derive(Clone, Serialize, Deserialize, PartialEq)]
-pub enum ChannelStatus {
-    NEW,
-    INITIALIZED,
-    ACTIVATED,
-    UNLINKED,
-}
+// #[derive(Clone, Serialize, Deserialize, PartialEq)]
+// pub enum ChannelStatus {
+//     NEW,
+//     INITIALIZED,
+//     ACTIVATED,
+//     UNLINKED,
+// }
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
@@ -87,7 +87,7 @@ pub struct ChannelState<E: Engine> {
     pub cp: Option<ChannelParams<E>>,
     pub name: String,
     pub pay_init: bool,
-    pub channel_status: ChannelStatus,
+    // pub channel_status: ChannelStatus,
     pub third_party: bool,
 }
 
@@ -149,7 +149,7 @@ impl<E: Engine> ChannelState<E> {
             cp: None,
             name: name.to_string(),
             pay_init: false,
-            channel_status: NEW,
+            // channel_status: NEW,
             third_party: third_party_support,
         }
     }
@@ -218,6 +218,8 @@ pub struct CustomerState<E: Engine> {
     index: i32,
     close_tokens: HashMap<i32, Signature<E>>,
     pay_tokens: HashMap<i32, Signature<E>>,
+    pub protocol_status: ProtocolStatus,
+    channel_status: ChannelStatus,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -345,6 +347,8 @@ impl<E: Engine> CustomerState<E> {
             index: 0,
             close_tokens: ct_db,
             pay_tokens: pt_db,
+            protocol_status: ProtocolStatus::New,
+            channel_status: ChannelStatus::None,
         };
     }
 
@@ -455,7 +459,10 @@ impl<E: Engine> CustomerState<E> {
     ) -> bool {
         let verified = self.pay_unmask_customer(channel, pay_token);
         if verified {
-            channel.channel_status = UNLINKED;
+            // TODO:
+            if self.protocol_status == ProtocolStatus::Activated {
+                self.protocol_status = ProtocolStatus::Established;
+            }
         }
         return verified;
     }
@@ -607,6 +614,8 @@ impl<E: Engine> CustomerState<E> {
             index: self.index, // increment index here
             close_tokens: self.close_tokens.clone(),
             pay_tokens: self.pay_tokens.clone(),
+            protocol_status: self.protocol_status.clone(),
+            channel_status: self.channel_status.clone(),
         };
 
         let commitments = ClosedCommitments {

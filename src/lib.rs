@@ -53,8 +53,9 @@ extern crate serde_bytes;
 
 pub mod bindings;
 pub mod ccs08;
-pub mod channels;
 pub mod channels_mpc;
+pub mod channels_util;
+pub mod channels_zk;
 pub mod cl;
 pub mod database;
 pub mod ecdsa_partial;
@@ -105,9 +106,9 @@ pub mod zkproofs {
     // for on-chain keys
     use HashMap;
 
-    use channels::ChannelStatus::{ACTIVATED, UNLINKED};
-    use channels::ClosedCommitments;
-    pub use channels::{
+    use channels_util::{ChannelStatus, PaymentStatus, ProtocolStatus};
+    use channels_zk::ClosedCommitments;
+    pub use channels_zk::{
         BoltError, ChannelParams, ChannelState, ChannelToken, ChannelcloseM, CustomerState,
         MerchantState, ResultBoltType, RevLockPair,
     };
@@ -155,12 +156,6 @@ pub mod zkproofs {
         amount: i64,
     }
 
-    // #[derive(Clone, Serialize, Deserialize)]
-    // pub struct RevokeToken {
-    //     message: util::RevokedMessage,
-    //     pub signature: secp256k1::Signature,
-    // }
-
     ///
     /// init_merchant - takes as input the public params, merchant balance and keypair.
     /// Generates merchant data which consists of channel token and merchant state.
@@ -205,11 +200,20 @@ pub mod zkproofs {
     }
 
     ///
-    /// init_merchant_issue_close_token (Phase 1) - takes as input the channel state,
+    /// get_initial_state() - takes as input the customer state.
+    /// Prepares to activate the channel for the customer (call activate_customer_finalize to finalize activation)
+    /// output: initial state
+    ///
+    pub fn get_initial_state<E: Engine>(cust_state: &CustomerState<E>) -> Wallet<E> {
+        return cust_state.get_wallet();
+    }
+
+    ///
+    /// validate_channel_params (Phase 1) - takes as input the channel state,
     /// the initial values from the customer. Generates close token (a
     /// signature) over the contents of the customer's wallet.
     ///
-    pub fn init_merchant_issue_close_token<R: Rng, E: Engine>(
+    pub fn validate_channel_params<R: Rng, E: Engine>(
         csprng: &mut R,
         init_state: &Wallet<E>,
         merch_state: &MerchantState<E>,
@@ -218,11 +222,12 @@ pub mod zkproofs {
     }
 
     ///
-    /// activate_customer() - takes as input the customer state.
+    /// activate_customer() - takes as input the customer state and confirm that.
     /// Prepares to activate the channel for the customer (call activate_customer_finalize to finalize activation)
     /// output: initial state
     ///
     pub fn activate_customer<E: Engine>(cust_state: &CustomerState<E>) -> Wallet<E> {
+        // TODO: verify channel status is activated
         return cust_state.get_wallet();
     }
 
@@ -261,9 +266,9 @@ pub mod zkproofs {
         // only if both tokens have been stored
         if cust_state.has_tokens() {
             // must be an old wallet
-            channel_state.channel_status = ACTIVATED;
+            cust_state.protocol_status = ProtocolStatus::Established;
         }
-        return channel_state.channel_status == ACTIVATED;
+        return cust_state.protocol_status == ProtocolStatus::Established;
     }
     ///// end of establish channel protocol
 
@@ -528,7 +533,8 @@ pub mod zkproofs {
     where
         <E as pairing::Engine>::G1: serde::Serialize,
     {
-        if channel_state.channel_status != UNLINKED {
+        if cust_state.protocol_status != ProtocolStatus::Established {
+            // instead of Unlinked
             return Err(BoltError::new(
                 "Cannot close a channel that has not been established!",
             ));
@@ -587,9 +593,9 @@ pub mod zkproofs {
         cust_close: &ChannelcloseC<E>,
         merch_state: &MerchantState<E>,
     ) -> Result<RevLockPair, BoltError> {
-        if channel_state.channel_status != UNLINKED {
-            return Err(BoltError::new("force_merchant_close - Channel not established! Cannot generate channel closure message."));
-        }
+        // if channel_state.channel_status != UNLINKED {
+        //     return Err(BoltError::new("force_merchant_close - Channel not established! Cannot generate channel closure message."));
+        // }
 
         let cp = channel_state.cp.as_ref().unwrap();
         let pk = cp.pub_params.pk.get_pub_key();
@@ -614,19 +620,6 @@ pub mod zkproofs {
                     rev_lock: rev_lock,
                     rev_secret: FixedSizeArray32(rs_buf),
                 });
-                // if !revoked_state.revoke_token.is_none() {
-                //     let revoke_token = revoked_state.revoke_token.unwrap().clone();
-                //     // verify the revoked state first before returning
-                //     let secp = secp256k1::Secp256k1::new();
-                //     let revoke_msg = RevokedMessage::new(String::from("revoked"), wpk.clone());
-                //     let msg = secp256k1::Message::from_slice(&revoke_msg.hash_to_slice()).unwrap();
-                //     // verify that the revocation token is valid
-                //     if secp.verify(&msg, &revoke_token, &wpk).is_ok() {
-                //         // compute signature on
-                //         return Ok(Some(revoked_state.clone()));
-                //     }
-                // }
-                // return Err(String::from("merchant_close - Found rev_lock entry but could not find a rev_secret. Merchant abort detected."));
             }
             return Err(BoltError::new(
                 "force_merchant_close - Could not find entry for rev_lock/rev_secret pair. Valid close!",
@@ -720,9 +713,8 @@ pub mod mpc {
         ChannelMPCState, ChannelMPCToken, CustomerMPCState, MerchantMPCState, RevokedState,
         TransactionFeeInfo,
     };
-    pub use channels_mpc::{
-        ChannelStatus, InitCustState, NetworkConfig, PaymentStatus, ProtocolStatus,
-    };
+    pub use channels_mpc::{InitCustState, NetworkConfig};
+    pub use channels_util::{ChannelStatus, PaymentStatus, ProtocolStatus};
     use database::{MaskedTxMPCInputs, StateDatabase};
     use libc::c_void;
     use rand::Rng;
@@ -1264,8 +1256,7 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     use bindings::ConnType_NETIO;
-    use channels::ChannelStatus::UNLINKED;
-    use channels_mpc::{ChannelStatus, PaymentStatus, ProtocolStatus};
+    use channels_util::{ChannelStatus, PaymentStatus, ProtocolStatus};
     use database::{
         get_file_from_db, store_file_in_db, HashMapDatabase, MaskedTxMPCInputs, RedisDatabase,
         StateDatabase,
@@ -1313,9 +1304,9 @@ mod tests {
         let rng = &mut rand::thread_rng();
 
         // obtain close token for closing out channel
-        //let pk_h = hash_pubkey_to_fr::<Bls12>(&cust_state.pk_c.clone());
-        let close_token =
-            zkproofs::init_merchant_issue_close_token(rng, &cust_state.get_wallet(), &merch_state);
+        let init_state = zkproofs::get_initial_state(&cust_state);
+        let close_token = zkproofs::validate_channel_params(rng, &init_state, &merch_state);
+
         assert!(cust_state.verify_init_close_token(&channel_state, close_token));
 
         // wait for funding tx to be confirmed, etc
@@ -1421,15 +1412,14 @@ mod tests {
         println!("{}", cust_state);
 
         // obtain close token for closing out channel
-        let close_token =
-            zkproofs::init_merchant_issue_close_token(rng, &cust_state.get_wallet(), &merch_state);
+        let init_state = zkproofs::get_initial_state(&cust_state);
+
+        let close_token = zkproofs::validate_channel_params(rng, &init_state, &merch_state);
 
         // customer verifies that initial close token
         assert!(cust_state.verify_init_close_token(&channel_state, close_token));
 
         // proceed to funding tx and wait for it be confirmed on payment network
-
-        // prepare channel for activation
         let init_state = zkproofs::activate_customer(&cust_state);
 
         // obtain payment token for pay protocol
@@ -1527,7 +1517,7 @@ mod tests {
         // run establish protocol for customer and merchant channel
         execute_establish_protocol_helper(&mut channel_state, &mut merch_state, &mut cust_state);
 
-        assert!(channel_state.channel_status == UNLINKED);
+        assert!(cust_state.protocol_status == ProtocolStatus::Established);
 
         {
             // make multiple payments in a loop
@@ -1576,7 +1566,8 @@ mod tests {
 
         // run establish protocol for customer and merchant channel
         execute_establish_protocol_helper(&mut channel_state, &mut merch_state, &mut cust_state);
-        assert!(channel_state.channel_status == UNLINKED);
+
+        assert!(cust_state.protocol_status == ProtocolStatus::Established);
 
         {
             execute_payment_protocol_helper(
@@ -1615,7 +1606,7 @@ mod tests {
         // run establish protocol for customer and merchant channel
         execute_establish_protocol_helper(&mut channel_state, &mut merch_state, &mut cust_state);
 
-        assert!(channel_state.channel_status == UNLINKED);
+        assert!(cust_state.protocol_status == ProtocolStatus::Established);
 
         // let's make a few payments then exit channel (will post an old channel state
         execute_payment_protocol_helper(
@@ -1689,7 +1680,7 @@ mod tests {
         // run establish protocol for customer and merchant channel
         execute_establish_protocol_helper(&mut channel_state, &mut merch_state, &mut cust_state);
 
-        assert!(channel_state.channel_status == UNLINKED);
+        assert!(cust_state.protocol_status == ProtocolStatus::Established);
 
         // let's make a few payments then exit channel (will post an old channel state
         execute_payment_protocol_helper(
@@ -1777,7 +1768,8 @@ mod tests {
             &mut bob_cust_state,
         );
 
-        assert!(channel_state.channel_status == UNLINKED);
+        assert!(alice_cust_state.protocol_status == ProtocolStatus::Established);
+        assert!(bob_cust_state.protocol_status == ProtocolStatus::Established);
 
         // run pay protocol - flow for third-party
 

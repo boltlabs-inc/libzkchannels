@@ -317,13 +317,13 @@ When opening a payment channel, execute the establishment protocol API to escrow
 #### 2.1.4 Activate & Unlink
 
 	// prepare to active the channel by retrieving the initial state (rev lock commitment, etc)
-	let init_state = mpc::activate_customer(&mut rng, &mut cust_state);
+	let init_state = zkproofs::activate_customer(&cust_state);
 
 	// merchant returns an initial pay token for channel
-	let pay_token = mpc::activate_merchant(&mut db, channel_token, &init_state, &mut merch_state);
+	let pay_token = zkproofs::activate_merchant(&mut db, channel_token, &init_state, &mut merch_state);
 
 	// customer stores the initial pay token
-	mpc::activate_customer_finalize(pay_token, &mut cust_state);
+	zkproofs::activate_customer_finalize(&mut channel_state, &mut cust_state, pay_token);
 
 	// customer unlinks initial pay-token by running the following pay protocol with a 0-value payment
 
