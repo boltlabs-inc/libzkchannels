@@ -50,15 +50,16 @@ fn main() {
     println!("{}", cust_state);
 
     // obtain close token for closing out channel
-    let close_token =
-        zkproofs::validate_channel_params(rng, &cust_state.get_wallet(), &merch_state);
+    let init_state = zkproofs::get_initial_state(&cust_state);
+    let close_token = zkproofs::validate_channel_params(rng, &init_state, &merch_state);
 
     assert!(cust_state.verify_init_close_token(&channel_state, close_token));
 
     // wait for funding tx to be confirmed, etc
 
     // obtain payment token for pay protocol
-    let pay_token = zkproofs::activate_merchant(rng, &cust_state.get_wallet(), &mut merch_state);
+    let init_state = zkproofs::activate_customer(&cust_state);
+    let pay_token = zkproofs::activate_merchant(rng, &init_state, &mut merch_state);
     assert!(merch_state
         .unlink_nonces
         .contains(&encode_short_bytes_to_fr::<Bls12>(cust_state.nonce.0).to_string()));
@@ -92,8 +93,11 @@ fn main() {
     assert!(cust_state.unlink_verify_pay_token(&mut channel_state, &new_pay_token.unwrap()));
     println!("Channel established!");
 
+    let (nonce, session_id) =
+        zkproofs::pay_prepare_customer(rng, &channel_state, pay_inc, &mut cust_state).unwrap();
+
     assert!(zkproofs::pay_prepare_merchant(
-        cust_state.nonce,
+        nonce,
         pay_inc,
         &mut merch_state
     ));

@@ -2,7 +2,9 @@ use super::*;
 use util::{compute_hash160, hash_to_slice, hmac_sign};
 
 use bindings::{cb_receive, cb_send, load_circuit_file, ConnType};
-use channels_util::{ChannelStatus, NegativePaymentPolicy, PaymentStatus, ProtocolStatus};
+use channels_util::{
+    ChannelStatus, FundingTxInfo, NegativePaymentPolicy, PaymentStatus, ProtocolStatus,
+};
 use database::{MaskedMPCInputs, MaskedTxMPCInputs, SessionState, StateDatabase};
 use mpcwrapper::{mpc_build_masked_tokens_cust, mpc_build_masked_tokens_merch, CIRCUIT_FILE};
 use rand::Rng;

@@ -7,6 +7,7 @@ pub mod ffishim_mpc {
         ChannelMPCState, ChannelMPCToken, CustomerMPCState, InitCustState, MerchantMPCState,
         TransactionFeeInfo,
     };
+    use channels_util::FundingTxInfo;
     use database::{MaskedTxMPCInputs, RedisDatabase, StateDatabase};
     use hex::FromHexError;
     use libc::{c_char, c_void};
@@ -18,7 +19,6 @@ pub mod ffishim_mpc {
     use std::str;
     use wallet::State;
     use zkchan_tx::Testnet;
-    use FundingTxInfo;
 
     fn error_message(s: String) -> *mut c_char {
         let ser = ["{\'error\':\'", &s, "\'}"].concat();
