@@ -76,7 +76,7 @@ fn main() {
     let new_close_token_result =
         zkproofs::unlink_channel_merchant(rng, &channel_state, &unlink_info, &mut merch_state);
     let new_close_token = handle_bolt_result!(new_close_token_result).unwrap();
-    let rt_pair = zkproofs::get_revoke_lock_pair(
+    let rt_pair = zkproofs::pay_unmask_customer(
         &channel_state,
         &mut cust_state,
         unlinked_cust_state.clone(),
@@ -86,7 +86,7 @@ fn main() {
 
     // send revoke token and get pay-token in response
     let new_pay_token_result: BoltResult<Signature<Bls12>> =
-        zkproofs::pay_unmask_merchant(&rt_pair, &mut merch_state);
+        zkproofs::pay_validate_rev_lock_merchant(&rt_pair, &mut merch_state);
     let new_pay_token = handle_bolt_result!(new_pay_token_result);
 
     // verify the pay token and update internal state
@@ -115,7 +115,7 @@ fn main() {
     ));
     println!(">> Time to verify payment proof: {} ms", verify_time);
 
-    let rt_pair1 = zkproofs::get_revoke_lock_pair(
+    let rt_pair1 = zkproofs::pay_unmask_customer(
         &channel_state,
         &mut cust_state,
         new_cust_state,
@@ -124,11 +124,17 @@ fn main() {
     .unwrap();
 
     // send revoke token and get pay-token in response
-    let new_pay_token_result = zkproofs::pay_unmask_merchant(&rt_pair1, &mut merch_state);
+    let new_pay_token_result =
+        zkproofs::pay_validate_rev_lock_merchant(&rt_pair1, &mut merch_state);
     let new_pay_token = handle_bolt_result!(new_pay_token_result);
 
     // verify the pay token and update internal state
-    assert!(cust_state.pay_unmask_customer(&channel_state, &new_pay_token.unwrap()));
+    assert!(zkproofs::pay_unmask_pay_token_customer(
+        new_pay_token.unwrap(),
+        &channel_state,
+        &mut cust_state
+    )
+    .unwrap());
 
     println!("******************************************");
 
@@ -151,7 +157,7 @@ fn main() {
     ));
     println!(">> Time to verify payment proof 2: {} ms", verify_time2);
 
-    let rt_pair2 = zkproofs::get_revoke_lock_pair(
+    let rt_pair2 = zkproofs::pay_unmask_customer(
         &channel_state,
         &mut cust_state,
         new_cust_state2,
@@ -160,11 +166,16 @@ fn main() {
     .unwrap();
 
     // send revoke token and get pay-token in response
-    let new_pay_token_result2 = zkproofs::pay_unmask_merchant(&rt_pair2, &mut merch_state);
+    let new_pay_token_result2 =
+        zkproofs::pay_validate_rev_lock_merchant(&rt_pair2, &mut merch_state);
     let new_pay_token2 = handle_bolt_result!(new_pay_token_result2);
 
-    // verify the pay token and update internal state
-    assert!(cust_state.pay_unmask_customer(&channel_state, &new_pay_token2.unwrap()));
+    assert!(zkproofs::pay_unmask_pay_token_customer(
+        new_pay_token2.unwrap(),
+        &channel_state,
+        &mut cust_state
+    )
+    .unwrap());
 
     println!("Final Cust state: {}", cust_state);
 }

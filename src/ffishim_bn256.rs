@@ -615,7 +615,7 @@ pub mod ffishim_bn256 {
     }
 
     #[no_mangle]
-    pub extern "C" fn ffishim_bn256_pay_get_revoke_lock_pair(
+    pub extern "C" fn ffishim_bn256_pay_unmask_customer(
         ser_channel_state: *mut c_char,
         ser_cust_state: *mut c_char,
         ser_new_cust_state: *mut c_char,
@@ -641,7 +641,7 @@ pub mod ffishim_bn256 {
             deserialize_result_object(ser_close_token);
         let close_token = handle_errors!(close_token_result);
 
-        let revoke_token_result = zkproofs::get_revoke_lock_pair(
+        let revoke_token_result = zkproofs::pay_unmask_customer(
             &channel_state,
             &mut cust_state,
             new_cust_state,
@@ -661,7 +661,7 @@ pub mod ffishim_bn256 {
     }
 
     #[no_mangle]
-    pub extern "C" fn ffishim_bn256_pay_unmask_merchant(
+    pub extern "C" fn ffishim_bn256_pay_validate_rev_lock_merchant(
         ser_revoke_token: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
@@ -676,7 +676,8 @@ pub mod ffishim_bn256 {
         let mut merch_state = handle_errors!(merch_state_result);
 
         // send revoke token and get pay-token in response
-        let pay_token_result = zkproofs::pay_unmask_merchant(&revoke_token, &mut merch_state);
+        let pay_token_result =
+            zkproofs::pay_validate_rev_lock_merchant(&revoke_token, &mut merch_state);
         let pay_token = handle_errors!(pay_token_result);
 
         let ser = [

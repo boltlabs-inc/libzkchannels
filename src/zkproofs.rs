@@ -391,11 +391,11 @@ pub fn multi_pay_update_state_customer<R: Rng, E: Engine>(
 }
 
 ///
-/// get_revoke_lock_pair (phase 2) - takes as input the public params, old wallet, new wallet,
+/// pay_unmask_customer (phase 2) - takes as input the public params, old wallet, new wallet,
 /// merchant's verification key and refund token. If the refund token is valid, generate
 /// a revocation token for the old wallet public key.
 ///
-pub fn get_revoke_lock_pair<E: Engine>(
+pub fn pay_unmask_customer<E: Engine>(
     channel_state: &ChannelState<E>,
     old_cust_state: &mut CustomerState<E>,
     new_cust_state: CustomerState<E>,
@@ -415,11 +415,11 @@ pub fn get_revoke_lock_pair<E: Engine>(
 }
 
 ///
-/// verify_revoke_message (phase 2) - takes as input revoke message and signature
+/// pay_validate_rev_lock_merchant (phase 2) - takes as input revoke message and signature
 /// from the customer and the merchant state. If the revocation token is valid,
 /// generate a new signature for the new wallet (from the PoK of committed values in new wallet).
 ///
-pub fn pay_unmask_merchant<E: Engine>(
+pub fn pay_validate_rev_lock_merchant<E: Engine>(
     rt: &RevLockPair,
     merch_state: &mut MerchantState<E>,
 ) -> BoltResult<cl::Signature<E>> {
@@ -439,6 +439,19 @@ pub fn pay_unmask_merchant<E: Engine>(
         Some(rt.rev_secret.clone()),
     );
     Ok(Some(new_pay_token))
+}
+
+///
+/// pay_unmask_pay_token_customer() - takes as input the pay token and the customer state.
+/// Verify the pay token and store if true
+/// output: success boolean
+///
+pub fn pay_unmask_pay_token_customer<E: Engine>(
+    pay_token: cl::Signature<E>,
+    channel_state: &ChannelState<E>,
+    cust_state: &mut CustomerState<E>,
+) -> Result<bool, String> {
+    return Ok(cust_state.pay_unmask_customer(&channel_state, &pay_token));
 }
 
 ///
