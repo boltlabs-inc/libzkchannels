@@ -355,7 +355,7 @@ Unmask/Revoke phase to get the next pay token
 	let pay_token = zkproofs::pay_validate_rev_lock_merchant(session_id, revoked_state, &mut merch_state).unwrap();
 
 	// customer unmasks the pay token and checks validity of pay-token mask commitment opening
-	let is_ok = zkproofs::pay_unmask_pay_token_customer(pay_token, &mut cust_state);
+	let is_ok = zkproofs::pay_unmask_pay_token_customer(pay_token, &channel_state, &mut cust_state);
 
 #### 2.1.6 Channel Closure
 
