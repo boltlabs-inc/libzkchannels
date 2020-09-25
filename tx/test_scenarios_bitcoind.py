@@ -223,9 +223,23 @@ def broadcast_transaction(network, tx_hex, tx_type_str):
     txid = subprocess.getoutput("bitcoin-cli -{net} sendrawtransaction {tx_hex}".format(net=network, tx_hex=tx_hex))
     # time.sleep(0.5)
     rc = check_transaction_accepted(network, txid, tx_hex)
-    # print("%s Tx: %s" % (tx_type_str, emphasize(tx_hex)))
+    print("%s Tx: %s" % (tx_type_str, emphasize(tx_hex)))
     print("%s Txid: %s, Tx Status: %s" % (tx_type_str, emphasize(txid), accepted_status(rc)))
     return txid
+
+# testmempoolaccept is a way to validate a transaction but without having to
+# broadcast it. It would be useful for testing merchClaim with and without the
+# child input.
+def testmempoolaccept(network, tx_hex, tx_type_str):
+    out = subprocess.getoutput("bitcoin-cli -{net} testmempoolaccept '[\"{tx_hex}\"]'".format(net=network, tx_hex=tx_hex))
+    d = json.loads(out)
+    allowed = d[0]["allowed"]
+    # time.sleep(0.5)
+    print("%s Tx: %s" % (tx_type_str, emphasize(tx_hex)))
+    print("%s, Tx Mempool Status: %s" % (tx_type_str, accepted_status(allowed)))
+    if not allowed:
+        print("%REJECT REASON%: ", d[0]["reject-reason"])
+    return 
 
 def generate_blocks(network, blocks):
     version = get_btc_version()
