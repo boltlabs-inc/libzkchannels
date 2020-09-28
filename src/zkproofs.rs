@@ -139,360 +139,432 @@ pub fn validate_channel_params<R: Rng, E: Engine>(
 }
 
 ///
-/// activate_customer() - takes as input the customer state and confirm that.
-/// Prepares to activate the channel for the customer (call activate_customer_finalize to finalize activation)
-/// output: initial state
+/// customer_mark_open_channel() - changes channel status in customer state
 ///
-pub fn activate_customer<E: Engine>(cust_state: &CustomerState<E>) -> Wallet<E> {
-    // TODO: verify channel status is activated
-    return cust_state.get_wallet();
-}
-
-///
-/// activate_merchant (Phase 1) - takes as input the channel state,
-/// the commitment from the customer. Generates close token (a blinded
-/// signature) over the contents of the customer's wallet.
-///
-pub fn activate_merchant<R: Rng, E: Engine>(
-    csprng: &mut R,
-    init_state: &Wallet<E>,
-    merch_state: &mut MerchantState<E>,
-) -> cl::Signature<E> {
-    merch_state
-        .unlink_nonces
-        .insert(init_state.nonce.to_string());
-    merch_state.issue_init_pay_token(csprng, init_state)
-}
-
-///
-/// activate_customer_finalize - takes as input the channel state, customer state,
-/// and pay token (blinded sig) obtained from merchant. Add the returned
-/// blinded signature to the wallet.
-///
-pub fn activate_customer_finalize<E: Engine>(
+pub fn customer_mark_open_channel<E: Engine>(
+    init_close_token: cl::Signature<E>,
     channel_state: &mut ChannelState<E>,
     cust_state: &mut CustomerState<E>,
-    pay_token: cl::Signature<E>,
-) -> bool {
-    // verify the pay-token first
-    if !cust_state.verify_init_pay_token(&channel_state, pay_token) {
-        println!("establish_customer_final - Failed to verify the pay-token");
+) -> Result<bool, BoltError> {
+    let is_init_ct_valid = cust_state.verify_init_close_token(&channel_state, init_close_token);
+    return Ok(is_init_ct_valid);
+}
+
+///
+/// merchant_mark_open_channel() - changes channel status for a given escrow-txid.
+/// fails if not in pending open state and assumes escrow-txid has been broadcast on chain
+///
+pub fn merchant_mark_open_channel<E: Engine>(
+    _escrow_txid_le: [u8; 32],
+    _merch_state: &mut MerchantState<E>,
+) -> Result<bool, BoltError> {
+    // TODO: look up the channel state for specified escrow tx
+    return Ok(true);
+}
+
+pub mod activate {
+    use super::*;
+
+    ///
+    /// activate::customer_init() - takes as input the customer state and confirm that.
+    /// Prepares to activate the channel for the customer (call activate_customer_finalize to finalize activation)
+    /// output: initial state
+    ///
+    pub fn customer_init<E: Engine>(cust_state: &CustomerState<E>) -> Result<Wallet<E>, BoltError> {
+        // verify channel can be activated first (e.g., if customer has init close token)
+        let init_close_token = cust_state.has_init_close_token();
+        if init_close_token && cust_state.protocol_status == ProtocolStatus::Initialized {
+            return Ok(cust_state.get_wallet());
+        }
+        return Err(BoltError::new("activate::customer_init - failed either due to not having an initial close token or channel is not yet initialized."));
+    }
+
+    ///
+    /// activate::merchant_init() - takes as input the channel state,
+    /// the commitment from the customer. Generates close token (a blinded
+    /// signature) over the contents of the customer's wallet.
+    ///
+    pub fn merchant_init<R: Rng, E: Engine>(
+        csprng: &mut R,
+        init_state: &Wallet<E>,
+        merch_state: &mut MerchantState<E>,
+    ) -> cl::Signature<E> {
+        merch_state
+            .unlink_nonces
+            .insert(init_state.nonce.to_string());
+        merch_state.issue_init_pay_token(csprng, init_state)
+    }
+
+    ///
+    /// activate::customer_finalize() - takes as input the channel state, customer state,
+    /// and pay token (blinded sig) obtained from merchant. Add the returned
+    /// blinded signature to the wallet.
+    ///
+    pub fn customer_finalize<E: Engine>(
+        channel_state: &mut ChannelState<E>,
+        cust_state: &mut CustomerState<E>,
+        pay_token: cl::Signature<E>,
+    ) -> bool {
+        // verify the pay-token first
+        if !cust_state.verify_init_pay_token(&channel_state, pay_token) {
+            println!("activate::customer_finalize - Failed to verify the pay-token");
+            return false;
+        }
+
+        // only if both tokens have been stored
+        if cust_state.has_tokens() {
+            // must be an old wallet
+            cust_state.protocol_status = ProtocolStatus::Activated;
+        }
+        return cust_state.protocol_status == ProtocolStatus::Activated;
+    }
+}
+
+pub mod unlink {
+    pub use super::pay::customer_unmask;
+    pub use super::pay::merchant_validate_rev_lock;
+    use super::*;
+
+    ///
+    /// unlink::customer_update_state() - takes as input the public params, channel state, channel token,
+    /// merchant public keys, current customer state.
+    ///
+    pub fn customer_update_state<R: Rng, E: Engine>(
+        csprng: &mut R,
+        channel_state: &ChannelState<E>,
+        cust_state: &CustomerState<E>,
+    ) -> (Payment<E>, CustomerState<E>) {
+        // unlink payment of amount 0 (to avoid tx fees on the channel we start with an amount of -tx_fee)
+        pay::customer_update_state(
+            csprng,
+            channel_state,
+            cust_state,
+            -channel_state.get_channel_fee(),
+        )
+    }
+
+    ///
+    /// pay::merchant_update_state() - takes as input the public params, channel state, payment proof
+    /// and merchant keys. If proof is valid, then merchant returns the refund token
+    /// (i.e., partially blind signature on IOU with updated balance)
+    ///
+    pub fn merchant_update_state<R: Rng, E: Engine>(
+        csprng: &mut R,
+        channel_state: &ChannelState<E>,
+        payment: &Payment<E>,
+        merch_state: &mut MerchantState<E>,
+    ) -> BoltResult<cl::Signature<E>> {
+        if merch_state
+            .unlink_nonces
+            .contains(&encode_short_bytes_to_fr::<E>(payment.nonce.0).to_string())
+        {
+            Ok(Some(pay::merchant_update_state(
+                csprng,
+                channel_state,
+                payment,
+                merch_state,
+            )))
+        } else {
+            Err(String::from(
+                "unlink::merchant_update_state - The nonce is not a valid unlink nonce.",
+            ))
+        }
+    }
+
+    pub fn customer_finalize<E: Engine>(
+        channel_state: &mut ChannelState<E>,
+        cust_state: &mut CustomerState<E>,
+        pay_token: cl::Signature<E>,
+    ) -> bool {
+        // verify the pay-token
+        if !cust_state.unlink_verify_pay_token(channel_state, &pay_token) {
+            println!("unlink::customer_finalize - Failed to verify the pay-token");
+            return false;
+        }
+
+        return true;
+    }
+}
+
+pub mod pay {
+    use super::*;
+
+    ///
+    /// pay::customer_prepare() - takes as input an rng, the channel state, the payment amount, and the customer state.
+    /// Prepare payment for customer
+    /// output: nonce and generates a session id
+    ///
+    pub fn customer_prepare<R: Rng, E: Engine>(
+        csprng: &mut R,
+        channel_state: &ChannelState<E>,
+        amount: i64,
+        cust_state: &CustomerState<E>,
+    ) -> Result<(FixedSizeArray16, [u8; 16]), String> {
+        // verify that channel status is already activated or established
+        if (cust_state.protocol_status == ProtocolStatus::Activated && amount == 0)
+            || (cust_state.protocol_status == ProtocolStatus::Established && amount != 0)
+        {
+            // check if payment on current balance is greater than dust limit
+            let new_balance = match amount > 0 {
+                true => cust_state.cust_balance - amount,  // positive value
+                false => cust_state.cust_balance + amount, // negative value
+            };
+
+            if new_balance < channel_state.get_channel_fee() {
+                let max_payment = cust_state.cust_balance - channel_state.get_channel_fee();
+                let s = format!(
+                    "Balance after payment is below dust limit: {}. Max payment: {}",
+                    channel_state.get_channel_fee(),
+                    max_payment
+                );
+                return Err(s);
+            }
+
+            // pick new session ID
+            let mut session_id = [0u8; 16];
+            csprng.fill_bytes(&mut session_id);
+            return Ok((cust_state.nonce, session_id));
+        } else {
+            return Err(format!(
+                "Invalid protocol status for pay::prepare_customer(): {}",
+                cust_state.protocol_status
+            ));
+        }
+    }
+
+    ///
+    /// pay::merchant_prepare() - takes as input the session id, the nonce of the old state, amount and
+    /// the merchant state
+    /// output: true or false if the payment would be successful
+    ///
+    pub fn merchant_prepare<E: Engine>(
+        _session_id: [u8; 16],
+        nonce: FixedSizeArray16,
+        amount: i64,
+        merch_state: &mut MerchantState<E>,
+    ) -> bool {
+        if !merch_state.spent_nonces.contains(&nonce.to_string()) && amount != 0 {
+            merch_state.spent_nonces.insert(nonce.to_string());
+            return true;
+        }
         return false;
     }
 
-    // only if both tokens have been stored
-    if cust_state.has_tokens() {
-        // must be an old wallet
-        cust_state.protocol_status = ProtocolStatus::Established;
-    }
-    return cust_state.protocol_status == ProtocolStatus::Established;
-}
-///// end of establish channel protocol
-
-pub fn unlink_channel_customer<R: Rng, E: Engine>(
-    csprng: &mut R,
-    channel_state: &ChannelState<E>,
-    cust_state: &CustomerState<E>,
-) -> (Payment<E>, CustomerState<E>) {
-    // unlink payment of amount 0 (to avoid tx fees on the channel we start with an amount of -tx_fee)
-    pay_update_state_customer(
-        csprng,
-        channel_state,
-        cust_state,
-        -channel_state.get_channel_fee(),
-    )
-}
-
-pub fn unlink_channel_merchant<R: Rng, E: Engine>(
-    csprng: &mut R,
-    channel_state: &ChannelState<E>,
-    payment: &Payment<E>,
-    merch_state: &mut MerchantState<E>,
-) -> BoltResult<cl::Signature<E>> {
-    if merch_state
-        .unlink_nonces
-        .contains(&encode_short_bytes_to_fr::<E>(payment.nonce.0).to_string())
-    {
-        Ok(Some(pay_update_state_merchant(
-            csprng,
-            channel_state,
-            payment,
-            merch_state,
-        )))
-    } else {
-        Err(String::from("The nonce is not a valid unlink nonce."))
-    }
-}
-
-///
-/// pay_prepare_customer() - takes as input an rng, the channel state, the payment amount, and the customer state.
-/// Prepare payment for customer
-/// output: nonce and generates a session id
-///
-pub fn pay_prepare_customer<R: Rng, E: Engine>(
-    csprng: &mut R,
-    channel_state: &ChannelState<E>,
-    amount: i64,
-    cust_state: &CustomerState<E>,
-) -> Result<(FixedSizeArray16, [u8; 16]), String> {
-    // verify that channel status is already activated or established
-    if (cust_state.protocol_status == ProtocolStatus::Activated && amount >= 0)
-        || (cust_state.protocol_status == ProtocolStatus::Established && amount > 0)
-    {
-        // check if payment on current balance is greater than dust limit
-        let new_balance = match amount > 0 {
-            true => cust_state.cust_balance - amount,  // positive value
-            false => cust_state.cust_balance + amount, // negative value
+    ///
+    /// pay::customer_update_state() - takes as input the public params, channel state, channel token,
+    /// merchant public keys, old wallet and balance increment. Generate a new wallet commitment
+    /// PoK of the committed values in new wallet and PoK of old wallet. Return new channel token,
+    /// new wallet (minus blind signature and refund token) and payment proof.
+    ///
+    pub fn customer_update_state<R: Rng, E: Engine>(
+        csprng: &mut R,
+        channel_state: &ChannelState<E>,
+        cust_state: &CustomerState<E>,
+        amount: i64,
+    ) -> (Payment<E>, CustomerState<E>) {
+        let tx_fee = channel_state.get_channel_fee();
+        let payment_amount = match tx_fee > 0 {
+            true => amount + tx_fee,
+            false => amount,
         };
+        let (proof, coms, nonce, rev_lock, new_cust_state) =
+            cust_state.generate_payment(csprng, &channel_state, payment_amount);
+        let payment = Payment {
+            proof,
+            coms,
+            nonce,
+            rev_lock,
+            amount,
+        };
+        return (payment, new_cust_state);
+    }
 
-        if new_balance < channel_state.get_channel_fee() {
-            let max_payment = cust_state.cust_balance - channel_state.get_channel_fee();
-            let s = format!(
-                "Balance after payment is below dust limit: {}. Max payment: {}",
-                channel_state.get_channel_fee(),
-                max_payment
-            );
-            return Err(s);
+    ///
+    /// pay::merchant_update_state() - takes as input the public params, channel state, payment proof
+    /// and merchant keys. If proof is valid, then merchant returns the refund token
+    /// (i.e., partially blind signature on IOU with updated balance)
+    ///
+    pub fn merchant_update_state<R: Rng, E: Engine>(
+        csprng: &mut R,
+        channel_state: &ChannelState<E>,
+        payment: &Payment<E>,
+        merch_state: &mut MerchantState<E>,
+    ) -> cl::Signature<E> {
+        // if payment proof verifies, then returns close-token and records wpk => pay-token
+        // if valid revoke_token is provided later for wpk, then release pay-token
+        let tx_fee = channel_state.get_channel_fee();
+        let payment_amount = match tx_fee > 0 {
+            true => payment.amount + tx_fee,
+            false => payment.amount,
+        };
+        let new_close_token = merch_state
+            .verify_payment(
+                csprng,
+                &channel_state,
+                &payment.proof,
+                &payment.coms,
+                &payment.nonce,
+                &payment.rev_lock,
+                payment_amount,
+            )
+            .unwrap();
+        // store the rev_lock since it has been revealed
+        update_merchant_state(&mut merch_state.keys, &payment.rev_lock, None);
+        return new_close_token;
+    }
+
+    ///
+    /// Verify third party payment proof from two bi-directional channel payments with intermediary (payment amount
+    ///
+    pub fn multi_customer_update_state<R: Rng, E: Engine>(
+        csprng: &mut R,
+        channel_state: &ChannelState<E>,
+        sender_payment: &Payment<E>,
+        receiver_payment: &Payment<E>,
+        merch_state: &mut MerchantState<E>,
+    ) -> BoltResult<(cl::Signature<E>, cl::Signature<E>)> {
+        let tx_fee = channel_state.get_channel_fee();
+        let amount = sender_payment.amount + receiver_payment.amount;
+        if amount != 0 {
+            // we want to check this relation in ZK without knowing the amount
+            return Err(String::from("payments do not offset"));
         }
 
-        // pick new session ID
-        let mut session_id = [0u8; 16];
-        csprng.fill_bytes(&mut session_id);
-        return Ok((cust_state.nonce, session_id));
-    } else {
-        return Err(format!(
-            "Invalid channel status for pay_prepare_customer(): {}",
-            cust_state.protocol_status
-        ));
-    }
-}
+        let new_close_token = merch_state
+            .verify_payment(
+                csprng,
+                &channel_state,
+                &sender_payment.proof,
+                &sender_payment.coms,
+                &sender_payment.nonce,
+                &sender_payment.rev_lock,
+                sender_payment.amount + tx_fee,
+            )
+            .unwrap();
 
-pub fn pay_prepare_merchant<E: Engine>(
-    nonce: FixedSizeArray16,
-    amount: i64,
-    merch_state: &mut MerchantState<E>,
-) -> bool {
-    if !merch_state.spent_nonces.contains(&nonce.to_string()) && amount != 0 {
-        merch_state.spent_nonces.insert(nonce.to_string());
-        return true;
-    }
-    return false;
-}
+        let cond_close_token = merch_state
+            .verify_payment(
+                csprng,
+                &channel_state,
+                &receiver_payment.proof,
+                &receiver_payment.coms,
+                &receiver_payment.nonce,
+                &receiver_payment.rev_lock,
+                receiver_payment.amount + tx_fee,
+            )
+            .unwrap();
 
-///
-/// generate_payment_proof (phase 1) - takes as input the public params, channel state, channel token,
-/// merchant public keys, old wallet and balance increment. Generate a new wallet commitment
-/// PoK of the committed values in new wallet and PoK of old wallet. Return new channel token,
-/// new wallet (minus blind signature and refund token) and payment proof.
-///
-pub fn pay_update_state_customer<R: Rng, E: Engine>(
-    csprng: &mut R,
-    channel_state: &ChannelState<E>,
-    cust_state: &CustomerState<E>,
-    amount: i64,
-) -> (Payment<E>, CustomerState<E>) {
-    let tx_fee = channel_state.get_channel_fee();
-    let payment_amount = match tx_fee > 0 {
-        true => amount + tx_fee,
-        false => amount,
-    };
-    let (proof, coms, nonce, rev_lock, new_cust_state) =
-        cust_state.generate_payment(csprng, &channel_state, payment_amount);
-    let payment = Payment {
-        proof,
-        coms,
-        nonce,
-        rev_lock,
-        amount,
-    };
-    return (payment, new_cust_state);
-}
+        // store the wpk since it has been revealed
+        update_merchant_state(&mut merch_state.keys, &sender_payment.rev_lock, None);
+        update_merchant_state(&mut merch_state.keys, &receiver_payment.rev_lock, None);
 
-///
-/// verify_payment (phase 1) - takes as input the public params, channel state, payment proof
-/// and merchant keys. If proof is valid, then merchant returns the refund token
-/// (i.e., partially blind signature on IOU with updated balance)
-///
-pub fn pay_update_state_merchant<R: Rng, E: Engine>(
-    csprng: &mut R,
-    channel_state: &ChannelState<E>,
-    payment: &Payment<E>,
-    merch_state: &mut MerchantState<E>,
-) -> cl::Signature<E> {
-    // if payment proof verifies, then returns close-token and records wpk => pay-token
-    // if valid revoke_token is provided later for wpk, then release pay-token
-    let tx_fee = channel_state.get_channel_fee();
-    let payment_amount = match tx_fee > 0 {
-        true => payment.amount + tx_fee,
-        false => payment.amount,
-    };
-    let new_close_token = merch_state
-        .verify_payment(
-            csprng,
-            &channel_state,
-            &payment.proof,
-            &payment.coms,
-            &payment.nonce,
-            &payment.rev_lock,
-            payment_amount,
-        )
-        .unwrap();
-    // store the rev_lock since it has been revealed
-    update_merchant_state(&mut merch_state.keys, &payment.rev_lock, None);
-    return new_close_token;
-}
-
-///
-/// Verify third party payment proof from two bi-directional channel payments with intermediary (payment amount
-///
-pub fn multi_pay_update_state_customer<R: Rng, E: Engine>(
-    csprng: &mut R,
-    channel_state: &ChannelState<E>,
-    sender_payment: &Payment<E>,
-    receiver_payment: &Payment<E>,
-    merch_state: &mut MerchantState<E>,
-) -> BoltResult<(cl::Signature<E>, cl::Signature<E>)> {
-    let tx_fee = channel_state.get_channel_fee();
-    let amount = sender_payment.amount + receiver_payment.amount;
-    if amount != 0 {
-        // we want to check this relation in ZK without knowing the amount
-        return Err(String::from("payments do not offset"));
+        return Ok(Some((new_close_token, cond_close_token)));
     }
 
-    let new_close_token = merch_state
-        .verify_payment(
-            csprng,
-            &channel_state,
-            &sender_payment.proof,
-            &sender_payment.coms,
-            &sender_payment.nonce,
-            &sender_payment.rev_lock,
-            sender_payment.amount + tx_fee,
-        )
-        .unwrap();
+    ///
+    /// pay::customer_unmask() - takes as input the public params, old wallet, new wallet,
+    /// merchant's verification key and refund token. If the refund token is valid, generate
+    /// a revocation token for the old wallet public key.
+    ///
+    pub fn customer_unmask<E: Engine>(
+        channel_state: &ChannelState<E>,
+        old_cust_state: &mut CustomerState<E>,
+        new_cust_state: CustomerState<E>,
+        new_close_token: &cl::Signature<E>,
+    ) -> ResultBoltType<RevLockPair> {
+        // let's update the old wallet
+        assert!(old_cust_state.update(new_cust_state));
 
-    let cond_close_token = merch_state
-        .verify_payment(
-            csprng,
-            &channel_state,
-            &receiver_payment.proof,
-            &receiver_payment.coms,
-            &receiver_payment.nonce,
-            &receiver_payment.rev_lock,
-            receiver_payment.amount + tx_fee,
-        )
-        .unwrap();
+        // generate the token after verifying that the close token is valid
+        let (rev_lock, rev_secret) =
+            old_cust_state.get_old_rev_lock_pair(channel_state, new_close_token)?;
 
-    // store the wpk since it has been revealed
-    update_merchant_state(&mut merch_state.keys, &sender_payment.rev_lock, None);
-    update_merchant_state(&mut merch_state.keys, &receiver_payment.rev_lock, None);
-
-    return Ok(Some((new_close_token, cond_close_token)));
-}
-
-///
-/// pay_unmask_customer (phase 2) - takes as input the public params, old wallet, new wallet,
-/// merchant's verification key and refund token. If the refund token is valid, generate
-/// a revocation token for the old wallet public key.
-///
-pub fn pay_unmask_customer<E: Engine>(
-    channel_state: &ChannelState<E>,
-    old_cust_state: &mut CustomerState<E>,
-    new_cust_state: CustomerState<E>,
-    new_close_token: &cl::Signature<E>,
-) -> ResultBoltType<RevLockPair> {
-    // let's update the old wallet
-    assert!(old_cust_state.update(new_cust_state));
-
-    // generate the token after verifying that the close token is valid
-    let (rev_lock, rev_secret) =
-        old_cust_state.get_old_rev_lock_pair(channel_state, new_close_token)?;
-
-    return Ok(RevLockPair {
-        rev_lock: rev_lock,
-        rev_secret: rev_secret,
-    });
-}
-
-///
-/// pay_validate_rev_lock_merchant (phase 2) - takes as input revoke message and signature
-/// from the customer and the merchant state. If the revocation token is valid,
-/// generate a new signature for the new wallet (from the PoK of committed values in new wallet).
-///
-pub fn pay_validate_rev_lock_merchant<E: Engine>(
-    rt: &RevLockPair,
-    merch_state: &mut MerchantState<E>,
-) -> BoltResult<cl::Signature<E>> {
-    if merch_state.keys.contains_key(&hex::encode(&rt.rev_lock.0))
-        && merch_state.keys.get(&hex::encode(&rt.rev_lock.0)).unwrap() != ""
-    {
-        return Err(String::from("revocation lock is already known to merchant"));
+        return Ok(RevLockPair {
+            rev_lock: rev_lock,
+            rev_secret: rev_secret,
+        });
     }
-    let pay_token_result = merch_state.verify_revoke_message(&rt.rev_lock, &rt.rev_secret);
-    let new_pay_token = match pay_token_result {
-        Ok(n) => n,
-        Err(err) => return Err(String::from(err.to_string())),
-    };
-    update_merchant_state(
-        &mut merch_state.keys,
-        &rt.rev_lock,
-        Some(rt.rev_secret.clone()),
-    );
-    Ok(Some(new_pay_token))
+
+    ///
+    /// pay::merchant_validate_rev_lock() - takes as input revoke message and signature
+    /// from the customer and the merchant state. If the revocation token is valid,
+    /// generate a new signature for the new wallet (from the PoK of committed values in new wallet).
+    ///
+    pub fn merchant_validate_rev_lock<E: Engine>(
+        rt: &RevLockPair,
+        merch_state: &mut MerchantState<E>,
+    ) -> BoltResult<cl::Signature<E>> {
+        if merch_state.keys.contains_key(&hex::encode(&rt.rev_lock.0))
+            && merch_state.keys.get(&hex::encode(&rt.rev_lock.0)).unwrap() != ""
+        {
+            return Err(String::from(
+                "merchant_validate_rev_lock - revocation lock is already known to merchant",
+            ));
+        }
+        let pay_token_result = merch_state.verify_revoke_message(&rt.rev_lock, &rt.rev_secret);
+        let new_pay_token = match pay_token_result {
+            Ok(n) => n,
+            Err(err) => return Err(String::from(err.to_string())),
+        };
+        update_merchant_state(
+            &mut merch_state.keys,
+            &rt.rev_lock,
+            Some(rt.rev_secret.clone()),
+        );
+        Ok(Some(new_pay_token))
+    }
+
+    ///
+    /// pay::customer_unmask_pay_token() - takes as input the pay token and the customer state.
+    /// Verify the pay token and store if true
+    /// output: success boolean
+    ///
+    pub fn customer_unmask_pay_token<E: Engine>(
+        pay_token: cl::Signature<E>,
+        channel_state: &ChannelState<E>,
+        cust_state: &mut CustomerState<E>,
+    ) -> Result<bool, String> {
+        return Ok(cust_state.pay_unmask_customer(&channel_state, &pay_token));
+    }
+
+    ///
+    /// pay::multi_merchant_unmask (phase 2) - takes as input revoke messages and signatures
+    /// from the sender and receiver and the merchant state of the intermediary.
+    /// If the revocation tokens are valid, generate new signatures for the new wallets of both
+    /// sender and receiver (from the PoK of committed values in new wallet).
+    ///
+    pub fn multi_merchant_unmask<E: Engine>(
+        rt_sender: &RevLockPair,
+        rt_receiver: &RevLockPair,
+        merch_state: &mut MerchantState<E>,
+    ) -> BoltResult<(cl::Signature<E>, cl::Signature<E>)> {
+        let pay_token_sender_result =
+            merch_state.verify_revoke_message(&rt_sender.rev_lock, &rt_sender.rev_secret);
+        let pay_token_receiver_result =
+            merch_state.verify_revoke_message(&rt_receiver.rev_lock, &rt_receiver.rev_secret);
+        let new_pay_token_sender = match pay_token_sender_result {
+            Ok(n) => n,
+            Err(err) => return Err(String::from(err.to_string())),
+        };
+        let new_pay_token_receiver = match pay_token_receiver_result {
+            Ok(n) => n,
+            Err(err) => return Err(String::from(err.to_string())),
+        };
+
+        update_merchant_state(
+            &mut merch_state.keys,
+            &rt_sender.rev_lock,
+            Some(rt_sender.rev_secret.clone()),
+        );
+        update_merchant_state(
+            &mut merch_state.keys,
+            &rt_receiver.rev_lock,
+            Some(rt_receiver.rev_secret.clone()),
+        );
+
+        Ok(Some((new_pay_token_sender, new_pay_token_receiver)))
+    }
 }
-
-///
-/// pay_unmask_pay_token_customer() - takes as input the pay token and the customer state.
-/// Verify the pay token and store if true
-/// output: success boolean
-///
-pub fn pay_unmask_pay_token_customer<E: Engine>(
-    pay_token: cl::Signature<E>,
-    channel_state: &ChannelState<E>,
-    cust_state: &mut CustomerState<E>,
-) -> Result<bool, String> {
-    return Ok(cust_state.pay_unmask_customer(&channel_state, &pay_token));
-}
-
-///
-/// verify_multiple_revoke_messages (phase 2) - takes as input revoke messages and signatures
-/// from the sender and receiver and the merchant state of the intermediary.
-/// If the revocation tokens are valid, generate new signatures for the new wallets of both
-/// sender and receiver (from the PoK of committed values in new wallet).
-///
-pub fn multi_pay_unmask_merchant<E: Engine>(
-    rt_sender: &RevLockPair,
-    rt_receiver: &RevLockPair,
-    merch_state: &mut MerchantState<E>,
-) -> BoltResult<(cl::Signature<E>, cl::Signature<E>)> {
-    let pay_token_sender_result =
-        merch_state.verify_revoke_message(&rt_sender.rev_lock, &rt_sender.rev_secret);
-    let pay_token_receiver_result =
-        merch_state.verify_revoke_message(&rt_receiver.rev_lock, &rt_receiver.rev_secret);
-    let new_pay_token_sender = match pay_token_sender_result {
-        Ok(n) => n,
-        Err(err) => return Err(String::from(err.to_string())),
-    };
-    let new_pay_token_receiver = match pay_token_receiver_result {
-        Ok(n) => n,
-        Err(err) => return Err(String::from(err.to_string())),
-    };
-
-    update_merchant_state(
-        &mut merch_state.keys,
-        &rt_sender.rev_lock,
-        Some(rt_sender.rev_secret.clone()),
-    );
-    update_merchant_state(
-        &mut merch_state.keys,
-        &rt_receiver.rev_lock,
-        Some(rt_receiver.rev_secret.clone()),
-    );
-
-    Ok(Some((new_pay_token_sender, new_pay_token_receiver)))
-}
-
-///// end of pay protocol
 
 // for customer => on input a wallet w, it outputs a customer channel closure message
 ///

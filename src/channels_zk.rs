@@ -389,6 +389,8 @@ impl<E: Engine> CustomerState<E> {
                 .verify(&mpk, &close_wallet, &close_token);
         if is_close_valid {
             self.close_tokens.insert(self.index, close_token);
+            self.protocol_status = ProtocolStatus::Initialized;
+            self.channel_status = ChannelStatus::PendingOpen;
         }
 
         return is_close_valid;
@@ -505,9 +507,13 @@ impl<E: Engine> CustomerState<E> {
 
     pub fn has_tokens(&self) -> bool {
         let index = self.index;
-        let is_ct = self.close_tokens.get(&index).is_some();
         let is_pt = self.pay_tokens.get(&index).is_some();
-        return is_ct && is_pt;
+        return self.has_init_close_token() && is_pt;
+    }
+
+    pub fn has_init_close_token(&self) -> bool {
+        let index = self.index;
+        return self.close_tokens.get(&index).is_some();
     }
 
     // for channel pay

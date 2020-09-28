@@ -170,7 +170,7 @@ We now describe the high-level protocol API implemented in module `zkchannels::m
 	// both parties wait for the network to confirm the txs
 
 	// customer mark the channel open after a suitable number of confirmations of the funding transactions
-	let res = mpc::customer_mark_channel_open(&mut cust_state);
+	let res = mpc::customer_mark_open_channel(&mut cust_state);
 
 	// merchant marks the channel open after a suitable number of confirmations of the funding transactions
 	let escrow_txid = &channel_token.escrow_txid.0.clone();
@@ -258,7 +258,7 @@ We now describe the construction based on ZK proofs.
 
 ### 2.1 Protocol API
 
-#### 2.1.1 Channel Setup and Key Generation
+#### 2.1.0 Channel Setup and Key Generation
 
 The first part of setting up bi-directional payment channels involve generating initial setup parameters using curve BLS12-381 with channel state.
 
@@ -272,7 +272,7 @@ The first part of setting up bi-directional payment channels involve generating 
 	// generate fresh public parameters
 	channel_state.setup(&mut rng);
 
-#### 2.1.2 Intialize
+#### 2.1.1 Intialize
 
 To initialize state/keys for both parties, call the ``zkproofs::init_merchant()`` and ``zkproofs::init_customer()``:
 
@@ -290,72 +290,88 @@ To initialize state/keys for both parties, call the ``zkproofs::init_merchant()`
 	                                              "Alice")); // channel name/purpose
 
 
-#### 2.1.3 Establish protocol
+#### 2.1.2 Establish protocol
 
 When opening a payment channel, execute the establishment protocol API to escrow funds privately as follows:
 
-	// establish the channel by generating initial state commitment proof
-	let (com, com_proof) = zkproofs::establish_customer_generate_proof(rng, &mut channel_token, &mut cust_state);
+	// customer gets the initial state of the channel
+	let init_state = zkproofs::get_initial_state(&cust_state);	
 
-	// obtain close token for closing out channel
-	let close_token = zkproofs::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &merch_state);
+	// merchant validates the initial state and returns close token 
+	let init_close_token = zkproofs::validate_channel_params(rng, &init_state, &merch_state);
 
-	// customer verifies that close-token
-	assert!(cust_state.verify_close_token(&channel_state, &close_token));
+	// both parties proceed with funding the channel and wait for payment network 
+	// to confirm the transactions
 
-	// form funding tx and wait for network confirmation
+	// NEW - customer mark the channel open after a suitable number of confirmations of the funding transactions
+	let res = zkproofs::customer_mark_open_channel(init_close_token, &mut channel_state, &mut cust_state);
 
-	// obtain payment token after confirming funding tx
-	let pay_token = zkproofs::establish_merchant_issue_pay_token(rng, &channel_state, &com, &merch_state);
-
-	// customer verifies the initial pay token and stores for future payments
-	assert!(zkproofs::establish_final(&mut channel_state, &mut cust_state, &pay_token));
+	// NEW - merchant marks the channel open after a suitable number of confirmations of the funding transactions
+	let res = zkproofs::merchant_mark_open_channel(&escrow_txid, &mut merch_state);
 
 	// confirm that the channel state is now established
 	assert!(channel_state.channel_established);
 
-#### 2.1.4 Activate & Unlink
+#### 2.1.3 Activate
 
-	// prepare to active the channel by retrieving the initial state (rev lock commitment, etc)
-	let init_state = zkproofs::activate_customer(&cust_state);
+	// prepare to active the channel by retrieving the initial state (rev lock, etc)
+	let init_state = zkproofs::activate::customer_init(&cust_state);
 
 	// merchant returns an initial pay token for channel
-	let pay_token = zkproofs::activate_merchant(&mut db, channel_token, &init_state, &mut merch_state);
+	let pay_token = zkproofs::activate::merchant_init(&mut db, channel_token, &init_state, &mut merch_state);
 
 	// customer stores the initial pay token
-	zkproofs::activate_customer_finalize(&mut channel_state, &mut cust_state, pay_token);
+	zkproofs::activate::customer_finalize(&mut channel_state, &mut cust_state, pay_token);
 
-	// customer unlinks initial pay-token by running the following pay protocol with a 0-value payment
+#### 2.1.4 Unlink protocol
+
+To boostrap privacy, the customer unlinks their pay token from the now activated channel as follows:
+
+	// customer generates the unlink payment proof (0-value payment)
+    let (unlink_payment, unlinked_cust_state) = zkproofs::unlink::customer_update_state(rng, &channel_state, &cust_state);
+
+	// merchant verifies the payment proof and returns a close token if valid
+    let new_close_token = zkproofs::unlink::merchant_update_state(rng, &channel_state, &unlink_payment, &mut merch_state);
+
+	// customer revokes previous state
+    let revoked_state = zkproofs::unlink::customer_unmask(&channel_state, &mut cust_state, unlinked_cust_state, &new_close_token);
+
+    // send revoke token and get pay-token in response
+    let new_pay_token = zkproofs::unlink::merchant_validate_rev_lock(&revoked_state, &mut merch_state);
+
+    // verify the pay token and update internal customer state
+    let is_ok = zkproofs::unlink::customer_finalize(&mut channel_state, &mut cust_state, new_pay_token);
 
 #### 2.1.5 Pay protocol
 
 Prepare/Update State phase
 
-	// customer prepares payment by generating a new state, new revocation lock and secret
-	let (nonce, session_id) = zkproofs::pay_prepare_customer(&mut rng, &mut channel_state, 10, &mut cust_state).unwrap();
+	// customer prepares payment by revealing nonce and picking a session id for payment 
+	// internally, it generates a new state (new revocation lock and secret, etc)
+	let (nonce, session_id) = zkproofs::pay::prepare_customer(&mut rng, &mut channel_state, 10, &mut cust_state).unwrap();
 
-	// merchant generates a pay token mask and return a commitment to the customer
-	let pay_mask_com = zkproofs::pay_prepare_merchant(session_id, nonce, 10, &mut merch_state).unwrap();
+	// FIX - merchant generates a pay token mask and return a commitment to the customer
+	let pay_mask_com = zkproofs::pay::prepare_merchant(session_id, nonce, 10, &mut merch_state).unwrap();
 
 Now proceed with executing a payment
 
-	// customer executes mpc protocol with old/new state, pay mask commitment, rev lock commitment and payment amount
-	let (payment, new_cust_state) = zkproofs::pay_update_state_customer(&mut channel_state, &channel_token, 10, &mut cust_state);
+	// customer generates a payment proof for specified amount and generates a new customer state that reflects the payment
+	let (payment, new_cust_state) = zkproofs::pay::update_state_customer(&mut channel_state, &channel_token, 10, &mut cust_state);
 
-	// merchant checks payment proof and returns a new close token if valid
-	let new_close_token = zkproofs::pay_update_state_merchant(&mut rng, &mut channel_state, session_id, &payment, &mut merch_state);
+	// FIX - merchant checks payment proof and returns a new close token if valid
+	let new_close_token = zkproofs::pay::update_state_merchant(&mut rng, &mut channel_state, session_id, &payment, &mut merch_state);
 
 Unmask/Revoke phase to get the next pay token
 
 	// unmask the closing signatures on the current state
 	// and if signatures are valid, the customer sends the revoked state message
-	let revoked_state = zkproofs::pay_unmask_customer(&channel_state, &mut cust_state, &new_cust_state, new_close_token);
+	let revoked_state = zkproofs::pay::unmask_customer(&channel_state, &mut cust_state, &new_cust_state, new_close_token);
 
 	// merchant verifies that revoked message on the previous state if unmasking was successful
-	let pay_token = zkproofs::pay_validate_rev_lock_merchant(session_id, revoked_state, &mut merch_state).unwrap();
+	let pay_token = zkproofs::pay::validate_rev_lock_merchant(session_id, revoked_state, &mut merch_state).unwrap();
 
 	// customer unmasks the pay token and checks validity of pay-token mask commitment opening
-	let is_ok = zkproofs::pay_unmask_pay_token_customer(pay_token, &channel_state, &mut cust_state);
+	let is_ok = zkproofs::pay::unmask_pay_token_customer(pay_token, &channel_state, &mut cust_state);
 
 #### 2.1.6 Channel Closure
 
@@ -369,7 +385,7 @@ If the customer broadcasts an outdated version of his state, then the merchant c
 
 ### 2.2 Third-party Payments
 
-The bidirectional payment channels can be used to construct third-party payments in which a party **A** pays a second party **B** through an untrusted intermediary (**I**) to which both **A** and **B** have already established a channel. With zkChannels (formerly BOLT), the intermediary learns nothing about the payment from **A** to **B** and cannot link transactions to individual users.
+The bidirectional payment channels can be used to construct third-party payments in which a party **A** pays a second party **B** through an untrusted intermediary (**I**) to which both **A** and **B** have already established a channel. With zkChannels, the intermediary learns nothing about the payment from **A** to **B** and cannot link transactions to individual users.
 
 To enable third-party payment support, initialize each payment channel as follows:
 
