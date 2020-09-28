@@ -347,7 +347,7 @@ Prepare/Update State phase
 	// internally, it generates a new state (new revocation lock and secret, etc)
 	let (nonce, session_id) = zkproofs::pay::customer_prepare(&mut rng, &mut channel_state, 10, &mut cust_state).unwrap();
 
-	// FIX - merchant generates a pay token mask and return a commitment to the customer
+	// merchant generates a pay token mask and return a commitment to the customer
 	let pay_mask_com = zkproofs::pay::merchant_prepare(session_id, nonce, 10, &mut merch_state).unwrap();
 
 Now proceed with executing a payment
@@ -355,7 +355,7 @@ Now proceed with executing a payment
 	// customer generates a payment proof for specified amount and generates a new customer state that reflects the payment
 	let (payment, new_cust_state) = zkproofs::pay::customer_update_state(&mut channel_state, &channel_token, 10, &mut cust_state);
 
-	// FIX - merchant checks payment proof and returns a new close token if valid
+	// merchant checks payment proof and returns a new close token if valid
 	let new_close_token = zkproofs::pay::merchant_update_state(&mut rng, &mut channel_state, session_id, &payment, &mut merch_state);
 
 Unmask/Revoke phase to get the next pay token
