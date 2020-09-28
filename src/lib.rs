@@ -59,7 +59,7 @@ pub mod channels_zk;
 pub mod cl;
 pub mod database;
 pub mod ecdsa_partial;
-// pub mod ffishim_bls12;
+pub mod ffishim_bls12;
 // pub mod ffishim_bn256;
 pub mod ffishim_mpc;
 pub mod mpc;

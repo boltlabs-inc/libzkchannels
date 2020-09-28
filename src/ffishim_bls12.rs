@@ -259,8 +259,6 @@ pub mod ffishim {
 
     #[no_mangle]
     pub extern "C" fn ffishim_bls12_activate_customer(ser_cust_state: *mut c_char) -> *mut c_char {
-        let rng = &mut rand::thread_rng();
-
         // Deserialize the cust_state
         let cust_state_result: ResultSerdeType<zkproofs::CustomerState<CURVE>> =
             deserialize_result_object(ser_cust_state);
@@ -593,12 +591,12 @@ pub mod ffishim {
         // Deserialize the channel state
         let channel_state_result: ResultSerdeType<zkproofs::ChannelState<CURVE>> =
             deserialize_result_object(ser_channel_state);
-        let mut channel_state = handle_errors!(channel_state_result);
+        let channel_state = handle_errors!(channel_state_result);
 
         // Deserialize the cust state
         let cust_state_result: ResultSerdeType<zkproofs::CustomerState<CURVE>> =
             deserialize_result_object(ser_cust_state);
-        let mut cust_state = handle_errors!(cust_state_result);
+        let cust_state = handle_errors!(cust_state_result);
 
         // Generate the payment proof
         let (nonce, session_id) = handle_errors!(zkproofs::pay::customer_prepare(

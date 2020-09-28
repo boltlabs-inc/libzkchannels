@@ -325,7 +325,7 @@ When opening a payment channel, execute the establishment protocol API to escrow
 
 #### 2.1.4 Unlink protocol
 
-To boostrap privacy, the customer unlinks their pay token from the now activated channel as follows:
+The customer/merchant execute the unlink subprotocol to unlink the initial pay token from the now activated channel as follows:
 
 	// customer generates the unlink payment proof (0-value payment)
     let (unlink_payment, unlinked_cust_state) = zkproofs::unlink::customer_update_state(rng, &channel_state, &cust_state);
@@ -348,40 +348,40 @@ Prepare/Update State phase
 
 	// customer prepares payment by revealing nonce and picking a session id for payment 
 	// internally, it generates a new state (new revocation lock and secret, etc)
-	let (nonce, session_id) = zkproofs::pay::prepare_customer(&mut rng, &mut channel_state, 10, &mut cust_state).unwrap();
+	let (nonce, session_id) = zkproofs::pay::customer_prepare(&mut rng, &mut channel_state, 10, &mut cust_state).unwrap();
 
 	// FIX - merchant generates a pay token mask and return a commitment to the customer
-	let pay_mask_com = zkproofs::pay::prepare_merchant(session_id, nonce, 10, &mut merch_state).unwrap();
+	let pay_mask_com = zkproofs::pay::merchant_prepare(session_id, nonce, 10, &mut merch_state).unwrap();
 
 Now proceed with executing a payment
 
 	// customer generates a payment proof for specified amount and generates a new customer state that reflects the payment
-	let (payment, new_cust_state) = zkproofs::pay::update_state_customer(&mut channel_state, &channel_token, 10, &mut cust_state);
+	let (payment, new_cust_state) = zkproofs::pay::customer_update_state(&mut channel_state, &channel_token, 10, &mut cust_state);
 
 	// FIX - merchant checks payment proof and returns a new close token if valid
-	let new_close_token = zkproofs::pay::update_state_merchant(&mut rng, &mut channel_state, session_id, &payment, &mut merch_state);
+	let new_close_token = zkproofs::pay::merchant_update_state(&mut rng, &mut channel_state, session_id, &payment, &mut merch_state);
 
 Unmask/Revoke phase to get the next pay token
 
 	// unmask the closing signatures on the current state
 	// and if signatures are valid, the customer sends the revoked state message
-	let revoked_state = zkproofs::pay::unmask_customer(&channel_state, &mut cust_state, &new_cust_state, new_close_token);
+	let revoked_state = zkproofs::pay::customer_unmask(&channel_state, &mut cust_state, &new_cust_state, new_close_token);
 
 	// merchant verifies that revoked message on the previous state if unmasking was successful
-	let pay_token = zkproofs::pay::validate_rev_lock_merchant(session_id, revoked_state, &mut merch_state).unwrap();
+	let pay_token = zkproofs::pay::merchant_validate_rev_lock(session_id, revoked_state, &mut merch_state).unwrap();
 
 	// customer unmasks the pay token and checks validity of pay-token mask commitment opening
-	let is_ok = zkproofs::pay::unmask_pay_token_customer(pay_token, &channel_state, &mut cust_state);
+	let is_ok = zkproofs::pay::customer_unmask_pay_token(pay_token, &channel_state, &mut cust_state);
 
 #### 2.1.6 Channel Closure
 
-To close a channel, the customer must execute the `zkproofs::customer_close()` routine as follows:
+To close a channel, the customer must execute the `zkproofs::force_customer_close()` routine as follows:
 
-	let cust_close_msg = zkproofs::customer_close(&channel_state, &cust_state);
+	let cust_close_msg = zkproofs::force_customer_close(&channel_state, &cust_state);
 
-If the customer broadcasts an outdated version of his state, then the merchant can dispute this claim by executing the `zkproofs::merchant_close()` routine as follows:
+If the customer broadcasts an outdated version of his state, then the merchant can dispute this claim by executing the `zkproofs::force_merchant_close()` routine as follows:
 
-	let merch_close = zkproofs::merchant_close(&channel_state, &channel_token, &cust_close_msg, &merch_state);
+	let merch_close = zkproofs::force_merchant_close(&channel_state, &channel_token, &cust_close_msg, &merch_state);
 
 ### 2.2 Third-party Payments
 
