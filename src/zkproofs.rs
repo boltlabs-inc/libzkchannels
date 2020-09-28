@@ -74,10 +74,10 @@ pub struct Payment<E: Engine> {
 }
 
 ///
-/// init_merchant - takes as input the public params, merchant balance and keypair.
+/// merchant_init - takes as input the public params, merchant balance and keypair.
 /// Generates merchant data which consists of channel token and merchant state.
 ///
-pub fn init_merchant<'a, R: Rng, E: Engine>(
+pub fn merchant_init<'a, R: Rng, E: Engine>(
     csprng: &mut R,
     channel_state: &mut ChannelState<E>,
     name: &'a str,
@@ -93,11 +93,11 @@ pub fn init_merchant<'a, R: Rng, E: Engine>(
 }
 
 ///
-/// init_customer - takes as input the public params, channel state, commitment params, keypair,
+/// customer_init - takes as input the public params, channel state, commitment params, keypair,
 /// and initial balance for customer and merchant. Generate initial customer channel token,
 /// and wallet commitment.
 ///
-pub fn init_customer<'a, R: Rng, E: Engine>(
+pub fn customer_init<'a, R: Rng, E: Engine>(
     csprng: &mut R,
     channel_token: &mut ChannelToken<E>,
     b0_cust: i64,

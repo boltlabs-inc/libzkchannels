@@ -98,7 +98,7 @@ pub mod ffishim {
     // INIT
 
     #[no_mangle]
-    pub extern "C" fn ffishim_bls12_init_merchant(
+    pub extern "C" fn ffishim_bls12_init_merchant_init(
         ser_channel_state: *mut c_char,
         name_ptr: *const c_char,
     ) -> *mut c_char {
@@ -111,7 +111,7 @@ pub mod ffishim {
         let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
 
         let (channel_token, merch_state, channel_state) =
-            zkproofs::init_merchant(rng, &mut channel_state, name);
+            zkproofs::merchant_init(rng, &mut channel_state, name);
 
         let ser = [
             "{\'channel_token\':\'",
@@ -129,7 +129,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern "C" fn ffishim_bls12_init_customer(
+    pub extern "C" fn ffishim_bls12_init_customer_init(
         ser_channel_token: *mut c_char,
         balance_customer: i64,
         balance_merchant: i64,
@@ -146,7 +146,7 @@ pub mod ffishim {
         let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
 
         // We change the channel state
-        let cust_state = zkproofs::init_customer(
+        let cust_state = zkproofs::customer_init(
             rng,
             &mut channel_token,
             balance_customer,

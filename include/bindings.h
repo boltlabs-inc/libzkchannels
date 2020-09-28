@@ -176,12 +176,12 @@ char *ffishim_bls12_decompress_cust_close_message(char *ser_channel_state, char 
 
 char *ffishim_bls12_generate_channel_id(char *ser_channel_token);
 
-char *ffishim_bls12_init_customer(char *ser_channel_token,
-                                  int64_t balance_customer,
-                                  int64_t balance_merchant,
-                                  const char *name_ptr);
+char *ffishim_bls12_init_customer_init(char *ser_channel_token,
+                                       int64_t balance_customer,
+                                       int64_t balance_merchant,
+                                       const char *name_ptr);
 
-char *ffishim_bls12_init_merchant(char *ser_channel_state, const char *name_ptr);
+char *ffishim_bls12_init_merchant_init(char *ser_channel_state, const char *name_ptr);
 
 char *ffishim_bls12_merchant_close(char *ser_channel_state,
                                    char *ser_channel_token,

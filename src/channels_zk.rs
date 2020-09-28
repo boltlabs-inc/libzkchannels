@@ -64,14 +64,6 @@ pub struct ChannelParams<E: Engine> {
     extra_verify: bool, // extra verification for certain points in the establish/pay protocol
 }
 
-// #[derive(Clone, Serialize, Deserialize, PartialEq)]
-// pub enum ChannelStatus {
-//     NEW,
-//     INITIALIZED,
-//     ACTIVATED,
-//     UNLINKED,
-// }
-
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
                            <E as pairing::Engine>::G1: serde::Serialize, \

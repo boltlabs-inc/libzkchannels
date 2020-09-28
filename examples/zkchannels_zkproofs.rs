@@ -86,17 +86,17 @@ fn execute_pay_protocol(
 fn main() {
     println!("******************************************");
     let mut channel_state =
-        zkproofs::ChannelState::<Bls12>::new(String::from("Channel A -> B"), false);
+        zkproofs::ChannelState::<Bls12>::new(String::from("Direct channel A -> B"), false);
     let rng = &mut rand::thread_rng();
 
     let b0_customer = 150;
     let b0_merchant = 10;
 
     let (mut channel_token, mut merch_state, mut channel_state) =
-        zkproofs::init_merchant(rng, &mut channel_state, "Merchant Bob");
+        zkproofs::merchant_init(rng, &mut channel_state, "Merchant Bob");
 
     let mut cust_state =
-        zkproofs::init_customer(rng, &mut channel_token, b0_customer, b0_merchant, "Alice");
+        zkproofs::customer_init(rng, &mut channel_token, b0_customer, b0_merchant, "Alice");
 
     println!("{}", cust_state);
 
@@ -150,7 +150,6 @@ fn main() {
     let new_pay_token = handle_bolt_result!(new_pay_token_result);
 
     // verify the pay token and update internal state
-    // assert!(cust_state.unlink_verify_pay_token(&mut channel_state, &new_pay_token.unwrap()));
     let is_ok = zkproofs::unlink::customer_finalize(
         &mut channel_state,
         &mut cust_state,

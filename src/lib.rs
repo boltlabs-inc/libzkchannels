@@ -134,11 +134,11 @@ mod tests {
         // in order to derive the channel tokens
         // initialize on the merchant side with balance: b0_merch
         let (mut channel_token, merch_state, channel_state) =
-            zkproofs::init_merchant(rng, channel_state, merch_name);
+            zkproofs::merchant_init(rng, channel_state, merch_name);
 
         // initialize on the customer side with balance: b0_cust
         let cust_state =
-            zkproofs::init_customer(rng, &mut channel_token, b0_cust, b0_merch, cust_name);
+            zkproofs::customer_init(rng, &mut channel_token, b0_cust, b0_merch, cust_name);
 
         return (channel_token, merch_state, cust_state, channel_state);
     }
@@ -266,10 +266,10 @@ mod tests {
 
         // initialize the channel
         let (mut channel_token, mut merch_state, mut channel_state) =
-            zkproofs::init_merchant(rng, &mut channel_state, "Merchant Bob");
+            zkproofs::merchant_init(rng, &mut channel_state, "Merchant Bob");
 
         let mut cust_state =
-            zkproofs::init_customer(rng, &mut channel_token, b0_customer, b0_merchant, "Alice");
+            zkproofs::customer_init(rng, &mut channel_token, b0_customer, b0_merchant, "Alice");
 
         println!("{}", cust_state);
 
@@ -621,14 +621,14 @@ mod tests {
         // in order to derive the channel tokens
         // initialize on the merchant side with balance: b0_merch
         let (mut channel_token, mut merch_state, mut channel_state) =
-            zkproofs::init_merchant(rng, &mut channel_state, merch_name);
+            zkproofs::merchant_init(rng, &mut channel_state, merch_name);
 
         // initialize on the customer side with balance: b0_cust
         let mut alice_cust_state =
-            zkproofs::init_customer(rng, &mut channel_token, b0_alice, b0_merch_a, "Alice");
+            zkproofs::customer_init(rng, &mut channel_token, b0_alice, b0_merch_a, "Alice");
 
         let mut bob_cust_state =
-            zkproofs::init_customer(rng, &mut channel_token, b0_bob, b0_merch_b, "Bob");
+            zkproofs::customer_init(rng, &mut channel_token, b0_bob, b0_merch_b, "Bob");
 
         // run establish protocol for customer and merchant channel
         //let mut channel_state_alice = channel_state.clone();
@@ -734,12 +734,12 @@ mod tests {
         let _chan_state: zkproofs::ChannelState<Bls12> = serde_json::from_str(&serialized).unwrap();
 
         let (mut channel_token, _merch_state, _channel_state) =
-            zkproofs::init_merchant(rng, &mut channel_state, "Merchant A");
+            zkproofs::merchant_init(rng, &mut channel_state, "Merchant A");
 
         let b0_cust = 100;
         let b0_merch = 10;
         let cust_state =
-            zkproofs::init_customer(rng, &mut channel_token, b0_cust, b0_merch, "Customer A");
+            zkproofs::customer_init(rng, &mut channel_token, b0_cust, b0_merch, "Customer A");
 
         let serialized_ct = serde_json::to_string(&channel_token).unwrap();
 

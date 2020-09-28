@@ -266,24 +266,21 @@ The first part of setting up bi-directional payment channels involve generating 
 
 	// generate the initial channel state
 	// second argument represents third-party mode
-	let mut channel_state = zkproofs::ChannelState::<Bls12>::new(String::from("Channel A -> B"), false);
+	let mut channel_state = zkproofs::ChannelState::<Bls12>::new(String::from("Direct channel A -> B"), false);
 	let mut rng = &mut rand::thread_rng();
-
-	// generate fresh public parameters
-	channel_state.setup(&mut rng);
 
 #### 2.1.1 Intialize
 
-To initialize state/keys for both parties, call the ``zkproofs::init_merchant()`` and ``zkproofs::init_customer()``:
+To initialize state/keys for both parties, call the ``zkproofs::merchant_init()`` and ``zkproofs::customer_init()``:
 
-	let b0_merch = 10;
+	let b0_merch = 100;
 	let b0_cust = 100;
 
 	// initialize the merchant state and initialize with balance
-	let (mut channel_token, mut merch_state, mut channel_state) = zkproofs::init_merchant(rng, &mut channel_state, "Bob");
+	let (mut channel_token, mut merch_state, mut channel_state) = zkproofs::merchant_init(rng, &mut channel_state, "Bob");
 
 	// generate the customer state using the channel token from the merchant
-	let mut cust_state = zkproofs::init_customer(rng, // rng
+	let mut cust_state = zkproofs::customer_init(rng, // rng
 	                                              &mut channel_token, // channel token
 	                                              b0_cust, // init customer balance
 	                                              b0_merch, // init merchant balance
