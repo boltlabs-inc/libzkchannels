@@ -325,16 +325,16 @@ When opening a payment channel, execute the establishment protocol API to escrow
 The customer/merchant execute the unlink subprotocol to unlink the initial pay token from the now activated channel as follows:
 
 	// customer generates the unlink payment proof (0-value payment)
-    let (unlink_payment, unlinked_cust_state) = zkproofs::unlink::customer_update_state(rng, &channel_state, &cust_state);
+    let (session_id, unlink_payment, unlinked_cust_state) = zkproofs::unlink::customer_update_state(rng, &channel_state, &cust_state);
 
 	// merchant verifies the payment proof and returns a close token if valid
-    let new_close_token = zkproofs::unlink::merchant_update_state(rng, &channel_state, &unlink_payment, &mut merch_state);
+    let new_close_token = zkproofs::unlink::merchant_update_state(rng, &channel_state, &session_id, &unlink_payment, &mut merch_state);
 
 	// customer revokes previous state
     let revoked_state = zkproofs::unlink::customer_unmask(&channel_state, &mut cust_state, unlinked_cust_state, &new_close_token);
 
     // send revoke token and get pay-token in response
-    let new_pay_token = zkproofs::unlink::merchant_validate_rev_lock(&revoked_state, &mut merch_state);
+    let new_pay_token = zkproofs::unlink::merchant_validate_rev_lock(&session_id, &revoked_state, &mut merch_state);
 
     // verify the pay token and update internal customer state
     let is_ok = zkproofs::unlink::customer_finalize(&mut channel_state, &mut cust_state, new_pay_token);
@@ -348,7 +348,7 @@ Prepare/Update State phase
 	let (nonce, session_id) = zkproofs::pay::customer_prepare(&mut rng, &mut channel_state, 10, &mut cust_state).unwrap();
 
 	// merchant generates a pay token mask and return a commitment to the customer
-	let pay_mask_com = zkproofs::pay::merchant_prepare(session_id, nonce, 10, &mut merch_state).unwrap();
+	let pay_mask_com = zkproofs::pay::merchant_prepare(&session_id, nonce, 10, &mut merch_state).unwrap();
 
 Now proceed with executing a payment
 
@@ -356,7 +356,7 @@ Now proceed with executing a payment
 	let (payment, new_cust_state) = zkproofs::pay::customer_update_state(&mut channel_state, &channel_token, 10, &mut cust_state);
 
 	// merchant checks payment proof and returns a new close token if valid
-	let new_close_token = zkproofs::pay::merchant_update_state(&mut rng, &mut channel_state, session_id, &payment, &mut merch_state);
+	let new_close_token = zkproofs::pay::merchant_update_state(&mut rng, &mut channel_state, &session_id, &payment, &mut merch_state);
 
 Unmask/Revoke phase to get the next pay token
 
@@ -365,7 +365,7 @@ Unmask/Revoke phase to get the next pay token
 	let revoked_state = zkproofs::pay::customer_unmask(&channel_state, &mut cust_state, &new_cust_state, new_close_token);
 
 	// merchant verifies that revoked message on the previous state if unmasking was successful
-	let pay_token = zkproofs::pay::merchant_validate_rev_lock(session_id, revoked_state, &mut merch_state).unwrap();
+	let pay_token = zkproofs::pay::merchant_validate_rev_lock(&session_id, revoked_state, &mut merch_state).unwrap();
 
 	// customer unmasks the pay token and checks validity of pay-token mask commitment opening
 	let is_ok = zkproofs::pay::customer_unmask_pay_token(pay_token, &channel_state, &mut cust_state);

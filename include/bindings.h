@@ -216,10 +216,13 @@ char *ffishim_bls12_pay_merchant_prepare(char *ser_session_id,
                                          char *ser_merchant_state);
 
 char *ffishim_bls12_pay_merchant_update_state(char *ser_channel_state,
+                                              char *ser_session_id,
                                               char *ser_pay_proof,
                                               char *ser_merch_state);
 
-char *ffishim_bls12_pay_merchant_validate_rev_lock(char *ser_revoke_token, char *ser_merch_state);
+char *ffishim_bls12_pay_merchant_validate_rev_lock(char *ser_session_id,
+                                                   char *ser_revoke_token,
+                                                   char *ser_merch_state);
 
 char *ffishim_bls12_pay_verify_multiple_payment_proofs(char *ser_channel_state,
                                                        char *ser_sender_pay_proof,
@@ -240,10 +243,12 @@ char *ffishim_bls12_unlink_customer_unmask(char *ser_channel_state,
 char *ffishim_bls12_unlink_customer_update_state(char *ser_channel_state, char *ser_customer_state);
 
 char *ffishim_bls12_unlink_merchant_update_state(char *ser_channel_state,
+                                                 char *ser_session_id,
                                                  char *ser_pay_proof,
                                                  char *ser_merch_state);
 
-char *ffishim_bls12_unlink_merchant_validate_rev_lock(char *ser_revoked_state,
+char *ffishim_bls12_unlink_merchant_validate_rev_lock(char *ser_session_id,
+                                                      char *ser_revoked_state,
                                                       char *ser_merch_state);
 
 char *ffishim_bls12_validate_channel_params(char *ser_init_state, char *ser_merch_state);

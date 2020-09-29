@@ -33,6 +33,18 @@ pub mod ffishim {
         };
     }
 
+    macro_rules! check_vec_length {
+        ($x: expr, $y: expr) => {
+            if $x.len() != $y {
+                return error_message(format!(
+                    "{} does not have expected length: {}",
+                    stringify!($x),
+                    $y
+                ));
+            }
+        };
+    }
+
     pub type ResultSerdeType<T> = Result<T, serde_json::error::Error>;
     type CURVE = Bls12;
 
@@ -44,6 +56,12 @@ pub mod ffishim {
         let string: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
         serde_json::from_str(&string)
     }
+
+    // fn deserialize_hex_string(serialized: *mut c_char) -> Result<Vec<u8>, FromHexError> {
+    //     let bytes = unsafe { CStr::from_ptr(serialized).to_bytes() };
+    //     let string: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
+    //     hex::decode(&string)
+    // }
 
     #[no_mangle]
     pub extern "C" fn ffishim_free_string(pointer: *mut c_char) {
@@ -406,11 +424,13 @@ pub mod ffishim {
         let cust_state = handle_errors!(cust_state_result);
 
         // Generate the payment proof
-        let (payment, new_cust_state) =
+        let (session_id, payment, new_cust_state) =
             zkproofs::unlink::customer_update_state(rng, &channel_state, &cust_state);
         // Serialize the results and return to caller
         let ser = [
-            "{\'payment\':\'",
+            "{\'session_id\':\'",
+            &hex::encode(&session_id),
+            "\', \'payment\':\'",
             serde_json::to_string(&payment).unwrap().as_str(),
             "\', \'cust_state\':\'",
             serde_json::to_string(&new_cust_state).unwrap().as_str(),
@@ -424,10 +444,18 @@ pub mod ffishim {
     #[no_mangle]
     pub extern "C" fn ffishim_bls12_unlink_merchant_update_state(
         ser_channel_state: *mut c_char,
+        ser_session_id: *mut c_char,
         ser_pay_proof: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
         let rng = &mut rand::thread_rng();
+
+        // Deserialize session id
+        let session_id_buf = unsafe { CStr::from_ptr(ser_session_id).to_bytes() };
+        check_vec_length!(session_id_buf, 16);
+        let mut session_id: [u8; 16] = [0u8; 16];
+        session_id.copy_from_slice(session_id_buf);
+
         // Deserialize the channel state
         let channel_state_result: ResultSerdeType<zkproofs::ChannelState<CURVE>> =
             deserialize_result_object(ser_channel_state);
@@ -446,6 +474,7 @@ pub mod ffishim {
         let close_token = zkproofs::unlink::merchant_update_state(
             rng,
             &channel_state,
+            &session_id,
             &payment,
             &mut merch_state,
         );
@@ -509,9 +538,16 @@ pub mod ffishim {
 
     #[no_mangle]
     pub extern "C" fn ffishim_bls12_unlink_merchant_validate_rev_lock(
+        ser_session_id: *mut c_char,
         ser_revoked_state: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
+        // Deserialize session id
+        let session_id_buf = unsafe { CStr::from_ptr(ser_session_id).to_bytes() };
+        check_vec_length!(session_id_buf, 16);
+        let mut session_id: [u8; 16] = [0u8; 16];
+        session_id.copy_from_slice(session_id_buf);
+
         // Deserialize the revoke token
         let revoked_state_result: ResultSerdeType<zkproofs::RevLockPair> =
             deserialize_result_object(ser_revoked_state);
@@ -523,8 +559,11 @@ pub mod ffishim {
         let mut merch_state = handle_errors!(merch_state_result);
 
         // send revoke token and get pay-token in response
-        let pay_token_result =
-            zkproofs::unlink::merchant_validate_rev_lock(&revoked_state, &mut merch_state);
+        let pay_token_result = zkproofs::unlink::merchant_validate_rev_lock(
+            &session_id,
+            &revoked_state,
+            &mut merch_state,
+        );
         let pay_token = handle_errors!(pay_token_result);
 
         let ser = [
@@ -625,12 +664,14 @@ pub mod ffishim {
         amount: i64,
         ser_merchant_state: *mut c_char,
     ) -> *mut c_char {
-        //Deserialize nonce
+        // Deserialize nonce
         let nonce = unsafe { CStr::from_ptr(ser_nonce).to_bytes() };
         let mut nonce_fixed: [u8; 16] = [0u8; 16];
         nonce_fixed.copy_from_slice(nonce);
 
+        // Deserialize session id
         let session_id_buf = unsafe { CStr::from_ptr(ser_session_id).to_bytes() };
+        check_vec_length!(session_id_buf, 16);
         let mut session_id: [u8; 16] = [0u8; 16];
         session_id.copy_from_slice(session_id_buf);
 
@@ -641,7 +682,7 @@ pub mod ffishim {
 
         // Generate the payment proof
         let accepted = zkproofs::pay::merchant_prepare(
-            session_id,
+            &session_id,
             FixedSizeArray16(nonce_fixed),
             amount,
             &mut merch_state,
@@ -695,14 +736,22 @@ pub mod ffishim {
     #[no_mangle]
     pub extern "C" fn ffishim_bls12_pay_merchant_update_state(
         ser_channel_state: *mut c_char,
+        ser_session_id: *mut c_char,
         ser_pay_proof: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
         let rng = &mut rand::thread_rng();
+
         // Deserialize the channel state
         let channel_state_result: ResultSerdeType<zkproofs::ChannelState<CURVE>> =
             deserialize_result_object(ser_channel_state);
         let channel_state = handle_errors!(channel_state_result);
+
+        // Deserialize session id
+        let session_id_buf = unsafe { CStr::from_ptr(ser_session_id).to_bytes() };
+        check_vec_length!(session_id_buf, 16);
+        let mut session_id: [u8; 16] = [0u8; 16];
+        session_id.copy_from_slice(session_id_buf);
 
         // Deserialize the payment proof
         let payment_result: ResultSerdeType<zkproofs::Payment<CURVE>> =
@@ -714,8 +763,13 @@ pub mod ffishim {
             deserialize_result_object(ser_merch_state);
         let mut merch_state = handle_errors!(merch_state_result);
 
-        let close_token =
-            zkproofs::pay::merchant_update_state(rng, &channel_state, &payment, &mut merch_state);
+        let close_token = zkproofs::pay::merchant_update_state(
+            rng,
+            &channel_state,
+            &session_id,
+            &payment,
+            &mut merch_state,
+        );
         let ser = [
             "{\'close_token\':\'",
             serde_json::to_string(&close_token).unwrap().as_str(),
@@ -828,9 +882,16 @@ pub mod ffishim {
 
     #[no_mangle]
     pub extern "C" fn ffishim_bls12_pay_merchant_validate_rev_lock(
+        ser_session_id: *mut c_char,
         ser_revoke_token: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
+        // Deserialize session id
+        let session_id_buf = unsafe { CStr::from_ptr(ser_session_id).to_bytes() };
+        check_vec_length!(session_id_buf, 16);
+        let mut session_id: [u8; 16] = [0u8; 16];
+        session_id.copy_from_slice(session_id_buf);
+
         // Deserialize the revoke token
         let revoke_token_result: ResultSerdeType<zkproofs::RevLockPair> =
             deserialize_result_object(ser_revoke_token);
@@ -843,7 +904,7 @@ pub mod ffishim {
 
         // send revoke token and get pay-token in response
         let pay_token_result =
-            zkproofs::pay::merchant_validate_rev_lock(&revoke_token, &mut merch_state);
+            zkproofs::pay::merchant_validate_rev_lock(&session_id, &revoke_token, &mut merch_state);
         let pay_token = handle_errors!(pay_token_result);
 
         let ser = [

@@ -207,7 +207,7 @@ pub mod activate {
     ) -> bool {
         // verify the pay-token first
         if !cust_state.verify_init_pay_token(&channel_state, pay_token) {
-            println!("activate::customer_finalize - Failed to verify the pay-token");
+            println!("activate::customer_finalize - failed to verify the pay-token");
             return false;
         }
 
@@ -228,19 +228,24 @@ pub mod unlink {
     ///
     /// unlink::customer_update_state() - takes as input the public params, channel state, channel token,
     /// merchant public keys, current customer state.
+    /// output: session id, payment proof and new customer state
     ///
     pub fn customer_update_state<R: Rng, E: Engine>(
         csprng: &mut R,
         channel_state: &ChannelState<E>,
         cust_state: &CustomerState<E>,
-    ) -> (Payment<E>, CustomerState<E>) {
+    ) -> ([u8; 16], Payment<E>, CustomerState<E>) {
         // unlink payment of amount 0 (to avoid tx fees on the channel we start with an amount of -tx_fee)
-        pay::customer_update_state(
+        let (payment, new_cust_state) = pay::customer_update_state(
             csprng,
             channel_state,
             cust_state,
             -channel_state.get_channel_fee(),
-        )
+        );
+        // pick new session ID
+        let mut session_id = [0u8; 16];
+        csprng.fill_bytes(&mut session_id);
+        return (session_id, payment, new_cust_state);
     }
 
     ///
@@ -251,6 +256,7 @@ pub mod unlink {
     pub fn merchant_update_state<R: Rng, E: Engine>(
         csprng: &mut R,
         channel_state: &ChannelState<E>,
+        session_id: &[u8; 16],
         payment: &Payment<E>,
         merch_state: &mut MerchantState<E>,
     ) -> BoltResult<cl::Signature<E>> {
@@ -261,6 +267,7 @@ pub mod unlink {
             Ok(Some(pay::merchant_update_state(
                 csprng,
                 channel_state,
+                session_id,
                 payment,
                 merch_state,
             )))
@@ -278,7 +285,7 @@ pub mod unlink {
     ) -> bool {
         // verify the pay-token
         if !cust_state.unlink_verify_pay_token(channel_state, &pay_token) {
-            println!("unlink::customer_finalize - Failed to verify the pay-token");
+            println!("unlink::customer_finalize - failed to verify the pay-token");
             return false;
         }
 
@@ -338,7 +345,7 @@ pub mod pay {
     /// output: true or false if the payment would be successful
     ///
     pub fn merchant_prepare<E: Engine>(
-        _session_id: [u8; 16],
+        _session_id: &[u8; 16],
         nonce: FixedSizeArray16,
         amount: i64,
         merch_state: &mut MerchantState<E>,
@@ -387,6 +394,7 @@ pub mod pay {
     pub fn merchant_update_state<R: Rng, E: Engine>(
         csprng: &mut R,
         channel_state: &ChannelState<E>,
+        _session_id: &[u8; 16],
         payment: &Payment<E>,
         merch_state: &mut MerchantState<E>,
     ) -> cl::Signature<E> {
@@ -491,6 +499,7 @@ pub mod pay {
     /// generate a new signature for the new wallet (from the PoK of committed values in new wallet).
     ///
     pub fn merchant_validate_rev_lock<E: Engine>(
+        session_id: &[u8; 16],
         rt: &RevLockPair,
         merch_state: &mut MerchantState<E>,
     ) -> BoltResult<cl::Signature<E>> {
