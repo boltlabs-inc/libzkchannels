@@ -1,0 +1,84 @@
+# tezos-sandbox
+Testing with Tezos using BLS12-381
+
+## Building on sandbox
+
+(1a) Build dependencies on Ubuntu 18.04:
+
+	sudo apt-get install -y rsync git m4 build-essential patch unzip wget pkg-config libgmp-dev libev-dev libhidapi-dev libffi-dev opam jq
+	sudo apt-get install virtualenv python3-pip 
+    
+(1b) Build deps on Mac OS:
+
+	brew install opam libffi gmp libev pkg-config hidapi python3
+	pip3 install virtualenv
+
+(2) Install poetry:
+	
+	curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python
+	source $HOME/.poetry/env
+	 
+
+(3) Install rust 1.39
+
+	rustup toolchain install 1.39.0
+	rustup default 1.39.0
+
+To switch back to latest stable version of rust do the following:
+
+	rustup default stable
+	
+(4) Clone Tezos here (Dalpha Release). Make sure you have git 2.18+ installed:
+    
+    git clone https://gitlab.com/tezos/tezos.git
+    cd tezos
+    git checkout dalpha-release
+    opam init --bare
+    make build-deps
+    eval $(opam env)
+    make
+    export PATH=~/tezos:$PATH
+    source ./src/bin_client/bash-completion.sh
+    export TEZOS_CLIENT_UNSAFE_DISABLE_DISCLAIMER=Y
+
+(5) Can run pytests (need Python 3.8+)
+    
+    virtualenv --python=python3 venv
+    source ./venv/bin/activate
+    cd tezos
+    pip3 install -r tests_python/requirements.txt
+
+(6) Setup poetry environment (need `pyproject.toml` in tezos-sandbox dir)
+
+    poetry install 
+    
+(7) Run the test sandbox script for PS signature verification
+
+    cp /path/to/tezos-sandbox/pssigs_verify_optimized.py tezos/tests_python/
+    source ./venv/bin/activate
+    poetry run python3 ../tezos/tests_python/pssigs_verify_optimized.py -c dec_cust_close.json
+
+## Installing SmartPy
+
+(1) Clone the source repo
+
+    git clone --recurse-submodules https://gitlab.com/SmartPy/SmartPy
+
+(2) Install the dependencies
+
+    env/naked/init
+
+(3) Build the compiler
+
+    ./envsh
+    ./with_env make
+    ./with_env make test
+
+(4) In the case of a naked environment, this should also work:
+
+    python/SmartPy.sh --help
+
+(5) Test zkChannels contract as follows:
+
+    mkdir tmp/
+    python/SmartPy.sh test ../smartpy_scripts/zkchannels.py tmp/

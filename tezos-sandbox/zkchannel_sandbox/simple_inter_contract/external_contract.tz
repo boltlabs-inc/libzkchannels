@@ -1,0 +1,50 @@
+parameter (pair (contract %k bool) (int %x));
+storage   unit;
+code
+  {
+    DUP;        # pair @parameter @storage : pair @parameter @storage
+    CDR;        # @storage : pair @parameter @storage
+    SWAP;       # pair @parameter @storage : @storage
+    CAR;        # @parameter : @storage
+    # == run ==
+    # if (params.x % 2) == 1: # @parameter : @storage
+    PUSH nat 1; # nat : @parameter : @storage
+    PUSH int 2; # int : nat : @parameter : @storage
+    DIG 2;      # @parameter : int : nat : @storage
+    DUP;        # @parameter : @parameter : int : nat : @storage
+    DUG 3;      # @parameter : int : nat : @parameter : @storage
+    CDR;        # int : int : nat : @parameter : @storage
+    EDIV;       # option (pair int nat) : nat : @parameter : @storage
+    IF_SOME
+      {
+        CDR;        # nat : nat : @parameter : @storage
+      }
+      {
+        PUSH int 10; # int : nat : @parameter : @storage
+        FAILWITH;   # FAILED
+      }; # nat : nat : @parameter : @storage
+    COMPARE;    # int : @parameter : @storage
+    EQ;         # bool : @parameter : @storage
+    IF
+      {
+        # sp.transfer(True, sp.tez(0), params.k) # @parameter : @storage
+        CAR;        # contract bool : @storage
+        NIL operation; # list operation : contract bool : @storage
+        SWAP;       # contract bool : list operation : @storage
+        PUSH mutez 0; # mutez : contract bool : list operation : @storage
+        PUSH bool True; # bool : mutez : contract bool : list operation : @storage
+        TRANSFER_TOKENS; # operation : list operation : @storage
+        CONS;       # list operation : @storage
+      }
+      {
+        # sp.transfer(False, sp.tez(0), params.k) # @parameter : @storage
+        CAR;        # contract bool : @storage
+        NIL operation; # list operation : contract bool : @storage
+        SWAP;       # contract bool : list operation : @storage
+        PUSH mutez 0; # mutez : contract bool : list operation : @storage
+        PUSH bool False; # bool : mutez : contract bool : list operation : @storage
+        TRANSFER_TOKENS; # operation : list operation : @storage
+        CONS;       # list operation : @storage
+      }; # list operation : @storage
+    PAIR;       # pair (list operation) @storage
+  };
