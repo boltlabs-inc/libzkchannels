@@ -1,0 +1,105 @@
+parameter (or (unit %reset) (nat %run));
+storage   (pair (int %counter) (pair (address %onEven) (address %onOdd)));
+code
+  {
+    DUP;        # pair @parameter @storage : pair @parameter @storage
+    CDR;        # @storage : pair @parameter @storage
+    SWAP;       # pair @parameter @storage : @storage
+    CAR;        # @parameter : @storage
+    IF_LEFT
+      {
+        DROP;       # @storage
+        # == reset ==
+        # self.data.counter = 0 # @storage
+        CDR;        # pair (address %onEven) (address %onOdd)
+        PUSH int 0; # int : pair (address %onEven) (address %onOdd)
+        PAIR;       # pair int (pair (address %onEven) (address %onOdd))
+        NIL operation; # list operation : pair int (pair (address %onEven) (address %onOdd))
+      }
+      {
+        # == run ==
+        # if params > 1: # @parameter%run : @storage
+        DUP;        # @parameter%run : @parameter%run : @storage
+        PUSH nat 1; # nat : @parameter%run : @parameter%run : @storage
+        COMPARE;    # int : @parameter%run : @storage
+        LT;         # bool : @parameter%run : @storage
+        IF
+          {
+            SWAP;       # @storage : @parameter%run
+            # self.data.counter += 1 # @storage : @parameter%run
+            DUP;        # @storage : @storage : @parameter%run
+            CDR;        # pair (address %onEven) (address %onOdd) : @storage : @parameter%run
+            SWAP;       # @storage : pair (address %onEven) (address %onOdd) : @parameter%run
+            CAR;        # int : pair (address %onEven) (address %onOdd) : @parameter%run
+            PUSH int 1; # int : int : pair (address %onEven) (address %onOdd) : @parameter%run
+            ADD;        # int : pair (address %onEven) (address %onOdd) : @parameter%run
+            PAIR;       # pair int (pair (address %onEven) (address %onOdd)) : @parameter%run
+            SWAP;       # @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+            # if (params % 2) == 0: # @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+            PUSH nat 0; # nat : @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+            PUSH nat 2; # nat : nat : @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+            DIG 2;      # @parameter%run : nat : nat : pair int (pair (address %onEven) (address %onOdd))
+            DUP;        # @parameter%run : @parameter%run : nat : nat : pair int (pair (address %onEven) (address %onOdd))
+            DUG 3;      # @parameter%run : nat : nat : @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+            EDIV;       # option (pair nat nat) : nat : @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+            IF_SOME
+              {
+                CDR;        # nat : nat : @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+              }
+              {
+                PUSH int 35; # int : nat : @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+                FAILWITH;   # FAILED
+              }; # nat : nat : @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+            COMPARE;    # int : @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+            EQ;         # bool : @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+            IF
+              {
+                # sp.transfer(sp.record(k = sp.self_entry_point('run'), x = params), sp.tez(0), sp.contract(sp.TRecord(k = sp.TContract(sp.TNat), x = sp.TNat).layout(("k", "x")), self.data.onEven).open_some()) # @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+                NIL operation; # list operation : @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+                DIG 2;      # pair int (pair (address %onEven) (address %onOdd)) : list operation : @parameter%run
+                DUP;        # pair int (pair (address %onEven) (address %onOdd)) : pair int (pair (address %onEven) (address %onOdd)) : list operation : @parameter%run
+                DUG 3;      # pair int (pair (address %onEven) (address %onOdd)) : list operation : @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+                CDAR;       # address : list operation : @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+                CONTRACT (pair (contract %k nat) (nat %x)); # option (contract (pair (contract %k nat) (nat %x))) : list operation : @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+                IF_SOME
+                  {}
+                  {
+                    PUSH int 36; # int : list operation : @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+                    FAILWITH;   # FAILED
+                  }; # @some : list operation : @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+                PUSH mutez 0; # mutez : @some : list operation : @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+                DIG 3;      # @parameter%run : mutez : @some : list operation : pair int (pair (address %onEven) (address %onOdd))
+                SELF %run;  # contract nat : @parameter%run : mutez : @some : list operation : pair int (pair (address %onEven) (address %onOdd))
+                PAIR %k %x; # pair (contract %k nat) (@parameter%run %x) : mutez : @some : list operation : pair int (pair (address %onEven) (address %onOdd))
+                TRANSFER_TOKENS; # operation : list operation : pair int (pair (address %onEven) (address %onOdd))
+                CONS;       # list operation : pair int (pair (address %onEven) (address %onOdd))
+              }
+              {
+                # sp.transfer(sp.record(k = sp.self_entry_point('run'), x = params), sp.tez(0), sp.contract(sp.TRecord(k = sp.TContract(sp.TNat), x = sp.TNat).layout(("k", "x")), self.data.onOdd).open_some()) # @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+                NIL operation; # list operation : @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+                DIG 2;      # pair int (pair (address %onEven) (address %onOdd)) : list operation : @parameter%run
+                DUP;        # pair int (pair (address %onEven) (address %onOdd)) : pair int (pair (address %onEven) (address %onOdd)) : list operation : @parameter%run
+                DUG 3;      # pair int (pair (address %onEven) (address %onOdd)) : list operation : @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+                CDDR;       # address : list operation : @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+                CONTRACT (pair (contract %k nat) (nat %x)); # option (contract (pair (contract %k nat) (nat %x))) : list operation : @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+                IF_SOME
+                  {}
+                  {
+                    PUSH int 38; # int : list operation : @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+                    FAILWITH;   # FAILED
+                  }; # @some : list operation : @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+                PUSH mutez 0; # mutez : @some : list operation : @parameter%run : pair int (pair (address %onEven) (address %onOdd))
+                DIG 3;      # @parameter%run : mutez : @some : list operation : pair int (pair (address %onEven) (address %onOdd))
+                SELF %run;  # contract nat : @parameter%run : mutez : @some : list operation : pair int (pair (address %onEven) (address %onOdd))
+                PAIR %k %x; # pair (contract %k nat) (@parameter%run %x) : mutez : @some : list operation : pair int (pair (address %onEven) (address %onOdd))
+                TRANSFER_TOKENS; # operation : list operation : pair int (pair (address %onEven) (address %onOdd))
+                CONS;       # list operation : pair int (pair (address %onEven) (address %onOdd))
+              }; # list operation : pair int (pair (address %onEven) (address %onOdd))
+          }
+          {
+            DROP;       # @storage
+            NIL operation; # list operation : @storage
+          }; # list operation : pair int (pair (address %onEven) (address %onOdd))
+      }; # list operation : pair int (pair (address %onEven) (address %onOdd))
+    PAIR;       # pair (list operation) (pair int (pair (address %onEven) (address %onOdd)))
+  };
