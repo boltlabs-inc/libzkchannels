@@ -1,0 +1,41 @@
+parameter (or (bool %receiveResult) (nat %run));
+storage   (pair (address %checkSig) (bool %valid));
+code
+  {
+    DUP;        # pair @parameter @storage : pair @parameter @storage
+    CDR;        # @storage : pair @parameter @storage
+    SWAP;       # pair @parameter @storage : @storage
+    CAR;        # @parameter : @storage
+    IF_LEFT
+      {
+        SWAP;       # @storage : @parameter%receiveResult
+        # == receiveResult ==
+        # self.data.valid = params # @storage : @parameter%receiveResult
+        CAR;        # address : @parameter%receiveResult
+        PAIR;       # pair address @parameter%receiveResult
+        NIL operation; # list operation : pair address @parameter%receiveResult
+      }
+      {
+        # == run ==
+        # sp.transfer(sp.record(k = sp.self_entry_point('receiveResult'), x = params), sp.tez(0), sp.contract(sp.TRecord(k = sp.TContract(sp.TBool), x = sp.TNat).layout(("k", "x")), self.data.checkSig).open_some()) # @parameter%run : @storage
+        NIL operation; # list operation : @parameter%run : @storage
+        DIG 2;      # @storage : list operation : @parameter%run
+        DUP;        # @storage : @storage : list operation : @parameter%run
+        DUG 3;      # @storage : list operation : @parameter%run : @storage
+        CAR;        # address : list operation : @parameter%run : @storage
+        CONTRACT (pair (contract %k bool) (nat %x)); # option (contract (pair (contract %k bool) (nat %x))) : list operation : @parameter%run : @storage
+        IF_SOME
+          {}
+          {
+            PUSH int 21; # int : list operation : @parameter%run : @storage
+            FAILWITH;   # FAILED
+          }; # @some : list operation : @parameter%run : @storage
+        PUSH mutez 0; # mutez : @some : list operation : @parameter%run : @storage
+        DIG 3;      # @parameter%run : mutez : @some : list operation : @storage
+        SELF %receiveResult; # contract bool : @parameter%run : mutez : @some : list operation : @storage
+        PAIR %k %x; # pair (contract %k bool) (@parameter%run %x) : mutez : @some : list operation : @storage
+        TRANSFER_TOKENS; # operation : list operation : @storage
+        CONS;       # list operation : @storage
+      }; # list operation : pair address @parameter%receiveResult
+    PAIR;       # pair (list operation) (pair address @parameter%receiveResult)
+  };

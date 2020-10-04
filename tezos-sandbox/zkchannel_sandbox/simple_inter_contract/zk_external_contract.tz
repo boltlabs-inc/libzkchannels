@@ -1,4 +1,4 @@
-parameter (pair (contract %k bool) (int %x));
+parameter (pair (contract %k bool) (nat %x));
 storage   unit;
 code
   {
@@ -7,24 +7,12 @@ code
     SWAP;       # pair @parameter @storage : @storage
     CAR;        # @parameter : @storage
     # == run ==
-    # if (params.x % 2) == 1: # @parameter : @storage
-    PUSH nat 1; # nat : @parameter : @storage
-    PUSH int 2; # int : nat : @parameter : @storage
-    DIG 2;      # @parameter : int : nat : @storage
-    DUP;        # @parameter : @parameter : int : nat : @storage
-    DUG 3;      # @parameter : int : nat : @parameter : @storage
-    CDR;        # int : int : nat : @parameter : @storage
-    EDIV;       # option (pair int nat) : nat : @parameter : @storage
-    IF_SOME
-      {
-        CDR;        # nat : nat : @parameter : @storage
-      }
-      {
-        PUSH int 10; # int : nat : @parameter : @storage
-        FAILWITH;   # FAILED
-      }; # nat : nat : @parameter : @storage
+    # if params.x > 9: # @parameter : @storage
+    DUP;        # @parameter : @parameter : @storage
+    CDR;        # nat : @parameter : @storage
+    PUSH nat 9; # nat : nat : @parameter : @storage
     COMPARE;    # int : @parameter : @storage
-    EQ;         # bool : @parameter : @storage
+    LT;         # bool : @parameter : @storage
     IF
       {
         # sp.transfer(True, sp.tez(0), params.k) # @parameter : @storage
