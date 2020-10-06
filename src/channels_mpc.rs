@@ -2015,7 +2015,7 @@ mod tests {
 
         // activate - get initial state (which should include the funding tx info)
         let s_0 = cust_state.get_current_state();
-        println!("s_0.Nonce => {}", hex::encode(&s_0.nonce.0));
+        println!("s_0.Nonce => {}", hex::encode(&s_0.nonce));
 
         // retrieve the initial state from cust state
         let init_cust_state = cust_state.get_initial_cust_state().unwrap();
@@ -2116,9 +2116,9 @@ mod tests {
             let orig_mask_bytes: MaskedMPCInputs = serde_json::from_str(&ser_mask_bytes).unwrap();
             assert_eq!(mb, orig_mask_bytes);
 
-            println!("pt_masked: {:?}", hex::encode(&mb.pt_mask.0));
-            println!("escrow_masked: {:?}", hex::encode(&mb.escrow_mask.0));
-            println!("merch_masked: {:?}", hex::encode(&mb.merch_mask.0));
+            println!("pt_masked: {:?}", hex::encode(&mb.pt_mask));
+            println!("escrow_masked: {:?}", hex::encode(&mb.escrow_mask));
+            println!("merch_masked: {:?}", hex::encode(&mb.merch_mask));
 
             println!("now, unmask and verify...");
             let is_ok = cust_state.unmask_and_verify_transactions::<Testnet>(&channel_state, &channel_token, mb.get_tx_masks());

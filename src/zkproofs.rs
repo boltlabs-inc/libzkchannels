@@ -499,12 +499,12 @@ pub mod pay {
     /// generate a new signature for the new wallet (from the PoK of committed values in new wallet).
     ///
     pub fn merchant_validate_rev_lock<E: Engine>(
-        session_id: &[u8; 16],
+        _session_id: &[u8; 16],
         rt: &RevLockPair,
         merch_state: &mut MerchantState<E>,
     ) -> BoltResult<cl::Signature<E>> {
-        if merch_state.keys.contains_key(&hex::encode(&rt.rev_lock.0))
-            && merch_state.keys.get(&hex::encode(&rt.rev_lock.0)).unwrap() != ""
+        if merch_state.keys.contains_key(&hex::encode(&rt.rev_lock))
+            && merch_state.keys.get(&hex::encode(&rt.rev_lock)).unwrap() != ""
         {
             return Err(String::from(
                 "merchant_validate_rev_lock - revocation lock is already known to merchant",
@@ -628,9 +628,9 @@ fn update_merchant_state(
     rev_lock: &FixedSizeArray32,
     rev_secret: Option<FixedSizeArray32>,
 ) {
-    let rev_lock_str = hex::encode(&rev_lock.0);
+    let rev_lock_str = hex::encode(&rev_lock);
     let rev_secret_str = match rev_secret {
-        Some(s) => hex::encode(&s.0),
+        Some(s) => hex::encode(&s),
         None => String::from(""),
     };
     db.insert(rev_lock_str, rev_secret_str);
@@ -663,7 +663,7 @@ pub fn force_merchant_close<E: Engine>(
     if is_valid {
         let rev_lock = cust_close.rev_lock;
         // found the rev_lock, which means close token on old state
-        let rev_lock_key = hex::encode(&rev_lock.0);
+        let rev_lock_key = hex::encode(&rev_lock);
         if merch_state.keys.contains_key(&rev_lock_key) {
             let rev_secret_str = merch_state.keys.get(&rev_lock_key).unwrap();
             let rev_secret = hex::decode(&rev_secret_str).unwrap();

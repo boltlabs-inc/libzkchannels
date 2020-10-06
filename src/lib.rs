@@ -82,6 +82,7 @@ use std::fmt;
 use std::str;
 use zkchan_tx::fixed_size_array::FixedSizeArray32;
 pub use zkproofs::BoltResult;
+pub use zkproofs::Payment;
 
 #[cfg(all(test, feature = "unstable"))]
 mod benches {
