@@ -333,7 +333,7 @@ pub mod pay {
             return Ok((cust_state.nonce, session_id));
         } else {
             return Err(format!(
-                "Invalid protocol status for pay::prepare_customer(): {}",
+                "Invalid protocol status for pay::customer_prepare(): {}",
                 cust_state.protocol_status
             ));
         }
@@ -507,7 +507,7 @@ pub mod pay {
             && merch_state.keys.get(&hex::encode(&rt.rev_lock)).unwrap() != ""
         {
             return Err(String::from(
-                "merchant_validate_rev_lock - revocation lock is already known to merchant",
+                "pay::merchant_validate_rev_lock() - revocation lock is already known to merchant",
             ));
         }
         let pay_token_result = merch_state.verify_revoke_message(&rt.rev_lock, &rt.rev_secret);
@@ -676,11 +676,11 @@ pub fn force_merchant_close<E: Engine>(
             });
         }
         return Err(BoltError::new(
-            "force_merchant_close - Could not find entry for rev_lock/rev_secret pair. Valid close!",
+            "force_merchant_close() - Could not find entry for rev_lock/rev_secret pair. Valid close!",
         ));
     }
     Err(BoltError::new(
-        "force_merchant_close - Customer close message not valid!",
+        "force_merchant_close() - Customer close message not valid!",
     ))
 }
 

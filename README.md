@@ -347,12 +347,12 @@ Prepare/Update State phase
 	// internally, it generates a new state (new revocation lock and secret, etc)
 	let (nonce, session_id) = zkproofs::pay::customer_prepare(&mut rng, &mut channel_state, 10, &mut cust_state).unwrap();
 
-	// merchant generates a pay token mask and return a commitment to the customer
-	let pay_mask_com = zkproofs::pay::merchant_prepare(&session_id, nonce, 10, &mut merch_state).unwrap();
+	// merchant checks the revealed nonce and verifies that payment request is OK
+	let is_ok = zkproofs::pay::merchant_prepare(&session_id, nonce, 10, &mut merch_state).unwrap();
 
 Now proceed with executing a payment
 
-	// customer generates a payment proof for specified amount and generates a new customer state that reflects the payment
+	// customer generates a payment proof for the specified amount and generates a new customer state that reflects the payment
 	let (payment, new_cust_state) = zkproofs::pay::customer_update_state(&mut channel_state, &channel_token, 10, &mut cust_state);
 
 	// merchant checks payment proof and returns a new close token if valid
@@ -360,8 +360,8 @@ Now proceed with executing a payment
 
 Unmask/Revoke phase to get the next pay token
 
-	// unmask the closing signatures on the current state
-	// and if signatures are valid, the customer sends the revoked state message
+	// unmask the close token on the current state
+	// and if valid, the customer unmasks by sending the revoked state message
 	let revoked_state = zkproofs::pay::customer_unmask(&channel_state, &mut cust_state, &new_cust_state, new_close_token);
 
 	// merchant verifies that revoked message on the previous state if unmasking was successful
@@ -379,64 +379,6 @@ To close a channel, the customer must execute the `zkproofs::force_customer_clos
 If the customer broadcasts an outdated version of his state, then the merchant can dispute this claim by executing the `zkproofs::force_merchant_close()` routine as follows:
 
 	let merch_close = zkproofs::force_merchant_close(&channel_state, &channel_token, &cust_close_msg, &merch_state);
-
-### 2.2 Third-party Payments
-
-The bidirectional payment channels can be used to construct third-party payments in which a party **A** pays a second party **B** through an untrusted intermediary (**I**) to which both **A** and **B** have already established a channel. With zkChannels, the intermediary learns nothing about the payment from **A** to **B** and cannot link transactions to individual users.
-
-To enable third-party payment support, initialize each payment channel as follows:
-
-	// create the channel state for each channel and indicate third-party support
-	let mut channel_state = zkproofs::ChannelState::<Bls12>::new(String::from("Third-party Channels"), true);
-
-Moreover, the intermediary can set a channel fee as follows:
-
-	channel_state.set_channel_fee(5);
-
-The channel establishment still works as described before and the pay protocol includes an additional step to verify that the payments on both channels cancel out or include a channel fee (if specified).
-
-
-	...
-
-	let payment_amount = 20;
-	// get payment proof on first channel with party A and H
-	let (sender_payment, new_cust_stateA) = zkproofs::generate_payment_proof(rng, &channel_state,
-                                                                                 &cust_stateA,
-                                                                                 payment_amount); // bal inc
-	// get payment proof on second channel with party B and H
-	let (receiver_payment, new_cust_stateB) = zkproofs::generate_payment_proof(rng, &channel_state,
-                                                                                   &cust_stateB,
-                                                                                   -payment_amount); // bal dec
-
-	// intermediary executes the following on the two payment proofs
-	// verifies that the payment proof is valid & cancels out and results in hub's fee
-	let close_token_result = zkproofs::verify_multiple_payment_proofs(rng, &channel_state,
-                                                                          &sender_payment,
-                                                                          &receiver_payment,
-                                                                          &mut merch_state);
-
-	// alice gets a close token and bob gets a conditional token which requires alice's revoke token to be valid
-	let (alice_close_token, bob_cond_close_token) = handle_bolt_result!(close_token_result).unwrap();
-
-	// both alice and bob generate a revoke token
-	let revoke_token_alice = zkproofs::generate_revoke_token(&channel_state,
-                                                                 &mut cust_stateA,
-                                                                 new_cust_stateA,
-                                                                 &alice_close_token);
-	let revoke_token_bob = zkproofs::generate_revoke_token(&channel_state,
-                                                               &mut cust_stateB,
-                                                               new_cust_stateB,
-                                                               &bob_cond_close_token);
-
-	// send both revoke tokens to intermediary and receive pay-tokens (one for sender and another for receiver)
-	let new_pay_tokens: BoltResult<(cl::Signature<Bls12>,cl::Signature<Bls12>)> = \
-                          zkproofs::verify_multiple_revoke_tokens(&revoke_token_sender,
-                                                                     &revoke_token_receiver,
-                                                                     &mut merch_state);
-
-	...
-
-See the `intermediary_payment_basics_works()` unit test in `src/lib.rs` for more details.
 
 # Documentation
 

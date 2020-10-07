@@ -1,3 +1,7 @@
+#![allow(unused_imports)] // TODO: clean up/remove
+#![allow(unused_variables)]
+#![allow(unused_must_use)]
+
 extern crate bufstream;
 extern crate confy;
 extern crate ff_bl as ff;
@@ -14,6 +18,7 @@ extern crate zkchannels;
 
 use bufstream::BufStream;
 use libc::{c_int, c_void};
+use pairing::bls12_381::Bls12;
 use rand::Rng;
 use redis::Commands;
 use serde::{Deserialize, Serialize};
@@ -22,14 +27,11 @@ use std::fs::File;
 use std::io::{BufRead, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::PathBuf;
-use std::ptr;
 use std::str::FromStr;
 use std::thread::sleep;
 use std::time;
 use structopt::StructOpt;
-use zkchan_tx::Testnet;
-// use zkchannels::bindings::Receive_return;
-use pairing::bls12_381::Bls12;
+use zkchan_tx::fixed_size_array::FixedSizeArray16;
 use zkchannels::cl;
 use zkchannels::database::create_db_connection;
 use zkchannels::database::{RedisDatabase, StateDatabase};
@@ -71,6 +73,15 @@ macro_rules! print_error_result {
         match $e {
             Ok(val) => val,
             Err(err) => println!("{}", err.to_string()),
+        }
+    };
+}
+
+macro_rules! log {
+    ($e:expr, $x:expr) => {
+        match $x {
+            true => println!($e),
+            false => (),
         }
     };
 }
@@ -144,8 +155,6 @@ pub struct Open {
     other_ip: String,
     #[structopt(short = "q", long = "other-port")]
     other_port: String,
-    #[structopt(short = "b", long = "self-delay", default_value = "1487")]
-    self_delay: u16,
     #[structopt(short = "n", long = "channel-name", default_value = "")]
     channel_name: String,
 }
@@ -521,12 +530,10 @@ fn main() -> Result<(), confy::ConfyError> {
             // confy::store("zkchannel_cfg", &cfg)?;
         }
         Command::OPEN(open) => match open.party {
-            Party::MERCH => {
-                match merch::open(&cfg, create_connection!(open), &db_url, open.self_delay) {
-                    Err(e) => println!("Channel opening phase failed with error: {}", e),
-                    _ => (),
-                }
-            }
+            Party::MERCH => match merch::open(&cfg, create_connection!(open), &db_url) {
+                Err(e) => println!("Channel opening phase failed with error: {}", e),
+                _ => (),
+            },
             Party::CUST => {
                 match cust::open(
                     create_connection!(open),
@@ -569,8 +576,12 @@ fn main() -> Result<(), confy::ConfyError> {
         },
         Command::UNLINK(unlink) => match unlink.party {
             Party::MERCH => {
-                let (mut channel_state, channel_token, mut merch_state) =
-                    merch::load_merchant_state_info(&db_url).unwrap();
+                println!("Merchant running unlink...");
+                let merch_state_info = merch::load_merchant_state_info(&db_url);
+                let (mut channel_state, mut merch_state) = match merch_state_info {
+                    Ok(n) => (n.0, n.2),
+                    Err(e) => panic!("ERROR: {}", e.to_string()),
+                };
                 merch::unlink(
                     create_connection!(unlink),
                     &db_url,
@@ -589,7 +600,7 @@ fn main() -> Result<(), confy::ConfyError> {
         },
         Command::PAY(pay) => match pay.party {
             Party::MERCH => {
-                let (mut channel_state, channel_token, mut merch_state) =
+                let (mut channel_state, _, mut merch_state) =
                     merch::load_merchant_state_info(&db_url).unwrap();
                 loop {
                     match merch::pay(
@@ -637,12 +648,6 @@ fn main() -> Result<(), confy::ConfyError> {
 mod cust {
     use super::*;
     use pairing::bls12_381::Bls12;
-    use std::ptr;
-    use zkchan_tx::fixed_size_array::FixedSizeArray32;
-    use zkchan_tx::txutil::{
-        customer_form_escrow_transaction, customer_sign_escrow_transaction,
-        customer_sign_merch_close_transaction,
-    };
     use zkchannels::channels_zk::{ChannelState, ChannelToken, CustomerState};
 
     pub fn open(
@@ -691,8 +696,8 @@ mod cust {
     pub fn init(
         conn: &mut Conn,
         db_url: &String,
-        txid: String,
-        index: u32,
+        _txid: String,
+        _index: u32,
         input_sats: i64,
         output_sats: i64,
         tx_fee: i64,
@@ -702,7 +707,7 @@ mod cust {
             return Err(String::from("missing channel-name"));
         }
 
-        let mut rng = &mut rand::thread_rng();
+        let rng = &mut rand::thread_rng();
         let mut db_conn = handle_error_result!(create_db_connection(db_url.clone()));
         let key = format!("id:{}", channel_name);
         let tx_fee_info = get_tx_fee_info();
@@ -731,7 +736,7 @@ mod cust {
         println!("Channel token: {}", &channel_token.compute_channel_id());
 
         // now sign the customer's initial closing txs
-        println!("Verified the closing token...");
+        log!("Verified the closing token...", true);
         // get the initial customer state
         let init_state = zkproofs::get_initial_state(&cust_state);
 
@@ -740,7 +745,7 @@ mod cust {
         let msg3 = conn.send_and_wait(&msg2, None, false);
 
         let init_close_token: cl::Signature<Bls12> =
-            serde_json::from_str(&msg3.get(0).unwrap()).unwrap();
+            handle_error_result!(serde_json::from_str(&msg3.get(0).unwrap()));
         let got_close_token = true; // handle the serde_json unwrapping
 
         if got_close_token {
@@ -760,7 +765,7 @@ mod cust {
             )?;
         }
 
-        println!("Can now proceed with channel funding");
+        log!("Can now proceed with channel funding", true);
         Ok(())
     }
 
@@ -850,7 +855,9 @@ mod cust {
         let msg = [session_id_str, unlink_payment_str];
         let msg1 = conn.send_and_wait(
             &msg,
-            Some(String::from("Sending session id and unlink payment")),
+            Some(String::from(
+                "Sent session id, unlink payment and waiting for new close token",
+            )),
             true,
         );
         let ser_close_token = msg1.get(0).unwrap();
@@ -867,7 +874,9 @@ mod cust {
         let msg2 = [revoked_state_str];
         let msg3 = conn.send_and_wait(
             &msg2,
-            Some(String::from("Sending session id and revoked state")),
+            Some(String::from(
+                "Sent revoked state and waiting for new pay token",
+            )),
             true,
         );
         let ser_pay_token = msg3.get(0).unwrap();
@@ -877,7 +886,7 @@ mod cust {
         let is_ok =
             zkproofs::unlink::customer_finalize(&mut channel_state, &mut cust_state, new_pay_token);
         let msg4 = [handle_error_result!(serde_json::to_string(&is_ok))];
-        let msg2 = conn.send(&msg4);
+        conn.send(&msg4);
 
         if !is_ok {
             return Err(String::from("Unlink phase FAILED!"));
@@ -903,6 +912,113 @@ mod cust {
         let mut db_conn = handle_error_result!(create_db_connection(db_url.clone()));
         let key = format!("id:{}", channel_name);
 
+        // load the channel state from DB
+        let channel_state_key = format!("cust:{}:channel_state", channel_name);
+        let ser_channel_state =
+            handle_error_result!(get_file_from_db(&mut db_conn, &key, &channel_state_key));
+        let channel_state: ChannelState<Bls12> =
+            handle_error_result!(serde_json::from_str(&ser_channel_state));
+
+        // load the customer state from DB
+        let cust_state_key = format!("cust:{}:cust_state", channel_name);
+        let ser_cust_state =
+            handle_error_result!(get_file_from_db(&mut db_conn, &key, &cust_state_key));
+        let mut cust_state: CustomerState<Bls12> =
+            handle_error_result!(serde_json::from_str(&ser_cust_state));
+
+        // step 1 - customer prepare
+        let (nonce, session_id) = handle_error_result!(zkproofs::pay::customer_prepare(
+            rng,
+            &channel_state,
+            amount,
+            &cust_state
+        ));
+
+        let session_id_str = hex::encode(&session_id);
+        let nonce_str = hex::encode(&nonce);
+        let amount_str = hex::encode(amount.to_be_bytes());
+        let msg0 = [session_id_str, nonce_str, amount_str];
+        let msg1 = conn.send_and_wait(
+            &msg0,
+            Some(String::from("Reveal nonce and confirm payment request")),
+            true,
+        );
+
+        let is_ok: bool = serde_json::from_str(msg1.get(0).unwrap()).unwrap();
+
+        if !is_ok {
+            return Err(String::from("oops, payment request was rejected!"));
+        }
+
+        // step 2 - customer update state
+        let (payment, new_cust_state) =
+            zkproofs::pay::customer_update_state(rng, &channel_state, &cust_state, amount);
+
+        // send to merchant
+        let payment_str = handle_error_result!(serde_json::to_string(&payment));
+
+        let msg2 = [payment_str];
+        let msg3 = conn.send_and_wait(
+            &msg2,
+            Some(String::from(
+                "Sent session id & payment and waiting for new close token",
+            )),
+            true,
+        );
+        let ser_close_token = msg3.get(0).unwrap();
+        let new_close_token = handle_error_result!(serde_json::from_str(&ser_close_token));
+        log!("[!] got an updated close token!", verbose);
+
+        // step 3 - customer unmasks the previous state
+        let revoked_state = handle_error_result!(zkproofs::pay::customer_unmask(
+            &channel_state,
+            &mut cust_state,
+            new_cust_state,
+            &new_close_token,
+        ));
+        let revoked_state_str = handle_error_result!(serde_json::to_string(&revoked_state));
+        log!("[!] unmasking by sending revoked state!", verbose);
+
+        let msg2 = [revoked_state_str];
+        let msg3 = conn.send_and_wait(
+            &msg2,
+            Some(String::from(
+                "Sent revoked state and waiting for new pay token",
+            )),
+            true,
+        );
+        let ser_pay_token = msg3.get(0).unwrap();
+        let new_pay_token = handle_error_result!(serde_json::from_str(&ser_pay_token));
+        log!("[!] now we have an updated pay token!", verbose);
+
+        // step 4 - verify the pay token and update internal state
+        let got_pay_token = handle_error_result!(zkproofs::pay::customer_unmask_pay_token(
+            new_pay_token,
+            &channel_state,
+            &mut cust_state
+        ));
+
+        let msg4 = [handle_error_result!(serde_json::to_string(&got_pay_token))];
+        conn.send(&msg4);
+        log!(
+            "[!] sent status result for if we have a valid pay token",
+            verbose
+        );
+
+        if !got_pay_token {
+            return Err(String::from(
+                "Could not obtain a new pay token for future payments!",
+            ));
+        }
+        cust_save_state_in_db(
+            &mut db_conn,
+            channel_name,
+            Some(channel_state),
+            None,
+            cust_state,
+        );
+
+        log!("[!] pay run successful!", verbose);
         Ok(())
     }
 
@@ -926,7 +1042,7 @@ mod cust {
         let cust_state_key = format!("cust:{}:cust_state", channel_id);
         let ser_cust_state =
             handle_error_result!(get_file_from_db(&mut db_conn, &key, &cust_state_key));
-        let mut cust_state: CustomerState<Bls12> =
+        let cust_state: CustomerState<Bls12> =
             handle_error_result!(serde_json::from_str(&ser_cust_state));
 
         // load the channel token from DB
@@ -978,8 +1094,6 @@ mod merch {
     use super::*;
     use pairing::bls12_381::Bls12;
     use std::ptr;
-    use zkchan_tx::fixed_size_array::FixedSizeArray32;
-    use zkchan_tx::transactions::btc::merchant_form_close_transaction;
     use zkchannels::channels_zk::{ChannelState, ChannelToken, MerchantState};
     use zkchannels::database::StateDatabase;
     use zkchannels::wallet::Wallet;
@@ -988,12 +1102,7 @@ mod merch {
     static CHANNEL_TOKEN_KEY: &str = "channel_token";
     static CHANNEL_STATE_KEY: &str = "channel_state";
 
-    pub fn open(
-        _cfg: &ZKChannelConfig,
-        conn: &mut Conn,
-        db_url: &String,
-        self_delay: u16,
-    ) -> Result<(), String> {
+    pub fn open(_cfg: &ZKChannelConfig, conn: &mut Conn, db_url: &String) -> Result<(), String> {
         let merch_state_info = load_merchant_state_info(&db_url);
         let tx_fee_info = get_tx_fee_info();
         let (channel_state, channel_token, merch_state) = match merch_state_info {
@@ -1157,9 +1266,10 @@ mod merch {
             handle_error_result!(serde_json::from_str(&ser_channel_state));
 
         let ser_channel_token = handle_error_with_string!(
-            get_file_from_db(&mut db.conn, &key, &CHANNEL_STATE_KEY.to_string()),
+            get_file_from_db(&mut db.conn, &key, &CHANNEL_TOKEN_KEY.to_string()),
             "Could not load the merchant channel token"
         );
+
         let channel_token: ChannelToken<Bls12> =
             handle_error_result!(serde_json::from_str(&ser_channel_token));
 
@@ -1168,6 +1278,7 @@ mod merch {
             get_file_from_db(&mut db.conn, &key, &MERCH_STATE_KEY.to_string()),
             "Could not load the merchant state DB"
         );
+
         let merch_state: MerchantState<Bls12> =
             handle_error_result!(serde_json::from_str(&ser_merch_state));
 
@@ -1181,7 +1292,7 @@ mod merch {
         merch_state: &mut MerchantState<Bls12>,
     ) -> Result<(), String> {
         let rng = &mut rand::thread_rng();
-        let mut db = handle_error_result!(get_merch_db_connection(db_url.clone()));
+        let db = handle_error_result!(get_merch_db_connection(db_url.clone()));
 
         let msg0 = conn.wait_for(None, false);
         // get the session id
@@ -1202,9 +1313,15 @@ mod merch {
         let msg1 = [handle_error_result!(serde_json::to_string(
             &new_close_token
         ))];
-        let msg2 = conn.send_and_wait(&msg1, Some(String::from("Sending new close token")), true);
+        let msg2 = conn.send_and_wait(
+            &msg1,
+            Some(String::from(
+                "Sent new close token and getting revoked state back",
+            )),
+            true,
+        );
 
-        let ser_rt_pair = msg2.get(1).unwrap();
+        let ser_rt_pair = msg2.get(0).unwrap();
         let rt_pair = handle_error_result!(serde_json::from_str(ser_rt_pair));
         let new_pay_token = handle_option_result!(zkproofs::unlink::merchant_validate_rev_lock(
             &session_id,
@@ -1232,6 +1349,77 @@ mod merch {
         let rng = &mut rand::thread_rng();
         let mut db = handle_error_result!(get_merch_db_connection(db_url.clone()));
 
+        // step 1 - get the first message
+        let msg0 = conn.wait_for(None, false);
+
+        // get the session id
+        let session_id_vec = hex::decode(msg0.get(0).unwrap()).unwrap();
+        let mut session_id = [0u8; 16];
+        session_id.copy_from_slice(session_id_vec.as_slice());
+
+        // get the nonce
+        let nonce_vec = hex::decode(msg0.get(1).unwrap()).unwrap();
+        let mut nonce = [0u8; 16];
+        nonce.copy_from_slice(nonce_vec.as_slice());
+
+        let amount_vec = hex::decode(msg0.get(2).unwrap()).unwrap();
+        let mut amount_buf = [0u8; 8];
+        amount_buf.copy_from_slice(amount_vec.as_slice());
+        let amount = i64::from_be_bytes(amount_buf);
+
+        let is_ok = zkproofs::pay::merchant_prepare(
+            &session_id,
+            FixedSizeArray16(nonce),
+            amount,
+            merch_state,
+        );
+
+        // confirm that payment is ok or not
+        let msg1 = [handle_error_result!(serde_json::to_string(&is_ok))];
+        let msg2 = conn.send_and_wait(
+            &msg1,
+            Some(String::from(
+                "Sent ok prepare msg and wait for payment proof",
+            )),
+            false,
+        );
+
+        let payment: zkproofs::Payment<Bls12> = serde_json::from_str(msg2.get(0).unwrap()).unwrap();
+        let new_close_token = zkproofs::pay::merchant_update_state(
+            rng,
+            &channel_state,
+            &session_id,
+            &payment,
+            merch_state,
+        );
+
+        let msg3 = [handle_error_result!(serde_json::to_string(
+            &new_close_token
+        ))];
+        let msg4 = conn.send_and_wait(
+            &msg3,
+            Some(String::from(
+                "Sent new close token and getting revoked state back",
+            )),
+            true,
+        );
+
+        let ser_rt_pair = msg4.get(0).unwrap();
+        let rt_pair = handle_error_result!(serde_json::from_str(ser_rt_pair));
+        let new_pay_token = handle_option_result!(zkproofs::pay::merchant_validate_rev_lock(
+            &session_id,
+            &rt_pair,
+            merch_state
+        ));
+
+        let msg5 = [handle_error_result!(serde_json::to_string(&new_pay_token))];
+        let msg6 = conn.send_and_wait(&msg5, Some(String::from("Sending new pay token")), true);
+
+        let pay_token_ok: bool = serde_json::from_str(msg6.get(0).unwrap()).unwrap();
+        if !pay_token_ok {
+            return Err(format!("failed to execute pay protocol successfully."));
+        }
+        println!("[!] valid pay tokend delivered: {}", pay_token_ok);
         merch_save_state_in_db(&mut db.conn, Some(&channel_state), None, &merch_state)
     }
 
@@ -1255,7 +1443,7 @@ mod merch {
             None => false, // do nothing
         };
 
-        match channel_state {
+        match channel_token {
             Some(n) => {
                 let channel_token_json_str = handle_error_result!(serde_json::to_string(n));
                 store_file_in_db(
@@ -1316,7 +1504,7 @@ mod merch {
             get_file_from_db(&mut db.conn, &key1, &MERCH_STATE_KEY.to_string()),
             "Could not load the merchant state DB"
         );
-        let mut merch_state: MerchantState<Bls12> =
+        let merch_state: MerchantState<Bls12> =
             handle_error_result!(serde_json::from_str(&ser_merch_state));
 
         let key2 = String::from("cli:merch_channels");
