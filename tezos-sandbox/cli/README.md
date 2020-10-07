@@ -17,7 +17,7 @@ We have developed a `zkchannels-cli` tool for testing the zkChannels protocol en
 
 The `zkchannels-cli` shows the following subcommands which reflects each phase of zkChannels protocol:
 
-    zkchannels-cli 0.1.0
+    zkchannels-cli 0.4.0
 
     USAGE:
         zkchannels-cli <SUBCOMMAND>
@@ -107,11 +107,11 @@ At this point, the merchant can the `pay` command in the background:
 
 To close down the channel, the customer simply does the following:
 
-    zkchannels-cli close --party CUST --channel-id "alice1" --file cust_close_escrow.txt
+    zkchannels-cli close --party CUST --channel-id "alice1" --file cust_close.json
 
 The merchant would need to provide the channel ID to close. You can list the channel IDs as follows:
 
-    zkchannels-cli close --party MERCH --file signed_merch_close.txt
+    zkchannels-cli close --party MERCH --file merch_close.json
 
 Once you have the channel ID, the merchant can initiate closure as follows:
 

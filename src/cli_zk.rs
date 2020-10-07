@@ -243,6 +243,8 @@ pub struct Pay {
 pub struct Close {
     #[structopt(long = "party")]
     party: Party,
+    #[structopt(short = "c", long = "cust-close")]
+    cust_close: Option<PathBuf>,
     #[structopt(short = "f", long = "file")]
     file: PathBuf,
     #[structopt(short = "e", long = "from-merch")]
@@ -282,6 +284,20 @@ pub fn get_merch_db_connection(db_url: String) -> Result<RedisDatabase, String> 
 
 pub fn read_file(file_name: &'static str) -> Result<String, String> {
     let mut file = match File::open(file_name) {
+        Ok(n) => n,
+        Err(e) => return Err(e.to_string()),
+    };
+    let mut content = String::new();
+    let content_len = match file.read_to_string(&mut content) {
+        Ok(n) => n,
+        Err(e) => return Err(e.to_string()),
+    };
+    assert!(content_len > 0);
+    Ok(content)
+}
+
+pub fn read_pathfile(path_buf: PathBuf) -> Result<String, String> {
+    let mut file = match File::open(path_buf) {
         Ok(n) => n,
         Err(e) => return Err(e.to_string()),
     };
@@ -409,7 +425,7 @@ pub fn store_tx_fee_info(db_url: String, tx_fee_info: &TransactionFeeInfo) -> Re
 }
 
 #[derive(StructOpt, Debug)]
-#[structopt(name = "zkchannels")]
+#[structopt(name = "zkchannels-cli")]
 struct Cli {
     #[structopt(
         subcommand,
@@ -629,9 +645,12 @@ fn main() -> Result<(), confy::ConfyError> {
             }
         },
         Command::CLOSE(close) => match close.party {
-            Party::MERCH => {
-                print_error_result!(merch::close(&db_url, close.file, close.channel_id))
-            }
+            Party::MERCH => print_error_result!(merch::close(
+                &db_url,
+                close.cust_close,
+                close.file,
+                close.channel_id
+            )),
             Party::CUST => print_error_result!(cust::close(
                 &db_url,
                 close.file,
@@ -1052,6 +1071,16 @@ mod cust {
         let channel_token: ChannelToken<Bls12> =
             handle_error_result!(serde_json::from_str(&ser_channel_token));
 
+        let cust_close =
+            handle_error_result!(zkproofs::force_customer_close(&channel_state, &cust_state));
+        println!("Obtained the channel close message:");
+        println!("current_state =>\n{}\n", cust_close.message);
+        println!("close_token =>\n{}\n", cust_close.merch_signature);
+        println!("cust_sig =>\n{}\n", cust_close.cust_signature);
+
+        // write out to a file
+        let cust_close_json_str = handle_error_result!(serde_json::to_string(&cust_close));
+        write_pathfile(out_file, cust_close_json_str)?;
         Ok(())
     }
 
@@ -1094,9 +1123,10 @@ mod merch {
     use super::*;
     use pairing::bls12_381::Bls12;
     use std::ptr;
-    use zkchannels::channels_zk::{ChannelState, ChannelToken, MerchantState};
+    use zkchannels::channels_zk::{ChannelState, ChannelToken, ChannelcloseM, MerchantState};
     use zkchannels::database::StateDatabase;
     use zkchannels::wallet::Wallet;
+    use zkchannels::zkproofs::ChannelcloseC;
 
     static MERCH_STATE_KEY: &str = "merch_state";
     static CHANNEL_TOKEN_KEY: &str = "channel_token";
@@ -1484,13 +1514,18 @@ mod merch {
         let key = String::from("cli:merch_channels");
 
         let channel_ids: Vec<String> = db_conn.hkeys(key).unwrap();
-        println!("List zkchannels...");
+        println!("list channels...");
         for id in channel_ids {
             println!("{}", id);
         }
     }
 
-    pub fn close(db_url: &String, out_file: PathBuf, channel_id: String) -> Result<(), String> {
+    pub fn close(
+        db_url: &String,
+        close_token: Option<PathBuf>,
+        out_file: PathBuf,
+        channel_id: String,
+    ) -> Result<(), String> {
         // output the merch-close-tx (only thing merchant can broadcast to close channel)
         let mut db = handle_error_result!(get_merch_db_connection(db_url.clone()));
 
@@ -1518,12 +1553,32 @@ mod merch {
 
         // load the channel state from DB
         let ser_channel_state = handle_error_with_string!(
-            get_file_from_db(&mut db.conn, &key2, &CHANNEL_STATE_KEY.to_string()),
+            get_file_from_db(&mut db.conn, &key1, &CHANNEL_STATE_KEY.to_string()),
             "Could not load the merchant channel state"
         );
         let channel_state: ChannelState<Bls12> =
             handle_error_result!(serde_json::from_str(&ser_channel_state));
 
+        match close_token {
+            Some(c) => {
+                let cust_close_json = handle_error_result!(read_pathfile(c));
+                let cust_close_msg: ChannelcloseC<Bls12> =
+                    handle_error_result!(serde_json::from_str(&cust_close_json));
+                let rt_pair = handle_error_result!(zkproofs::force_merchant_close(
+                    &channel_state,
+                    &channel_token,
+                    &cust_close_msg,
+                    &merch_state,
+                ));
+
+                let rt_pair_json = handle_error_result!(serde_json::to_string(&rt_pair));
+                write_pathfile(out_file, rt_pair_json)?;
+            }
+            None => {
+                // extract merch-expiry-tx from
+                println!("extracting expiry tx stored in merch state.");
+            }
+        };
         Ok(())
     }
 }

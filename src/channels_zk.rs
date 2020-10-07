@@ -173,8 +173,7 @@ impl<E: Engine> ChannelState<E> {
 #[derive(Copy, Clone, Serialize, Deserialize)]
 struct WalletKeyPair {
     pub rev_lock: FixedSizeArray32,
-    // secp256k1::PublicKey,
-    pub rev_secret: FixedSizeArray32, // secp256k1::SecretKey,
+    pub rev_secret: FixedSizeArray32,
 }
 
 ///
