@@ -1,6 +1,6 @@
 # zkchannels-cli command-line utility
 
-We have developed a `zkchannels-cli` tool for testing the zkChannels protocol end-to-end. It was designed to not interact with a bitcoin full node to broadcast transactions or watch the blockchain. Such features are out of scope for the utility and refer to the [zkLND](https://github.com/boltlabs-inc/lnd).
+We have developed a `zkchannels-cli` tool for testing the zkChannels protocol end-to-end. 
 
 # Install
 
