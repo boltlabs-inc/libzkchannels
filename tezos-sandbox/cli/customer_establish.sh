@@ -9,13 +9,13 @@ if [[ $name == "" ]]; then
 fi
 
 echo "opening a channel: '$name'"
-../../target/$mode/zkchannels-cli open --party CUST --other-port 12347 --own-port 12346 --cust-bal 20000 --merch-bal 2546 --channel-name "$name" 
+zkchannels-cli open --party CUST --other-port 12347 --own-port 12346 --cust-bal 20000 --merch-bal 2546 --channel-name "$name" 
 
-../../target/$mode/zkchannels-cli init --party CUST --other-port 12347 --own-port 12346 --index 0 --input-sats 50000 --output-sats 20000 --channel-name "$name" --txid f4df16149735c2963832ccaa9627f4008a06291e8b932c2fc76b3a5d62d462e1 
+zkchannels-cli init --party CUST --other-port 12347 --own-port 12346 --index 0 --input-sats 50000 --output-sats 20000 --channel-name "$name" 
 
 echo "activating channel: '$name'"
-../../target/$mode/zkchannels-cli activate --party CUST --other-port 12347 --own-port 12346 --channel-name "$name"
+zkchannels-cli activate --party CUST --other-port 12347 --own-port 12346 --channel-name "$name"
 echo "established!"
 
 echo "now we can unlink: '$name'"
-../../target/$mode/zkchannels-cli unlink --party CUST --other-port 12347 --own-port 12346 --channel-name "$name" -v
+zkchannels-cli unlink --party CUST --other-port 12347 --own-port 12346 --channel-name "$name" -v

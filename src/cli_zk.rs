@@ -572,8 +572,8 @@ fn main() -> Result<(), confy::ConfyError> {
             Party::CUST => match cust::init(
                 create_connection!(init),
                 &db_url,
-                init.txid.unwrap(),
-                init.index.unwrap(),
+                init.txid,
+                init.index,
                 init.input_sats.unwrap(),
                 init.output_sats.unwrap(),
                 init.tx_fee,
@@ -715,8 +715,8 @@ mod cust {
     pub fn init(
         conn: &mut Conn,
         db_url: &String,
-        _txid: String,
-        _index: u32,
+        _txid: Option<String>,
+        _index: Option<u32>,
         input_sats: i64,
         output_sats: i64,
         tx_fee: i64,
@@ -1502,7 +1502,7 @@ mod merch {
     ) -> Result<(), String> {
         let key = String::from("cli:merch_channels");
         let channel_id = channel_token.compute_channel_id();
-        let channel_id_str = format!("{}", channel_id);
+        let channel_id_str = handle_error_result!(serde_json::to_string(&channel_id));
 
         let channel_token_key = format!("id:{}", channel_id_str);
         let channel_token_json_str = handle_error_result!(serde_json::to_string(&channel_token));
