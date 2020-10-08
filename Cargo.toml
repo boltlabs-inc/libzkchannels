@@ -52,5 +52,9 @@ name = "zkchannels-mpc"
 path = "src/cli_mpc.rs"
 
 [[bin]]
+name = "zkchannels-cli"
+path = "src/cli_zk.rs"
+
+[[bin]]
 name = "mpctest"
 path = "src/mpc_test.rs"

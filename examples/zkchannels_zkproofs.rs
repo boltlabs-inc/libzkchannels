@@ -7,8 +7,11 @@ extern crate zkchannels;
 
 use pairing::bls12_381::Bls12;
 use std::time::Instant;
-use zkchannels::handle_bolt_result;
+use zkchannels::cl::Signature;
+use zkchannels::util::encode_short_bytes_to_fr;
 use zkchannels::zkproofs;
+use zkchannels::zkproofs::{ChannelState, CustomerState, MerchantState};
+use zkchannels::{handle_bolt_result, BoltResult};
 
 macro_rules! measure_one_arg {
     ($x: expr) => {{
@@ -28,127 +31,157 @@ macro_rules! measure_two_arg {
     };};
 }
 
+fn execute_pay_protocol(
+    channel_state: &mut ChannelState<Bls12>,
+    cust_state: &mut CustomerState<Bls12>,
+    merch_state: &mut MerchantState<Bls12>,
+    amount: i64,
+) {
+    let rng = &mut rand::thread_rng();
+
+    let (nonce, session_id) =
+        zkproofs::pay::customer_prepare(rng, &channel_state, amount, cust_state).unwrap();
+
+    assert!(zkproofs::pay::merchant_prepare(
+        &session_id,
+        nonce,
+        amount,
+        merch_state
+    ));
+
+    let (payment, new_cust_state, pay_time) = measure_two_arg!(
+        zkproofs::pay::customer_update_state(rng, &channel_state, &cust_state, amount)
+    );
+    println!(">> Time to generate payment proof: {} ms", pay_time);
+
+    let (new_close_token, verify_time) = measure_one_arg!(zkproofs::pay::merchant_update_state(
+        rng,
+        &channel_state,
+        &session_id,
+        &payment,
+        merch_state
+    ));
+    println!(">> Time to verify payment proof: {} ms", verify_time);
+
+    let rt_pair1 = zkproofs::pay::customer_unmask(
+        &channel_state,
+        cust_state,
+        new_cust_state,
+        &new_close_token,
+    )
+    .unwrap();
+
+    // send revoke token and get pay-token in response
+    let new_pay_token_result =
+        zkproofs::pay::merchant_validate_rev_lock(&session_id, &rt_pair1, merch_state);
+    let new_pay_token = handle_bolt_result!(new_pay_token_result);
+
+    // verify the pay token and update internal state
+    assert!(zkproofs::pay::customer_unmask_pay_token(
+        new_pay_token.unwrap(),
+        &channel_state,
+        cust_state
+    )
+    .unwrap());
+}
+
 fn main() {
     println!("******************************************");
     let mut channel_state =
-        zkproofs::ChannelState::<Bls12>::new(String::from("Channel A -> B"), false);
+        zkproofs::ChannelState::<Bls12>::new(String::from("Direct channel A -> B"), false);
     let rng = &mut rand::thread_rng();
 
     let b0_customer = 150;
     let b0_merchant = 10;
-    let pay_inc = 20;
-    let pay_inc2 = 10;
 
     let (mut channel_token, mut merch_state, mut channel_state) =
-        zkproofs::init_merchant(rng, &mut channel_state, "Merchant Bob");
+        zkproofs::merchant_init(rng, &mut channel_state, "Merchant Bob");
 
     let mut cust_state =
-        zkproofs::init_customer(rng, &mut channel_token, b0_customer, b0_merchant, "Alice");
+        zkproofs::customer_init(rng, &mut channel_token, b0_customer, b0_merchant, "Alice");
 
     println!("{}", cust_state);
 
-    // lets establish the channel
-    let (com, com_proof, est_time) = measure_two_arg!(zkproofs::establish_customer_generate_proof(
-        rng,
-        &mut channel_token,
-        &mut cust_state
-    ));
-    println!(">> Time to generate proof for establish: {} ms", est_time);
-
     // obtain close token for closing out channel
-    let channel_id = channel_token.compute_channel_id();
-    let option = zkproofs::establish_merchant_issue_close_token(
-        rng,
-        &channel_state,
-        &com,
-        &com_proof,
-        &channel_id,
-        b0_customer,
-        b0_merchant,
-        &merch_state,
-    );
-    let close_token = match option {
-        Ok(n) => n.unwrap(),
-        Err(e) => panic!(
-            "Failed - zkproofs::establish_merchant_issue_close_token(): {}",
-            e
-        ),
-    };
+    let init_state = zkproofs::get_initial_state(&cust_state);
+    let close_token = zkproofs::validate_channel_params(rng, &init_state, &merch_state);
 
-    assert!(cust_state.verify_close_token(&channel_state, &close_token));
+    assert!(
+        zkproofs::customer_mark_open_channel(close_token, &mut channel_state, &mut cust_state)
+            .unwrap()
+    );
+    // TODO: generate test escrow tx here then call merchant_mark_open_channel()
 
     // wait for funding tx to be confirmed, etc
 
     // obtain payment token for pay protocol
-    let pay_token =
-        zkproofs::establish_merchant_issue_pay_token(rng, &channel_state, &com, &merch_state);
-    //assert!(cust_state.verify_pay_token(&channel_state, &pay_token));
+    let init_state = zkproofs::activate::customer_init(&cust_state).unwrap();
+    let pay_token = zkproofs::activate::merchant_init(rng, &init_state, &mut merch_state);
+    assert!(merch_state
+        .unlink_nonces
+        .contains(&encode_short_bytes_to_fr::<Bls12>(cust_state.nonce.0).to_string()));
 
-    assert!(zkproofs::establish_customer_final(
+    assert!(zkproofs::activate::customer_finalize(
         &mut channel_state,
         &mut cust_state,
-        &pay_token
+        pay_token
     ));
-    println!("Channel established!");
 
-    let (payment, new_cust_state, pay_time) = measure_two_arg!(zkproofs::generate_payment_proof(
+    // start unlink phase
+    let (session_id, unlink_payment, unlinked_cust_state) =
+        zkproofs::unlink::customer_update_state(rng, &channel_state, &cust_state);
+    let new_close_token_result = zkproofs::unlink::merchant_update_state(
         rng,
         &channel_state,
-        &cust_state,
-        pay_inc
-    ));
-    println!(">> Time to generate payment proof: {} ms", pay_time);
+        &session_id,
+        &unlink_payment,
+        &mut merch_state,
+    );
+    let new_close_token = handle_bolt_result!(new_close_token_result).unwrap();
 
-    let (new_close_token, verify_time) = measure_one_arg!(zkproofs::verify_payment_proof(
-        rng,
-        &channel_state,
-        &payment,
-        &mut merch_state
-    ));
-    println!(">> Time to verify payment proof: {} ms", verify_time);
-
-    let revoke_token = zkproofs::generate_revoke_token(
+    let rt_pair = zkproofs::unlink::customer_unmask(
         &channel_state,
         &mut cust_state,
-        new_cust_state,
+        unlinked_cust_state,
         &new_close_token,
-    );
+    )
+    .unwrap();
 
     // send revoke token and get pay-token in response
-    let new_pay_token_result = zkproofs::verify_revoke_token(&revoke_token, &mut merch_state);
+    let new_pay_token_result: BoltResult<Signature<Bls12>> =
+        zkproofs::unlink::merchant_validate_rev_lock(&session_id, &rt_pair, &mut merch_state);
     let new_pay_token = handle_bolt_result!(new_pay_token_result);
 
     // verify the pay token and update internal state
-    assert!(cust_state.verify_pay_token(&channel_state, &new_pay_token.unwrap()));
+    let is_ok = zkproofs::unlink::customer_finalize(
+        &mut channel_state,
+        &mut cust_state,
+        new_pay_token.unwrap(),
+    );
+    assert!(is_ok);
 
+    println!("Channel unlinked and established!");
+
+    // execute pay protocol
+    let pay_amount1 = 10;
+    let pay_amount2 = 20;
+    println!("Customer makes first payment: {}", pay_amount1);
+    execute_pay_protocol(
+        &mut channel_state,
+        &mut cust_state,
+        &mut merch_state,
+        pay_amount1,
+    );
     println!("******************************************");
 
-    let (payment2, new_cust_state2, pay_time2) = measure_two_arg!(
-        zkproofs::generate_payment_proof(rng, &channel_state, &cust_state, pay_inc2)
-    );
-    println!(">> Time to generate payment proof 2: {} ms", pay_time2);
-
-    let (new_close_token2, verify_time2) = measure_one_arg!(zkproofs::verify_payment_proof(
-        rng,
-        &channel_state,
-        &payment2,
-        &mut merch_state
-    ));
-    println!(">> Time to verify payment proof 2: {} ms", verify_time2);
-
-    let revoke_token2 = zkproofs::generate_revoke_token(
-        &channel_state,
+    println!("Customer makes second payment: {}", pay_amount2);
+    execute_pay_protocol(
+        &mut channel_state,
         &mut cust_state,
-        new_cust_state2,
-        &new_close_token2,
+        &mut merch_state,
+        pay_amount2,
     );
-
-    // send revoke token and get pay-token in response
-    let new_pay_token_result2 = zkproofs::verify_revoke_token(&revoke_token2, &mut merch_state);
-    let new_pay_token2 = handle_bolt_result!(new_pay_token_result2);
-
-    // verify the pay token and update internal state
-    assert!(cust_state.verify_pay_token(&channel_state, &new_pay_token2.unwrap()));
+    println!("******************************************");
 
     println!("Final Cust state: {}", cust_state);
 }

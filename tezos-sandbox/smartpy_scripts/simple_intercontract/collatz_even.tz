@@ -1,0 +1,31 @@
+parameter (pair (contract %k nat) (nat %x));
+storage   unit;
+code
+  {
+    DUP;        # pair @parameter @storage : pair @parameter @storage
+    CDR;        # @storage : pair @parameter @storage
+    SWAP;       # pair @parameter @storage : @storage
+    CAR;        # @parameter : @storage
+    # == run ==
+    # sp.transfer(params.x // 2, sp.tez(0), params.k) # @parameter : @storage
+    DUP;        # @parameter : @parameter : @storage
+    CAR;        # contract nat : @parameter : @storage
+    NIL operation; # list operation : contract nat : @parameter : @storage
+    SWAP;       # contract nat : list operation : @parameter : @storage
+    PUSH mutez 0; # mutez : contract nat : list operation : @parameter : @storage
+    PUSH nat 2; # nat : mutez : contract nat : list operation : @parameter : @storage
+    DIG 4;      # @parameter : nat : mutez : contract nat : list operation : @storage
+    CDR;        # nat : nat : mutez : contract nat : list operation : @storage
+    EDIV;       # option (pair nat nat) : mutez : contract nat : list operation : @storage
+    IF_SOME
+      {
+        CAR;        # nat : mutez : contract nat : list operation : @storage
+      }
+      {
+        PUSH int 15; # int : mutez : contract nat : list operation : @storage
+        FAILWITH;   # FAILED
+      }; # nat : mutez : contract nat : list operation : @storage
+    TRANSFER_TOKENS; # operation : list operation : @storage
+    CONS;       # list operation : @storage
+    PAIR;       # pair (list operation) @storage
+  };

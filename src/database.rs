@@ -1,5 +1,5 @@
 use super::*;
-use channels_mpc::PaymentStatus;
+use channels_util::PaymentStatus;
 use redis::{Commands, Connection};
 use std::collections::hash_map::RandomState;
 use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};

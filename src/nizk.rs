@@ -1,5 +1,6 @@
 use super::*;
 use ccs08::{ParamsUL, ProofUL, SecretParamsUL};
+use channels_zk::ClosedCommitments;
 use cl::{setup, BlindKeyPair, BlindPublicKey, PublicParams, Signature, SignatureProof};
 use pairing::{CurveProjective, Engine};
 use ped92::{CSMultiParams, Commitment, CommitmentProof};
@@ -23,7 +24,9 @@ use wallet::Wallet;
 pub struct NIZKProof<E: Engine> {
     pub sig: Signature<E>,
     pub sigProof: SignatureProof<E>,
+    pub rlComProof: CommitmentProof<E>,
     pub comProof: CommitmentProof<E>,
+    pub comBarProof: CommitmentProof<E>,
     pub rpBC: ProofUL<E>,
     pub rpBM: ProofUL<E>,
 }
@@ -91,23 +94,28 @@ impl<E: Engine> NIZKSecretParams<E> {
         proof: A NIZK proof created by the Customer
         epsilon: The transaction amount of the payment
         com: Commitment of the new wallet that needs to be signed
-        wpk: reveal of wallet public key of the old wallet.
+        nonce: reveal of the nonce of the old wallet.
     */
     pub fn verify(
         &self,
         proof: NIZKProof<E>,
         epsilon: E::Fr,
-        com: &Commitment<E>,
-        wpk: E::Fr,
+        coms: &ClosedCommitments<E>,
+        nonce: E::Fr,
     ) -> bool {
         //verify signature is not the identity
         let r0 = proof.sig.h != E::G1::one();
 
         //compute challenge
-        let challenge = NIZKPublicParams::<E>::hash(
-            proof.sigProof.a,
-            vec![proof.comProof.T, proof.rpBC.D, proof.rpBM.D],
-        );
+        let mut T = self.pubParams.comParams.pub_bases.clone();
+        T.append(&mut vec![
+            proof.rlComProof.T,
+            proof.comProof.T,
+            proof.comBarProof.T,
+            proof.rpBC.D,
+            proof.rpBM.D,
+        ]);
+        let challenge = NIZKPublicParams::<E>::hash(proof.sigProof.a, T);
 
         //verify knowledge of signature
         let mut r1 = self.keypair.public.verify_proof(
@@ -116,14 +124,28 @@ impl<E: Engine> NIZKSecretParams<E> {
             proof.sigProof.clone(),
             challenge,
         );
-        let mut wpkc = wpk.clone();
-        wpkc.mul_assign(&challenge.clone());
-        r1 = r1 && proof.sigProof.zsig[1] == wpkc;
+        let mut noncec = nonce.clone();
+        noncec.mul_assign(&challenge.clone());
+        r1 = r1 && proof.sigProof.zsig[1] == noncec;
 
         //verify knowledge of commitment
-        let r2 = proof.comProof.verify_proof(
+        let r2_1 = proof.rlComProof.verify_proof(
             &self.pubParams.comParams,
-            &com.c.clone(),
+            &coms.rl_com.c.clone(),
+            &challenge,
+            None,
+        );
+
+        let r2_2 = proof.comProof.verify_proof(
+            &self.pubParams.comParams,
+            &coms.s_com.c.clone(),
+            &challenge,
+            None,
+        );
+
+        let r2_3 = proof.comBarProof.verify_proof(
+            &self.pubParams.comParams,
+            &coms.s_bar_com.c.clone(),
             &challenge,
             None,
         );
@@ -131,23 +153,30 @@ impl<E: Engine> NIZKSecretParams<E> {
         //verify range proofs
         let r3 = self
             .rpParams
-            .verify_ul(&proof.rpBC.clone(), challenge.clone(), 3);
+            .verify_ul(&proof.rpBC.clone(), challenge.clone(), 4);
         let r4 = self
             .rpParams
-            .verify_ul(&proof.rpBM.clone(), challenge.clone(), 4);
+            .verify_ul(&proof.rpBM.clone(), challenge.clone(), 5);
 
         //verify linear relationship
         let mut r5 = proof.comProof.z[1] == proof.sigProof.zsig[0];
-        let mut zsig2 = proof.sigProof.zsig[2].clone();
+        let mut zsig2 = proof.sigProof.zsig[3].clone();
         let mut epsC = epsilon.clone();
         epsC.mul_assign(&challenge.clone());
         zsig2.sub_assign(&epsC.clone());
-        r5 = r5 && proof.comProof.z[3] == zsig2;
-        let mut zsig3 = proof.sigProof.zsig[3].clone();
+        r5 = r5 && proof.comProof.z[4] == zsig2;
+        let mut zsig3 = proof.sigProof.zsig[4].clone();
         zsig3.add_assign(&epsC.clone());
-        r5 = r5 && proof.comProof.z[4] == zsig3;
+        r5 = r5 && proof.comProof.z[5] == zsig3;
 
-        r0 && r1 && r2 && r3 && r4 && r5
+        r5 = r5 && proof.comProof.z[1] == proof.comBarProof.z[1];
+        r5 = r5 && proof.comProof.z[3] == proof.comBarProof.z[2];
+        r5 = r5 && proof.comProof.z[4] == proof.comBarProof.z[3];
+        r5 = r5 && proof.comProof.z[5] == proof.comBarProof.z[4];
+
+        r5 = r5 && proof.rlComProof.z[1] == proof.sigProof.zsig[2];
+
+        r0 && r1 && r2_1 && r2_2 && r2_3 && r3 && r4 && r5
     }
 }
 
@@ -158,7 +187,9 @@ impl<E: Engine> NIZKPublicParams<E> {
         oldWallet: This is the wallet before payment occurs
         newWallet: This is the new state of the wallet after payment
         newWalletCom: A commitment of the new wallet
-        rPrime: blinding value of commitment of new wallet
+        newRho: blinding value of commitment of new revocation lock
+        newTau: blinding value of commitment of new wallet
+        newTauBar: blinding value of commitment of new wallet bar
         paymentToken: A blind signature on the old wallet
         Output:
         NIZKProof: a proof that can be verified by the merchant during payment or closing protocol
@@ -169,31 +200,38 @@ impl<E: Engine> NIZKPublicParams<E> {
         oldWallet: Wallet<E>,
         newWallet: Wallet<E>,
         newWalletCom: Commitment<E>,
-        rPrime: E::Fr,
+        rho: E::Fr,
+        newTau: E::Fr,
+        newTauBar: E::Fr,
         paymentToken: &Signature<E>,
     ) -> NIZKProof<E> {
         //Commitment phase
         //commit commitment
-        let w_len = newWallet.as_fr_vec().len();
-        let diff = self.comParams.pub_bases.len() - w_len;
-        let max = match diff > 1 {
-            true => w_len,
-            false => self.comParams.pub_bases.len(),
-        };
+        let (D1, t1) = CommitmentProof::<E>::prove_commitment(
+            rng,
+            &self.comParams,
+            &vec![oldWallet.rev_lock],
+            None,
+        );
 
-        let (D, t) = CommitmentProof::<E>::prove_commitment(
+        let (D2, t2) = CommitmentProof::<E>::prove_commitment(
             rng,
             &self.comParams,
             &newWallet.as_fr_vec(),
             None,
         );
 
+        let t3_0 = E::Fr::rand(rng);
+        let (D3, t3) = CommitmentProof::<E>::prove_commitment(
+            rng,
+            &self.comParams,
+            &newWallet.as_fr_vec_bar(),
+            Some(vec![t3_0, t2[1], t2[3], t2[4], t2[5]]),
+        );
+
         //commit signature
         let zero = E::Fr::zero();
-        let tOptional = match max > 4 {
-            true => Some(vec![t[1], zero, t[3].clone(), t[4].clone()]),
-            false => Some(vec![t[1], zero, t[3].clone()]),
-        };
+        let tOptional = Some(vec![t2[1], zero, t1[1], t2[4], t2[5]]);
         let proofState = self
             .pk
             .prove_commitment(rng, &self.mpk, &paymentToken, tOptional, None);
@@ -201,14 +239,15 @@ impl<E: Engine> NIZKPublicParams<E> {
         //commit range proof
         let rpStateBC = self
             .rpParams
-            .prove_ul_commitment(rng, newWallet.bc.clone(), 3, None, None);
+            .prove_ul_commitment(rng, newWallet.bc.clone(), 4, None, None);
         let rpStateBM = self
             .rpParams
-            .prove_ul_commitment(rng, newWallet.bm.clone(), 4, None, None);
+            .prove_ul_commitment(rng, newWallet.bm.clone(), 5, None, None);
 
         //Compute challenge
-        let challenge =
-            NIZKPublicParams::<E>::hash(proofState.a, vec![D, rpStateBC.D, rpStateBM.D]);
+        let mut T = self.comParams.pub_bases.clone();
+        T.append(&mut vec![D1, D2, D3, rpStateBC.D, rpStateBM.D]);
+        let challenge = NIZKPublicParams::<E>::hash(proofState.a, T);
 
         //Response phase
         //response for signature
@@ -218,42 +257,54 @@ impl<E: Engine> NIZKPublicParams<E> {
             .prove_response(&proofState, challenge, &mut oldWalletVec.clone());
 
         //response commitment
+        let rlComProof = CommitmentProof::<E>::prove_response(
+            &vec![oldWallet.rev_lock],
+            &rho,
+            D1,
+            &t1,
+            &challenge,
+        );
         let newWalletVec = newWallet.as_fr_vec();
         let comProof =
-            CommitmentProof::<E>::prove_response(&newWalletVec, &rPrime, D, &t, &challenge);
+            CommitmentProof::<E>::prove_response(&newWalletVec, &newTau, D2, &t2, &challenge);
+        let newWalletBarVec = newWallet.as_fr_vec_bar();
+        let comBarProof =
+            CommitmentProof::<E>::prove_response(&newWalletBarVec, &newTauBar, D3, &t3, &challenge);
 
         //response range proof
-        let mut vec01 = newWalletVec[0..2].to_vec();
-        let mut vecWithout2 = vec01.clone();
-        let mut vec3 = newWalletVec[3..].to_vec();
-        vecWithout2.append(&mut vec3);
-        let vec2 = newWalletVec[2].clone();
+        let mut vec01 = newWalletVec[0..3].to_vec();
+        let mut vecWithout3 = vec01.clone();
+        let mut vec3 = newWalletVec[4..].to_vec();
+        vecWithout3.append(&mut vec3);
+        let vec2 = newWalletVec[3].clone();
         vec01.push(vec2);
-        if newWalletVec.len() > 4 {
-            let mut vec4 = newWalletVec[4..].to_vec();
+        if newWalletVec.len() > 5 {
+            let mut vec4 = newWalletVec[5..].to_vec();
             vec01.append(&mut vec4);
         }
         let rpBC = self.rpParams.prove_ul_response(
-            rPrime.clone(),
+            newTau.clone(),
             newWalletCom.clone(),
             &rpStateBC,
             challenge.clone(),
-            3,
-            vecWithout2.to_vec(),
+            4,
+            vecWithout3.to_vec(),
         );
         let rpBM = self.rpParams.prove_ul_response(
-            rPrime.clone(),
+            newTau.clone(),
             newWalletCom.clone(),
             &rpStateBM,
             challenge.clone(),
-            4,
+            5,
             vec01.to_vec(),
         );
 
         NIZKProof {
             sig: proofState.blindSig,
             sigProof,
+            rlComProof,
             comProof,
+            comBarProof,
             rpBC,
             rpBM,
         }
@@ -293,6 +344,38 @@ pub fn verify_opening<E: Engine>(
             None,
             Some(channelId.clone()),
             None,
+            None,
+            Some(util::convert_int_to_fr::<E>(init_cust as i64)),
+            Some(util::convert_int_to_fr::<E>(init_merch as i64)),
+        ]),
+    );
+
+    return com_equal;
+}
+
+///
+/// Verify PoK for the opening of a commitment during the establishment protocol
+///
+pub fn verify_opening_bar<E: Engine>(
+    com_params: &CSMultiParams<E>,
+    com: &E::G1,
+    proof: &CommitmentProof<E>,
+    channelId: &E::Fr,
+    init_cust: i64,
+    init_merch: i64,
+) -> bool {
+    let xvec: Vec<E::G1> = vec![proof.T.clone(), com.clone()];
+    let challenge = util::hash_g1_to_fr::<E>(&xvec);
+
+    // compute the
+    let com_equal = proof.verify_proof(
+        com_params,
+        com,
+        &challenge,
+        Some(vec![
+            None,
+            Some(channelId.clone()),
+            None,
             Some(util::convert_int_to_fr::<E>(init_cust as i64)),
             Some(util::convert_int_to_fr::<E>(init_merch as i64)),
         ]),
@@ -312,8 +395,10 @@ mod tests {
     fn nizk_proof_works() {
         let rng = &mut rand::thread_rng();
         let channelId = Fr::rand(rng);
-        let wpk = Fr::rand(rng);
-        let wpkprime = Fr::rand(rng);
+        let nonce = Fr::rand(rng);
+        let nonce2 = Fr::rand(rng);
+        let rl = Fr::rand(rng);
+        let rl2 = Fr::rand(rng);
         let bc = rng.gen_range(100, 1000);
         let mut bc2 = bc.clone();
         let bm = rng.gen_range(100, 1000);
@@ -321,56 +406,78 @@ mod tests {
         let epsilon = rng.gen_range(1, 100);
         bc2 -= epsilon;
         bm2 += epsilon;
-        let r = Fr::rand(rng);
-        let rprime = Fr::rand(rng);
+        let tau = Fr::rand(rng);
+        let rho = Fr::rand(rng);
+        let tau2 = Fr::rand(rng);
+        let tau_bar2 = Fr::rand(rng);
 
-        let secParams = NIZKSecretParams::<Bls12>::setup(rng, 4);
+        let secParams = NIZKSecretParams::<Bls12>::setup(rng, 5);
         let wallet1 = Wallet {
             channelId: channelId,
-            wpk,
+            nonce: nonce,
+            rev_lock: rl,
             bc,
             bm,
-            close: None,
         };
-        let commitment1 = secParams
+        let s_com1 = secParams
             .pubParams
             .comParams
-            .commit(&wallet1.as_fr_vec(), &r);
+            .commit(&wallet1.as_fr_vec(), &tau);
         let wallet2 = Wallet {
             channelId: channelId,
-            wpk: wpkprime,
+            nonce: nonce2,
+            rev_lock: rl2,
             bc: bc2,
             bm: bm2,
-            close: None,
         };
-        let commitment2 = secParams
+        let rl_com2 = secParams.pubParams.comParams.commit(&vec![rl], &rho);
+        let s_com2 = secParams
             .pubParams
             .comParams
-            .commit(&wallet2.as_fr_vec(), &rprime);
+            .commit(&wallet2.as_fr_vec(), &tau2);
+        let s_bar_com2 = secParams
+            .pubParams
+            .comParams
+            .commit(&wallet2.as_fr_vec_bar(), &tau_bar2);
         let blindPaymentToken =
             secParams
                 .keypair
-                .sign_blind(rng, &secParams.pubParams.mpk, commitment1.clone());
-        let paymentToken = secParams.keypair.unblind(&r, &blindPaymentToken);
+                .sign_blind(rng, &secParams.pubParams.mpk, s_com1.clone());
+        let paymentToken = secParams.keypair.unblind(&tau, &blindPaymentToken);
 
         let proof = secParams.pubParams.prove(
             rng,
             wallet1,
             wallet2,
-            commitment2.clone(),
-            rprime,
+            s_com2.clone(),
+            rho,
+            tau2,
+            tau_bar2,
             &paymentToken,
         );
         let fr = convert_int_to_fr::<Bls12>(epsilon);
-        assert_eq!(secParams.verify(proof, fr, &commitment2, wpk), true);
+        assert_eq!(
+            secParams.verify(
+                proof,
+                fr,
+                &ClosedCommitments {
+                    s_com: s_com2,
+                    s_bar_com: s_bar_com2,
+                    rl_com: rl_com2
+                },
+                nonce
+            ),
+            true
+        );
     }
 
     #[test]
     fn nizk_proof_negative_value_works() {
         let rng = &mut rand::thread_rng();
         let channelId = Fr::rand(rng);
-        let wpk = Fr::rand(rng);
-        let wpkprime = Fr::rand(rng);
+        let nonce = Fr::rand(rng);
+        let rl = Fr::rand(rng);
+        let rlprime = Fr::rand(rng);
         let bc = rng.gen_range(100, 1000);
         let mut bc2 = bc.clone();
         let bm = rng.gen_range(100, 1000);
@@ -378,56 +485,78 @@ mod tests {
         let epsilon = rng.gen_range(-100, -1);
         bc2 -= epsilon;
         bm2 += epsilon;
-        let r = Fr::rand(rng);
-        let rprime = Fr::rand(rng);
+        let tau = Fr::rand(rng);
+        let rho = Fr::rand(rng);
+        let tau2 = Fr::rand(rng);
+        let tau_bar2 = Fr::rand(rng);
 
-        let secParams = NIZKSecretParams::<Bls12>::setup(rng, 4);
+        let secParams = NIZKSecretParams::<Bls12>::setup(rng, 5);
         let wallet1 = Wallet {
             channelId: channelId,
-            wpk,
+            nonce: nonce,
+            rev_lock: rl,
             bc,
             bm,
-            close: None,
         };
-        let commitment1 = secParams
+        let s_com1 = secParams
             .pubParams
             .comParams
-            .commit(&wallet1.as_fr_vec(), &r);
+            .commit(&wallet1.as_fr_vec(), &tau);
         let wallet2 = Wallet {
             channelId: channelId,
-            wpk: wpkprime,
+            nonce: nonce,
+            rev_lock: rlprime,
             bc: bc2,
             bm: bm2,
-            close: None,
         };
-        let commitment2 = secParams
+        let rl_com2 = secParams.pubParams.comParams.commit(&vec![rl], &rho);
+        let s_com2 = secParams
             .pubParams
             .comParams
-            .commit(&wallet2.as_fr_vec(), &rprime);
+            .commit(&wallet2.as_fr_vec(), &tau2);
+        let s_bar_com2 = secParams
+            .pubParams
+            .comParams
+            .commit(&wallet2.as_fr_vec_bar(), &tau_bar2);
         let blindPaymentToken =
             secParams
                 .keypair
-                .sign_blind(rng, &secParams.pubParams.mpk, commitment1.clone());
-        let paymentToken = secParams.keypair.unblind(&r, &blindPaymentToken);
+                .sign_blind(rng, &secParams.pubParams.mpk, s_com1.clone());
+        let paymentToken = secParams.keypair.unblind(&tau, &blindPaymentToken);
 
         let proof = secParams.pubParams.prove(
             rng,
             wallet1,
             wallet2,
-            commitment2.clone(),
-            rprime,
+            s_com2.clone(),
+            rho,
+            tau2,
+            tau_bar2,
             &paymentToken,
         );
         let fr = convert_int_to_fr::<Bls12>(epsilon);
-        assert_eq!(secParams.verify(proof, fr, &commitment2, wpk), true);
+        assert_eq!(
+            secParams.verify(
+                proof,
+                fr,
+                &ClosedCommitments {
+                    s_com: s_com2,
+                    s_bar_com: s_bar_com2,
+                    rl_com: rl_com2
+                },
+                nonce
+            ),
+            true
+        );
     }
 
     #[test]
     fn nizk_proof_close_works() {
         let rng = &mut rand::thread_rng();
         let channelId = Fr::rand(rng);
-        let wpk = Fr::rand(rng);
-        let wpkprime = Fr::rand(rng);
+        let nonce = Fr::rand(rng);
+        let rl = Fr::rand(rng);
+        let rlprime = Fr::rand(rng);
         let bc = rng.gen_range(100, 1000);
         let mut bc2 = bc.clone();
         let bm = rng.gen_range(100, 1000);
@@ -435,62 +564,75 @@ mod tests {
         let epsilon = rng.gen_range(1, 100);
         bc2 -= epsilon;
         bm2 += epsilon;
-        let r = Fr::rand(rng);
-        let rprime = Fr::rand(rng);
+        let tau = Fr::rand(rng);
+        let rho = Fr::rand(rng);
+        let tau2 = Fr::rand(rng);
+        let tau_bar2 = Fr::rand(rng);
 
         let _closeToken = Fr::rand(rng);
         let secParams = NIZKSecretParams::<Bls12>::setup(rng, 5);
         let wallet1 = Wallet {
             channelId: channelId,
-            wpk,
+            nonce: nonce,
+            rev_lock: rl,
             bc,
             bm,
-            close: None,
         };
-        let commitment1 = secParams
+        let s_com = secParams
             .pubParams
             .comParams
-            .commit(&wallet1.as_fr_vec(), &r);
+            .commit(&wallet1.as_fr_vec(), &tau);
         let wallet2 = Wallet {
             channelId: channelId,
-            wpk: wpkprime,
+            nonce: nonce,
+            rev_lock: rlprime,
             bc: bc2,
             bm: bm2,
-            close: Some(_closeToken),
         };
-        let commitment2 = secParams
+        let rl_com2 = secParams.pubParams.comParams.commit(&vec![rl], &rho);
+        let s_com2 = secParams
             .pubParams
             .comParams
-            .commit(&wallet2.as_fr_vec(), &rprime);
+            .commit(&wallet2.as_fr_vec(), &tau2);
+        let s_bar_com2 = secParams
+            .pubParams
+            .comParams
+            .commit(&wallet2.as_fr_vec_bar(), &tau_bar2);
         let blindPaymentToken =
             secParams
                 .keypair
-                .sign_blind(rng, &secParams.pubParams.mpk, commitment1.clone());
-        let paymentToken = secParams.keypair.unblind(&r, &blindPaymentToken);
+                .sign_blind(rng, &secParams.pubParams.mpk, s_com.clone());
+        let paymentToken = secParams.keypair.unblind(&tau, &blindPaymentToken);
 
         let blindCloseToken =
             secParams
                 .keypair
-                .sign_blind(rng, &secParams.pubParams.mpk, commitment2.clone());
-        let closeToken = secParams.pubParams.pk.unblind(&rprime, &blindCloseToken);
+                .sign_blind(rng, &secParams.pubParams.mpk, s_bar_com2.clone());
+        let closeToken = secParams.pubParams.pk.unblind(&tau_bar2, &blindCloseToken);
 
         // verify the blind signatures
         let pk = secParams.keypair.get_public_key(&secParams.pubParams.mpk);
         assert!(pk.verify(
             &secParams.pubParams.mpk,
             &wallet1.as_fr_vec(),
-            &paymentToken
+            &paymentToken,
         ));
 
         println!("close => {}", &wallet2);
-        assert!(pk.verify(&secParams.pubParams.mpk, &wallet2.as_fr_vec(), &closeToken));
+        assert!(pk.verify(
+            &secParams.pubParams.mpk,
+            &wallet2.as_fr_vec_bar(),
+            &closeToken
+        ));
 
         let proof = secParams.pubParams.prove(
             rng,
             wallet1,
             wallet2,
-            commitment2.clone(),
-            rprime,
+            s_com2.clone(),
+            rho,
+            tau2,
+            tau_bar2,
             &paymentToken,
         );
 
@@ -498,8 +640,12 @@ mod tests {
             secParams.verify(
                 proof,
                 Fr::from_str(&epsilon.to_string()).unwrap(),
-                &commitment2,
-                wpk
+                &ClosedCommitments {
+                    s_com: s_com2,
+                    s_bar_com: s_bar_com2,
+                    rl_com: rl_com2
+                },
+                nonce,
             ),
             true
         );
@@ -509,8 +655,9 @@ mod tests {
     fn nizk_proof_false_statements() {
         let rng = &mut rand::thread_rng();
         let channelId = Fr::rand(rng);
-        let wpk = Fr::rand(rng);
-        let wpkprime = Fr::rand(rng);
+        let nonce = Fr::rand(rng);
+        let rl = Fr::rand(rng);
+        let rlprime = Fr::rand(rng);
         let bc = rng.gen_range(100, 1000);
         let mut bc2 = bc.clone();
         let bm = rng.gen_range(100, 1000);
@@ -518,53 +665,66 @@ mod tests {
         let epsilon = rng.gen_range(1, 100);
         bc2 -= epsilon;
         bm2 += epsilon;
-        let r = Fr::rand(rng);
-        let rprime = Fr::rand(rng);
+        let tau = Fr::rand(rng);
+        let rho = Fr::rand(rng);
+        let tau2 = Fr::rand(rng);
+        let tau_bar2 = Fr::rand(rng);
 
-        let secParams = NIZKSecretParams::<Bls12>::setup(rng, 4);
+        let secParams = NIZKSecretParams::<Bls12>::setup(rng, 5);
         let wallet1 = Wallet {
             channelId: channelId,
-            wpk,
+            nonce: nonce,
+            rev_lock: rl,
             bc,
             bm,
-            close: None,
         };
 
         let bc2Prime = bc.clone();
         let wallet3 = Wallet {
             channelId: channelId,
-            wpk: wpkprime,
+            nonce: nonce,
+            rev_lock: rlprime,
             bc: bc2Prime,
             bm: bm2,
-            close: None,
         };
-        let commitment1 = secParams
+        let s_com = secParams
             .pubParams
             .comParams
-            .commit(&wallet1.as_fr_vec().clone(), &r);
-        let commitment2 = secParams
+            .commit(&wallet1.as_fr_vec().clone(), &tau);
+        let rl_com2 = secParams.pubParams.comParams.commit(&vec![rl], &rho);
+        let s_com2 = secParams
             .pubParams
             .comParams
-            .commit(&wallet3.as_fr_vec(), &rprime);
+            .commit(&wallet3.as_fr_vec(), &tau2);
+        let s_bar_com2 = secParams
+            .pubParams
+            .comParams
+            .commit(&wallet3.as_fr_vec_bar(), &tau_bar2);
         let blindPaymentToken =
             secParams
                 .keypair
-                .sign_blind(rng, &secParams.pubParams.mpk, commitment1.clone());
-        let paymentToken = secParams.keypair.unblind(&r, &blindPaymentToken);
+                .sign_blind(rng, &secParams.pubParams.mpk, s_com.clone());
+        let paymentToken = secParams.keypair.unblind(&tau, &blindPaymentToken);
         let proof = secParams.pubParams.prove(
             rng,
             wallet1.clone(),
             wallet3,
-            commitment2.clone(),
-            rprime,
+            s_com2.clone(),
+            rho,
+            tau2,
+            tau_bar2,
             &paymentToken,
         );
         assert_eq!(
             secParams.verify(
                 proof,
                 Fr::from_str(&epsilon.to_string()).unwrap(),
-                &commitment2,
-                wpk
+                &ClosedCommitments {
+                    s_com: s_com2.clone(),
+                    s_bar_com: s_bar_com2.clone(),
+                    rl_com: rl_com2.clone()
+                },
+                nonce,
             ),
             false
         );
@@ -572,58 +732,70 @@ mod tests {
         let bm2Prime = bm.clone();
         let wallet4 = Wallet {
             channelId: channelId,
-            wpk: wpkprime,
+            nonce: nonce,
+            rev_lock: rlprime,
             bc: bc2,
             bm: bm2Prime,
-            close: None,
         };
         let commitment2 = secParams
             .pubParams
             .comParams
-            .commit(&wallet4.as_fr_vec(), &rprime);
+            .commit(&wallet4.as_fr_vec(), &tau2);
         let proof = secParams.pubParams.prove(
             rng,
             wallet1.clone(),
             wallet4,
             commitment2.clone(),
-            rprime,
+            rho,
+            tau2,
+            tau_bar2,
             &paymentToken,
         );
         assert_eq!(
             secParams.verify(
                 proof,
                 Fr::from_str(&epsilon.to_string()).unwrap(),
-                &commitment2,
-                wpk
+                &ClosedCommitments {
+                    s_com: s_com2.clone(),
+                    s_bar_com: s_bar_com2.clone(),
+                    rl_com: rl_com2.clone()
+                },
+                nonce,
             ),
             false
         );
 
         let wallet5 = Wallet {
             channelId: Fr::rand(rng),
-            wpk: wpkprime,
+            nonce: Fr::rand(rng),
+            rev_lock: rlprime,
             bc: bc2,
             bm: bm2,
-            close: None,
         };
         let commitment2 = secParams
             .pubParams
             .comParams
-            .commit(&wallet5.as_fr_vec(), &rprime);
+            .commit(&wallet5.as_fr_vec(), &tau2);
         let proof = secParams.pubParams.prove(
             rng,
             wallet1.clone(),
             wallet5,
             commitment2.clone(),
-            rprime,
+            rho,
+            tau2,
+            tau_bar2,
             &paymentToken,
         );
         assert_eq!(
             secParams.verify(
                 proof,
                 Fr::from_str(&epsilon.to_string()).unwrap(),
-                &commitment2,
-                wpk
+                &ClosedCommitments {
+                    s_com: s_com2,
+                    s_bar_com: s_bar_com2,
+                    rl_com: rl_com2
+                },
+                nonce,
             ),
             false
         );
@@ -633,20 +805,21 @@ mod tests {
     fn nizk_proof_commitment_opening_works() {
         let rng = &mut rand::thread_rng();
         let channelId = Fr::rand(rng);
-        let wpk = Fr::rand(rng);
+        let nonce = Fr::rand(rng);
+        let rl = Fr::rand(rng);
         let t = Fr::rand(rng);
 
         let bc = rng.gen_range(100, 1000);
         let bm = rng.gen_range(100, 1000);
         let wallet = Wallet::<Bls12> {
             channelId: channelId,
-            wpk: wpk,
+            nonce: nonce,
+            rev_lock: rl,
             bc: bc,
             bm: bm,
-            close: None,
         };
 
-        let secParams = NIZKSecretParams::<Bls12>::setup(rng, 4);
+        let secParams = NIZKSecretParams::<Bls12>::setup(rng, 5);
         let com = secParams
             .pubParams
             .comParams
@@ -658,7 +831,7 @@ mod tests {
             &com.c,
             &wallet.as_fr_vec(),
             &t,
-            &vec![1, 3, 4],
+            &vec![1, 4, 5],
         );
 
         assert!(verify_opening(
@@ -667,7 +840,7 @@ mod tests {
             &com_proof,
             &channelId.clone(),
             bc,
-            bm
+            bm,
         ));
     }
 
@@ -675,7 +848,8 @@ mod tests {
     fn nizk_proof_false_commitment() {
         let rng = &mut rand::thread_rng();
         let channelId = Fr::rand(rng);
-        let wpk = Fr::rand(rng);
+        let nonce = Fr::rand(rng);
+        let rl = Fr::rand(rng);
         let t = Fr::rand(rng);
 
         let bc = rng.gen_range(100, 1000);
@@ -683,20 +857,20 @@ mod tests {
         let bm = rng.gen_range(100, 1000);
         let wallet1 = Wallet::<Bls12> {
             channelId: channelId,
-            wpk: wpk,
+            nonce: nonce,
+            rev_lock: rl,
             bc: bc,
             bm: bm,
-            close: None,
         };
         let wallet2 = Wallet::<Bls12> {
             channelId: channelId,
-            wpk: wpk,
+            nonce: nonce,
+            rev_lock: rl,
             bc: bc2,
             bm: bm,
-            close: None,
         };
 
-        let secParams = NIZKSecretParams::<Bls12>::setup(rng, 4);
+        let secParams = NIZKSecretParams::<Bls12>::setup(rng, 5);
         let com1 = secParams
             .pubParams
             .comParams
@@ -712,7 +886,7 @@ mod tests {
             &com1.c,
             &wallet1.as_fr_vec(),
             &t,
-            &vec![1, 3, 4],
+            &vec![1, 4, 5],
         );
 
         assert!(verify_opening(
@@ -721,7 +895,7 @@ mod tests {
             &com1_proof,
             &channelId.clone(),
             bc,
-            bm
+            bm,
         ));
         assert!(!verify_opening(
             &secParams.pubParams.comParams,
@@ -729,7 +903,7 @@ mod tests {
             &com1_proof,
             &channelId.clone(),
             bc2,
-            bm
+            bm,
         ));
     }
 

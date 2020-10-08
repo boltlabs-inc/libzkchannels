@@ -2,7 +2,7 @@ use super::*;
 use ff::PrimeField;
 use pairing::Engine;
 use std::fmt;
-use util::{hash_to_fr, hash_to_slice};
+use util::hash_to_slice;
 use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -10,64 +10,39 @@ use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
 #[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>"))]
 pub struct Wallet<E: Engine> {
     pub channelId: E::Fr,
-    pub wpk: E::Fr,
+    pub nonce: E::Fr,
+    pub rev_lock: E::Fr,
     pub bc: i64,
     pub bm: i64,
-    pub close: Option<E::Fr>,
 }
 
 impl<E: Engine> Wallet<E> {
     pub fn as_fr_vec(&self) -> Vec<E::Fr> {
-        if self.close.is_some() {
-            vec![
-                self.channelId,
-                self.wpk,
-                E::Fr::from_str(&self.bc.to_string()).unwrap(),
-                E::Fr::from_str(&self.bm.to_string()).unwrap(),
-                self.close.unwrap(),
-            ]
-        } else {
-            vec![
-                self.channelId,
-                self.wpk,
-                E::Fr::from_str(&self.bc.to_string()).unwrap(),
-                E::Fr::from_str(&self.bm.to_string()).unwrap(),
-            ]
-        }
-    }
-
-    pub fn without_close(&self) -> Vec<E::Fr> {
         vec![
             self.channelId,
-            self.wpk,
+            self.nonce,
+            self.rev_lock,
             E::Fr::from_str(&self.bc.to_string()).unwrap(),
             E::Fr::from_str(&self.bm.to_string()).unwrap(),
         ]
     }
-
-    pub fn with_close(&mut self, msg: String) -> Vec<E::Fr> {
-        let m = hash_to_fr::<E>(msg.into_bytes());
-        self.close = Some(m.clone());
-        return self.as_fr_vec();
+    pub fn as_fr_vec_bar(&self) -> Vec<E::Fr> {
+        vec![
+            self.channelId,
+            self.rev_lock,
+            E::Fr::from_str(&self.bc.to_string()).unwrap(),
+            E::Fr::from_str(&self.bm.to_string()).unwrap(),
+        ]
     }
 }
 
 impl<E: Engine> fmt::Display for Wallet<E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.close.is_some() {
-            let close_str = self.close.unwrap();
-            write!(
-                f,
-                "Wallet : (\nchannelId={}\nwpk={}\nbc={}\nbm={}\nclose={}\n)",
-                &self.channelId, &self.wpk, &self.bc, &self.bm, close_str
-            )
-        } else {
-            write!(
-                f,
-                "Wallet : (\nchannelId={}\nwpk={}\nbc={}\nbm={}\nclose=None\n)",
-                &self.channelId, &self.wpk, &self.bc, &self.bm
-            )
-        }
+        write!(
+            f,
+            "Wallet : (\nchannelId={}\nnonce={}\nrev_lock={}\nbc={}\nbm={}\n)",
+            &self.channelId, &self.nonce, &self.rev_lock, &self.bc, &self.bm
+        )
     }
 }
 
@@ -87,7 +62,8 @@ static STATE_HASH_PREFIX: &str = "ZKCHANNELS_STATE";
 
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct State {
-    pub nonce: FixedSizeArray16, // 128-bits
+    pub nonce: FixedSizeArray16,
+    // 128-bits
     pub rev_lock: FixedSizeArray32,
     pub bc: i64,
     pub bm: i64,

@@ -1,0 +1,38 @@
+parameter (pair (contract %k bool) (nat %x));
+storage   unit;
+code
+  {
+    DUP;        # pair @parameter @storage : pair @parameter @storage
+    CDR;        # @storage : pair @parameter @storage
+    SWAP;       # pair @parameter @storage : @storage
+    CAR;        # @parameter : @storage
+    # == run ==
+    # if params.x > 9: # @parameter : @storage
+    DUP;        # @parameter : @parameter : @storage
+    CDR;        # nat : @parameter : @storage
+    PUSH nat 9; # nat : nat : @parameter : @storage
+    COMPARE;    # int : @parameter : @storage
+    LT;         # bool : @parameter : @storage
+    IF
+      {
+        # sp.transfer(True, sp.tez(0), params.k) # @parameter : @storage
+        CAR;        # contract bool : @storage
+        NIL operation; # list operation : contract bool : @storage
+        SWAP;       # contract bool : list operation : @storage
+        PUSH mutez 0; # mutez : contract bool : list operation : @storage
+        PUSH bool True; # bool : mutez : contract bool : list operation : @storage
+        TRANSFER_TOKENS; # operation : list operation : @storage
+        CONS;       # list operation : @storage
+      }
+      {
+        # sp.transfer(False, sp.tez(0), params.k) # @parameter : @storage
+        CAR;        # contract bool : @storage
+        NIL operation; # list operation : contract bool : @storage
+        SWAP;       # contract bool : list operation : @storage
+        PUSH mutez 0; # mutez : contract bool : list operation : @storage
+        PUSH bool False; # bool : mutez : contract bool : list operation : @storage
+        TRANSFER_TOKENS; # operation : list operation : @storage
+        CONS;       # list operation : @storage
+      }; # list operation : @storage
+    PAIR;       # pair (list operation) @storage
+  };

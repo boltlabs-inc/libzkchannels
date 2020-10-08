@@ -2,13 +2,15 @@ use super::*;
 use util::{compute_hash160, hash_to_slice, hmac_sign};
 
 use bindings::{cb_receive, cb_send, load_circuit_file, ConnType};
+use channels_util::{
+    ChannelStatus, FundingTxInfo, NegativePaymentPolicy, PaymentStatus, ProtocolStatus,
+};
 use database::{MaskedMPCInputs, MaskedTxMPCInputs, SessionState, StateDatabase};
 use mpcwrapper::{mpc_build_masked_tokens_cust, mpc_build_masked_tokens_merch, CIRCUIT_FILE};
 use rand::Rng;
 use sha2::{Digest, Sha256};
 use std::ffi::{c_void, CString};
 use std::fmt::Debug;
-use std::fmt::Display;
 use std::{env, ptr};
 use wallet::{State, NONCE_LEN};
 use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32, FixedSizeArray64};
@@ -19,45 +21,13 @@ use zkchan_tx::transactions::btc::{
 };
 use zkchan_tx::transactions::ClosePublicKeys;
 use zkchan_tx::{BitcoinNetwork, BitcoinTransactionParameters, Transaction};
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct NetworkConfig {
     pub conn_type: ConnType,
     pub path: String,
     pub dest_ip: String,
     pub dest_port: i32,
-}
-
-#[derive(Clone, Debug, PartialEq, Display, Serialize, Deserialize)]
-pub enum ProtocolStatus {
-    New,
-    Initialized,
-    Activated,
-    Established,
-}
-
-#[derive(Clone, Debug, PartialEq, Display, Serialize, Deserialize)]
-pub enum ChannelStatus {
-    None,
-    PendingOpen,
-    Open,
-    MerchantInitClose,
-    CustomerInitClose,
-    Disputed,
-    PendingClose,
-    ConfirmedClose,
-}
-
-#[derive(Clone, Debug, PartialEq, Display, Serialize, Deserialize)]
-pub enum PaymentStatus {
-    Prepare,
-    Update,
-    Error,
-}
-
-#[derive(Clone, Debug, PartialEq, Display, Serialize, Deserialize)]
-pub enum NegativePaymentPolicy {
-    REJECT,              // only positive payments are allowed in this mode
-    CHECK_JUSTIFICATION, // allow negative payments, if authorization/justification presented
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -2045,7 +2015,7 @@ mod tests {
 
         // activate - get initial state (which should include the funding tx info)
         let s_0 = cust_state.get_current_state();
-        println!("s_0.Nonce => {}", hex::encode(&s_0.nonce.0));
+        println!("s_0.Nonce => {}", hex::encode(&s_0.nonce));
 
         // retrieve the initial state from cust state
         let init_cust_state = cust_state.get_initial_cust_state().unwrap();
@@ -2146,9 +2116,9 @@ mod tests {
             let orig_mask_bytes: MaskedMPCInputs = serde_json::from_str(&ser_mask_bytes).unwrap();
             assert_eq!(mb, orig_mask_bytes);
 
-            println!("pt_masked: {:?}", hex::encode(&mb.pt_mask.0));
-            println!("escrow_masked: {:?}", hex::encode(&mb.escrow_mask.0));
-            println!("merch_masked: {:?}", hex::encode(&mb.merch_mask.0));
+            println!("pt_masked: {:?}", hex::encode(&mb.pt_mask));
+            println!("escrow_masked: {:?}", hex::encode(&mb.escrow_mask));
+            println!("merch_masked: {:?}", hex::encode(&mb.merch_mask));
 
             println!("now, unmask and verify...");
             let is_ok = cust_state.unmask_and_verify_transactions::<Testnet>(&channel_state, &channel_token, mb.get_tx_masks());
