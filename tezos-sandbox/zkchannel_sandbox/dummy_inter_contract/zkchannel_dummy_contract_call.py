@@ -309,20 +309,11 @@ def test():
     newMerchBal = sp.tez(5)
     revLock2 = sp.blake2b(sp.bytes("0x12345678aacc"))
 
-    # Merchant's signature on the latest state
-    merchSig = sp.make_signature(bob.secret_key, sp.pack(sp.record(chanID = chanID,
-                                                                  custAddr = custAddr,
-                                                                  merchAddr = merchAddr,
-                                                                  newCustBal = newCustBal,
-                                                                  newMerchBal = newMerchBal,
-                                                                  revLock = revLock2)))
-
     scenario.h3("custClose")
     scenario += c2.custClose(
         revLock = revLock2, 
         newCustBal = newCustBal, 
         newMerchBal = newMerchBal, 
-        merchSig = merchSig, 
         s1 = "dummy_s1", 
         s2 = "dummy_s2",
         g2 = "dummy_g2",
@@ -351,7 +342,6 @@ def test():
         revLock = revLock2, 
         newCustBal = newCustBal, 
         newMerchBal = newMerchBal,
-        merchSig = merchSig, 
         s1 = "dummy_s1", 
         s2 = "dummy_s2",
         g2 = "dummy_g2",
@@ -380,7 +370,6 @@ def test():
         revLock = revLock2, 
         newCustBal = newCustBal, 
         newMerchBal = newMerchBal, 
-        merchSig = merchSig, 
         s1 = "dummy_s1", 
         s2 = "dummy_s2",
         g2 = "dummy_g2",
@@ -441,7 +430,6 @@ def test():
     #     revLock = revLock2, 
     #     newCustBal = newCustBal, 
     #     newMerchBal = newMerchBal,
-    #     merchSig = merchSig, 
     #     s1 = "InvalidSig", 
     #     s2 = "InvalidSig",
     #     g2 = "dummy_g2",
