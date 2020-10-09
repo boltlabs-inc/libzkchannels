@@ -107,7 +107,7 @@ At this point, the merchant can the `pay` command in the background:
 
 To close down the channel, the customer simply does the following:
 
-    zkchannels-cli close --party CUST --channel-id "alice1" --file cust_close.json
+    zkchannels-cli close --party CUST --channel-id "alice1" --file cust_close.json --decompress-cust-close
 
 The merchant would need to provide the channel ID to close. You can list the channel IDs as follows:
 
