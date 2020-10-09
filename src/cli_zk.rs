@@ -17,11 +17,18 @@ extern crate zkchan_tx;
 extern crate zkchannels;
 
 use bufstream::BufStream;
+use ff::PrimeField;
 use libc::{c_int, c_void};
 use pairing::bls12_381::Bls12;
+use pairing::CurveProjective;
+use pairing::{
+    bls12_381::{Fr, G1Uncompressed, G2Uncompressed, G1, G2},
+    EncodedPoint,
+};
 use rand::Rng;
 use redis::Commands;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::ffi::CString;
 use std::fs::File;
 use std::io::{BufRead, Read, Write};
@@ -35,8 +42,8 @@ use zkchan_tx::fixed_size_array::FixedSizeArray16;
 use zkchannels::cl;
 use zkchannels::database::create_db_connection;
 use zkchannels::database::{RedisDatabase, StateDatabase};
-use zkchannels::mpc::TransactionFeeInfo;
 use zkchannels::zkproofs;
+use zkchannels::zkproofs::TransactionFeeInfo;
 use zkchannels::FundingTxInfo;
 
 static TX_FEE_INFO_KEY: &str = "tx_fee_info";
@@ -128,8 +135,6 @@ pub struct SetFees {
     #[structopt(short = "e", long = "bal-min-merch", default_value = "546")]
     bal_min_merch: i64,
     #[structopt(short = "v", long = "val-cpfp", default_value = "1000")]
-    val_cpfp: i64,
-    #[structopt(short = "f", long = "fee-cc", default_value = "1000")]
     fee_cc: i64,
     #[structopt(short = "m", long = "min-fee", default_value = "0")]
     min_fee: i64,
@@ -251,6 +256,8 @@ pub struct Close {
     from_merch_close: bool,
     #[structopt(short = "n", long = "channel-id", default_value = "")]
     channel_id: String,
+    #[structopt(short = "d", long = "decompress-cust-close")]
+    decompress: bool,
 }
 
 #[derive(Clone, Debug, StructOpt, Deserialize)]
@@ -385,11 +392,8 @@ fn get_tx_fee_info() -> TransactionFeeInfo {
     let tx_fee_info = TransactionFeeInfo {
         bal_min_cust: min_threshold,
         bal_min_merch: min_threshold,
-        val_cpfp: 1000,
         fee_cc: 1000,
         fee_mc: 1000,
-        min_fee: 0,
-        max_fee: 10000,
     };
     return tx_fee_info;
 }
@@ -534,11 +538,8 @@ fn main() -> Result<(), confy::ConfyError> {
             let tx_fee_info = TransactionFeeInfo {
                 bal_min_cust: setfees.bal_min_cust,
                 bal_min_merch: setfees.bal_min_merch,
-                val_cpfp: setfees.val_cpfp,
                 fee_cc: setfees.fee_cc,
                 fee_mc: setfees.fee_mc,
-                min_fee: setfees.min_fee,
-                max_fee: setfees.max_fee,
             };
             println!("{}", tx_fee_info);
             print_error_result!(store_tx_fee_info(db_url, &tx_fee_info));
@@ -655,7 +656,8 @@ fn main() -> Result<(), confy::ConfyError> {
                 &db_url,
                 close.file,
                 close.from_merch_close,
-                close.channel_id
+                close.channel_id,
+                close.decompress
             )),
         },
     }
@@ -1046,6 +1048,7 @@ mod cust {
         out_file: PathBuf,
         from_merch_close: bool,
         channel_id: String,
+        decompress_cust_close: bool,
     ) -> Result<(), String> {
         let mut db_conn = handle_error_result!(create_db_connection(db_url.clone()));
         let key = format!("id:{}", channel_id);
@@ -1073,14 +1076,69 @@ mod cust {
 
         let cust_close =
             handle_error_result!(zkproofs::force_customer_close(&channel_state, &cust_state));
-        println!("Obtained the channel close message:");
-        println!("current_state =>\n{}\n", cust_close.message);
-        println!("close_token =>\n{}\n", cust_close.merch_signature);
-        println!("cust_sig =>\n{}\n", cust_close.cust_signature);
 
-        // write out to a file
-        let cust_close_json_str = handle_error_result!(serde_json::to_string(&cust_close));
-        write_pathfile(out_file, cust_close_json_str)?;
+        // if decompress enabled
+        if decompress_cust_close {
+            let cp = channel_state.cp.unwrap();
+            let mut merch_pk_map = HashMap::new();
+            let mut message_map = HashMap::new();
+            let mut signature_map = HashMap::new();
+
+            // encode the merch public key
+            let g2 = G2Uncompressed::from_affine(cp.pub_params.mpk.g2.into_affine());
+            let x2 = G2Uncompressed::from_affine(cp.pub_params.pk.X2.into_affine());
+
+            // encode the signature
+            let h1 = G1Uncompressed::from_affine(cust_close.merch_signature.h.into_affine());
+            let h2 = G1Uncompressed::from_affine(cust_close.merch_signature.H.into_affine());
+
+            merch_pk_map.insert("g2".to_string(), hex::encode(&g2));
+            merch_pk_map.insert("X".to_string(), hex::encode(&x2));
+            let l = cp.pub_params.pk.Y2.len();
+            for i in 0..l {
+                let key = format!("Y{}", i);
+                let y = G2Uncompressed::from_affine(cp.pub_params.pk.Y2[i].into_affine());
+                merch_pk_map.insert(key, hex::encode(&y));
+            }
+
+            signature_map.insert("s1".to_string(), hex::encode(&h1));
+            signature_map.insert("s2".to_string(), hex::encode(&h2));
+
+            // let message = handle_error_result!(serde_json::to_string(&cust_close.message));
+            message_map.insert(
+                "channel_id",
+                format!("{}", cust_close.message.channelId.into_repr()),
+            );
+            message_map.insert(
+                "rev_lock",
+                format!("{}", cust_close.message.rev_lock.into_repr()),
+            );
+            message_map.insert("cust_bal", cust_close.message.bc.to_string());
+            message_map.insert("merch_bal", cust_close.message.bm.to_string());
+
+            let json = [
+                "{\"merch_pk\":",
+                serde_json::to_string(&merch_pk_map).unwrap().as_str(),
+                ", \"message\":",
+                serde_json::to_string(&message_map).unwrap().as_str(),
+                ", \"signature\":",
+                serde_json::to_string(&signature_map).unwrap().as_str(),
+                "}",
+            ]
+            .concat();
+            let output_str = String::from(json);
+            println!("decompressed cust close json => \n{}\n", output_str);
+            write_pathfile(out_file, output_str)?;
+        } else {
+            println!("Obtained the channel close message:");
+            println!("current_state =>\n{}\n", cust_close.message);
+            println!("close_token =>\n{}\n", cust_close.merch_signature);
+            println!("cust_sig =>\n{}\n", cust_close.cust_signature);
+
+            // write out to a file
+            let cust_close_json_str = handle_error_result!(serde_json::to_string(&cust_close));
+            write_pathfile(out_file, cust_close_json_str)?;
+        }
         Ok(())
     }
 
@@ -1144,14 +1202,6 @@ mod merch {
                     false,
                 );
 
-                // let mut channel_state = ChannelState::new(
-                //     String::from("Channel"),
-                //     self_delay,
-                //     tx_fee_info.bal_min_cust,
-                //     tx_fee_info.bal_min_merch,
-                //     tx_fee_info.val_cpfp,
-                //     false,
-                // );
                 if tx_fee_info.bal_min_cust == 0 || tx_fee_info.bal_min_merch == 0 {
                     let s = format!("Dust limit must be greater than 0!");
                     return Err(s);

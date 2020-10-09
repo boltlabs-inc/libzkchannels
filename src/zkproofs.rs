@@ -38,6 +38,24 @@ macro_rules! handle_bolt_result {
     };
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TransactionFeeInfo {
+    pub bal_min_cust: i64,
+    pub bal_min_merch: i64,
+    pub fee_cc: i64,
+    pub fee_mc: i64,
+}
+
+impl fmt::Display for TransactionFeeInfo {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "TransactionFees : (\nbal_min_cust={}\nbal_min_merch={}\nfee_cc={}\nfee_mc={}\n)",
+            self.bal_min_cust, self.bal_min_merch, self.fee_cc, self.fee_mc
+        )
+    }
+}
+
 ////////////////////////////////// Utilities //////////////////////////////////
 
 #[derive(Clone, Serialize, Deserialize)]
