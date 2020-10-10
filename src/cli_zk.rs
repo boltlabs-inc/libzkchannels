@@ -1083,14 +1083,16 @@ mod cust {
             let mut merch_pk_map = HashMap::new();
             let mut message_map = HashMap::new();
             let mut signature_map = HashMap::new();
+            // let mut y_partial_prod_map = HashMap::new();
+            // let mut l_partial_prod_map = HashMap::new();
 
             // encode the merch public key
             let g2 = G2Uncompressed::from_affine(cp.pub_params.mpk.g2.into_affine());
             let x2 = G2Uncompressed::from_affine(cp.pub_params.pk.X2.into_affine());
 
             // encode the signature
-            let h1 = G1Uncompressed::from_affine(cust_close.merch_signature.h.into_affine());
-            let h2 = G1Uncompressed::from_affine(cust_close.merch_signature.H.into_affine());
+            let s1 = G1Uncompressed::from_affine(cust_close.merch_signature.h.into_affine());
+            let s2 = G1Uncompressed::from_affine(cust_close.merch_signature.H.into_affine());
 
             merch_pk_map.insert("g2".to_string(), hex::encode(&g2));
             merch_pk_map.insert("X".to_string(), hex::encode(&x2));
@@ -1101,10 +1103,9 @@ mod cust {
                 merch_pk_map.insert(key, hex::encode(&y));
             }
 
-            signature_map.insert("s1".to_string(), hex::encode(&h1));
-            signature_map.insert("s2".to_string(), hex::encode(&h2));
+            signature_map.insert("s1".to_string(), hex::encode(&s1));
+            signature_map.insert("s2".to_string(), hex::encode(&s2));
 
-            // let message = handle_error_result!(serde_json::to_string(&cust_close.message));
             message_map.insert(
                 "channel_id",
                 format!("{}", cust_close.message.channelId.into_repr()),
@@ -1116,6 +1117,18 @@ mod cust {
             message_map.insert("cust_bal", cust_close.message.bc.to_string());
             message_map.insert("merch_bal", cust_close.message.bm.to_string());
 
+            // for i in 0..cust_close.pp.Ys.len() {
+            //     let key = format!("Ys{}", i);
+            //     let y = G2Uncompressed::from_affine(cust_close.pp.Ys[i].into_affine());
+            //     y_partial_prod_map.insert(key, hex::encode(&y));
+            // }
+
+            // for i in 0..cust_close.pp.Ls.len() {
+            //     let key = format!("Ls{}", i);
+            //     let y = G2Uncompressed::from_affine(cust_close.pp.Ls[i].into_affine());
+            //     l_partial_prod_map.insert(key, hex::encode(&y));
+            // }
+
             let json = [
                 "{\"merch_pk\":",
                 serde_json::to_string(&merch_pk_map).unwrap().as_str(),
@@ -1123,11 +1136,15 @@ mod cust {
                 serde_json::to_string(&message_map).unwrap().as_str(),
                 ", \"signature\":",
                 serde_json::to_string(&signature_map).unwrap().as_str(),
+                // ", \"y_partial_product\":",
+                // serde_json::to_string(&y_partial_prod_map).unwrap().as_str(),
+                // ", \"l_partial_product\":",
+                // serde_json::to_string(&l_partial_prod_map).unwrap().as_str(),
                 "}",
             ]
             .concat();
             let output_str = String::from(json);
-            println!("decompressed cust close json => \n{}\n", output_str);
+            // println!("decompressed cust close json => \n{}\n", output_str);
             write_pathfile(out_file, output_str)?;
         } else {
             println!("Obtained the channel close message:");

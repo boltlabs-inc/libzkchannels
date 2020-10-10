@@ -274,6 +274,21 @@ impl<E: Engine> SecretKey<E> {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
+                           <E as pairing::Engine>::G1: serde::Serialize, \
+                           <E as pairing::Engine>::G2: serde::Serialize"))]
+#[serde(
+    bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+                        <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+                        <E as pairing::Engine>::G2: serde::Deserialize<'de>")
+)]
+
+pub struct PartialProducts<E: Engine> {
+    pub Ys: Vec<E::G2>,
+    pub Ls: Vec<E::G2>,
+}
+
 ///
 /// Interface for CL PS signature variant
 ///
@@ -322,6 +337,44 @@ impl<E: Engine> PublicKey<E> {
         let lhs = E::pairing(signature.h, X2);
         let rhs = E::pairing(signature.H, mpk.g2);
         signature.h != E::G1::one() && lhs == rhs
+    }
+
+    pub fn debug_verify(
+        &self,
+        mpk: &PublicParams<E>,
+        message: &Vec<E::Fr>,
+        signature: &Signature<E>,
+    ) -> (bool, PartialProducts<E>) {
+        let mut L = E::G2::zero();
+        let mut l = self.Y.len();
+        let diff = (l - message.len());
+        let mut pp1 = Vec::new();
+        let mut pp2 = Vec::new();
+
+        l = match diff > 0 {
+            true => message.len(),
+            false => l,
+        };
+
+        for i in 0..l {
+            if i < message.len() {
+                // bounds check on message vector
+                // L = L + self.Y[i].mul(message[i]);
+                let mut Y = self.Y[i];
+                Y.mul_assign(message[i]); // Y_i ^ m_i
+                pp1.push(Y.clone());
+                L.add_assign(&Y); // L += Y_i ^m_i
+                pp2.push(L.clone()); // sum so far
+            }
+        }
+
+        let mut X2 = self.X;
+        X2.add_assign(&L); // X2 = X + L
+        pp2.push(X2.clone());
+        let lhs = E::pairing(signature.h, X2);
+        let rhs = E::pairing(signature.H, mpk.g2);
+        let pp = PartialProducts { Ys: pp1, Ls: pp2 };
+        return ((signature.h != E::G1::one() && lhs == rhs), pp);
     }
 }
 
@@ -667,8 +720,13 @@ mod tests {
 
     use ff::Rand;
     use pairing::bls12_381::{Bls12, Fr};
+    use pairing::{
+        bls12_381::{G1Uncompressed, G2Uncompressed},
+        EncodedPoint,
+    };    
     use rand::SeedableRng;
     use rand_xorshift::XorShiftRng;
+    use util::convert_str_to_fr;
 
     #[test]
     fn sign_and_verify() {
@@ -1002,24 +1060,102 @@ mod tests {
         // let mut rng = &mut rand::thread_rng();
         let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d76);
 
-        let l = 2;
+        let l = 5;
+        let m_len = 4;
         let mpk = setup(&mut rng);
-        println!("mpk.g2 = {}", serde_json::to_string(&mpk.g2).unwrap());
+        // println!("mpk.g2 = {}", serde_json::to_string(&mpk.g2).unwrap());
         let keypair = KeyPair::<Bls12>::generate(&mut rng, &mpk, l);
 
         let pubkey = keypair.public.clone();
-        println!("PK: {}", serde_json::to_string(&pubkey).unwrap());
+        // println!("PK: {}", serde_json::to_string(&pubkey).unwrap());
 
         let mut message: Vec<Fr> = Vec::new();
+        message.push(
+            convert_str_to_fr::<Bls12>(
+                // Fr(0x37cdad6e6ec1e1a1f5498dd078eaf727b6f5956ef5b8472bf381f0703583a667)
+                String::from(
+                    "25240607299735458558322812412766230124357940997338768540956287062183476700775",
+                ),
+            )
+            .unwrap(),
+        );
+        // Fr(0x290e213d8593f05dffcb8075f295224ad426bcdcef4bee5c3e2499c41ea898c4)
+        message.push(
+            convert_str_to_fr::<Bls12>(String::from(
+                "18569792067074403428287286662712990656991493160983975159578971686520014543044",
+            ))
+            .unwrap(),
+        );
 
-        for _i in 0..l {
+        for _i in 2..m_len {
             message.push(Fr::rand(&mut rng));
         }
+        println!("<= Message =>");
         println!("m0: {}", serde_json::to_string(&message[0]).unwrap());
         println!("m1: {}", serde_json::to_string(&message[1]).unwrap());
+        println!("m2: {}", serde_json::to_string(&message[2]).unwrap());
+        println!("m3: {}", serde_json::to_string(&message[3]).unwrap());
 
         let signature = keypair.sign(&mut rng, &message);
-        println!("SIG: {}", serde_json::to_string(&signature).unwrap());
-        assert_eq!(pubkey.verify(&mpk, &message, &signature), true);
+        // println!("SIG: {}", serde_json::to_string(&signature).unwrap());
+        let (res, pp) = pubkey.debug_verify(&mpk, &message, &signature);
+        assert_eq!(res, true);
+
+        // output
+        let mut merch_pk_map = HashMap::new();
+        let mut y_partial_prod_map = HashMap::new();
+        let mut l_partial_prod_map = HashMap::new();
+        let mut signature_map = HashMap::new();
+
+        // encode the merch public key
+        let g2 = G2Uncompressed::from_affine(mpk.g2.into_affine());
+        let x2 = G2Uncompressed::from_affine(pubkey.X.into_affine());
+
+        // encode the signature
+        let s1 = G1Uncompressed::from_affine(signature.h.into_affine());
+        let s2 = G1Uncompressed::from_affine(signature.H.into_affine());
+
+        merch_pk_map.insert("g2".to_string(), hex::encode(&g2));
+        merch_pk_map.insert("X".to_string(), hex::encode(&x2));
+        let l = pubkey.Y.len();
+        for i in 0..l {
+            let key = format!("Y{}", i);
+            let y = G2Uncompressed::from_affine(pubkey.Y[i].into_affine());
+            merch_pk_map.insert(key, hex::encode(&y));
+        }
+
+        for i in 0..pp.Ys.len() {
+            let key = format!("Ys{}", i);
+            let y = G2Uncompressed::from_affine(pp.Ys[i].into_affine());
+            y_partial_prod_map.insert(key, hex::encode(&y));
+        }
+
+        for i in 0..pp.Ls.len() {
+            let key = format!("Ls{}", i);
+            let y = G2Uncompressed::from_affine(pp.Ls[i].into_affine());
+            l_partial_prod_map.insert(key, hex::encode(&y));
+        }
+
+        signature_map.insert("s1".to_string(), hex::encode(&s1));
+        signature_map.insert("s2".to_string(), hex::encode(&s2));
+
+        println!("=========================");
+        println!(
+            "merch_pk: {}",
+            serde_json::to_string(&merch_pk_map).unwrap()
+        );
+        println!(
+            "signature: {}",
+            serde_json::to_string(&signature_map).unwrap()
+        );
+        println!("=========================");
+        println!(
+            "partial results for Y_i * m_i: {}",
+            serde_json::to_string(&y_partial_prod_map).unwrap()
+        );
+        println!(
+            "partial results for L += (Y_i * m_i): {}",
+            serde_json::to_string(&l_partial_prod_map).unwrap()
+        );
     }
 }

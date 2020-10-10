@@ -76,6 +76,17 @@ pub fn compute_the_hash<E: Engine>(bytes: &Vec<u8>) -> E::Fr {
     return E::Fr::from_str(&hexresult).unwrap();
 }
 
+pub fn hash_secret_to_fr<E: Engine>(bytes: &Vec<u8>) -> ([u8; 32], E::Fr) {
+    let mut hasher = sha2::Sha256::new();
+    hasher.input(&bytes.as_slice());
+    let sha2_digest = hasher.result();
+    let mut hash_buf: [u8; 32] = [0; 32];
+    hash_buf.copy_from_slice(&sha2_digest);
+    let intresult = fmt_bytes_to_int(hash_buf);
+    let fr_value = E::Fr::from_str(&intresult).unwrap();
+    return (hash_buf, fr_value);
+}
+
 pub fn hash_to_fr<E: Engine>(byteVec: Vec<u8>) -> E::Fr {
     return compute_the_hash::<E>(&byteVec);
 }
@@ -83,11 +94,6 @@ pub fn hash_to_fr<E: Engine>(byteVec: Vec<u8>) -> E::Fr {
 pub fn hash_pubkey_to_fr<E: Engine>(wpk: &secp256k1::PublicKey) -> E::Fr {
     let x_slice = wpk.serialize_uncompressed();
     return compute_the_hash::<E>(&x_slice.to_vec());
-}
-
-pub fn encode_bytes_to_fr<E: Engine>(bytes: [u8; 32]) -> E::Fr {
-    let hexresult = fmt_bytes_to_int(bytes);
-    return E::Fr::from_str(&hexresult).unwrap();
 }
 
 pub fn encode_short_bytes_to_fr<E: Engine>(bytes: [u8; 16]) -> E::Fr {

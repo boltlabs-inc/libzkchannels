@@ -15,7 +15,7 @@ pub use channels_zk::{
     MerchantState, ResultBoltType, RevLockPair,
 };
 pub use cl::PublicParams;
-pub use cl::{PublicKey, Signature};
+pub use cl::{PartialProducts, PublicKey, Signature};
 pub use nizk::NIZKProof;
 pub use ped92::Commitment;
 pub use ped92::CommitmentProof;
@@ -60,9 +60,11 @@ impl fmt::Display for TransactionFeeInfo {
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
+                            <E as pairing::Engine>::G2: serde::Serialize, \
                             <E as pairing::Engine>::G1: serde::Serialize"))]
 #[serde(
     bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+                         <E as pairing::Engine>::G2: serde::Deserialize<'de>,\
                             <E as pairing::Engine>::G1: serde::Deserialize<'de>")
 )]
 pub struct ChannelcloseC<E: Engine> {
@@ -70,6 +72,7 @@ pub struct ChannelcloseC<E: Engine> {
     pub message: wallet::Wallet<E>,
     pub merch_signature: cl::Signature<E>,
     pub cust_signature: secp256k1::Signature,
+    // pub pp: PartialProducts<E>, // for debug purposes
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -595,7 +598,7 @@ pub mod pay {
 
 // for customer => on input a wallet w, it outputs a customer channel closure message
 ///
-/// customer_close - takes as input the channel state, merchant's verification
+/// force_customer_close - takes as input the channel state, merchant's verification
 /// key, and customer state. Generates a channel closure message for customer.
 ///
 pub fn force_customer_close<E: Engine>(
@@ -620,6 +623,8 @@ where
     let close_wallet = wallet.as_fr_vec_bar();
 
     assert!(pk.verify(&cp.pub_params.mpk, &close_wallet, &close_token));
+    // let (res, pp) = pk.debug_verify(&cp.pub_params.mpk, &close_wallet, &close_token);
+    // assert!(res);
 
     // hash the closing wallet + close token (merch sig)
     let mut m1 = serialize_compact::<E>(&close_wallet);
@@ -638,6 +643,7 @@ where
         message: wallet,
         merch_signature: close_token,
         cust_signature: cust_sig,
+        // pp: pp,
     })
 }
 
@@ -655,7 +661,7 @@ fn update_merchant_state(
 }
 
 ///
-/// merchant_close - takes as input the channel state, channel token, customer close msg/sig,
+/// force_merchant_close - takes as input the channel state, channel token, customer close msg/sig,
 /// Returns tokens for merchant close transaction (only if customer close message is found to be a
 /// double spend). If not, then None is returned.
 ///

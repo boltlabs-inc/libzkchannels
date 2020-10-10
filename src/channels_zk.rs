@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fmt;
 use util::{
-    encode_bytes_to_fr, encode_short_bytes_to_fr, hash_pubkey_to_fr, hash_to_fr, hash_to_slice,
+    encode_short_bytes_to_fr, hash_pubkey_to_fr, hash_secret_to_fr, hash_to_fr, hash_to_slice,
 };
 use wallet::Wallet;
 use zkchan_tx::fixed_size_array::FixedSizeArray16;
@@ -141,7 +141,6 @@ impl<E: Engine> ChannelState<E> {
             cp: None,
             name: name.to_string(),
             pay_init: false,
-            // channel_status: NEW,
             third_party: third_party_support,
         }
     }
@@ -296,8 +295,9 @@ impl<E: Engine> CustomerState<E> {
         csprng.fill_bytes(&mut rev_secret);
 
         // compute hash of the revocation secret
-        let rev_lock = hash_to_slice(&rev_secret.to_vec());
-        let rl = encode_bytes_to_fr::<E>(rev_lock);
+        let (rev_lock, rl) = hash_secret_to_fr::<E>(&rev_secret.to_vec());
+        println!("rev_lock buf: {}", hex::encode(&rev_lock));
+        println!("rl in Fr: {}", rl);
 
         // generate the initial nonce
         let mut nonce_bytes = [0u8; 16];
@@ -525,8 +525,7 @@ impl<E: Engine> CustomerState<E> {
         csprng.fill_bytes(&mut new_rev_secret);
 
         // compute hash of the revocation secret
-        let new_rev_lock = hash_to_slice(&new_rev_secret.to_vec());
-        let new_wallet_rl = encode_bytes_to_fr::<E>(new_rev_lock);
+        let (new_rev_lock, new_wallet_rl) = hash_secret_to_fr::<E>(&new_rev_secret.to_vec());
 
         // generate a new nonce
         let mut new_nonce = [0u8; 16];
