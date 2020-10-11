@@ -296,8 +296,6 @@ impl<E: Engine> CustomerState<E> {
 
         // compute hash of the revocation secret
         let (rev_lock, rl) = hash_secret_to_fr::<E>(&rev_secret.to_vec());
-        println!("rev_lock buf: {}", hex::encode(&rev_lock));
-        println!("rl in Fr: {}", rl);
 
         // generate the initial nonce
         let mut nonce_bytes = [0u8; 16];
