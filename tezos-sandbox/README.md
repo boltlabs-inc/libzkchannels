@@ -76,9 +76,9 @@ To switch back to latest stable version of rust do the following:
 
 (4) In the case of a naked environment, this should also work:
 
-    python/SmartPy.sh --help
+    smartpy-cli/SmartPy.sh --help
 
-(5) Test zkChannels contract as follows:
+(5) Run unit tests for zkChannels contract as follows:
 
     mkdir tmp/
-    python/SmartPy.sh test ../smartpy_scripts/zkchannels.py tmp/
+    smartpy-cli/SmartPy.sh test ../smartpy_scripts/zkchannels.py tmp/
