@@ -112,7 +112,7 @@ def scenario_cust_close():
         merchSig5 = "dummy_merchSig5"
         merchSig6 = "dummy_merchSig6"
         
-        storage = '(Left (Right (Left (Pair (Pair (Pair \"{g2}\" (Pair \"{merchSig1}\" \"{merchSig2}\")) (Pair \"{merchSig3}\" (Pair \"{merchSig4}\" \"{merchSig5}\"))) (Pair (Pair \"{merchSig6}\" (Pair {custBal} {merchBal})) (Pair {rev_lock_final} (Pair \"{s1}\" \"{s2}\")))))))'.format(s1=s1, s2=s2, g2=g2, merchSig1=merchSig1, merchSig2=merchSig2, merchSig3=merchSig3, merchSig4=merchSig4, merchSig5=merchSig5, merchSig6=merchSig6, rev_lock_final=rev_lock_final, custBal=new_cust_bal_mt, merchBal=new_merch_bal_mt)
+        storage = '(Pair (Pair (Pair \"{g2}\" (Pair \"{merchSig1}\" \"{merchSig2}\")) (Pair \"{merchSig3}\" (Pair \"{merchSig4}\" \"{merchSig5}\"))) (Pair (Pair \"{merchSig6}\" (Pair {custBal} {merchBal})) (Pair {rev_lock_final} (Pair \"{s1}\" \"{s2}\"))))'.format(s1=s1, s2=s2, g2=g2, merchSig1=merchSig1, merchSig2=merchSig2, merchSig3=merchSig3, merchSig4=merchSig4, merchSig5=merchSig5, merchSig6=merchSig6, rev_lock_final=rev_lock_final, custBal=new_cust_bal_mt, merchBal=new_merch_bal_mt)
 
         # Customer broadcasts custClose with the merchant's signature
         sandbox.client(0).transfer(0, 'bootstrap1', contract_name,
@@ -124,13 +124,13 @@ def scenario_cust_close():
         # self_delay of 3 seconds, the customer will be able to claim their
         # balance.
         sandbox.client(0).bake('baker5', BAKE_ARGS)
-        sandbox.client(0).bake('baker5', BAKE_ARGS)
 
         # Custer claims their balance with custClaim
         sandbox.client(0).transfer(0, 'bootstrap1', contract_name,
                                    ['--entrypoint', 'custClaim',
                                     '--burn-cap', burncap])
         
+        sandbox.client(0).bake('baker5', BAKE_ARGS)
 
 if __name__ == "__main__":
     scenario_cust_close() 
