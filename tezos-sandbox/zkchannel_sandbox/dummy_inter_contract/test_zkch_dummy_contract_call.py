@@ -105,14 +105,14 @@ def scenario_cust_close():
         s1 = "dummy_s1"
         s2 = "dummy_s2"
         g2 = "dummy_g2"
-        merchSig1 = "dummy_merchSig1"
-        merchSig2 = "dummy_merchSig2"
-        merchSig3 = "dummy_merchSig3"
-        merchSig4 = "dummy_merchSig4"
-        merchSig5 = "dummy_merchSig5"
-        merchSig6 = "dummy_merchSig6"
+        merchPk0 = "dummy_merchPk0"
+        merchPk1 = "dummy_merchPk1"
+        merchPk2 = "dummy_merchPk2"
+        merchPk3 = "dummy_merchPk3"
+        merchPk4 = "dummy_merchPk4"
+        merchPk5 = "dummy_merchPk5"
         
-        storage = '(Pair (Pair (Pair \"{g2}\" (Pair \"{merchSig1}\" \"{merchSig2}\")) (Pair \"{merchSig3}\" (Pair \"{merchSig4}\" \"{merchSig5}\"))) (Pair (Pair \"{merchSig6}\" (Pair {custBal} {merchBal})) (Pair {rev_lock_final} (Pair \"{s1}\" \"{s2}\"))))'.format(s1=s1, s2=s2, g2=g2, merchSig1=merchSig1, merchSig2=merchSig2, merchSig3=merchSig3, merchSig4=merchSig4, merchSig5=merchSig5, merchSig6=merchSig6, rev_lock_final=rev_lock_final, custBal=new_cust_bal_mt, merchBal=new_merch_bal_mt)
+        storage = '(Pair (Pair (Pair \"{g2}\" (Pair \"{merchPk0}\" \"{merchPk1}\")) (Pair \"{merchPk2}\" (Pair \"{merchPk3}\" \"{merchPk4}\"))) (Pair (Pair \"{merchPk5}\" (Pair {custBal} {merchBal})) (Pair {rev_lock_final} (Pair \"{s1}\" \"{s2}\"))))'.format(s1=s1, s2=s2, g2=g2, merchPk0=merchPk0, merchPk1=merchPk1, merchPk2=merchPk2, merchPk3=merchPk3, merchPk4=merchPk4, merchPk5=merchPk5, rev_lock_final=rev_lock_final, custBal=new_cust_bal_mt, merchBal=new_merch_bal_mt)
 
         # Customer broadcasts custClose with the merchant's signature
         sandbox.client(0).transfer(0, 'bootstrap1', contract_name,

@@ -6,20 +6,20 @@ class PSSigContract(sp.Contract):
     @sp.entry_point
     def run(self, params):
         sp.set_type(params.chanID, sp.TString)
+        sp.set_type(params.revLock, sp.TBytes)
         sp.set_type(params.custBal, sp.TMutez)
         sp.set_type(params.merchBal, sp.TMutez)
-        sp.set_type(params.revLock, sp.TBytes)
         
         sp.set_type(params.s1, sp.TString)
         sp.set_type(params.s2, sp.TString)
         sp.set_type(params.g2, sp.TString)
         
-        sp.set_type(params.merchSig1, sp.TString)
-        sp.set_type(params.merchSig2, sp.TString)
-        sp.set_type(params.merchSig3, sp.TString)
-        sp.set_type(params.merchSig4, sp.TString)
-        sp.set_type(params.merchSig5, sp.TString)
-        sp.set_type(params.merchSig6, sp.TString)
+        sp.set_type(params.merchPk0, sp.TString)
+        sp.set_type(params.merchPk1, sp.TString)
+        sp.set_type(params.merchPk2, sp.TString)
+        sp.set_type(params.merchPk3, sp.TString)
+        sp.set_type(params.merchPk4, sp.TString)
+        sp.set_type(params.merchPk5, sp.TString)
         
         # # For now, this is a dummy signature check
         sp.if params.s1 != params.s2:
@@ -147,12 +147,12 @@ class ZkChannel(sp.Contract):
             s1 = sp.TString,
             s2 = sp.TString,
             g2 = sp.TString,
-            merchSig1 = sp.TString,
-            merchSig2 = sp.TString,
-            merchSig3 = sp.TString,
-            merchSig4 = sp.TString,
-            merchSig5 = sp.TString,
-            merchSig6 = sp.TString,
+            merchPk0 = sp.TString,
+            merchPk1 = sp.TString,
+            merchPk2 = sp.TString,
+            merchPk3 = sp.TString,
+            merchPk4 = sp.TString,
+            merchPk5 = sp.TString,
             )
             
         params = sp.record(
@@ -164,12 +164,12 @@ class ZkChannel(sp.Contract):
             s1 = params.s1,
             s2 = params.s2,
             g2 = params.g2,
-            merchSig1 = params.merchSig1,
-            merchSig2 = params.merchSig2,
-            merchSig3 = params.merchSig3,
-            merchSig4 = params.merchSig4,
-            merchSig5 = params.merchSig5,
-            merchSig6 = params.merchSig6
+            merchPk0 = params.merchPk0,
+            merchPk1 = params.merchPk1,
+            merchPk2 = params.merchPk2,
+            merchPk3 = params.merchPk3,
+            merchPk4 = params.merchPk4,
+            merchPk5 = params.merchPk5
             )
         
         self.data.status = 'checkingSig'
@@ -317,12 +317,12 @@ def test():
         s1 = "dummy_s1", 
         s2 = "dummy_s2",
         g2 = "dummy_g2",
-        merchSig1 = "dummy_merchSig1",
-        merchSig2 = "dummy_merchSig2",
-        merchSig3 = "dummy_merchSig3",
-        merchSig4 = "dummy_merchSig4",
-        merchSig5 = "dummy_merchSig5",
-        merchSig6 = "dummy_merchSig6"
+        merchPk0 = "dummy_merchPk0",
+        merchPk1 = "dummy_merchPk1",
+        merchPk2 = "dummy_merchPk2",
+        merchPk3 = "dummy_merchPk3",
+        merchPk4 = "dummy_merchPk4",
+        merchPk5 = "dummy_merchPk5"
         ).run(sender = alice)
     scenario.h3("unsuccessful custClaim attempt before delay period")
     scenario += c2.custClaim().run(sender = alice, now = 10, valid = False)
@@ -345,12 +345,12 @@ def test():
         s1 = "dummy_s1", 
         s2 = "dummy_s2",
         g2 = "dummy_g2",
-        merchSig1 = "dummy_merchSig1",
-        merchSig2 = "dummy_merchSig2",
-        merchSig3 = "dummy_merchSig3",
-        merchSig4 = "dummy_merchSig4",
-        merchSig5 = "dummy_merchSig5",
-        merchSig6 = "dummy_merchSig6"
+        merchPk0 = "dummy_merchPk0",
+        merchPk1 = "dummy_merchPk1",
+        merchPk2 = "dummy_merchPk2",
+        merchPk3 = "dummy_merchPk3",
+        merchPk4 = "dummy_merchPk4",
+        merchPk5 = "dummy_merchPk5"
         ).run(sender = alice)
     scenario.h3("merchDispute called with correct secret")
     scenario += c3.merchDispute(secret = sp.bytes("0x12345678aacc")).run(sender = bob, now = 10)
@@ -373,12 +373,12 @@ def test():
         s1 = "dummy_s1", 
         s2 = "dummy_s2",
         g2 = "dummy_g2",
-        merchSig1 = "dummy_merchSig1",
-        merchSig2 = "dummy_merchSig2",
-        merchSig3 = "dummy_merchSig3",
-        merchSig4 = "dummy_merchSig4",
-        merchSig5 = "dummy_merchSig5",
-        merchSig6 = "dummy_merchSig6"
+        merchPk0 = "dummy_merchPk0",
+        merchPk1 = "dummy_merchPk1",
+        merchPk2 = "dummy_merchPk2",
+        merchPk3 = "dummy_merchPk3",
+        merchPk4 = "dummy_merchPk4",
+        merchPk5 = "dummy_merchPk5"
         ).run(sender = alice)
 
     scenario.h2("Scenario 5: escrow -> mutualClose")
@@ -433,12 +433,12 @@ def test():
     #     s1 = "InvalidSig", 
     #     s2 = "InvalidSig",
     #     g2 = "dummy_g2",
-    #     merchSig1 = "dummy_merchSig1",
-    #     merchSig2 = "dummy_merchSig2",
-    #     merchSig3 = "dummy_merchSig3",
-    #     merchSig4 = "dummy_merchSig4",
-    #     merchSig5 = "dummy_merchSig5",
-    #     merchSig6 = "dummy_merchSig6"
+    #     merchPk0 = "dummy_merchPk0",
+    #     merchPk1 = "dummy_merchPk1",
+    #     merchPk2 = "dummy_merchPk2",
+    #     merchPk3 = "dummy_merchPk3",
+    #     merchPk4 = "dummy_merchPk4",
+    #     merchPk5 = "dummy_merchPk5"
     #     ).run(sender = alice)
 
     scenario.table_of_contents()
