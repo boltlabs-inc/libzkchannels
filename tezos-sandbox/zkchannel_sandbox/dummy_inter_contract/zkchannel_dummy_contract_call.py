@@ -136,10 +136,6 @@ class ZkChannel(sp.Contract):
         sp.verify(params.newCustBal >= sp.tez(0))
         sp.verify(params.newMerchBal >= sp.tez(0))
         
-        self.data.custBal = params.newCustBal
-        self.data.merchBal = params.newMerchBal
-        self.data.revLock = params.revLock
-        
         # Check merchant signature using contract call
         tk = sp.TRecord(
             k = sp.TContract(
