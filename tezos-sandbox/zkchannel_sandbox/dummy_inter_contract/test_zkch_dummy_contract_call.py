@@ -49,6 +49,11 @@ def scenario_cust_close():
         merch_addr = constants.IDENTITIES['bootstrap2']['identity']
         merch_pk = constants.IDENTITIES['bootstrap2']['public']
 
+        print('cust balance')
+        sandbox.client(0).get_balance(cust_addr)
+        print('merch balance')
+        sandbox.client(0).get_balance(merch_addr)
+
         # Define initial storage and channel variables
         contract = "zkchannel_dummy_contractcall.tz"
 
@@ -83,6 +88,11 @@ def scenario_cust_close():
 
         sandbox.client(0).bake('baker5', BAKE_ARGS)
 
+        print('cust balance')
+        sandbox.client(0).get_balance(cust_addr)
+        print('merch balance')
+        sandbox.client(0).get_balance(merch_addr)
+
         # Merchant initiates merch close
         sandbox.client(0).transfer(0, 'bootstrap2', contract_name,
                                    ['--entrypoint', 'merchClose',
@@ -105,14 +115,20 @@ def scenario_cust_close():
         s1 = "dummy_s1"
         s2 = "dummy_s2"
         g2 = "dummy_g2"
-        merchPk0 = "dummy_merchPk0"
-        merchPk1 = "dummy_merchPk1"
-        merchPk2 = "dummy_merchPk2"
-        merchPk3 = "dummy_merchPk3"
-        merchPk4 = "dummy_merchPk4"
-        merchPk5 = "dummy_merchPk5"
+        merchSig1 = "dummy_merchSig1"
+        merchSig2 = "dummy_merchSig2"
+        merchSig3 = "dummy_merchSig3"
+        merchSig4 = "dummy_merchSig4"
+        merchSig5 = "dummy_merchSig5"
+        merchSig6 = "dummy_merchSig6"
         
-        storage = '(Pair (Pair (Pair \"{g2}\" (Pair \"{merchPk0}\" \"{merchPk1}\")) (Pair \"{merchPk2}\" (Pair \"{merchPk3}\" \"{merchPk4}\"))) (Pair (Pair \"{merchPk5}\" (Pair {custBal} {merchBal})) (Pair {rev_lock_final} (Pair \"{s1}\" \"{s2}\"))))'.format(s1=s1, s2=s2, g2=g2, merchPk0=merchPk0, merchPk1=merchPk1, merchPk2=merchPk2, merchPk3=merchPk3, merchPk4=merchPk4, merchPk5=merchPk5, rev_lock_final=rev_lock_final, custBal=new_cust_bal_mt, merchBal=new_merch_bal_mt)
+        storage = '(Pair (Pair (Pair \"{g2}\" (Pair \"{merchSig1}\" \"{merchSig2}\")) (Pair \"{merchSig3}\" (Pair \"{merchSig4}\" \"{merchSig5}\"))) (Pair (Pair \"{merchSig6}\" (Pair {custBal} {merchBal})) (Pair {rev_lock_final} (Pair \"{s1}\" \"{s2}\"))))'.format(s1=s1, s2=s2, g2=g2, merchSig1=merchSig1, merchSig2=merchSig2, merchSig3=merchSig3, merchSig4=merchSig4, merchSig5=merchSig5, merchSig6=merchSig6, rev_lock_final=rev_lock_final, custBal=new_cust_bal_mt, merchBal=new_merch_bal_mt)
+
+
+        print('cust balance')
+        sandbox.client(0).get_balance(cust_addr)
+        print('merch balance')
+        sandbox.client(0).get_balance(merch_addr)
 
         # Customer broadcasts custClose with the merchant's signature
         sandbox.client(0).transfer(0, 'bootstrap1', contract_name,
@@ -124,6 +140,14 @@ def scenario_cust_close():
         # self_delay of 3 seconds, the customer will be able to claim their
         # balance.
         sandbox.client(0).bake('baker5', BAKE_ARGS)
+        sandbox.client(0).bake('baker5', BAKE_ARGS)
+
+
+        print('cust balance')
+        sandbox.client(0).get_balance(cust_addr)
+        print('merch balance')
+        sandbox.client(0).get_balance(merch_addr)
+        
 
         # Custer claims their balance with custClaim
         sandbox.client(0).transfer(0, 'bootstrap1', contract_name,
@@ -131,6 +155,10 @@ def scenario_cust_close():
                                     '--burn-cap', burncap])
         
         sandbox.client(0).bake('baker5', BAKE_ARGS)
+        print('cust balance')
+        sandbox.client(0).get_balance(cust_addr)
+        print('merch balance')
+        sandbox.client(0).get_balance(merch_addr)
 
 if __name__ == "__main__":
     scenario_cust_close() 
