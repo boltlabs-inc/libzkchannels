@@ -1,4 +1,4 @@
-parameter (pair (pair (pair (string %chanID) (pair (mutez %custBal) (string %g2))) (pair (pair (contract %k (pair (pair (mutez %newCustBal) (mutez %newMerchBal)) (pair (bytes %newRevLock) (bool %valid)))) (mutez %merchBal)) (pair (string %merchSig1) (string %merchSig2)))) (pair (pair (string %merchSig3) (pair (string %merchSig4) (string %merchSig5))) (pair (pair (string %merchSig6) (bytes %revLock)) (pair (string %s1) (string %s2)))));
+parameter (pair (pair (pair (string %chanID) (pair (mutez %custBal) (string %g2))) (pair (pair (contract %k (pair (pair (mutez %newCustBal) (mutez %newMerchBal)) (pair (bytes %newRevLock) (bool %valid)))) (mutez %merchBal)) (pair (string %merchPk0) (string %merchPk1)))) (pair (pair (string %merchPk2) (pair (string %merchPk3) (string %merchPk4))) (pair (pair (string %merchPk5) (bytes %revLock)) (pair (string %s1) (string %s2)))));
 storage   unit;
 code
   {
