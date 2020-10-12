@@ -8,10 +8,6 @@ def form_initial_storage(chan_id, cust_addr, cust_pk, merch_addr, merch_pk, cust
 
     return '(Pair (Pair (Pair \"{chan_id}\" (Pair \"{cust_addr}\" 0)) (Pair (Pair {cust_bal0} \"{cust_pk}\") (Pair "0" \"{merch_addr}\"))) (Pair (Pair 0 (Pair {merch_bal0} \"{merch_pk}\")) (Pair (Pair \"{pssig_addr}\"  {rev_lock}) (Pair {self_delay} "awaitingFunding"))))'.format(chan_id=chan_id, cust_addr=cust_addr, cust_pk=cust_pk, merch_addr=merch_addr, merch_pk=merch_pk, cust_bal0=cust_bal0, merch_bal0=merch_bal0, self_delay=self_delay, rev_lock=rev_lock, pssig_addr = pssig_addr)
 
-# (Pair (Pair (Pair "randomstring" (Pair "tz1WxrQuZ4CK1MBUa2GqUWK1yJ4J6EtG1Gwi" 0)) (Pair 20000000 (Pair "edpkuvNy6TuQ2z8o9wnoaTtTXkzQk7nhegCHfxBc4ecsd4qG71KYNG" "0"))) (Pair (Pair "tz1Rp4Bv8iUhYnNoCryHQgNzN2D7i3L1LF9C" (Pair 0 10000000)) (Pair (Pair "edpkufVmvzkm4oFQ7WcF5NJbq9BFB2mWRsm4Dyh2spMDuDxWSQWHuT" 0x1f98c84caf714d00ede5d23142bc166d84f8cd42adc18be22c3d47453853ea49) (Pair 86400 "awaitingFunding"))))
-
-#     return '(Pair (Pair (Pair \"{chan_id}\" (Pair \"{cust_addr}\" 0)) (Pair {cust_bal0} (Pair \"{cust_pk}\" "0"))) (Pair (Pair \"{merch_addr}\" (Pair 0 {merch_bal0})) (Pair (Pair \"{merch_pk}\" {rev_lock}) (Pair {self_delay} "awaitingFunding"))))'.format(chan_id=chan_id, cust_addr=cust_addr, cust_pk=cust_pk, merch_addr=merch_addr, merch_pk=merch_pk, cust_bal0=cust_bal0, merch_bal0=merch_bal0, self_delay=self_delay, rev_lock=rev_lock, pssig_addr = pssig_addr)
-
 def form_closing_state(chan_id, cust_addr, merch_addr, cust_bal_mt, merch_bal_mt, new_rev_lock):
 
     return '(Pair (Pair \"{chan_id}\" (Pair \"{cust_addr}\" \"{merch_addr}\")) (Pair {cust_bal_mt} (Pair {merch_bal_mt} {rev_lock})))'.format(chan_id=chan_id, cust_addr=cust_addr, merch_addr=merch_addr, cust_bal_mt=cust_bal_mt, merch_bal_mt=merch_bal_mt, rev_lock=new_rev_lock)
@@ -115,20 +111,13 @@ def scenario_cust_close():
         s1 = "dummy_s1"
         s2 = "dummy_s2"
         g2 = "dummy_g2"
-        merchSig1 = "dummy_merchSig1"
-        merchSig2 = "dummy_merchSig2"
-        merchSig3 = "dummy_merchSig3"
-        merchSig4 = "dummy_merchSig4"
-        merchSig5 = "dummy_merchSig5"
-        merchSig6 = "dummy_merchSig6"
-        
-        storage = '(Pair (Pair (Pair \"{g2}\" (Pair \"{merchSig1}\" \"{merchSig2}\")) (Pair \"{merchSig3}\" (Pair \"{merchSig4}\" \"{merchSig5}\"))) (Pair (Pair \"{merchSig6}\" (Pair {custBal} {merchBal})) (Pair {rev_lock_final} (Pair \"{s1}\" \"{s2}\"))))'.format(s1=s1, s2=s2, g2=g2, merchSig1=merchSig1, merchSig2=merchSig2, merchSig3=merchSig3, merchSig4=merchSig4, merchSig5=merchSig5, merchSig6=merchSig6, rev_lock_final=rev_lock_final, custBal=new_cust_bal_mt, merchBal=new_merch_bal_mt)
+        merchPk0 = "dummy_merchPk0"
+        merchPk1 = "dummy_merchPk1"
+        merchPk2 = "dummy_merchPk2"
+        merchPk3 = "dummy_merchPk3"
+        merchPk4 = "dummy_merchPk4"
 
-
-        print('cust balance')
-        sandbox.client(0).get_balance(cust_addr)
-        print('merch balance')
-        sandbox.client(0).get_balance(merch_addr)
+        storage = '(Pair (Pair (Pair \"{g2}\" \"{merchPk0}\") (Pair \"{merchPk1}\" (Pair \"{merchPk2}\" \"{merchPk3}\"))) (Pair (Pair \"{merchPk4}\" (Pair {custBal} {merchBal})) (Pair {rev_lock_final} (Pair \"{s1}\" \"{s2}\"))))'.format(s1=s1, s2=s2, g2=g2, merchPk0=merchPk0, merchPk1=merchPk1, merchPk2=merchPk2, merchPk3=merchPk3, merchPk4=merchPk4, rev_lock_final=rev_lock_final, custBal=new_cust_bal_mt, merchBal=new_merch_bal_mt)
 
         # Customer broadcasts custClose with the merchant's signature
         sandbox.client(0).transfer(0, 'bootstrap1', contract_name,
@@ -142,12 +131,10 @@ def scenario_cust_close():
         sandbox.client(0).bake('baker5', BAKE_ARGS)
         sandbox.client(0).bake('baker5', BAKE_ARGS)
 
-
         print('cust balance')
         sandbox.client(0).get_balance(cust_addr)
         print('merch balance')
         sandbox.client(0).get_balance(merch_addr)
-        
 
         # Custer claims their balance with custClaim
         sandbox.client(0).transfer(0, 'bootstrap1', contract_name,
@@ -155,6 +142,7 @@ def scenario_cust_close():
                                     '--burn-cap', burncap])
         
         sandbox.client(0).bake('baker5', BAKE_ARGS)
+
         print('cust balance')
         sandbox.client(0).get_balance(cust_addr)
         print('merch balance')
