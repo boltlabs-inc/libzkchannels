@@ -1,0 +1,104 @@
+parameter (or (pair %dummyEntryPoint (pair (mutez %newCustBal) (mutez %newMerchBal)) (pair (bytes %newRevLock) (bool %valid))) (pair %receiveCall (pair (mutez %newCustBal) (mutez %newMerchBal)) (pair (bytes %newRevLock) (bool %valid))));
+storage   (pair (mutez %custBal) (pair (mutez %merchBal) (bytes %revLock)));
+code
+  {
+    DUP;        # pair @parameter @storage : pair @parameter @storage
+    CDR;        # @storage : pair @parameter @storage
+    SWAP;       # pair @parameter @storage : @storage
+    CAR;        # @parameter : @storage
+    IF_LEFT
+      {
+        # == dummyEntryPoint ==
+        # sp.verify(params.valid == True) # @parameter%dummyEntryPoint : @storage
+        DUP;        # @parameter%dummyEntryPoint : @parameter%dummyEntryPoint : @storage
+        CDDR;       # bool : @parameter%dummyEntryPoint : @storage
+        PUSH bool True; # bool : bool : @parameter%dummyEntryPoint : @storage
+        COMPARE;    # int : @parameter%dummyEntryPoint : @storage
+        EQ;         # bool : @parameter%dummyEntryPoint : @storage
+        IF
+          {}
+          {
+            PUSH string "WrongCondition: params.valid == True"; # string : @parameter%dummyEntryPoint : @storage
+            FAILWITH;   # FAILED
+          }; # @parameter%dummyEntryPoint : @storage
+        SWAP;       # @storage : @parameter%dummyEntryPoint
+        # self.data.custBal = params.newCustBal # @storage : @parameter%dummyEntryPoint
+        CDR;        # pair (mutez %merchBal) (bytes %revLock) : @parameter%dummyEntryPoint
+        SWAP;       # @parameter%dummyEntryPoint : pair (mutez %merchBal) (bytes %revLock)
+        DUP;        # @parameter%dummyEntryPoint : @parameter%dummyEntryPoint : pair (mutez %merchBal) (bytes %revLock)
+        DUG 2;      # @parameter%dummyEntryPoint : pair (mutez %merchBal) (bytes %revLock) : @parameter%dummyEntryPoint
+        CAAR;       # mutez : pair (mutez %merchBal) (bytes %revLock) : @parameter%dummyEntryPoint
+        PAIR;       # pair mutez (pair (mutez %merchBal) (bytes %revLock)) : @parameter%dummyEntryPoint
+        # self.data.merchBal = params.newMerchBal # pair mutez (pair (mutez %merchBal) (bytes %revLock)) : @parameter%dummyEntryPoint
+        DUP;        # pair mutez (pair (mutez %merchBal) (bytes %revLock)) : pair mutez (pair (mutez %merchBal) (bytes %revLock)) : @parameter%dummyEntryPoint
+        CAR;        # mutez : pair mutez (pair (mutez %merchBal) (bytes %revLock)) : @parameter%dummyEntryPoint
+        SWAP;       # pair mutez (pair (mutez %merchBal) (bytes %revLock)) : mutez : @parameter%dummyEntryPoint
+        CDDR;       # bytes : mutez : @parameter%dummyEntryPoint
+        DIG 2;      # @parameter%dummyEntryPoint : bytes : mutez
+        DUP;        # @parameter%dummyEntryPoint : @parameter%dummyEntryPoint : bytes : mutez
+        DUG 3;      # @parameter%dummyEntryPoint : bytes : mutez : @parameter%dummyEntryPoint
+        CADR;       # mutez : bytes : mutez : @parameter%dummyEntryPoint
+        PAIR;       # pair mutez bytes : mutez : @parameter%dummyEntryPoint
+        SWAP;       # mutez : pair mutez bytes : @parameter%dummyEntryPoint
+        PAIR;       # pair mutez (pair mutez bytes) : @parameter%dummyEntryPoint
+        # self.data.revLock = params.newRevLock # pair mutez (pair mutez bytes) : @parameter%dummyEntryPoint
+        DUP;        # pair mutez (pair mutez bytes) : pair mutez (pair mutez bytes) : @parameter%dummyEntryPoint
+        CAR;        # mutez : pair mutez (pair mutez bytes) : @parameter%dummyEntryPoint
+        SWAP;       # pair mutez (pair mutez bytes) : mutez : @parameter%dummyEntryPoint
+        CDAR;       # mutez : mutez : @parameter%dummyEntryPoint
+        DIG 2;      # @parameter%dummyEntryPoint : mutez : mutez
+        CDAR;       # bytes : mutez : mutez
+        SWAP;       # mutez : bytes : mutez
+        PAIR;       # pair mutez bytes : mutez
+        SWAP;       # mutez : pair mutez bytes
+        PAIR;       # pair mutez (pair mutez bytes)
+      }
+      {
+        # == receiveCall ==
+        # sp.verify(params.valid == True) # @parameter%receiveCall : @storage
+        DUP;        # @parameter%receiveCall : @parameter%receiveCall : @storage
+        CDDR;       # bool : @parameter%receiveCall : @storage
+        PUSH bool True; # bool : bool : @parameter%receiveCall : @storage
+        COMPARE;    # int : @parameter%receiveCall : @storage
+        EQ;         # bool : @parameter%receiveCall : @storage
+        IF
+          {}
+          {
+            PUSH string "WrongCondition: params.valid == True"; # string : @parameter%receiveCall : @storage
+            FAILWITH;   # FAILED
+          }; # @parameter%receiveCall : @storage
+        SWAP;       # @storage : @parameter%receiveCall
+        # self.data.custBal = params.newCustBal # @storage : @parameter%receiveCall
+        CDR;        # pair (mutez %merchBal) (bytes %revLock) : @parameter%receiveCall
+        SWAP;       # @parameter%receiveCall : pair (mutez %merchBal) (bytes %revLock)
+        DUP;        # @parameter%receiveCall : @parameter%receiveCall : pair (mutez %merchBal) (bytes %revLock)
+        DUG 2;      # @parameter%receiveCall : pair (mutez %merchBal) (bytes %revLock) : @parameter%receiveCall
+        CAAR;       # mutez : pair (mutez %merchBal) (bytes %revLock) : @parameter%receiveCall
+        PAIR;       # pair mutez (pair (mutez %merchBal) (bytes %revLock)) : @parameter%receiveCall
+        # self.data.merchBal = params.newMerchBal # pair mutez (pair (mutez %merchBal) (bytes %revLock)) : @parameter%receiveCall
+        DUP;        # pair mutez (pair (mutez %merchBal) (bytes %revLock)) : pair mutez (pair (mutez %merchBal) (bytes %revLock)) : @parameter%receiveCall
+        CAR;        # mutez : pair mutez (pair (mutez %merchBal) (bytes %revLock)) : @parameter%receiveCall
+        SWAP;       # pair mutez (pair (mutez %merchBal) (bytes %revLock)) : mutez : @parameter%receiveCall
+        CDDR;       # bytes : mutez : @parameter%receiveCall
+        DIG 2;      # @parameter%receiveCall : bytes : mutez
+        DUP;        # @parameter%receiveCall : @parameter%receiveCall : bytes : mutez
+        DUG 3;      # @parameter%receiveCall : bytes : mutez : @parameter%receiveCall
+        CADR;       # mutez : bytes : mutez : @parameter%receiveCall
+        PAIR;       # pair mutez bytes : mutez : @parameter%receiveCall
+        SWAP;       # mutez : pair mutez bytes : @parameter%receiveCall
+        PAIR;       # pair mutez (pair mutez bytes) : @parameter%receiveCall
+        # self.data.revLock = params.newRevLock # pair mutez (pair mutez bytes) : @parameter%receiveCall
+        DUP;        # pair mutez (pair mutez bytes) : pair mutez (pair mutez bytes) : @parameter%receiveCall
+        CAR;        # mutez : pair mutez (pair mutez bytes) : @parameter%receiveCall
+        SWAP;       # pair mutez (pair mutez bytes) : mutez : @parameter%receiveCall
+        CDAR;       # mutez : mutez : @parameter%receiveCall
+        DIG 2;      # @parameter%receiveCall : mutez : mutez
+        CDAR;       # bytes : mutez : mutez
+        SWAP;       # mutez : bytes : mutez
+        PAIR;       # pair mutez bytes : mutez
+        SWAP;       # mutez : pair mutez bytes
+        PAIR;       # pair mutez (pair mutez bytes)
+      }; # pair mutez (pair mutez bytes)
+    NIL operation; # list operation : pair mutez (pair mutez bytes)
+    PAIR;       # pair (list operation) (pair mutez (pair mutez bytes))
+  };
