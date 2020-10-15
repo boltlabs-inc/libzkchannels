@@ -3,19 +3,6 @@ from tools import constants, paths, utils
 from launchers.sandbox import Sandbox
 
 BAKE_ARGS = ['--minimal-timestamp']
-
-def form_initial_storage(chan_id, cust_addr, cust_pk, merch_addr, merch_pk, cust_bal0, merch_bal0, rev_lock, self_delay, pssig_addr):
-
-    return '(Pair (Pair (Pair \"{chan_id}\" (Pair \"{cust_addr}\" 0)) (Pair (Pair {cust_bal0} \"{cust_pk}\") (Pair "0" \"{merch_addr}\"))) (Pair (Pair 0 (Pair {merch_bal0} \"{merch_pk}\")) (Pair (Pair \"{pssig_addr}\"  {rev_lock}) (Pair {self_delay} "awaitingFunding"))))'.format(chan_id=chan_id, cust_addr=cust_addr, cust_pk=cust_pk, merch_addr=merch_addr, merch_pk=merch_pk, cust_bal0=cust_bal0, merch_bal0=merch_bal0, self_delay=self_delay, rev_lock=rev_lock, pssig_addr = pssig_addr)
-
-def form_closing_state(chan_id, cust_addr, merch_addr, cust_bal_mt, merch_bal_mt, new_rev_lock):
-
-    return '(Pair (Pair \"{chan_id}\" (Pair \"{cust_addr}\" \"{merch_addr}\")) (Pair {cust_bal_mt} (Pair {merch_bal_mt} {rev_lock})))'.format(chan_id=chan_id, cust_addr=cust_addr, merch_addr=merch_addr, cust_bal_mt=cust_bal_mt, merch_bal_mt=merch_bal_mt, rev_lock=new_rev_lock)
-
-def form_mutual_state(chan_id, cust_addr, merch_addr, cust_bal_mt, merch_bal_mt):
-
-    return '(Pair (Pair \"{chan_id}\" \"{cust_addr}\") (Pair \"{merch_addr}\" (Pair {cust_bal_mt} {merch_bal_mt} )))'.format(chan_id=chan_id, cust_addr=cust_addr, merch_addr=merch_addr, cust_bal_mt=cust_bal_mt, merch_bal_mt=merch_bal_mt)
-
         
 def scenario_cust_close():
     """ a private tezos network, initialized with network parameters
@@ -28,15 +15,15 @@ def scenario_cust_close():
         time.sleep(5)
         burncap = "9"
 
-        # Originate dummy pssigs contract
-        pssig_contract = "dummy_pssig.tz"
+        # Originate mock pssigs contract
+        pssig_contract = "mock_pssig.tz"
         pssig_name = "pssig_contract"
         args = ["--init", "Unit", "--burn-cap", burncap]
         sandbox.client(0).originate(pssig_name, 0, "bootstrap1", pssig_contract, args)
         sandbox.client(0).bake('baker5', BAKE_ARGS)
 
         # Originate mock zkchannel contract
-        contract = "zkchannel_mock.tz"
+        contract = "mock_zkchannel.tz"
         contract_name = "my_zkchannel"
         chan_id = "randomchanid"
         rev_lock0 = "0x1f98c84caf714d00ede5d23142bc166d84f8cd42adc18be22c3d47453853ea49"

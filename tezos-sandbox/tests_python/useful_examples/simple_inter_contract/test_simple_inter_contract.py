@@ -11,15 +11,13 @@ def scenario_basic_call():
         # Launch node running protocol alpha
         sandbox.add_node(0, params=constants.NODE_PARAMS)
         utils.activate_alpha(sandbox.client(0))
-        
         sandbox.add_baker(0, 'baker5', proto=constants.ALPHA_DAEMON)
-
         time.sleep(5)
 
         # Originate external contract
         # This is a dummy contract for the one that will check the signature.
         # For now, it returns True input is greate than 9, else False.
-        contract_external = "zk_external_contract.tz"
+        contract_external = "simple_inter_contract/external_contract.tz"
         contract_external_name = "external_contract"
         burncap = "9"
         args = ["--init", "Unit", "--burn-cap", burncap]
@@ -30,7 +28,7 @@ def scenario_basic_call():
         external_contract_addr = sandbox.client(0).get_contract_address(contract_external_name)
 
         # Originate the main contract
-        contract_main = "zk_main_contract.tz"
+        contract_main = "simple_inter_contract/main_contract.tz"
         contract_main_name = "main_contract"
         burncap = "9"
         storage = '(Pair \"{addr}\" False)'.format(addr=external_contract_addr)

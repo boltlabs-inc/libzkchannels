@@ -24,19 +24,9 @@ def scenario_reclaim_funding():
         # Launch node running protocol alpha
         sandbox.add_node(0, params=constants.NODE_PARAMS)
         utils.activate_alpha(sandbox.client(0))
-        # Launch a second node on the same private tezos network
-        sandbox.add_node(1, params=constants.NODE_PARAMS)
-        # Launch a baker associated to node 0, baking on behalf of delegate
-        # bootstrap5
-        sandbox.add_baker(0, 'bootstrap5', proto=constants.ALPHA_DAEMON)
-        # Wait for second node to update its protocol to alpha, if not
-        # it may not know yet the `wait_for_inclusion` operation which is
-        # protocol specific
-
-        # (Originally this sleep was 15 seconds)
+        sandbox.add_baker(0, 'baker5', proto=constants.ALPHA_DAEMON)
         time.sleep(5)
-
-        # Originate the zkchannel contract with hard coded values (without any funding)
+        burncap = "9"
 
         cust_addr = constants.IDENTITIES['bootstrap1']['identity']
         cust_pk = constants.IDENTITIES['bootstrap1']['public']
@@ -44,7 +34,7 @@ def scenario_reclaim_funding():
         merch_pk = constants.IDENTITIES['bootstrap2']['public']
 
         # Define initial storage and channel variables
-        contract = "zkchannel_contract.tz"
+        contract = "zkchannel_without_ps.tz"
 
         contract_name = "mychannel"
         chan_id = "randomchanid"
@@ -55,21 +45,20 @@ def scenario_reclaim_funding():
         rev_lock0 = "0x1f98c84caf714d00ede5d23142bc166d84f8cd42adc18be22c3d47453853ea49"
         # self_delay = 86400    # seconds in 1 day (60*60*24)
         self_delay = 3
-        burncap = "9"
 
         # Originate zkchannel contract (without funding)
         initial_storage = form_initial_storage(chan_id, cust_addr, cust_pk, merch_addr, merch_pk, cust_bal_mt, merch_bal_mt, rev_lock0, self_delay)
         args = ["--init", initial_storage, "--burn-cap", burncap]
         sandbox.client(0).originate(contract_name, 0, "bootstrap1", contract, args)
 
-        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
+        sandbox.client(0).bake('baker5', BAKE_ARGS)
 
         # Add customer's funds
         sandbox.client(0).transfer(cust_bal, 'bootstrap1', contract_name,
                                    ['--entrypoint', 'addFunding',
                                     '--burn-cap', burncap])
 
-        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
+        sandbox.client(0).bake('baker5', BAKE_ARGS)
 
         # Add customer withdraws funding before channel is opened
         sandbox.client(0).transfer(0, 'bootstrap1', contract_name,
@@ -84,19 +73,9 @@ def scenario_merch_close():
         # Launch node running protocol alpha
         sandbox.add_node(0, params=constants.NODE_PARAMS)
         utils.activate_alpha(sandbox.client(0))
-        # Launch a second node on the same private tezos network
-        sandbox.add_node(1, params=constants.NODE_PARAMS)
-        # Launch a baker associated to node 0, baking on behalf of delegate
-        # bootstrap5
-        sandbox.add_baker(0, 'bootstrap5', proto=constants.ALPHA_DAEMON)
-        # Wait for second node to update its protocol to alpha, if not
-        # it may not know yet the `wait_for_inclusion` operation which is
-        # protocol specific
-
-        # (Originally this sleep was 15 seconds)
+        sandbox.add_baker(0, 'baker5', proto=constants.ALPHA_DAEMON)
         time.sleep(5)
-
-        # Originate the zkchannel contract with hard coded values (without any funding)
+        burncap = "9"
 
         cust_addr = constants.IDENTITIES['bootstrap1']['identity']
         cust_pk = constants.IDENTITIES['bootstrap1']['public']
@@ -104,7 +83,7 @@ def scenario_merch_close():
         merch_pk = constants.IDENTITIES['bootstrap2']['public']
 
         # Define initial storage and channel variables
-        contract = "zkchannel_contract.tz"
+        contract = "zkchannel_without_ps.tz"
 
         contract_name = "mychannel"
         chan_id = "randomchanid"
@@ -115,14 +94,13 @@ def scenario_merch_close():
         rev_lock0 = "0x1f98c84caf714d00ede5d23142bc166d84f8cd42adc18be22c3d47453853ea49"
         # self_delay = 86400    # seconds in 1 day (60*60*24)
         self_delay = 3
-        burncap = "9"
 
         # Originate zkchannel contract (without funding)
         initial_storage = form_initial_storage(chan_id, cust_addr, cust_pk, merch_addr, merch_pk, cust_bal_mt, merch_bal_mt, rev_lock0, self_delay)
         args = ["--init", initial_storage, "--burn-cap", burncap]
         sandbox.client(0).originate(contract_name, 0, "bootstrap1", contract, args)
 
-        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
+        sandbox.client(0).bake('baker5', BAKE_ARGS)
 
         # Add customer's funds
         sandbox.client(0).transfer(cust_bal, 'bootstrap1', contract_name,
@@ -134,7 +112,7 @@ def scenario_merch_close():
                                    ['--entrypoint', 'addFunding',
                                     '--burn-cap', burncap])
 
-        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
+        sandbox.client(0).bake('baker5', BAKE_ARGS)
 
         # Merchant initiates merch close
         sandbox.client(0).transfer(0, 'bootstrap2', contract_name,
@@ -144,8 +122,8 @@ def scenario_merch_close():
         # Each baked block increments the timestamp by 2 seconds. With a 
         # self_delay of 3 seconds, the customer will be able to claim their
         # balance.
-        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
-        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
+        sandbox.client(0).bake('baker5', BAKE_ARGS)
+        sandbox.client(0).bake('baker5', BAKE_ARGS)
 
         # Custer claims their balance with custClaim
         sandbox.client(0).transfer(0, 'bootstrap2', contract_name,
@@ -160,19 +138,9 @@ def scenario_cust_close():
         # Launch node running protocol alpha
         sandbox.add_node(0, params=constants.NODE_PARAMS)
         utils.activate_alpha(sandbox.client(0))
-        # Launch a second node on the same private tezos network
-        sandbox.add_node(1, params=constants.NODE_PARAMS)
-        # Launch a baker associated to node 0, baking on behalf of delegate
-        # bootstrap5
-        sandbox.add_baker(0, 'bootstrap5', proto=constants.ALPHA_DAEMON)
-        # Wait for second node to update its protocol to alpha, if not
-        # it may not know yet the `wait_for_inclusion` operation which is
-        # protocol specific
-
-        # (Originally this sleep was 15 seconds)
+        sandbox.add_baker(0, 'baker5', proto=constants.ALPHA_DAEMON)
         time.sleep(5)
-
-        # Originate the zkchannel contract with hard coded values (without any funding)
+        burncap = "9"
 
         cust_addr = constants.IDENTITIES['bootstrap1']['identity']
         cust_pk = constants.IDENTITIES['bootstrap1']['public']
@@ -180,7 +148,7 @@ def scenario_cust_close():
         merch_pk = constants.IDENTITIES['bootstrap2']['public']
 
         # Define initial storage and channel variables
-        contract = "zkchannel_contract.tz"
+        contract = "zkchannel_without_ps.tz"
 
         contract_name = "mychannel"
         chan_id = "randomchanid"
@@ -191,14 +159,13 @@ def scenario_cust_close():
         rev_lock0 = "0x1f98c84caf714d00ede5d23142bc166d84f8cd42adc18be22c3d47453853ea49"
         # self_delay = 86400    # seconds in 1 day (60*60*24)
         self_delay = 3
-        burncap = "9"
 
         # Originate zkchannel contract (without funding)
         initial_storage = form_initial_storage(chan_id, cust_addr, cust_pk, merch_addr, merch_pk, cust_bal_mt, merch_bal_mt, rev_lock0, self_delay)
         args = ["--init", initial_storage, "--burn-cap", burncap]
         sandbox.client(0).originate(contract_name, 0, "bootstrap1", contract, args)
 
-        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
+        sandbox.client(0).bake('baker5', BAKE_ARGS)
 
         # Add customer's funds
         sandbox.client(0).transfer(cust_bal, 'bootstrap1', contract_name,
@@ -210,14 +177,14 @@ def scenario_cust_close():
                                    ['--entrypoint', 'addFunding',
                                     '--burn-cap', burncap])
 
-        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
+        sandbox.client(0).bake('baker5', BAKE_ARGS)
 
         # Merchant initiates merch close
         sandbox.client(0).transfer(0, 'bootstrap2', contract_name,
                                    ['--entrypoint', 'merchClose',
                                     '--burn-cap', burncap])
 
-        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
+        sandbox.client(0).bake('baker5', BAKE_ARGS)
 
         # A final payment happens - Merchant signs off on chanID, balances,
         # revlock (and for now addresses, although that may change)
@@ -242,8 +209,8 @@ def scenario_cust_close():
         # Each baked block increments the timestamp by 2 seconds. With a 
         # self_delay of 3 seconds, the customer will be able to claim their
         # balance.
-        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
-        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
+        sandbox.client(0).bake('baker5', BAKE_ARGS)
+        sandbox.client(0).bake('baker5', BAKE_ARGS)
 
         # Custer claims their balance with custClaim
         sandbox.client(0).transfer(0, 'bootstrap1', contract_name,
@@ -257,19 +224,8 @@ def scenario_mutual_close():
         # Launch node running protocol alpha
         sandbox.add_node(0, params=constants.NODE_PARAMS)
         utils.activate_alpha(sandbox.client(0))
-        # Launch a second node on the same private tezos network
-        sandbox.add_node(1, params=constants.NODE_PARAMS)
-        # Launch a baker associated to node 0, baking on behalf of delegate
-        # bootstrap5
-        sandbox.add_baker(0, 'bootstrap5', proto=constants.ALPHA_DAEMON)
-        # Wait for second node to update its protocol to alpha, if not
-        # it may not know yet the `wait_for_inclusion` operation which is
-        # protocol specific
-
-        # (Originally this sleep was 15 seconds)
+        sandbox.add_baker(0, 'baker5', proto=constants.ALPHA_DAEMON)
         time.sleep(5)
-
-        # Originate the zkchannel contract with hard coded values (without any funding)
 
         cust_addr = constants.IDENTITIES['bootstrap1']['identity']
         cust_pk = constants.IDENTITIES['bootstrap1']['public']
@@ -277,7 +233,7 @@ def scenario_mutual_close():
         merch_pk = constants.IDENTITIES['bootstrap2']['public']
 
         # Define initial storage and channel variables
-        contract = "zkchannel_contract.tz"
+        contract = "zkchannel_without_ps.tz"
 
         contract_name = "mychannel"
         chan_id = "randomchanid"
@@ -295,7 +251,7 @@ def scenario_mutual_close():
         args = ["--init", initial_storage, "--burn-cap", burncap]
         sandbox.client(0).originate(contract_name, 0, "bootstrap1", contract, args)
 
-        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
+        sandbox.client(0).bake('baker5', BAKE_ARGS)
 
         # Add customer's funds
         sandbox.client(0).transfer(cust_bal, 'bootstrap1', contract_name,
@@ -307,7 +263,7 @@ def scenario_mutual_close():
                                    ['--entrypoint', 'addFunding',
                                     '--burn-cap', burncap])
 
-        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
+        sandbox.client(0).bake('baker5', BAKE_ARGS)
         
         # Create the mutual close state that customer and merchant settle on
         new_cust_bal_mt = 1 * 1000000
@@ -334,19 +290,9 @@ def scenario_merch_dispute():
         # Launch node running protocol alpha
         sandbox.add_node(0, params=constants.NODE_PARAMS)
         utils.activate_alpha(sandbox.client(0))
-        # Launch a second node on the same private tezos network
-        sandbox.add_node(1, params=constants.NODE_PARAMS)
-        # Launch a baker associated to node 0, baking on behalf of delegate
-        # bootstrap5
-        sandbox.add_baker(0, 'bootstrap5', proto=constants.ALPHA_DAEMON)
-        # Wait for second node to update its protocol to alpha, if not
-        # it may not know yet the `wait_for_inclusion` operation which is
-        # protocol specific
-
-        # (Originally this sleep was 15 seconds)
+        sandbox.add_baker(0, 'baker5', proto=constants.ALPHA_DAEMON)
         time.sleep(5)
-
-        # Originate the zkchannel contract with hard coded values (without any funding)
+        burncap = "9"
 
         cust_addr = constants.IDENTITIES['bootstrap1']['identity']
         cust_pk = constants.IDENTITIES['bootstrap1']['public']
@@ -354,7 +300,7 @@ def scenario_merch_dispute():
         merch_pk = constants.IDENTITIES['bootstrap2']['public']
 
         # Define initial storage and channel variables
-        contract = "zkchannel_contract.tz"
+        contract = "zkchannel_without_ps.tz"
 
         contract_name = "mychannel"
         chan_id = "randomchanid"
@@ -365,14 +311,13 @@ def scenario_merch_dispute():
         rev_lock0 = "0x1f98c84caf714d00ede5d23142bc166d84f8cd42adc18be22c3d47453853ea49"
         # self_delay = 86400    # seconds in 1 day (60*60*24)
         self_delay = 3
-        burncap = "9"
 
         # Originate zkchannel contract (without funding)
         initial_storage = form_initial_storage(chan_id, cust_addr, cust_pk, merch_addr, merch_pk, cust_bal_mt, merch_bal_mt, rev_lock0, self_delay)
         args = ["--init", initial_storage, "--burn-cap", burncap]
         sandbox.client(0).originate(contract_name, 0, "bootstrap1", contract, args)
 
-        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
+        sandbox.client(0).bake('baker5', BAKE_ARGS)
 
         # Add customer's funds
         sandbox.client(0).transfer(cust_bal, 'bootstrap1', contract_name,
@@ -384,7 +329,7 @@ def scenario_merch_dispute():
                                    ['--entrypoint', 'addFunding',
                                     '--burn-cap', burncap])
 
-        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
+        sandbox.client(0).bake('baker5', BAKE_ARGS)
 
         # Customer makes a payment
         new_cust_bal_mt = 10 * 1000000
@@ -408,7 +353,7 @@ def scenario_merch_dispute():
                                     '--burn-cap', burncap,
                                     '--arg', storage])
 
-        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
+        sandbox.client(0).bake('baker5', BAKE_ARGS)
         
         # Merchant broadcasts merchDispute
 
