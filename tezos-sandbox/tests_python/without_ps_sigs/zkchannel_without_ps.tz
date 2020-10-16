@@ -810,8 +810,8 @@ code
                     PUSH string "WrongCondition: self.data.status == 'custClose'"; # string : @parameter%merchDispute : @storage
                     FAILWITH;   # FAILED
                   }; # @parameter%merchDispute : @storage
-                # sp.verify(self.data.revLock == sp.blake2b(params.secret)) # @parameter%merchDispute : @storage
-                BLAKE2B;    # bytes : @storage
+                # sp.verify(self.data.revLock == sp.sha256(params.secret)) # @parameter%merchDispute : @storage
+                SHA256;    # bytes : @storage
                 SWAP;       # @storage : bytes
                 DUP;        # @storage : @storage : bytes
                 DUG 2;      # @storage : bytes : @storage
@@ -821,7 +821,7 @@ code
                 IF
                   {}
                   {
-                    PUSH string "WrongCondition: self.data.revLock == sp.blake2b(params.secret)"; # string : @storage
+                    PUSH string "WrongCondition: self.data.revLock == sp.sha256(params.secret)"; # string : @storage
                     FAILWITH;   # FAILED
                   }; # @storage
                 # sp.send(self.data.merchAddr, self.data.custBal) # @storage

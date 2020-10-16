@@ -24,11 +24,8 @@ def scenario_cust_close():
         # Launch node running protocol alpha
         sandbox.add_node(0, params=constants.NODE_PARAMS)
         utils.activate_alpha(sandbox.client(0))
-
         sandbox.add_baker(0, 'baker5', proto=constants.ALPHA_DAEMON)
-
         time.sleep(5)
-
         burncap = "9"
 
         # Originate mock pssigs contract
@@ -101,7 +98,7 @@ def scenario_cust_close():
         new_cust_bal_mt = 1 * 1000000
         new_merch_bal_mt = 29 * 1000000
         # # secret_final = 0x123456789ccc
-        rev_lock_final = "0x5d33df275854dc7aea1323eab177a195935d0af0cb7fa727c5b491d41244d42c"
+        rev_lock_final = "0x90d774c7ce82fbe85a7bd34bf9cbb00689e1352e7bf6b54591ccd0d3fde9d729"
 
         # Merch signs off on custState
         # closing_state = form_closing_state(chan_id, cust_addr, merch_addr, new_cust_bal_mt, new_merch_bal_mt, rev_lock_final)

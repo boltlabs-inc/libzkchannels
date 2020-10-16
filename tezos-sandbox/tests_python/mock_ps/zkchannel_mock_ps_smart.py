@@ -203,7 +203,7 @@ class ZkChannel(sp.Contract):
     def merchDispute(self, params):
         sp.verify(self.data.merchAddr == sp.sender)
         sp.verify((self.data.status == 'custClose') | (self.data.status == 'checkingSig'))
-        sp.verify(self.data.revLock == sp.blake2b(params.secret))
+        sp.verify(self.data.revLock == sp.sha256(params.secret))
         sp.send(self.data.merchAddr, self.data.custBal)
         self.data.custBal = sp.tez(0)
         self.data.status = 'closed'
@@ -274,7 +274,7 @@ def test():
     chanID = "randomstring"
     custAddr = alice.address
     merchAddr = bob.address
-    revLock = sp.blake2b(sp.bytes("0x12345678aabb"))
+    revLock = sp.sha256(sp.bytes("0x12345678aabb"))
     selfDelay = 60*60*24 # seconds in one day - 86,400
     scenario.h2("On-chain installment")
     custFunding = sp.tez(20)
@@ -311,7 +311,7 @@ def test():
     scenario.p("For the payment to be considered complete, the customer should have received a signature from the merchant reflecting the final balances, and the merchant should have received the secret corresponding to the previous state's revLock.")
     newCustBal = sp.tez(25)
     newMerchBal = sp.tez(5)
-    revLock2 = sp.blake2b(sp.bytes("0x12345678aacc"))
+    revLock2 = sp.sha256(sp.bytes("0x12345678aacc"))
 
     scenario.h3("custClose")
     scenario += c2.custClose(
@@ -340,7 +340,7 @@ def test():
     scenario += c3.addFunding().run(sender = alice, amount = custFunding)
     scenario += c3.addFunding().run(sender = bob, amount = merchFunding)
     scenario.h3("custClose")
-    revLock2 = sp.blake2b(sp.bytes("0x12345678aacc"))
+    revLock2 = sp.sha256(sp.bytes("0x12345678aacc"))
     scenario += c3.custClose(
         revLock = revLock2, 
         newCustBal = newCustBal, 
@@ -367,7 +367,7 @@ def test():
     scenario.h3("merchClose")
     scenario += c4.merchClose().run(sender = bob)
     scenario.h3("custClose")
-    revLock3 = sp.blake2b(sp.bytes("0x12345678aacc"))
+    revLock3 = sp.sha256(sp.bytes("0x12345678aacc"))
     scenario += c4.custClose(
         revLock = revLock2, 
         newCustBal = newCustBal, 
@@ -426,7 +426,7 @@ def test():
     # scenario += c3.addFunding().run(sender = alice, amount = custFunding)
     # scenario += c3.addFunding().run(sender = bob, amount = merchFunding)
     # scenario.h3("custClose")
-    # revLock2 = sp.blake2b(sp.bytes("0x12345678aacc"))
+    # revLock2 = sp.sha256(sp.bytes("0x12345678aacc"))
     # scenario += c3.custClose(
     #     revLock = revLock2, 
     #     newCustBal = newCustBal, 
