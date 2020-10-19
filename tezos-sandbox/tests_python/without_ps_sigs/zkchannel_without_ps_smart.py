@@ -206,9 +206,9 @@ def test():
     scenario.h3("merchClose")
     scenario += c1.merchClose().run(sender = bob)
     scenario.h3("unsuccessful merchClaim before delay period")
-    scenario += c1.merchClaim().run(sender = bob, now = 10, valid = False)
+    scenario += c1.merchClaim().run(sender = bob, now = sp.timestamp(10), valid = False)
     scenario.h3("successful merchClaim after delay period")
-    scenario += c1.merchClaim().run(sender = bob, now = 100000)
+    scenario += c1.merchClaim().run(sender = bob, now = sp.timestamp(100000))
 
     scenario.h2("Scenario 2: escrow -> custClose -> custClaim")
     scenario.h3("escrow")
@@ -234,9 +234,9 @@ def test():
     scenario.h3("custClose")
     scenario += c2.custClose(revLock = revLock2, newCustBal = newCustBal, newMerchBal = newMerchBal, merchSig = merchSig).run(sender = alice)
     scenario.h3("unsuccessful custClaim attempt before delay period")
-    scenario += c2.custClaim().run(sender = alice, now = 10, valid = False)
+    scenario += c2.custClaim().run(sender = alice, now = sp.timestamp(10), valid = False)
     scenario.h3("successful custClaim after delay period")
-    scenario += c2.custClaim().run(sender = alice, now = 100000)
+    scenario += c2.custClaim().run(sender = alice, now = sp.timestamp(100000))
 
     scenario.h2("Scenario 3: escrow -> custClose -> merchDispute")
     scenario.h3("escrow")
@@ -249,7 +249,7 @@ def test():
     revLock2 = sp.sha256(sp.bytes("0x12345678aacc"))
     scenario += c3.custClose(revLock = revLock2, newCustBal = newCustBal, newMerchBal = newMerchBal, merchSig = merchSig).run(sender = alice)
     scenario.h3("merchDispute called with correct secret")
-    scenario += c3.merchDispute(secret = sp.bytes("0x12345678aacc")).run(sender = bob, now = 10)
+    scenario += c3.merchDispute(secret = sp.bytes("0x12345678aacc")).run(sender = bob, now = sp.timestamp(10))
 
     scenario.h2("Scenario 4: escrow -> merchClose -> custClose")
     scenario.h3("escrow")
