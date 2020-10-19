@@ -198,9 +198,9 @@ To fund the customer's side of the channel we will transfer the exact amount spe
 ```
 tezos-client transfer 20 from bootstrap1 to zkcontract --burn-cap 9 --entrypoint addFunding
 ```
--```20``` : The amount of tez  being transfered to the contract must equal the amount specified during contract origination.
--```zkcontract``` : We reference our on-chain zkChannel contract using the alias defined during origination.
--```addFunding``` : The entrypoint used when funding.
+- ```20``` : The amount of tez  being transfered to the contract must equal the amount specified during contract origination.
+- ```zkcontract``` : We reference our on-chain zkChannel contract using the alias defined during origination.
+- ```addFunding``` : The entrypoint used when funding.
 
 Now we will do the same for  the merchant:
 ```
@@ -223,9 +223,48 @@ tezos-client get balance for zkcontract
 
 # Pay
 
-##
 
 # Mutual Close
+In the case of a mutual close, both the customer and merchant need to sign off on the final state.
+TODO Darius: Check if there is a libzkchannel protocol for initating a mutual close.
+
+The final state that gets signed needs to be serialized in a specific way according to how it'll be checked in the on-chain contract. The command to create the serialized data to be signed, and the format of the storage is as follows:
+
+```
+hash data (Pair (Pair "<channel_id> <cust_address>) (Pair "<merch_address>" (Pair <cust_balance> <merch_balance> ))) of type pair (pair string address) (pair address (pair mutez mutez))
+```
+Breaking down the components:
+- ```hash data``` : The command that will give us our serialized data to be signed.
+- ```of type pair (pair...``` : This lets the tezos node know what structure and types to expect.
+
+Filling in the fields, it should look something like:
+
+```
+hash data (Pair (Pair "randomchanid" "tz1KqTpEZ7Yob7QbPE4Hy4Wo8fHG8LhKxZSx") (Pair "tz1gjaF81ZRRvdzjobyfVNsAeSC6PScjfQwN" (Pair 1000000 29000000 ))) of type pair (pair string address) (pair address (pair mutez mutez))
+```
+
+The terminal should return a result with a field ```Raw packed data```. Now we want to sign this data with the customer and merchant's account. First, with the customer's account (```bootstrap1```):
+
+```
+sign bytes 0x0507070707010000000c72616e646f6d6368616e69640a00000016000002298c03ed7d454a101eb7022bc95f7e5f41ac7807070a000000160000e7670f32038107a59a2b9cfefae36ea21f5aa63c07070080897a008085d41b for bootstrap1
+```
+and with the merchant's account (```bootstrap2```):
+
+```
+sign bytes 0x0507070707010000000c72616e646f6d6368616e69640a00000016000002298c03ed7d454a101eb7022bc95f7e5f41ac7807070a000000160000e7670f32038107a59a2b9cfefae36ea21f5aa63c07070080897a008085d41b for bootstrap2
+```
+
+Now that we have both signatures on the final state of the channel, we can initiate the mutual close!
+
+```
+transfer 0 from bootstrap1 to my_zkchannel --entrypoint mutualClose --burn-cap 9 --arg (Pair (Pair "<cust_signature" "<merch_signature>") (Pair 1000000 29000000))
+```
+
+Filling in the signatures:
+
+```
+transfer 0 from bootstrap1 to my_zkchannel --entrypoint mutualClose --burn-cap 9 --arg (Pair (Pair "edsigtYVTS2pJoXt8eARKnZGtFa8g9i8buUe7AVDtcfv7nbFykAhwZTr9dHSi9jxUbsU66K4aetdtA8tJyVrjzwapx9FB3eoKtR" "edsigtfpHDYiu56zvvXJujdMP3HjidSFd17L8Wgw3VvrghkJTCUKe81YtscWV9PJnTK7g4uGV8s4dqRy2dMayvUGyuXqznSjMgr") (Pair 1000000 29000000))
+```
 
 # Unilateral Close
 
