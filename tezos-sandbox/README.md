@@ -24,7 +24,6 @@ Testing with Tezos using BLS12-381
 	
 	curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 	source $HOME/.cargo/env
-	
 	rustup toolchain install 1.39.0
 	rustup default 1.39.0
 
