@@ -4,9 +4,11 @@ Testing with Tezos using BLS12-381
 ## Building on sandbox
 
 (1a) Build dependencies on Ubuntu 18.04:
-
+	
+	sudo add-apt-repository ppa:avsm/ppa
+	sudo apt update
 	sudo apt-get install -y rsync git m4 build-essential patch unzip wget pkg-config libgmp-dev libev-dev libhidapi-dev libffi-dev opam jq
-	sudo apt-get install virtualenv python3-pip 
+	sudo apt-get install -y virtualenv python3-pip 
     
 (1b) Build deps on Mac OS:
 
@@ -17,10 +19,12 @@ Testing with Tezos using BLS12-381
 	
 	curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python
 	source $HOME/.poetry/env
-	 
 
 (3) Install rust 1.39
-
+	
+	curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+	source $HOME/.cargo/env
+	
 	rustup toolchain install 1.39.0
 	rustup default 1.39.0
 
@@ -59,6 +63,8 @@ To switch back to latest stable version of rust do the following:
     poetry run python3 ../tezos/tests_python/pssigs_verify_optimized.py -c dec_cust_close.json
 
 ## Installing SmartPy
+
+SmartPy is only needed to run the SmartPy scripts. It is not needed for testing the tezos smart contracts with the Tezos sandbox node. Alternatively, you can also use the [SmartPy online IDE](https://smartpy.io/) to run the SmartPy scripts.
 
 (1) Clone the source repo
 
