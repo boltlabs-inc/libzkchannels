@@ -16,9 +16,9 @@ code
     CADDDR;     # bytes : bytes : @parameter : @storage
     CONCAT;     # bytes : @parameter : @storage
     SWAP;       # @parameter : bytes : @storage
-    # val2 = sp.local("val2", params.merchPk1 + params.revLock) # @parameter : bytes : @storage
+    # val2 = sp.local("val2", params.merchPk1 + params.revLockB) # @parameter : bytes : @storage
     DUP;        # @parameter : @parameter : bytes : @storage
-    CDDAAR;     # bytes : @parameter : bytes : @storage
+    CDDADR;     # bytes : @parameter : bytes : @storage
     SWAP;       # @parameter : bytes : bytes : @storage
     DUP;        # @parameter : @parameter : bytes : bytes : @storage
     DUG 3;      # @parameter : bytes : bytes : @parameter : @storage
