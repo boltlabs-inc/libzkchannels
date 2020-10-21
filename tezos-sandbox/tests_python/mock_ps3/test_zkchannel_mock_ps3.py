@@ -275,4 +275,4 @@ def scenario_cust_close_fail():
 
 if __name__ == "__main__":
     scenario_cust_close() 
-    scenario_cust_close_fail() 
+    # scenario_cust_close_fail() 
