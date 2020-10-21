@@ -238,5 +238,5 @@ tezos-client transfer 0 from bootstrap2 to my_zkchannel --entrypoint merchDisput
 Filling in the revocation secret using our example:
 
 ```
-$ tezos-client transfer 0 from bootstrap2 to my_zkchannel --entrypoint merchDispute --burn-cap 9 --arg& 0x123456789ccc
+$ tezos-client transfer 0 from bootstrap2 to my_zkchannel --entrypoint merchDispute --burn-cap 9 --arg 0x123456789ccc&
 ```
