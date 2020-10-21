@@ -54,13 +54,13 @@ To open a zkChannel, the customer runs the `open` command with the initial balan
 
 Similarly, the merchant executes following command to accept the channel request:
 
-    zkchannels-cli open --party MERCH --own-port 12347 --other-port 12346 --min-threshold 0
+    zkchannels-cli open --party MERCH --own-port 12347 --other-port 12346
 
 # Init
 
 The customer initializes the channel by specifying the funds for the channel:
 
-    zkchannels-cli init --party CUST --other-port 12347 --own-port 12346 --input-amount 20000 --output-amount 10000 --channel-name "alice1" 
+    zkchannels-cli init --party CUST --other-port 12347 --own-port 12346 --input-sats 20000 --output-sats 10000 --channel-name "alice1" 
 
 Merchant runs the following to form the initial transactions and exchange signatures:
 
