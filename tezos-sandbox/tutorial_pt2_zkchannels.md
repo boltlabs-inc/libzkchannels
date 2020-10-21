@@ -22,6 +22,7 @@ Our current version of zkChannels on Tezos uses two smart contracts. The first i
 
 Make sure the two contract files,  ```zkchannels_mock_pssig.tz``` and ```mock_pssig.tz``` are in the current directory. Alternatively, you can use the full file path when referencing them during contract origination.
 
+The files are located in the ```libzkchannels/tezos-sandbox/tests_python/mock_ps/``` subdirectory.
 TODO: Come up with a better way of organising files.
 
 ## Channel Establishment
@@ -160,10 +161,7 @@ $ tezos-client get balance for my_zkchannel
 
 
 ## Mutual Close
-In the case of a mutual close, both the customer and merchant need to sign off on the final state.
-TODO Darius: Check if there is a libzkchannel protocol for initating a mutual close.
-
-The final state that gets signed needs to be serialized in a specific way according to how it'll be checked in the on-chain contract. The command to create the serialized data to be signed, and the format of the storage is as follows:
+In the case of a mutual close, both the customer and merchant need to sign off on the final state. The final state that gets signed needs to be serialized in a specific way according to how it'll be checked in the on-chain contract. The command to create the serialized data to be signed, and the format of the storage is as follows:
 
 ```
 tezos-client hash data '(Pair (Pair "<channel_id> <cust_address>) (Pair "<merch_address>" (Pair <cust_balance> <merch_balance> )))' of type 'pair (pair string address) (pair address (pair mutez mutez))'
