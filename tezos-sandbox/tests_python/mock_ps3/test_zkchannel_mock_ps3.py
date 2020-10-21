@@ -103,18 +103,22 @@ def scenario_cust_close():
         new_merch_bal_mt = 29 * 1000000
         # # secret_final = 0x123456789ccc
         rev_lock_final = "0x90d774c7ce82fbe85a7bd34bf9cbb00689e1352e7bf6b54591ccd0d3fde9d729"
-        rev_lock_final_b = "0x90d774c7ce82fbe85a7bd34bf9cbb00689e1352e7bf6b54591ccd0d3fde9d729"
+        rev_lock_final_b = "0x80d774c7ce82fbe85a7bd34bf9cbb00689e1352e7bf6b54591ccd0d3fde9d728"
 
-        s1 = "0x1111123456789ccc"
-        s2 = "0x1111123456789ccc"
-        g2 = "0x1111123456789ccc"
-        merchPk0 = "0x1111123456789ccc"
-        merchPk1 = "0x1111123456789ccc"
-        merchPk2 = "0x1111123456789ccc"
-        merchPk3 = "0x1111123456789ccc"
-        merchPk4 = "0x1111123456789ccc"
+        s1 = "0x12345678fff1"
+        s2 = "0x12345678fff2"
+        g2 = "0x12345678fff3"
+        merchPk0 = "0x12345678fff4"
+        merchPk1 = "0x12345678fff5"
+        merchPk2 = "0x12345678fff6"
+        merchPk3 = "0x12345678fff7"
+        merchPk4 = "0x12345678fff8"
 
-        storage = '(Pair (Pair (Pair {g2} (Pair {merchPk0} {merchPk1})) (Pair (Pair {merchPk2} {merchPk3}) (Pair {merchPk4} {custBal}))) (Pair (Pair {custBalB} (Pair {merchBal} {merchBalB})) (Pair (Pair {rev_lock_final} {rev_lock_final_b}) (Pair {s1} {s2}))))'.format(s1=s1, s2=s2, g2=g2, merchPk0=merchPk0, merchPk1=merchPk1, merchPk2=merchPk2, merchPk3=merchPk3, merchPk4=merchPk4, rev_lock_final=rev_lock_final, custBal=new_cust_bal_mt, merchBal=new_merch_bal_mt, custBalB=cust_bal_b, merchBalB=merch_bal_b, rev_lock_final_b=rev_lock_final_b)
+        storage = '(Pair (Pair (Pair {custBal} (Pair {custBalB} {g2})) (Pair (Pair {merchBal} {merchBalB}) (Pair {merchPk0} {merchPk1}))) (Pair (Pair {merchPk2} (Pair {merchPk3} {merchPk4})) (Pair (Pair {rev_lock_final} {rev_lock_final_b}) (Pair {s1} {s2}))))'.format(s1=s1, s2=s2, g2=g2, merchPk0=merchPk0, merchPk1=merchPk1, merchPk2=merchPk2, merchPk3=merchPk3, merchPk4=merchPk4, rev_lock_final=rev_lock_final, custBal=new_cust_bal_mt, merchBal=new_merch_bal_mt, custBalB=cust_bal_b, merchBalB=merch_bal_b, rev_lock_final_b=rev_lock_final_b)
+
+        # storage = '(Pair (Pair (Pair {g2} (Pair {merchPk0} {merchPk1})) (Pair (Pair {merchPk2} {merchPk3}) (Pair {merchPk4} {custBal}))) (Pair (Pair {custBalB} (Pair {merchBal} {merchBalB})) (Pair (Pair {rev_lock_final} {rev_lock_final_b}) (Pair {s1} {s2}))))'.format(s1=s1, s2=s2, g2=g2, merchPk0=merchPk0, merchPk1=merchPk1, merchPk2=merchPk2, merchPk3=merchPk3, merchPk4=merchPk4, rev_lock_final=rev_lock_final, custBal=new_cust_bal_mt, merchBal=new_merch_bal_mt, custBalB=cust_bal_b, merchBalB=merch_bal_b, rev_lock_final_b=rev_lock_final_b)
+
+        # storage = '(Pair (Pair (Pair {g2} (Pair {merchPk0} {merchPk1})) (Pair (Pair {merchPk2} {merchPk3}) (Pair {merchPk4} {custBal}))) (Pair (Pair {custBalB} (Pair {merchBal} {merchBalB})) (Pair (Pair {rev_lock_final} {rev_lock_final_b}) (Pair {s1} {s2}))))'.format(s1=s1, s2=s2, g2=g2, merchPk0=merchPk0, merchPk1=merchPk1, merchPk2=merchPk2, merchPk3=merchPk3, merchPk4=merchPk4, rev_lock_final=rev_lock_final, custBal=new_cust_bal_mt, merchBal=new_merch_bal_mt, custBalB=cust_bal_b, merchBalB=merch_bal_b, rev_lock_final_b=rev_lock_final_b)
 
         # Customer broadcasts custClose with the merchant's signature
         sandbox.client(0).transfer(0, 'bootstrap1', contract_name,
