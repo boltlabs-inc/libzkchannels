@@ -118,7 +118,7 @@ def scenario_cust_close():
         merchPk3 = "0x1111123456789ccc"
         merchPk4 = "0x1111123456789ccc"
 
-        storage = '(Left (Right (Left (Pair (Pair (Pair {g2} (Pair {merchPk0} {merchPk1})) (Pair (Pair {merchPk2} {merchPk3}) (Pair {merchPk4} {custBal}))) (Pair (Pair {custBalB} (Pair {merchBal} {merchBalB})) (Pair (Pair {rev_lock_final} {rev_lock_final_b}) (Pair {s1} {s2})))))))'.format(s1=s1, s2=s2, g2=g2, merchPk0=merchPk0, merchPk1=merchPk1, merchPk2=merchPk2, merchPk3=merchPk3, merchPk4=merchPk4, rev_lock_final=rev_lock_final, custBal=new_cust_bal_mt, merchBal=new_merch_bal_mt, custBalB=cust_bal_b, merchBalB=merch_bal_b, rev_lock_final_b=rev_lock_final_b)
+        storage = '(Pair (Pair (Pair {g2} (Pair {merchPk0} {merchPk1})) (Pair (Pair {merchPk2} {merchPk3}) (Pair {merchPk4} {custBal}))) (Pair (Pair {custBalB} (Pair {merchBal} {merchBalB})) (Pair (Pair {rev_lock_final} {rev_lock_final_b}) (Pair {s1} {s2}))))'.format(s1=s1, s2=s2, g2=g2, merchPk0=merchPk0, merchPk1=merchPk1, merchPk2=merchPk2, merchPk3=merchPk3, merchPk4=merchPk4, rev_lock_final=rev_lock_final, custBal=new_cust_bal_mt, merchBal=new_merch_bal_mt, custBalB=cust_bal_b, merchBalB=merch_bal_b, rev_lock_final_b=rev_lock_final_b)
 
         # storage = '(Pair (Pair (Pair \"{g2}\" \"{merchPk0}\") (Pair \"{merchPk1}\" (Pair \"{merchPk2}\" \"{merchPk3}\"))) (Pair (Pair \"{merchPk4}\" (Pair {custBal} {merchBal})) (Pair {rev_lock_final} (Pair \"{s1}\" \"{s2}\"))))'.format(s1=s1, s2=s2, g2=g2, merchPk0=merchPk0, merchPk1=merchPk1, merchPk2=merchPk2, merchPk3=merchPk3, merchPk4=merchPk4, rev_lock_final=rev_lock_final, custBal=new_cust_bal_mt, merchBal=new_merch_bal_mt)
 
