@@ -104,11 +104,6 @@ def scenario_cust_close():
         rev_lock_final = "0x90d774c7ce82fbe85a7bd34bf9cbb00689e1352e7bf6b54591ccd0d3fde9d729"
         rev_lock_final_b = "0x90d774c7ce82fbe85a7bd34bf9cbb00689e1352e7bf6b54591ccd0d3fde9d729"
 
-        # Merch signs off on custState
-        # closing_state = form_closing_state(chan_id, cust_addr, merch_addr, new_cust_bal_mt, new_merch_bal_mt, rev_lock_final)
-        # cust_close_type = 'pair (pair string (pair address address)) (pair mutez (pair mutez bytes))'
-        # packed = sandbox.client(0).pack(closing_state, cust_close_type)
-
         s1 = "0x1111123456789ccc"
         s2 = "0x1111123456789ccc"
         g2 = "0x1111123456789ccc"
@@ -119,8 +114,6 @@ def scenario_cust_close():
         merchPk4 = "0x1111123456789ccc"
 
         storage = '(Pair (Pair (Pair {g2} (Pair {merchPk0} {merchPk1})) (Pair (Pair {merchPk2} {merchPk3}) (Pair {merchPk4} {custBal}))) (Pair (Pair {custBalB} (Pair {merchBal} {merchBalB})) (Pair (Pair {rev_lock_final} {rev_lock_final_b}) (Pair {s1} {s2}))))'.format(s1=s1, s2=s2, g2=g2, merchPk0=merchPk0, merchPk1=merchPk1, merchPk2=merchPk2, merchPk3=merchPk3, merchPk4=merchPk4, rev_lock_final=rev_lock_final, custBal=new_cust_bal_mt, merchBal=new_merch_bal_mt, custBalB=cust_bal_b, merchBalB=merch_bal_b, rev_lock_final_b=rev_lock_final_b)
-
-        # storage = '(Pair (Pair (Pair \"{g2}\" \"{merchPk0}\") (Pair \"{merchPk1}\" (Pair \"{merchPk2}\" \"{merchPk3}\"))) (Pair (Pair \"{merchPk4}\" (Pair {custBal} {merchBal})) (Pair {rev_lock_final} (Pair \"{s1}\" \"{s2}\"))))'.format(s1=s1, s2=s2, g2=g2, merchPk0=merchPk0, merchPk1=merchPk1, merchPk2=merchPk2, merchPk3=merchPk3, merchPk4=merchPk4, rev_lock_final=rev_lock_final, custBal=new_cust_bal_mt, merchBal=new_merch_bal_mt)
 
         # Customer broadcasts custClose with the merchant's signature
         sandbox.client(0).transfer(0, 'bootstrap1', contract_name,
