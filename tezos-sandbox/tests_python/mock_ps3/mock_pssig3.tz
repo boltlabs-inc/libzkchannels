@@ -54,9 +54,9 @@ code
     CONCAT;     # bytes : bytes : @storage
     CONCAT;     # bytes : @storage
     # out = sp.local("out", False)
-    # if sp.len(prod1.value) > 50: # bytes : @storage
+    # if sp.len(prod1.value) > 70: # bytes : @storage
     SIZE;       # nat : @storage
-    PUSH nat 50; # nat : nat : @storage
+    PUSH nat 70; # nat : nat : @storage
     COMPARE;    # int : @storage
     LT;         # bool : @storage
     IF
