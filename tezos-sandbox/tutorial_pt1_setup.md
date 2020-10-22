@@ -110,7 +110,7 @@ $ tezos-client bake for baker5
 # Setting up zkChannels-cli 
 Now that we have got the Tezos sandbox node up and running, we are ready to set up the zkChannels rust cli used for the off-chain part of the protocol. For the tutorial, we will simulate communication between the customer and merchant by running two terminals communicating with each other. You can install the zkChannels-cli utility by running the following steps:
 ```
-# switch rust version
+cargo update
 rustup default stable
 
 # build the release
