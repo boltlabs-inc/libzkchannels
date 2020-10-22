@@ -61,6 +61,7 @@ In a terminal in your tezos directory, the following command will initialize a n
 Once your node is running, open a new terminal and initialize the “sandboxed” client data in a temporary directory:
 
 ```
+export TEZOS_CLIENT_UNSAFE_DISABLE_DISCLAIMER=Y
 eval `./src/bin_client/tezos-init-sandboxed-client.sh 1`
 ```
 
@@ -106,4 +107,15 @@ You will notice that this command doesn’t terminate (hence the &), as usual it
 $ tezos-client bake for baker5
 ```
 
-Now that we have got the Tezos sandbox node up and running, we are ready for part 2 of the tutorial where we will setup a zkChannel on Tezos!
+# Setting up zkChannels-cli 
+Now that we have got the Tezos sandbox node up and running, we are ready to set up the zkChannels rust cli used for the off-chain part of the protocol. For the tutorial, we will simulate communication between the customer and merchant by running two terminals communicating with each other. You can install the zkChannels-cli utility by running the following steps:
+```
+# build the release
+cargo build --release
+
+# path to the utility from cli/ dir
+../target/release/zkchannels-cli
+
+# or install in CARGO_INSTALL_ROOT
+cargo install 
+```
