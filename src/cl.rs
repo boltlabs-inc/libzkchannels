@@ -723,7 +723,7 @@ mod tests {
     use pairing::{
         bls12_381::{G1Uncompressed, G2Uncompressed},
         EncodedPoint,
-    };    
+    };
     use rand::SeedableRng;
     use rand_xorshift::XorShiftRng;
     use util::convert_str_to_fr;
