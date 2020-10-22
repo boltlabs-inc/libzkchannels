@@ -130,17 +130,13 @@ impl FromStr for Party {
 
 #[derive(Clone, Debug, StructOpt, Deserialize)]
 pub struct SetFees {
-    #[structopt(short = "d", long = "bal-min-cust", default_value = "546")]
+    #[structopt(short = "d", long = "bal-min-cust", default_value = "100")]
     bal_min_cust: i64,
-    #[structopt(short = "e", long = "bal-min-merch", default_value = "546")]
+    #[structopt(short = "e", long = "bal-min-merch", default_value = "100")]
     bal_min_merch: i64,
-    #[structopt(short = "v", long = "val-cpfp", default_value = "1000")]
+    #[structopt(short = "c", long = "fee-cc", default_value = "10")]
     fee_cc: i64,
-    #[structopt(short = "m", long = "min-fee", default_value = "0")]
-    min_fee: i64,
-    #[structopt(short = "s", long = "max-fee", default_value = "10000")]
-    max_fee: i64,
-    #[structopt(short = "g", long = "fee-mc", default_value = "1000")]
+    #[structopt(short = "m", long = "fee-mc", default_value = "10")]
     fee_mc: i64,
 }
 
@@ -168,14 +164,10 @@ pub struct Open {
 pub struct Init {
     #[structopt(long = "party")]
     party: Party,
-    #[structopt(long = "txid")]
-    txid: Option<String>,
-    #[structopt(long = "index")]
-    index: Option<u32>,
-    #[structopt(short = "a", long = "input-sats")]
-    input_sats: Option<i64>,
-    #[structopt(short = "o", long = "output-sats")]
-    output_sats: Option<i64>,
+    #[structopt(short = "a", long = "input-amount")]
+    input_amount: Option<i64>,
+    #[structopt(short = "o", long = "output-amount")]
+    output_amount: Option<i64>,
     #[structopt(short = "i", long = "own-ip", default_value = "127.0.0.1")]
     own_ip: String,
     #[structopt(short = "p", long = "own-port")]
@@ -184,10 +176,15 @@ pub struct Init {
     other_ip: String,
     #[structopt(short = "q", long = "other-port")]
     other_port: String,
-    #[structopt(short = "f", long = "tx-fee", default_value = "1000")]
-    tx_fee: i64,
     #[structopt(short = "n", long = "channel-name", default_value = "")]
     channel_name: String,
+    // TODO: revisit
+    #[structopt(long = "txid")]
+    txid: Option<String>,
+    #[structopt(long = "index")]
+    index: Option<u32>,
+    #[structopt(short = "f", long = "tx-fee", default_value = "10")]
+    tx_fee: i64,
 }
 
 #[derive(Clone, Debug, StructOpt, Deserialize)]
@@ -388,12 +385,12 @@ pub fn get_file_from_db(
 }
 
 fn get_tx_fee_info() -> TransactionFeeInfo {
-    let min_threshold = 546; // dust limit
+    let min_threshold = 100;
     let tx_fee_info = TransactionFeeInfo {
         bal_min_cust: min_threshold,
         bal_min_merch: min_threshold,
-        fee_cc: 1000,
-        fee_mc: 1000,
+        fee_cc: 10,
+        fee_mc: 10,
     };
     return tx_fee_info;
 }
@@ -569,14 +566,13 @@ fn main() -> Result<(), confy::ConfyError> {
                 Err(e) => println!("Initialize phase failed with error: {}", e),
                 _ => (),
             },
-            // TODO: clean this up
             Party::CUST => match cust::init(
                 create_connection!(init),
                 &db_url,
                 init.txid,
                 init.index,
-                init.input_sats.unwrap(),
-                init.output_sats.unwrap(),
+                init.input_amount.unwrap(),
+                init.output_amount.unwrap(),
                 init.tx_fee,
                 init.channel_name,
             ) {
@@ -719,8 +715,8 @@ mod cust {
         db_url: &String,
         _txid: Option<String>,
         _index: Option<u32>,
-        input_sats: i64,
-        output_sats: i64,
+        input_amount: i64,
+        output_amount: i64,
         tx_fee: i64,
         channel_name: String,
     ) -> Result<(), String> {

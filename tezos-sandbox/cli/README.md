@@ -44,13 +44,13 @@ Use the default values:
 
 Can set individual fees as follows:
 
-    zkchannels-cli setfees --bal-min-cust 500 --bal-min-merch 500 --fee-cc 100 --fee-mc 100
+    zkchannels-cli setfees --bal-min-cust 100 --bal-min-merch 100
 
 # Open
 
 To open a zkChannel, the customer runs the `open` command with the initial balances for the channel:
 
-    zkchannels-cli open --party CUST --other-port 12347 --own-port 12346 --cust-bal 10000 --merch-bal 0 --channel-name "alice1"
+    zkchannels-cli open --party CUST --other-port 12347 --own-port 12346 --cust-bal 20000 --merch-bal 1000 --channel-name "alice1"
 
 Similarly, the merchant executes following command to accept the channel request:
 
@@ -60,7 +60,7 @@ Similarly, the merchant executes following command to accept the channel request
 
 The customer initializes the channel by specifying the funds for the channel:
 
-    zkchannels-cli init --party CUST --other-port 12347 --own-port 12346 --input-sats 20000 --output-sats 10000 --channel-name "alice1" 
+    zkchannels-cli init --party CUST --other-port 12347 --own-port 12346 --input-amount 30000 --output-amount 20000 --channel-name "alice1" 
 
 Merchant runs the following to form the initial transactions and exchange signatures:
 
@@ -80,8 +80,7 @@ Similarly, the merchant does the same:
 
 # Unlink
 
-After the channel is established, the customer can then `unlink` her payment token from the channel. That is, the customer and merchant 
-execute a payment session with the MPC with a 0-value amount. In a real deployment, the network connection would be established over Tor.
+After the channel is established, the customer can then `unlink` her payment tag from the channel.
 
 Customer runs the following command:
 
@@ -113,7 +112,7 @@ The merchant would need to provide the channel ID to close. You can list the cha
 
     zkchannels-cli close --party MERCH --file merch_close.json
 
-Once you have the channel ID, the merchant can initiate closure as follows:
+The merchant can initiate closure as follows using the specified channel ID:
 
     zkchannels-cli close --party MERCH --channel-id "e03081c3a28c5ef8b22aa1d0bf6bfbe41cc5d26c01669355e09972f3bb910730" 
 
