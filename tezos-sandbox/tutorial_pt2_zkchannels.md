@@ -1,6 +1,6 @@
 # zkChannels Tutorial
 
-In part 1, we went over how to set up a Tezos node running in sandbox mode. If you do not have a Tezos sandbox node running, please refer to part 1. Here, we will learn how to set up a local payment channel between a customer and a merchant. 
+In [part 1](tutorial_pt1_setup.md), we went over how to set up a Tezos node running in sandbox mode. If you do not have a Tezos sandbox node running, please refer to part 1. Here, we will learn how to set up a local payment channel between a customer and a merchant. 
 
 The schema will be the following.
                         
@@ -507,3 +507,7 @@ Filling in the revocation secret using our example:
 ```
 $ tezos-client transfer 0 from bootstrap2 to my_zkchannel --entrypoint merchDispute --burn-cap 9 --arg 0x123456789ccc&
 ```
+
+
+## Navigation
+- [Back to part 1 - Setup Instructions](tutorial_pt1_setup.md)

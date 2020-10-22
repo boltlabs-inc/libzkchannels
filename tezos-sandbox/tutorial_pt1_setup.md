@@ -1,8 +1,8 @@
-# Tezos Sandbox Setup Tutorial
+# Tezos Sandbox Setup Instructions
 
 # Introduction
 
-This tutorial is designed to walk you through how to set up a zero-knowledge channel (zkchannel) on tezos sandbox mode. In part 1 we will go over the installation and setup for the Tezos sandbox node. In part 2 we will establish and use a zkChannel.
+This tutorial is designed to walk you through how to set up a zero-knowledge channel (zkchannel) on tezos sandbox mode. In part 1 we will go over the installation and setup for the Tezos sandbox node. In [part 2](tutorial_pt2_zkchannels.md) we will establish and use a zkChannel.
 
 # Installing Tezos (dalpha-release)
 
@@ -122,3 +122,6 @@ cargo build --release
 # or install in CARGO_INSTALL_ROOT
 cargo install 
 ```
+
+## Navigation
+- [Proceed to part 2 - zkChannels on Tezos](tutorial_pt2_zkchannels.md)
