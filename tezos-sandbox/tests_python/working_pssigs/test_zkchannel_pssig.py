@@ -70,8 +70,8 @@ def scenario_cust_close(contract_path, pubkey, message, signature):
         time.sleep(5)
         burncap = "9"
 
-        # Originate mock pssigs contract
-        pssig_contract = contract_path + "mock_pssig.tz"
+        # Originate pssigs contract
+        pssig_contract = contract_path + "pssig.tz"
         pssig_name = "pssig_contract"
         args = ["--init", "Unit", "--burn-cap", burncap]
         sandbox.client(0).originate(pssig_name, 0, "bootstrap1", pssig_contract, args)
@@ -89,7 +89,7 @@ def scenario_cust_close(contract_path, pubkey, message, signature):
         sandbox.client(0).get_balance(merch_addr)
 
         # Define initial storage and channel variables
-        contract = contract_path + "zkchannel_mock_main.tz"
+        contract = contract_path + "zkchannel_main.tz"
         chan_id_fr, rev_lock_fr, cust_bal_fr, merch_bal_fr = message
         sig_s1, sig_s2 = signature
 

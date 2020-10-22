@@ -18,11 +18,11 @@ The schema will be the following.
 
 ## The contracts
 
-Our current version of zkChannels on Tezos uses two smart contracts. The first is ```zkchannels_mock_pssig.tz```, which defines the rules governing the channel, such as when the channel is considered open, closed, or in dispute. The second contract is ```mock_pssig.tz```, which performs the Pointcheval-Sanders (PS) Signature verification. PS signatures are used in zkChannels for the merchant to provide a blind signature on the channel's state, so that the customer can update the state without revealing its contents to the merchant.
+Our current version of zkChannels on Tezos uses two smart contracts. The first is ```zkchannels_pssig.tz```, which defines the rules governing the channel, such as when the channel is considered open, closed, or in dispute. The second contract is ```pssig.tz```, which performs the Pointcheval-Sanders (PS) Signature verification. PS signatures are used in zkChannels for the merchant to provide a blind signature on the channel's state, so that the customer can update the state without revealing its contents to the merchant.
 
-Make sure the two contract files,  ```zkchannels_mock_pssig.tz``` and ```mock_pssig.tz``` are in the current directory. Alternatively, you can use the full file path when referencing them during contract origination.
+Make sure the two contract files,  ```zkchannels_pssig.tz``` and ```pssig.tz``` are in the current directory. Alternatively, you can use the full file path when referencing them during contract origination.
 
-The files are located in the ```libzkchannels/tezos-sandbox/tests_python/mock_ps/``` subdirectory.
+The files are located in the ```libzkchannels/tezos-sandbox/tests_python/working_pssigs/``` subdirectory.
 TODO: Come up with a better way of organising files.
 
 ## Channel Establishment
@@ -94,12 +94,12 @@ At this point, we are ready to originate and fund the contract.
 
 ### Contract Origination
 
-As part of originating the contracts, we will need to define our initial storage parameters that go with them. Since the ```zkchannel_mock_main.tz``` contract will need to reference the on-chain address of the ```mock_pssig.tz``` contract, we will need to originate the ```mock_pssig.tz``` contract first so that we know its address. Below is the command that will originate the contract with the arguments included.
+As part of originating the contracts, we will need to define our initial storage parameters that go with them. Since the ```zkchannel_main.tz``` contract will need to reference the on-chain address of the ```pssig.tz``` contract, we will need to originate the ```pssig.tz``` contract first so that we know its address. Below is the command that will originate the contract with the arguments included.
 
 After running the following command, hit enter.
 
 ```
-$ tezos-client originate contract pssig_contract transferring 0 from bootstrap1 running mock_pssig.tz --init Unit --burn-cap 9&
+$ tezos-client originate contract pssig_contract transferring 0 from bootstrap1 running pssig.tz --init Unit --burn-cap 9&
  
 Node is bootstrapped.
 Estimated gas: 26616000 units (will add 100000 for safety)
@@ -112,7 +112,7 @@ Waiting for the operation to be included...
 Breaking down the components:
 - ```pssig_contract``` : The alias we will use to refer to our contract locally.
 - ```transferring 0``` : Since we are only originating a contract and not sending funds, we transfer 0 tez.
-- ```mock_pssig.tz``` : Our smart contract. (Make sure it is in the current directory.)
+- ```pssig.tz``` : Our smart contract. (Make sure it is in the current directory.)
 - ```--init Unit```: The contract does not take in any storage arguments, so the default value is ```Unit```
 - ```--burn-cap 9```: Specifies the maximum amount of tez we are willing to consume as gas costs. ```9``` is a large enough value that we will not hit the limit. 
 
@@ -210,19 +210,19 @@ Finally, we will need to specify the initial balances. The initial balances corr
 Here is the complete template of the command used to originate the main zkChannel contract (this is not a command):
 
 ```
-originate contract my_zkchannel transferring 0 from bootstrap1 running ./zkchannel_mock_main.tz --init (Pair (Pair (Pair <channel_token> (Pair <cust_addr> 0)) (Pair (Pair <cust_balance> "<cust_public_key>") (Pair "0" "<merch_balance>))) (Pair (Pair 0 (Pair <merch_balance "<merch_public_key>")) (Pair (Pair "<pssig_addr>"  <rev_lock>) (Pair <self_delay> "awaitingFunding"))))
+originate contract my_zkchannel transferring 0 from bootstrap1 running ./zkchannel_main.tz --init (Pair (Pair (Pair <channel_token> (Pair <cust_addr> 0)) (Pair (Pair <cust_balance> "<cust_public_key>") (Pair "0" "<merch_balance>))) (Pair (Pair 0 (Pair <merch_balance "<merch_public_key>")) (Pair (Pair "<pssig_addr>"  <rev_lock>) (Pair <self_delay> "awaitingFunding"))))
 ```
 
 Breaking down the components:
 - ```my_zkchannel``` : The alias we will use to refer to our contract locally.
-- ```zkchannel_mock_ps.tz``` : Our smart contract. (Make sure it is in the current directory.)
+- ```zkchannel_ps.tz``` : Our smart contract. (Make sure it is in the current directory.)
 - ```--init (Pair (Pair ...``` : These are the initial storage parameters being entered. Michelson storage is formatted in pairs, and the specific structure of the pairing will be fixed for given contract.
 - ```"awaitingFunding"```: The initial state that the channel will be in when established.
 
 Filling in the fields with the values recorded above, we should get something similar to:
 
 ```
-$ tezos-client originate contract my_zkchannel transferring 0 from bootstrap1 running ./zkchannel_mock_main.tz --init (Pair (Pair (Pair 0x71f0fcd58b7d488e6bf571facc72baf5ce2ef2bb79e2fd97d2e82fdb9c351f1c (Pair "tz1KqTpEZ7Yob7QbPE4Hy4Wo8fHG8LhKxZSx" 0)) (Pair (Pair 20000000 "edpkuBknW28nW72KG6RoHtYW7p12T6GKc7nAbwYX5m8Wd9sDVC9yav") (Pair "0" "tz1gjaF81ZRRvdzjobyfVNsAeSC6PScjfQwN"))) (Pair (Pair 0 (Pair 10000000 "edpktzNbDAUjUk697W7gYg2CRuBQjyPxbEg8dLccYYwKSKvkPvjtV9")) (Pair (Pair "KT1AWZfj8xGxFjyK5A1K6uF2yFF933s1vcm5"  0x1f98c84caf714d00ede5d23142bc166d84f8cd42adc18be22c3d47453853ea49) (Pair 3 "awaitingFunding")))) --burn-cap 9&
+$ tezos-client originate contract my_zkchannel transferring 0 from bootstrap1 running ./zkchannel_main.tz --init (Pair (Pair (Pair 0x71f0fcd58b7d488e6bf571facc72baf5ce2ef2bb79e2fd97d2e82fdb9c351f1c (Pair "tz1KqTpEZ7Yob7QbPE4Hy4Wo8fHG8LhKxZSx" 0)) (Pair (Pair 20000000 "edpkuBknW28nW72KG6RoHtYW7p12T6GKc7nAbwYX5m8Wd9sDVC9yav") (Pair "0" "tz1gjaF81ZRRvdzjobyfVNsAeSC6PScjfQwN"))) (Pair (Pair 0 (Pair 10000000 "edpktzNbDAUjUk697W7gYg2CRuBQjyPxbEg8dLccYYwKSKvkPvjtV9")) (Pair (Pair "KT1AWZfj8xGxFjyK5A1K6uF2yFF933s1vcm5"  0x1f98c84caf714d00ede5d23142bc166d84f8cd42adc18be22c3d47453853ea49) (Pair 3 "awaitingFunding")))) --burn-cap 9&
 
 Estimated gas: 26616000 units (will add 100000 for safety)
 Estimated storage: 887 bytes added (will add 20 for safety)
