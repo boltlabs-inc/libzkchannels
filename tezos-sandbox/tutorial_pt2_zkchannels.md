@@ -36,14 +36,14 @@ Our off-chain protocol will be simulated using the zkChannels-cli utility. For i
 Open two terminals in the `zkchannels-cli` directory, one for the customer and one for the merchant. In both terminals we'll begin by setting the minimum balance for each party:
 
 ```
-$ zkchannels-cli setfees --bal-min-cust 100 --bal-min-merch 100
+$ zkchannels-cli setfees --bal-min-cust 0 --bal-min-merch 0
 ```
 
 ### Open
 To open a zkChannel, from the customer's terminal (denoted by `cust$`), run the open command with the initial balances for the channel:
 
 ```
-cust$ zkchannels-cli open --party CUST --other-port 12347 --own-port 12346 --cust-bal 20000 --merch-bal 1000 --channel-name "alice1"
+cust$ zkchannels-cli open --party CUST --other-port 12347 --own-port 12346 --cust-bal 20000000 --merch-bal 10000000 --channel-name "channel1"
 
 ******************************************
 Waiting for merchant's channel_state and channel_token...
@@ -69,7 +69,7 @@ Saving the initial customer state...
 The next step is to initialize the channel. From the customer's terminal, run:
 
 ``` 
-cust$ zkchannels-cli init --party CUST --other-port 12347 --own-port 12346 --input-amount 30000 --output-amount 20000 --channel-name "alice1" 
+cust$ zkchannels-cli init --party CUST --other-port 12347 --own-port 12346 --input-amount 30000 --output-amount 20000 --channel-name "channel1" 
 
 ******************************************
 Channel token: Fr(0x50d2ebb431fe4b8a5ebcfe128b6cc9b2f31b777ee3cc9db2e137bb0432c010c6)
@@ -334,7 +334,7 @@ Now that our channel has been funded, we are ready for the customer to receive t
 From the customer's zkchannels-cli terminal, run:
 
 ```
-cust$ zkchannels-cli activate --party CUST --other-port 12347 --own-port 12346 --channel-name "alice1"
+cust$ zkchannels-cli activate --party CUST --other-port 12347 --own-port 12346 --channel-name "channel1"
 
 ******************************************
 Sending channel token and state (s0)
@@ -364,7 +364,7 @@ If the customer were to make a payment on their zkChannel using this initial pay
 From the customer's terminal we run:
 
 ```
-cust$ zkchannels-cli unlink --party CUST --other-port 12347 --own-port 12346 --channel-name "alice1" -v
+cust$ zkchannels-cli unlink --party CUST --other-port 12347 --own-port 12346 --channel-name "channel1" -v
 
 ******************************************
 Failed to connect, try: 1, error: Connection refused (os error 111)
@@ -400,7 +400,7 @@ In zkChannels, making a payment can be thought of as the customer obtaining a ne
 To perform a payment, from the customer's terminal run the following command with the payment amount (in mutez) following the `--amount` flag:
 
 ```
-cust$ zkchannels-cli pay --party CUST --other-port 12347 --own-port 12346 --channel-name "alice1" --amount=200
+cust$ zkchannels-cli pay --party CUST --other-port 12347 --own-port 12346 --channel-name "channel1" --amount=200
 
 ******************************************
 Failed to connect, try: 1, error: Connection refused (os error 111)
@@ -436,7 +436,7 @@ If the customer wishes to close the channel, the customer can initiate channel c
 To retrieve the necessary variables including merchant's signature, in the customer's zkchannels-cli terminal run:
 
 ```
-cust$ zkchannels-cli close --party CUST --channel-id "alice1" --file cust_close.json --decompress-cust-close
+cust$ zkchannels-cli close --party CUST --channel-id "channel1" --file cust_close.json --decompress-cust-close
 ```
 
 This will create a json file `cust_close.json` containing the closing state as well as the merchant's closing signature and pubkey. The merchant's signature has 2 parts, `s1` and `s2`, and the pubkey has 6 parts, `g2`, `Y0`, `Y1`, `Y2`, `Y3` and `X`. In order to convert these outputs into a form ready to be entered into the zkchannel contract, we'll use a python helper script.
