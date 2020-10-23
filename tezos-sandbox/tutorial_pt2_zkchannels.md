@@ -52,7 +52,7 @@ Waiting for merchant's channel_state and channel_token...
 The customer's node will keep attempting to communicate with the merchant's node until it responds. To respond from the merchant's terminal (denoted by `merch$`), execute following command to accept the channel request:
 
 ```
-$ zkchannels-cli open --party MERCH --own-port 12347 --other-port 12346
+merch$ zkchannels-cli open --party MERCH --own-port 12347 --other-port 12346
 
 ******************************************
 ******************************************
@@ -69,7 +69,7 @@ Saving the initial customer state...
 The next step is to initialize the channel. From the customer's terminal, run:
 
 ``` 
-cust$ zkchannels-cli init --party CUST --other-port 12347 --own-port 12346 --input-amount 30000 --output-amount 20000 --channel-name "channel1" 
+cust$ zkchannels-cli init --party CUST --other-port 12347 --own-port 12346 --input-amount 0 --output-amount 30000000 --channel-name "channel1" 
 
 ******************************************
 Channel token: Fr(0x50d2ebb431fe4b8a5ebcfe128b6cc9b2f31b777ee3cc9db2e137bb0432c010c6)
@@ -439,23 +439,21 @@ To retrieve the necessary variables including merchant's signature, in the custo
 cust$ zkchannels-cli close --party CUST --channel-id "channel1" --file cust_close.json --decompress-cust-close
 ```
 
-This will create a json file `cust_close.json` containing the closing state as well as the merchant's closing signature and pubkey. The merchant's signature has 2 parts, `s1` and `s2`, and the pubkey has 6 parts, `g2`, `Y0`, `Y1`, `Y2`, `Y3` and `X`. In order to convert these outputs into a form ready to be entered into the zkchannel contract, we'll use a python helper script.
+This will create a json file `cust_close.json` containing the closing state as well as the merchant's closing signature and pubkey. The merchant's signature has 2 parts, `s1` and `s2`, and the pubkey has 6 parts, `g2`, `Y0`, `Y1`, `Y2`, `Y3` and `X`. In order to convert these outputs into a form ready to be entered into the zkchannel contract, we'll use the python helper script `format_commands.py`.
 
 ```
-$ python helper_script.py cust_close.json
+$ python format_commands.py cust_close.json
 
-(Pair (Pair (Pair 1000000 (Pair 0xf84d000000000000000000000000000000000000000000000000000000000000 
+custClose call command:
+tezos-client transfer 0 from bootstrap1 to my_zkchannel_d --entrypoint custClose --burn-cap 9 --arg '(Pair (Pair (Pair 1000000 (Pair ...
 ...
 <Abbreviated output>
 ```
 
-The output will be the formatted storage needed to call the `custClose` entrypoint. 
-
-With the parameters filled it in should look something like this:
+The output will be the formatted storage needed to call the `custClose` entrypoint. Execute the command in the tezos node:
 
 ```
-$ tezos-client transfer 0 from bootstrap1 to my_zkchannel --entrypoint custClose --burn-cap 9 --arg '(Pair (Pair (Pair 1000000 (Pair 0xf84d000000000000000000000000000000000000000000000000000000000000 0x06e9fa5d7564b8d10174afd5bb751aad0fa65bea80e17ebb9ae0e8117200e31b2a8b0ef076f50bba7ed332f74942915a083f3421618ef389a376b6d977514b748434df7d63589b66b04a1ac80b6c546eb18294d27c41de7c780d2e9ed3906cfb00982f8573b7028629a6ee7765572769d852d4ab1255e7e7d367ce8967e218a0a9900c81b12264fb2e5d33ea207b5e56089fc42740e3c1e74e47ba8c5fa3c21a110966a706d1833b3819598bbab6fbd665ca846b36a6d4766fbc5895a0933702)) (Pair (Pair 29000000 0x1004000000000000000000000000000000000000000000000000000000000000) (Pair 0x186e27de64030cc09467bbd0b57d02f21b8709ad751a075444e2fb371222dcfdee2f541f94d59499f0296fd4010ac72c11f5c8914cf9c29f3e7230574f8da9b784b0ec2b71a40b4fe0675f2cf85536ab996b5cbc27ffdca6d31361fbc3a013860b61b19ff6e375b3cef8b59c5ffe442b0d46646b48b4a65eeec5ef59c0109f1b0521a0af7e275313591ed94fb5a217aa0aa9eb9b01e8ec6f5665412fba2fd046c35b9c1f5d5459a3b289db675dbf206f2a441b2a1f2f8ffe61c20337e1f08ecf 0x0c071cb236c7777905e4f78eacf6ce2631b3b57b57ba00887da77a515675a2462e2762afa3f50dd481008df4692918c40c735a02e5b61ec0f4eebf572c68c512250c41d9b6f59072aabc05efc1671b41a80ff2929e61561f3d848e3406fdb2630e80b934ace1c9b2c87b5dfd5d2e10ba05e9483ff2c4a59758297a62ebacd9db1aff95f5cd24f00dd20752805b4260871600d26aef82dff073749b3aca5fd15191f32e3a719950e01dc9d6ca6e71f847f04ef8bd5e8ad98ed035190826cf774d))) (Pair (Pair 0x058693ea4800a1167ed1ff1c4f1f29f0f082a4d7fb73841ee3dc579556329d8ab9686c9af3c7ef23f1a1deb47f42114d142ef6b5d114712f9c15cdb6f46918acfbc008979fe6912793a36cc662f35225c77afcfc602482de872cad0de47be4db027433daef5024a78c12ab714ebf24ed2d59b08d6e598e5c1e61dffefd7691797da1df6a45ae375bf563c78b3dfaa249031e0bf4f776919e314ef9762d25e0c8ccaa6c92c29eb7b1162989082fffb6cd85c0435552f4d8ada8a19821c1db1d23 (Pair 0x014b185fefcd1831976ad28254586b4687879a5179bfa0ac900fcc1d492678701cbaac605f6511905cd29e98eef0edea18c17510a2d1f66dc2cf2c150198e0cb0873478d0016a43cbcddc69acb842cfe74593cbc41d48d0dc9b97e2af101debb02886e9573937095b3f6c9c400635b4776de403fe65d4ee10e678d5686cae05acd595451c3bb53bbc584764700ac1d22126a4b950cad3b94aeb29435af9b6869477c5757ac63dc7cb6b5840e8c6cb3e40caccd690ca95dc8da084fd6f9ddae28 0x0299ade68875ade0e4f01b2b648f7c00695fffec98f71402947e53dc10f0bc8361099357e26a1992770dc84698a8fd0817004a219baa2b20d9b57b6dc81588a2a626adbf34d4533d0118e12af5a2ebad25c6fa519b5e69645be5a98e7e205d60014bb16af8d117795130650bec2b6b8a21934481ce1c0fd1f7f60ed11dd38036e9535d4ec870b2433d1c712e3ffc24a501e951dfad03111098bdf92caffb6b27a5ba7910029ce59f4ed6fc428eb6c544a993019a4c24e2d2040a089ed3a61161)) (Pair (Pair 0x90d774c7ce82fbe85a7bd34bf9cbb00689e1352e7bf6b54591ccd0d3fde9d729 0x850b61642560bb2728502330588c20ff099a446cf8c30e07937837bcb1722625) (Pair 0x061fc259a0b1ab1becd92add0be69a20e8656751f15abf10957a98dfe6d64bd78d32095ae0142a27b386ef3abb7937d00b4b6a8ddafb737588f36666b3d26e5152080e698dabdee97f5c25c126e8a1e3a5617ac2bb47910eadb855480fcf29c4 0x0ec9702805ba3529b00635329baf19db048cd5bf0ebae9b95567e1070513cb596cd5f9277eca4e31cff95c682dc17cd10fa25e3fc17ce1e2c65f06c076382dd5a6029ffd40df9dae443b2bef0f64d763f86e7877bf2d367286d869d60c4ecea6))))'&
-
+$ tezos-client transfer 0 from bootstrap1 to my_zkchannel_d --entrypoint custClose --burn-cap 9 --arg '(Pair (Pair (Pair 1000000 (Pair ...
 
 Estimated gas: 180434332 units (will add 100000 for safety)
 Estimated storage: 3 bytes added (will add 20 for safety)
