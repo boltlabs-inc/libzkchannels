@@ -132,14 +132,14 @@ Our application (**libtoken-utils** above) breaks down into several main functio
 
 We now describe the high-level protocol API implemented in module `zkchannels::mpc`. The protocol implementation consists of 5 subprotocols: setup, initialize/establish, activate/unlink, pay and close.
 
-#### 1.2.1 Channel Setup
+#### 1.2.0 Channel Setup
 
 	use zkchannels::mpc;
 
 	// create initial channel mpc state
 	let mut channel_state = mpc::ChannelMPCState::new(String::from("Channel A -> B"), false);
 
-#### 1.2.2 Initialize & Establish
+#### 1.2.1 Initialize & Establish
 
 	let cust_bal = 10000;
 	let merch_bal = 3000;
@@ -176,7 +176,7 @@ We now describe the high-level protocol API implemented in module `zkchannels::m
 	let escrow_txid = &channel_token.escrow_txid.0.clone();
 	let res = mpc::merchant_mark_open_channel(&escrow_txid, &mut merch_state);
 
-#### 1.2.3 Activate & Unlink
+#### 1.2.2 Activate & Unlink
 
 	// prepare to active the channel by retrieving the initial state (rev lock commitment, etc)
 	let init_state = mpc::activate_customer(&mut rng, &mut cust_state);
@@ -189,7 +189,7 @@ We now describe the high-level protocol API implemented in module `zkchannels::m
 
 	// customer unlinks initial pay-token by running the following pay protocol with a 0-value payment
 
-#### 1.2.4 Unlinkable Payments
+#### 1.2.3 Unlinkable Payments
 
 Prepare/Update State phase
 
@@ -222,7 +222,7 @@ Unmask/Revoke phase
 	// customer unmasks the pay token and checks validity of pay-token mask commitment opening
 	let is_ok = mpc::pay_unmask_pay_token_customer(pt_mask, pt_mask_r, &mut cust_state);
 
-#### 1.2.5 Force Close
+#### 1.2.4 Force Close
 
 Merchant can initiate channel closing with a signed *merch-close-tx* that pays full channel balance to a timelocked multi-sig:
 
@@ -300,10 +300,10 @@ When opening a payment channel, execute the establishment protocol API to escrow
 	// both parties proceed with funding the channel and wait for payment network 
 	// to confirm the transactions
 
-	// NEW - customer mark the channel open after a suitable number of confirmations of the funding transactions
+	// customer mark the channel open after a suitable number of confirmations of the funding transactions
 	let res = zkproofs::customer_mark_open_channel(init_close_token, &mut channel_state, &mut cust_state);
 
-	// NEW - merchant marks the channel open after a suitable number of confirmations of the funding transactions
+	// merchant marks the channel open after a suitable number of confirmations of the funding transactions
 	let res = zkproofs::merchant_mark_open_channel(&escrow_txid, &mut merch_state);
 
 	// confirm that the channel state is now established
