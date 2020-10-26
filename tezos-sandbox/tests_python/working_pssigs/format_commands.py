@@ -1,21 +1,5 @@
-
 import argparse
-import time
-from tools import constants, paths, utils
-from launchers.sandbox import Sandbox
 import sys, json
-
-def form_initial_storage(chan_id, cust_addr, cust_pk, merch_addr, merch_pk, cust_bal0, merch_bal0, rev_lock, self_delay, pssig_addr):
-
-    return '(Pair (Pair (Pair {chan_id} (Pair \"{cust_addr}\" 0)) (Pair (Pair {cust_bal0} \"{cust_pk}\") (Pair "0" \"{merch_addr}\"))) (Pair (Pair 0 (Pair {merch_bal0} \"{merch_pk}\")) (Pair (Pair \"{pssig_addr}\"  {rev_lock}) (Pair {self_delay} "awaitingFunding"))))'.format(chan_id=chan_id, cust_addr=cust_addr, cust_pk=cust_pk, merch_addr=merch_addr, merch_pk=merch_pk, cust_bal0=cust_bal0, merch_bal0=merch_bal0, self_delay=self_delay, rev_lock=rev_lock, pssig_addr = pssig_addr)
-
-def form_closing_state(chan_id, cust_addr, merch_addr, cust_bal_mt, merch_bal_mt, new_rev_lock):
-
-    return '(Pair (Pair \"{chan_id}\" (Pair \"{cust_addr}\" \"{merch_addr}\")) (Pair {cust_bal_mt} (Pair {merch_bal_mt} {rev_lock})))'.format(chan_id=chan_id, cust_addr=cust_addr, merch_addr=merch_addr, cust_bal_mt=cust_bal_mt, merch_bal_mt=merch_bal_mt, rev_lock=new_rev_lock)
-
-def form_mutual_state(chan_id, cust_addr, merch_addr, cust_bal_mt, merch_bal_mt):
-
-    return '(Pair (Pair \"{chan_id}\" \"{cust_addr}\") (Pair \"{merch_addr}\" (Pair {cust_bal_mt} {merch_bal_mt} )))'.format(chan_id=chan_id, cust_addr=cust_addr, merch_addr=merch_addr, cust_bal_mt=cust_bal_mt, merch_bal_mt=merch_bal_mt)
 
 def read_json_file(json_file):
     f = open(json_file)
@@ -69,7 +53,7 @@ def scenario_cust_close(pubkey, message, signature):
 
         # Originate pssigs contract
         contract = "pssig.tz"
-        pssig_name = "pssig_contract"
+        pssig_name = "pssig_contract_d"
         initial_storage = '\"Unit\"'
         args = '--burn-cap {burncap}'.format(burncap=burncap)
 
@@ -79,14 +63,14 @@ def scenario_cust_close(pubkey, message, signature):
 
         print("\npssig contract origination command:\n{cmd}\n\n".format(cmd=cmd))
 
-        pssig_addr = "KT1F5tmpJTdL1qE5nneb1qkHePzfQP8ynSJQ"
+        pssig_addr = "KT1WWEQH8ovHdErpwym4jP1NeAHaabjxTaG3"
 
         # Originate main zkChannel contract
         contract = contract_path + "zkchannel_main.tz"
         chan_id_fr, rev_lock_fr, cust_bal_fr, merch_bal_fr = message
         sig_s1, sig_s2 = signature
 
-        zkchannel_name = "my_zkchannel"
+        zkchannel_name = "my_zkchannel_d"
         chan_id = chan_id_fr
         cust_bal = 20
         merch_bal = 10
