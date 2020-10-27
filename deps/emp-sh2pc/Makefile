@@ -9,13 +9,13 @@ emp-sh2pc-$(VERSION)/.built: emp-sh2pc-${VERSION}
 	cd $(TMP); \
 	cmake -DCMAKE_INSTALL_PREFIX:PATH=$(ZK_DEPS_INSTALL) ../$<; \
 	make && \
-	make install && \
-	cp bin/* $(ZK_DEPS_INSTALL)/bin/ && \
-	touch ../$@ && \
-	../fix_rpath_osx.sh libtoken-utils && \
-	../../root/bin/generate-circuit && \
-	cp tokens.circuit.txt $(ZK_DEPS_INSTALL)/include/emp-tool/circuits/files/ && \
-	chmod 640 $(ZK_DEPS_INSTALL)/include/emp-tool/circuits/files/tokens.circuit.txt
+	make install
+# 	cp bin/* $(ZK_DEPS_INSTALL)/bin/ && \
+# 	touch ../$@ && \
+# 	../fix_rpath_osx.sh libtoken-utils && \
+# 	../../root/bin/generate-circuit && \
+# 	cp tokens.circuit.txt $(ZK_DEPS_INSTALL)/include/emp-tool/circuits/files/ && \
+# 	chmod 640 $(ZK_DEPS_INSTALL)/include/emp-tool/circuits/files/tokens.circuit.txt
 
 emp-sh2pc-$(VERSION): emp-sh2pc-$(VERSION).tar.gz
 	tar xf $^

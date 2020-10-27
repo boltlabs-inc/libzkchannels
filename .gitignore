@@ -8,6 +8,9 @@ deps/time/time*
 deps/emp-*/*.tar.gz
 deps/emp-*/emp-*
 deps/emp-*/build-*
+deps/update-state/*.tar.gz
+deps/update-state/update-state-*
+deps/update-state/build-*
 deps/*/*.git
 deps/*/tmp-*
 tx/txdata_*
