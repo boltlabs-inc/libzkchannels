@@ -1,6 +1,6 @@
 .PHONY: all clean
 
-DIRS=time emp-tool emp-ot emp-sh2pc update-state emp-ag2pc
+DIRS=time emp-tool emp-ot emp-sh2pc emp-ag2pc update-state
 
 all: $(DIRS)
 	./install_packages.sh

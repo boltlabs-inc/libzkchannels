@@ -13,6 +13,8 @@ update-state-$(VERSION)/.built: update-state-${VERSION}
 	cp bin/* $(ZK_DEPS_INSTALL)/bin/ && \
 	touch ../$@ && \
 	../fix_rpath_osx.sh libtoken-utils && \
+	../fix_rpath_osx.sh libtokenm-utils && \
+	../fix_rpath_osx.sh libtest-e2e && \
 	../../root/bin/generate-circuit && \
 	cp tokens.circuit.txt $(ZK_DEPS_INSTALL)/include/emp-tool/circuits/files/ && \
 	chmod 640 $(ZK_DEPS_INSTALL)/include/emp-tool/circuits/files/tokens.circuit.txt

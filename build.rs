@@ -17,7 +17,7 @@ fn main() {
     // Create bindings
     let header_file: &str;
     if env::var("AG2PC").is_ok() {
-        header_file = "deps/root/include/emp-ag2pc/tokens.h";
+        header_file = "deps/root/include/update-state/ag2pc/tokens.h";
     } else {
         header_file = "deps/root/include/update-state/tokens.h";
     }

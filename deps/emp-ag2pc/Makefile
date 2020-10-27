@@ -10,10 +10,6 @@ emp-ag2pc-$(VERSION)/.built: emp-ag2pc-${VERSION}
 	cmake -DCMAKE_INSTALL_PREFIX:PATH=$(ZK_DEPS_INSTALL) ../$<; \
 	make && \
 	make install
-# 	cp bin/* $(ZK_DEPS_INSTALL)/bin/ && \
-# 	touch ../$@ && \
-# 	../fix_rpath_osx.sh libtokenm-utils && \
-# 	../fix_rpath_osx.sh libtest-e2e
 
 emp-ag2pc-$(VERSION): emp-ag2pc-$(VERSION).tar.gz
 	tar xf $^
