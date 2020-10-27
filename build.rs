@@ -19,7 +19,7 @@ fn main() {
     if env::var("AG2PC").is_ok() {
         header_file = "deps/root/include/emp-ag2pc/tokens.h";
     } else {
-        header_file = "deps/root/include/emp-sh2pc/tokens.h";
+        header_file = "deps/root/include/update-state/tokens.h";
     }
     let path_to_header_file = format!("{}/{}", project_dir, header_file);
     //println!("token header file path: {}", path_to_header_file);
