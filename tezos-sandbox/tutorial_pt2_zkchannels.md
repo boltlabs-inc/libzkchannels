@@ -15,15 +15,14 @@ The schema will be the following.
                  |  Tezos Sandbox  |
                  + --------------- +
 
-
 ## The contracts
 
-Our current version of zkChannels on Tezos uses two smart contracts. The first is ```zkchannels_pssig.tz```, which defines the rules governing the channel, such as when the channel is considered open, closed, or in dispute. The second contract is ```pssig.tz```, which performs the Pointcheval-Sanders (PS) Signature verification. PS signatures are used in zkChannels for the merchant to provide a blind signature on the channel's state, so that the customer can update the state without revealing its contents to the merchant.
+Our current version of zkChannels on Tezos uses two smart contracts located in the ```libzkchannels/tezos-sandbox/tests_python/working_pssigs/``` subdirectory. The first is ```zkchannels_pssig.tz```, which defines the rules governing the channel, such as when the channel is considered open, closed, or in dispute. The second contract is ```pssig.tz```, which performs the Pointcheval-Sanders (PS) Signature verification. PS signatures are used in zkChannels for the merchant to provide a blind signature on the channel's state, so that the customer can update the state without revealing its contents to the merchant.
 
 Make sure the two contract files,  ```zkchannels_pssig.tz``` and ```pssig.tz``` are in the current directory. Alternatively, you can use the full file path when referencing them during contract origination.
 
-The files are located in the ```libzkchannels/tezos-sandbox/tests_python/working_pssigs/``` subdirectory.
-TODO: Come up with a better way of organising files.
+For some parts of the tutorial, we will need to format the storage going into the on-chain commands for originating and interacting with the contract. For formatting the storage, we will use the help of a python script `format_storage.py` in the same directory. Alternatively, if you are familiar with using jupyter notebook, it may be easier to follow the [ipynb version](https://github.com/boltlabs-inc/libzkchannels/blob/master/tezos-sandbox/tutorial_pt2_zkchannels.ipynb) of the tutorial in which the formatting code is embedded in the tutorial.
+
 
 ## Channel Establishment
 
@@ -219,7 +218,12 @@ Breaking down the components:
 - ```--init (Pair (Pair ...``` : These are the initial storage parameters being entered. Michelson storage is formatted in pairs, and the specific structure of the pairing will be fixed for given contract.
 - ```"awaitingFunding"```: The initial state that the channel will be in when established.
 
-Filling in the fields with the values recorded above, we should get something similar to:
+Run the `format_commands.py` helper script with the pssig contract address and channel id (channel token) as input arguments to create our tezos origination command:
+```
+$ python format_commands.py --pssig_addr=KT1AQVd9GnJbHBZnbbuuyS9tzqxadJ2ajaY5 --chan_id=0x71f0fcd58b7d488e6bf571facc72baf5ce2ef2bb79e2fd97d2e82fdb9c351f1c 
+```
+
+Now when we run the command in the tezos client we should get something like:
 
 ```
 $ tezos-client originate contract my_zkchannel transferring 0 from bootstrap1 running ./zkchannel_main.tz --init (Pair (Pair (Pair 0x71f0fcd58b7d488e6bf571facc72baf5ce2ef2bb79e2fd97d2e82fdb9c351f1c (Pair "tz1KqTpEZ7Yob7QbPE4Hy4Wo8fHG8LhKxZSx" 0)) (Pair (Pair 20000000 "edpkuBknW28nW72KG6RoHtYW7p12T6GKc7nAbwYX5m8Wd9sDVC9yav") (Pair "0" "tz1gjaF81ZRRvdzjobyfVNsAeSC6PScjfQwN"))) (Pair (Pair 0 (Pair 10000000 "edpktzNbDAUjUk697W7gYg2CRuBQjyPxbEg8dLccYYwKSKvkPvjtV9")) (Pair (Pair "KT1AWZfj8xGxFjyK5A1K6uF2yFF933s1vcm5"  0x1f98c84caf714d00ede5d23142bc166d84f8cd42adc18be22c3d47453853ea49) (Pair 3 "awaitingFunding")))) --burn-cap 9&
@@ -439,10 +443,10 @@ To retrieve the necessary variables including merchant's signature, in the custo
 cust$ zkchannels-cli close --party CUST --channel-id "channel1" --file cust_close.json --decompress-cust-close
 ```
 
-This will create a json file `cust_close.json` containing the closing state as well as the merchant's closing signature and pubkey. The merchant's signature has 2 parts, `s1` and `s2`, and the pubkey has 6 parts, `g2`, `Y0`, `Y1`, `Y2`, `Y3` and `X`. In order to convert these outputs into a form ready to be entered into the zkchannel contract, we'll use the python helper script `format_commands.py`.
+This will create a json file `cust_close.json` containing the closing state as well as the merchant's closing signature and pubkey. The merchant's signature has 2 parts, `s1` and `s2`, and the pubkey has 6 parts, `g2`, `Y0`, `Y1`, `Y2`, `Y3` and `X`. In order to convert these outputs into a form ready to be entered into the zkchannel contract, we'll use the python helper script `format_commands.py`. This time we will include the cust_close.json file produced by zkchannels-cli.
 
 ```
-$ python format_commands.py cust_close.json
+$ python format_commands.py --pssig_addr=KT1AQVd9GnJbHBZnbbuuyS9tzqxadJ2ajaY5 --chan_id=0x71f0fcd58b7d488e6bf571facc72baf5ce2ef2bb79e2fd97d2e82fdb9c351f1c --cust_close=cust_close.json
 
 custClose call command:
 tezos-client transfer 0 from bootstrap1 to my_zkchannel_d --entrypoint custClose --burn-cap 9 --arg '(Pair (Pair (Pair 1000000 (Pair ...
