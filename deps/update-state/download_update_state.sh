@@ -2,7 +2,7 @@
 
 VERSION=0.1
 FORMAT=tar.gz
-LINK=git@github.com:boltlabs-inc/update-state.git
+LINK=https://github.com/boltlabs-inc/update-state.git
 UPDATE_STATE=${1:-update-state-${VERSION}}
 
 LOCAL=${2:false} # literally any argument will prevent this from pulling the repo

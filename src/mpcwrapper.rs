@@ -1,7 +1,7 @@
 use bindings::{
     build_masked_tokens_cust, build_masked_tokens_merch, cb_receive, cb_send, get_netio_ptr,
-    get_unixnetio_ptr, Balance_l, BitcoinPublicKey_l, CommitmentRandomness_l, ConnType_NETIO,
-    ConnType_TORNETIO, ConnType_UNIXNETIO, Conn_l, EcdsaSig_l, HMACKeyCommitment_l, HMACKey_l,
+    Balance_l, BitcoinPublicKey_l, CommitmentRandomness_l, ConnType_NETIO,
+    ConnType_TORNETIO, Conn_l, EcdsaSig_l, HMACKeyCommitment_l, HMACKey_l,
     MaskCommitment_l, Mask_l, Nonce_l, PayToken_l, PublicKeyHash_l, RevLockCommitment_l, RevLock_l,
     State_l, Txid_l,
 };
@@ -25,16 +25,12 @@ extern "C" fn io_callback(net_config: *mut c_void, party: c_int) -> *mut c_void 
     // unsafe is needed because we dereference a raw pointer to network config
     let nc: &mut Conn_l = unsafe { &mut *(net_config as *mut Conn_l) };
     let conn_debug = match nc.conn_type {
-        ConnType_UNIXNETIO => "Unix domain socket connection",
         ConnType_NETIO => "TCP socket connection",
         ConnType_TORNETIO => "Tor connection",
         _ => "Unsupported connection type",
     };
     println!("IO callback: {}", conn_debug);
-    if (nc.conn_type == ConnType_UNIXNETIO) {
-        let io_ptr = unsafe { get_unixnetio_ptr(nc.path, party) };
-        return io_ptr;
-    } else if (nc.conn_type == ConnType_NETIO) {
+    if (nc.conn_type == ConnType_NETIO) {
         let bytes = unsafe { CStr::from_ptr(nc.dest_ip).to_bytes() };
         let ip: &str = str::from_utf8(bytes).unwrap();
         println!("Opening a connection: {}:{}", ip, nc.dest_port);

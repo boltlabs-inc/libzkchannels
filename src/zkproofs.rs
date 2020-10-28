@@ -8,7 +8,7 @@ use secp256k1;
 // for on-chain keys
 use HashMap;
 
-use channels_util::{ChannelStatus, PaymentStatus, ProtocolStatus};
+use channels_util::ProtocolStatus;
 use channels_zk::ClosedCommitments;
 pub use channels_zk::{
     BoltError, ChannelParams, ChannelState, ChannelToken, ChannelcloseM, CustomerState,
