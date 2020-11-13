@@ -48,18 +48,26 @@ To switch back to latest stable version of rust do the following:
     
     virtualenv --python=python3 venv
     source ./venv/bin/activate
-    cd tezos
     pip3 install -r tests_python/requirements.txt
 
-(6) Setup poetry environment (need `pyproject.toml` in tezos-sandbox dir)
+(6) Clone libzkchannels repo
 
+    cd ..
+    git clone https://github.com/boltlabs-inc/libzkchannels.git
+    cd tezos
+
+(7) Setup poetry environment (using `pyproject.toml` from the tezos-sandbox dir)
+
+    cp ../libzkchannels/tezos-sandbox/pyproject.toml .
     poetry install 
     
-(7) Run the test sandbox script for PS signature verification
+(8) Run the test sandbox script for PS signature verification
 
-    cp /path/to/tezos-sandbox/pssigs_verify_optimized.py tezos/tests_python/
+    cp ../libzkchannels/tezos-sandbox/pssigs_verify_optimized.py tests_python/
+    cp ../libzkchannels/tezos-sandbox/dec_cust_close.json tests_python/
     source ./venv/bin/activate
-    poetry run python3 ../tezos/tests_python/pssigs_verify_optimized.py -c dec_cust_close.json
+    cd tests_python
+    poetry run python3 pssigs_verify_optimized.py -c dec_cust_close.json
 
 ## Installing SmartPy
 
