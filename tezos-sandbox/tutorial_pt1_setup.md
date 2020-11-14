@@ -8,33 +8,33 @@ This tutorial is designed to walk you through how to set up a zero-knowledge cha
 
 zkChannels uses a form of signature verification which can only be computed on the dalpha-release branch of tezos. To install this branch of Tezos, complete the following steps:
 
-(1a) Build dependencies on Ubuntu 18.04:
+(1a) Build dependencies on Ubuntu 20.04:
 	
-	sudo add-apt-repository ppa:avsm/ppa
-	sudo apt update
-	sudo apt-get install -y rsync git m4 build-essential patch unzip wget pkg-config libgmp-dev libev-dev libhidapi-dev libffi-dev opam jq
-	sudo apt-get install -y virtualenv python3-pip 
+    sudo add-apt-repository ppa:avsm/ppa
+    sudo apt update
+    sudo apt-get install -y rsync git m4 build-essential patch unzip wget pkg-config libgmp-dev libev-dev libhidapi-dev libffi-dev opam jq
+    sudo apt-get install -y virtualenv python3-pip 
     
 (1b) Build deps on Mac OS:
 
-	brew install opam libffi gmp libev pkg-config hidapi python3
-	pip3 install virtualenv
+    brew install opam libffi gmp libev pkg-config hidapi python3
+    pip3 install virtualenv
 
 (2) Install poetry:
 	
-	curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python
-	source $HOME/.poetry/env
+    curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3
+    source $HOME/.poetry/env
 
 (3) Install rust 1.39
 	
-	curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-	source $HOME/.cargo/env
-	rustup toolchain install 1.39.0
-	rustup default 1.39.0
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+    source $HOME/.cargo/env
+    rustup toolchain install 1.39.0
+    rustup default 1.39.0
 
 To switch back to latest stable version of rust do the following:
 
-	rustup default stable
+    rustup default stable
 	
 (4) Clone Tezos here (Dalpha Release). Make sure you have git 2.18+ installed:
     
