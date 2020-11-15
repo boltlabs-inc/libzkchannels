@@ -70,23 +70,24 @@ def scenario_cust_close(contract_path, pubkey, message, signature):
         time.sleep(5)
         burncap = "9"
 
-        # Originate pssigs contract
-        pssig_contract = contract_path + "pssig.tz"
-        pssig_name = "pssig_contract"
-        args = ["--init", "Unit", "--burn-cap", burncap]
-        sandbox.client(0).originate(pssig_name, 0, "bootstrap1", pssig_contract, args)
-        sandbox.client(0).bake('baker5', BAKE_ARGS)
-
-        # Originate the zkchannel contract with hard coded values (without any funding)
         cust_addr = constants.IDENTITIES['bootstrap1']['identity']
         cust_pk = constants.IDENTITIES['bootstrap1']['public']
         merch_addr = constants.IDENTITIES['bootstrap2']['identity']
         merch_pk = constants.IDENTITIES['bootstrap2']['public']
+        
+        cust_bal_start = sandbox.client(0).get_balance(cust_addr)
 
-        print('cust balance')
-        sandbox.client(0).get_balance(cust_addr)
-        print('merch balance')
-        sandbox.client(0).get_balance(merch_addr)
+        # Originate pssigs contract
+        pssig_contract = contract_path + "pssig.tz"
+        pssig_name = "pssig_contract"
+        args = ["--init", "Unit", "--burn-cap", burncap]
+
+        sandbox.client(0).originate(pssig_name, 0, "bootstrap1", pssig_contract, args)
+        sandbox.client(0).bake('baker5', BAKE_ARGS)
+
+        cust_costs = dict()
+        current_bal = sandbox.client(0).get_balance(cust_addr)
+        cust_costs["pssig"] = cust_bal_start - current_bal
 
         # Define initial storage and channel variables
         contract = contract_path + "zkchannel_main.tz"
@@ -112,8 +113,12 @@ def scenario_cust_close(contract_path, pubkey, message, signature):
         initial_storage = form_initial_storage(chan_id, cust_addr, cust_pk, merch_addr, merch_pk, cust_bal_mt, merch_bal_mt, rev_lock0, self_delay, pssig_addr)
         args = ["--init", initial_storage, "--burn-cap", burncap]
         sandbox.client(0).originate(contract_name, 0, "bootstrap1", contract, args)
-
+        
         sandbox.client(0).bake('baker5', BAKE_ARGS)
+
+        old_bal = current_bal
+        current_bal = sandbox.client(0).get_balance(cust_addr)
+        cust_costs["zkchannel"] = old_bal - current_bal
 
         # Add customer's funds
         sandbox.client(0).transfer(cust_bal, 'bootstrap1', contract_name,
@@ -127,10 +132,11 @@ def scenario_cust_close(contract_path, pubkey, message, signature):
 
         sandbox.client(0).bake('baker5', BAKE_ARGS)
 
-        print('cust balance')
-        sandbox.client(0).get_balance(cust_addr)
-        print('merch balance')
-        sandbox.client(0).get_balance(merch_addr)
+        merch_old_bal = sandbox.client(0).get_balance(merch_addr)
+
+        old_bal = current_bal
+        current_bal = sandbox.client(0).get_balance(cust_addr)
+        cust_costs["addFunding"] = old_bal - cust_bal - current_bal
 
         # Merchant initiates merch close
         sandbox.client(0).transfer(0, 'bootstrap2', contract_name,
@@ -139,10 +145,16 @@ def scenario_cust_close(contract_path, pubkey, message, signature):
 
         sandbox.client(0).bake('baker5', BAKE_ARGS)
 
+
+        merch_current_bal = sandbox.client(0).get_balance(merch_addr)
+        merchClose_cost = merch_old_bal - merch_current_bal
+        
         # A final payment happens - Merchant signs off on chanID, balances,
         # revlock (and for now addresses, although that may change)
-        new_cust_bal_mt = 1 * 1000000
-        new_merch_bal_mt = 29 * 1000000
+        new_cust_bal = 1
+        new_merch_bal = 29
+        new_cust_bal_mt = new_cust_bal * 1000000
+        new_merch_bal_mt = new_merch_bal * 1000000
         # # secret_final = 0x123456789ccc
         rev_lock_final = "0x90d774c7ce82fbe85a7bd34bf9cbb00689e1352e7bf6b54591ccd0d3fde9d729"
         rev_lock_final_b = rev_lock_fr
@@ -171,10 +183,9 @@ def scenario_cust_close(contract_path, pubkey, message, signature):
         sandbox.client(0).bake('baker5', BAKE_ARGS)
         sandbox.client(0).bake('baker5', BAKE_ARGS)
 
-        print('cust balance')
-        sandbox.client(0).get_balance(cust_addr)
-        print('merch balance')
-        sandbox.client(0).get_balance(merch_addr)
+        old_bal = current_bal
+        current_bal = sandbox.client(0).get_balance(cust_addr)
+        cust_costs["custClose"] = old_bal - current_bal
 
         # Custer claims their balance with custClaim
         sandbox.client(0).transfer(0, 'bootstrap1', contract_name,
@@ -183,16 +194,29 @@ def scenario_cust_close(contract_path, pubkey, message, signature):
         
         sandbox.client(0).bake('baker5', BAKE_ARGS)
 
-        print('cust balance')
-        sandbox.client(0).get_balance(cust_addr)
-        print('merch balance')
-        sandbox.client(0).get_balance(merch_addr)
+        old_bal = current_bal
+        current_bal = sandbox.client(0).get_balance(cust_addr)
+        cust_costs["custClaim"] = old_bal - (current_bal - new_cust_bal)
+
+        # Make sure every tez has been accounted for
+        assert cust_bal_start == (
+            current_bal
+            + sum(cust_costs.values())
+            + cust_bal
+            - new_cust_bal
+            )
+
+        print("Cost incurred when calling the following entrypoints (tez):")
+        for k, v in cust_costs.items():
+            print(k + ": " + str(v))
+        print("merchClose: " + str(merchClose_cost))
+
 
 if __name__ == "__main__":
     contract_path = sys.argv[1]
     cust_close_token = sys.argv[2]
     if contract_path[:-1] != "/":
-        contract_path += "/"     
+        contract_path += "/"
     print("Contract Path: ", contract_path)
     print("Close token json: ", cust_close_token)
     cust_close_json = read_json_file(cust_close_token)
