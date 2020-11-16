@@ -513,3 +513,4 @@ $ tezos-client transfer 0 from bootstrap2 to my_zkchannel --entrypoint merchDisp
 
 ## Navigation
 - [Back to part 1 - Setup Instructions](tutorial_pt1_setup.md)
+- [Gas cost benchmarks](gas_cost_benchmarks.md)

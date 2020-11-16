@@ -125,3 +125,4 @@ cargo install
 
 ## Navigation
 - [Proceed to part 2 - zkChannels on Tezos](tutorial_pt2_zkchannels.md)
+- [Gas cost benchmarks](gas_cost_benchmarks.md)
