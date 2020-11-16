@@ -44,18 +44,18 @@ To switch back to latest stable version of rust do the following:
     source ./src/bin_client/bash-completion.sh
     export TEZOS_CLIENT_UNSAFE_DISABLE_DISCLAIMER=Y
 
-(5) Can run pytests (need Python 3.8+)
-    
-    virtualenv --python=python3 venv
-    source ./venv/bin/activate
-    pip3 install -r tests_python/requirements.txt
-
-(6) Clone libzkchannels repo
+(5) Clone libzkchannels repo
 
     cd ..
     git clone https://github.com/boltlabs-inc/libzkchannels.git
     cd tezos
 
+(6) Can run pytests (need Python 3.8+)
+    
+    virtualenv --python=python3 venv
+    source ./venv/bin/activate
+    pip3 install -r tests_python/requirements.txt
+    
 (7) Setup poetry environment (using `pyproject.toml` from the tezos-sandbox dir)
 
     cp ../libzkchannels/tezos-sandbox/pyproject.toml .
