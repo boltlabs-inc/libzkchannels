@@ -127,7 +127,8 @@ pub fn mpc_build_masked_tokens_cust(
         peer_raw_fd: ptr::null_mut(),
     };
 
-    let timer = Instant::now();
+    // Uncomment to benchmark the C/C++ wrapper
+    // let timer = Instant::now();
     let bal_min_cust_c = translate_balance(bal_min_cust);
     let bal_min_merch_c = translate_balance(bal_min_merch);
     unsafe {
@@ -164,8 +165,9 @@ pub fn mpc_build_masked_tokens_cust(
             &mut ct_merch,
         );
     };
-    let stop = timer.elapsed();
-    println!("Time to execute MPC: {} ms", stop.as_millis());
+    // Uncomment to benchmark C/C++ wrapper
+    // let stop = timer.elapsed();
+    // println!("Time to execute MPC: {} ms", stop.as_millis());
 
     let mut pt_masked_ar = [0u8; 32];
     pt_masked_ar.copy_from_slice(u32_to_bytes(&pt_return.paytoken[..]).as_slice());
