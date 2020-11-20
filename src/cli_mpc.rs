@@ -7,6 +7,7 @@ extern crate secp256k1;
 extern crate serde;
 extern crate sha2;
 extern crate structopt;
+extern crate time;
 extern crate zkchan_tx;
 extern crate zkchannels;
 
@@ -23,7 +24,8 @@ use std::path::PathBuf;
 use std::ptr;
 use std::str::FromStr;
 use std::thread::sleep;
-use std::time;
+use std::time::Duration;
+use std::time::Instant;
 use structopt::StructOpt;
 use zkchan_tx::Testnet;
 use zkchannels::bindings::Receive_return;
@@ -51,6 +53,24 @@ extern "C" fn cb_recv_data(_peer: *mut c_void) -> Receive_return {
     };
     return r;
 }
+
+macro_rules! measure_one_arg {
+    ($x: expr) => {{
+        let s = Instant::now();
+        let res = $x;
+        let e = s.elapsed();
+        (res, e.as_millis())
+    };};
+}
+
+// macro_rules! measure_two_arg {
+//     ($x: expr) => {{
+//         let s = Instant::now();
+//         let (res1, res2) = $x;
+//         let e = s.elapsed();
+//         (res1, res2, e.as_millis())
+//     };};
+// }
 
 macro_rules! handle_error_result {
     ($e:expr) => {
@@ -178,6 +198,8 @@ pub struct Init {
     tx_fee: i64,
     #[structopt(short = "n", long = "channel-name", default_value = "")]
     channel_name: String,
+    #[structopt(short = "b")]
+    benchmark: bool,
 }
 
 #[derive(Clone, Debug, StructOpt, Deserialize)]
@@ -194,6 +216,8 @@ pub struct Activate {
     other_port: String,
     #[structopt(short = "n", long = "channel-name", default_value = "")]
     channel_name: String,
+    #[structopt(short = "b")]
+    benchmark: bool,
 }
 
 #[derive(Clone, Debug, StructOpt, Deserialize)]
@@ -212,6 +236,8 @@ pub struct Pay {
     other_port: String,
     #[structopt(short = "n", long = "channel-name", default_value = "")]
     channel_name: String,
+    #[structopt(short = "b")]
+    benchmark: bool,
     #[structopt(short)]
     verbose: bool,
 }
@@ -439,7 +465,7 @@ impl Conn {
                 }
                 Err(e) => {
                     println!("Failed to connect, try: {}, error: {}", i, e);
-                    let duration = time::Duration::from_secs(5);
+                    let duration = Duration::from_secs(5);
                     sleep(duration)
                 }
             }
@@ -552,59 +578,89 @@ fn main() -> Result<(), confy::ConfyError> {
             },
         },
         Command::ACTIVATE(activate) => match activate.party {
-            Party::MERCH => merch::activate(create_connection!(activate), &db_url).unwrap(),
+            Party::MERCH => { 
+                let (result, merch_activate_time) = measure_one_arg!(merch::activate(create_connection!(activate), &db_url));
+                assert!(result.is_ok());
+                if activate.benchmark {
+                    println!("BENCHMARK >> Activate merchant: {} ms", merch_activate_time);
+                }
+            },
             Party::CUST => {
-                cust::activate(create_connection!(activate), &db_url, activate.channel_name)
-                    .unwrap()
+                let (result, cust_activate_time) = measure_one_arg!(cust::activate(
+                    create_connection!(activate),
+                    &db_url,
+                    activate.channel_name,
+                ));
+                assert!(result.is_ok());
+                if activate.benchmark { 
+                    println!("BENCHMARK >> Activate customer: {} ms", cust_activate_time); 
+                }
             }
         },
         Command::UNLINK(unlink) => match unlink.party {
             Party::MERCH => {
                 let (mut channel_state, mut merch_state) =
                     merch::load_merchant_state_info(&db_url).unwrap();
-                merch::pay(
+                let (result, merch_unlink_time) = measure_one_arg!(merch::pay(
                     unlink.amount,
                     create_connection!(unlink),
                     &db_url,
                     &mut channel_state,
                     &mut merch_state,
-                )
-                .unwrap()
+                ));
+                assert!(result.is_ok());
+                if unlink.benchmark {
+                    println!("BENCHMARK >> Unlink merchant: {} ms", merch_unlink_time);
+                }
             }
-            Party::CUST => cust::pay(
-                unlink.amount.unwrap(),
-                create_connection!(unlink),
-                &db_url,
-                unlink.channel_name,
-                unlink.verbose,
-            )
-            .unwrap(),
+            Party::CUST => { 
+                let (result, cust_unlink_time) = measure_one_arg!(cust::pay(
+                    unlink.amount.unwrap(),
+                    create_connection!(unlink),
+                    &db_url,
+                    unlink.channel_name,
+                    unlink.verbose,
+                ));
+                assert!(result.is_ok());
+                if unlink.benchmark {
+                    println!("BENCHMARK >> Unlink customer: {} ms", cust_unlink_time);
+                }
+            },
+
         },
         Command::PAY(pay) => match pay.party {
             Party::MERCH => {
                 let (mut channel_state, mut merch_state) =
                     merch::load_merchant_state_info(&db_url).unwrap();
                 loop {
-                    match merch::pay(
+                    let (result, merch_pay_time) = measure_one_arg!(merch::pay(
                         pay.amount.clone(),
                         create_connection!(pay.clone()),
                         &db_url,
                         &mut channel_state,
                         &mut merch_state,
-                    ) {
+                    ));
+                    if pay.benchmark {
+                        println!("BENCHMARK >> Pay merchant: {} ms", merch_pay_time);
+                    }
+                    match result {
                         Err(e) => println!("Pay phase failed with error: {}", e),
                         _ => (),
                     }
                 }
             }
             Party::CUST => {
-                match cust::pay(
+                let (result, cust_pay_time) = measure_one_arg!(cust::pay(
                     pay.amount.unwrap(),
                     create_connection!(pay),
                     &db_url,
                     pay.channel_name,
                     pay.verbose,
-                ) {
+                ));
+                if pay.benchmark {
+                    println!("BENCHMARK >> Pay customer: {} ms", cust_pay_time);
+                }
+                match result {
                     Err(e) => println!("Pay protocol failed with error: {}", e),
                     _ => (),
                 }
