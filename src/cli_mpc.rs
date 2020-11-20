@@ -578,13 +578,14 @@ fn main() -> Result<(), confy::ConfyError> {
             },
         },
         Command::ACTIVATE(activate) => match activate.party {
-            Party::MERCH => { 
-                let (result, merch_activate_time) = measure_one_arg!(merch::activate(create_connection!(activate), &db_url));
+            Party::MERCH => {
+                let (result, merch_activate_time)  =
+                    measure_one_arg!(merch::activate(create_connection!(activate), &db_url));
                 assert!(result.is_ok());
                 if activate.benchmark {
                     println!("BENCHMARK >> Activate merchant: {} ms", merch_activate_time);
                 }
-            },
+            }
             Party::CUST => {
                 let (result, cust_activate_time) = measure_one_arg!(cust::activate(
                     create_connection!(activate),
@@ -592,8 +593,8 @@ fn main() -> Result<(), confy::ConfyError> {
                     activate.channel_name,
                 ));
                 assert!(result.is_ok());
-                if activate.benchmark { 
-                    println!("BENCHMARK >> Activate customer: {} ms", cust_activate_time); 
+                if activate.benchmark {
+                    println!("BENCHMARK >> Activate customer: {} ms", cust_activate_time);
                 }
             }
         },
@@ -601,47 +602,46 @@ fn main() -> Result<(), confy::ConfyError> {
             Party::MERCH => {
                 let (mut channel_state, mut merch_state) =
                     merch::load_merchant_state_info(&db_url).unwrap();
-                let (result, merch_unlink_time) = measure_one_arg!(merch::pay(
+                let result = merch::pay(
                     unlink.amount,
                     create_connection!(unlink),
                     &db_url,
                     &mut channel_state,
                     &mut merch_state,
-                ));
+                );
                 assert!(result.is_ok());
                 if unlink.benchmark {
-                    println!("BENCHMARK >> Unlink merchant: {} ms", merch_unlink_time);
+                    println!("BENCHMARK >> Unlink merchant: {} ms", result.unwrap());
                 }
             }
-            Party::CUST => { 
-                let (result, cust_unlink_time) = measure_one_arg!(cust::pay(
+            Party::CUST => {
+                let result = cust::pay(
                     unlink.amount.unwrap(),
                     create_connection!(unlink),
                     &db_url,
                     unlink.channel_name,
                     unlink.verbose,
-                ));
+                );
                 assert!(result.is_ok());
                 if unlink.benchmark {
-                    println!("BENCHMARK >> Unlink customer: {} ms", cust_unlink_time);
+                    println!("BENCHMARK >> Unlink customer: {} ms", result.unwrap());
                 }
-            },
-
+            }
         },
         Command::PAY(pay) => match pay.party {
             Party::MERCH => {
                 let (mut channel_state, mut merch_state) =
                     merch::load_merchant_state_info(&db_url).unwrap();
                 loop {
-                    let (result, merch_pay_time) = measure_one_arg!(merch::pay(
+                    let result = merch::pay(
                         pay.amount.clone(),
                         create_connection!(pay.clone()),
                         &db_url,
                         &mut channel_state,
                         &mut merch_state,
-                    ));
+                    );
                     if pay.benchmark {
-                        println!("BENCHMARK >> Pay merchant: {} ms", merch_pay_time);
+                        println!("BENCHMARK >> Pay merchant: {} ms", result.clone().unwrap());
                     }
                     match result {
                         Err(e) => println!("Pay phase failed with error: {}", e),
@@ -650,17 +650,17 @@ fn main() -> Result<(), confy::ConfyError> {
                 }
             }
             Party::CUST => {
-                let (result, cust_pay_time) = measure_one_arg!(cust::pay(
+                let result = cust::pay(
                     pay.amount.unwrap(),
                     create_connection!(pay),
                     &db_url,
                     pay.channel_name,
                     pay.verbose,
-                ));
+                );
                 if pay.benchmark {
-                    println!("BENCHMARK >> Pay customer: {} ms", cust_pay_time);
+                    println!("BENCHMARK >> Pay customer: {} ms", result.clone().unwrap());
                 }
-                match result {
+                match result.clone() {
                     Err(e) => println!("Pay protocol failed with error: {}", e),
                     _ => (),
                 }
@@ -986,11 +986,12 @@ mod cust {
         db_url: &String,
         channel_name: String,
         verbose: bool,
-    ) -> Result<(), String> {
+    ) -> Result<u128, String> {
         let rng = &mut rand::thread_rng();
         let mut db_conn = handle_error_result!(create_db_connection(db_url.clone()));
         let key = format!("id:{}", channel_name);
 
+        let timer = Instant::now();
         // load the channel state from DB
         let channel_state_key = format!("cust:{}:channel_state", channel_name);
         let ser_channel_state =
@@ -1109,6 +1110,7 @@ mod cust {
                 pt_mask_r,
                 &mut cust_state
             ));
+        let timed = timer.elapsed();
 
         conn.send(&[is_ok.to_string()]);
         match is_ok {
@@ -1116,13 +1118,16 @@ mod cust {
             false => println!("Transaction failed!"),
         }
 
-        cust_save_state_in_db(
+        let rc = cust_save_state_in_db(
             &mut db_conn,
             channel_name,
             channel_state,
             channel_token,
             cust_state,
-        )
+        );
+        assert!(rc.is_ok());
+        
+        Ok(timed.as_millis())
     }
 
     pub fn close(
@@ -1467,11 +1472,13 @@ mod merch {
         db_url: &String,
         channel_state: &mut ChannelMPCState,
         merch_state: &mut MerchantMPCState,
-    ) -> Result<(), String> {
+    ) -> Result<u128, String> {
         let rng = &mut rand::thread_rng();
         let mut db = handle_error_result!(get_merch_db_connection(db_url.clone()));
 
         let msg0 = conn.wait_for(None, false);
+
+        let timer = Instant::now();
         // get the session id
         let session_id_vec = hex::decode(msg0.get(0).unwrap()).unwrap();
         let mut session_id = [0u8; 16];
@@ -1583,8 +1590,12 @@ mod merch {
             println!("Transaction failed!")
         }
         println!("******************************************");
+        let timed = timer.elapsed();
 
-        merch_save_state_in_db(&mut db.conn, Some(&channel_state), &merch_state)
+        let rc = merch_save_state_in_db(&mut db.conn, Some(&channel_state), &merch_state);
+        assert!(rc.is_ok());
+
+        Ok(timed.as_millis())
     }
 
     pub fn merch_save_state_in_db(
