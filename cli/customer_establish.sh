@@ -7,6 +7,7 @@ if [[ $name == "" ]]; then
     echo "Did not specify a channel name."
     exit -1
 fi
+amount=$2
 
 echo "opening a channel: '$name'"
 ../target/$mode/zkchannels-mpc open --party CUST --other-port 12347 --own-port 12346 --cust-bal 20000 --merch-bal 2546 --channel-name "$name" 
@@ -18,4 +19,4 @@ echo "activating channel: '$name'"
 echo "established!"
 
 echo "now we can unlink: '$name'"
-../target/$mode/zkchannels-mpc unlink --party CUST --other-port 12347 --own-port 12346 --channel-name "$name" -v
+../target/$mode/zkchannels-mpc unlink --party CUST --other-port 12347 --own-port 12346 --channel-name "$name" --amount=$amount -v

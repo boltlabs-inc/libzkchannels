@@ -192,14 +192,11 @@ pub struct CustomerState<E: Engine> {
     pub pk_c: secp256k1::PublicKey,
     sk_c: secp256k1::SecretKey,
     pub cust_balance: i64,
-    //
     pub merch_balance: i64,
     pub nonce: FixedSizeArray16,
     pub rev_lock: FixedSizeArray32,
     rev_secret: FixedSizeArray32,
-    // pub rev_lock: secp256k1::PublicKey,
-    // // keypair bound to the wallet
-    // rev_secret: secp256k1::SecretKey,
+    // keypair bound to the wallet
     old_kp: Option<WalletKeyPair>,
     // old wallet key pair
     wallet: Wallet<E>,

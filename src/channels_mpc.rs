@@ -1339,6 +1339,7 @@ impl MerchantMPCState {
         let nonce_hex_str = hex::encode(s0.get_nonce());
 
         self.activate_map.insert(channel_id_str, s0);
+        // add initial nonce to the S_unlink set
         db.update_unlink_set(&nonce_hex_str)?;
 
         let res = self.change_channel_status(escrow_txid_be, ChannelStatus::PendingOpen);
@@ -1394,7 +1395,7 @@ impl MerchantMPCState {
             ));
         }
 
-        // if specified nonce is part of an existing active session
+        // concurrent payment check - if specified nonce is part of an existing active session
         if db.check_dup_nonce_to_session_id(&nonce_hex, &session_id_hex) {
             return Err(format!(
                 "Cannot reuse nonce with a different session id: {} {}",
@@ -1402,11 +1403,14 @@ impl MerchantMPCState {
             ));
         }
 
-        // check if n_i in S_unlink and amount == 0. if so, proceed since this is the unlink protocol
-        if amount == 0 && !db.is_member_unlink_set(&nonce_hex) {
-            return Err(String::from(
-                "Can only run unlink with previously known nonce",
-            ));
+        // check if n_i in S_unlink. if so, proceed since this is the unlink protocol
+        let nonce_is_unlink_set = db.is_member_unlink_set(&nonce_hex);
+        // check if n_i not in S_spent
+        let nonce_is_spent_set = db.check_spent_map(&nonce_hex);
+        if nonce_is_spent_set && nonce_is_unlink_set {
+            return Err(format!("Can only run unlink once"));
+        } else if nonce_is_spent_set && !nonce_is_unlink_set {
+            return Err(format!("nonce {} has been spent already.", &nonce_hex));
         }
 
         if amount < 0 {
@@ -1423,11 +1427,6 @@ impl MerchantMPCState {
             if !payment_result {
                 return Err(format!("Sorry, refunds are not allowed for this channel"));
             }
-        }
-
-        // check if n_i not in S_spent
-        if db.check_spent_map(&nonce_hex) {
-            return Err(format!("nonce {} has been spent already.", &nonce_hex));
         }
 
         // pick mask_pay and form commitment to it
@@ -1920,7 +1919,7 @@ impl MerchantMPCState {
         db.update_rev_lock_map(&rev_lock_r, &rev_sec_r)?;
         // check if n_i in the unlink map. if so, remove it
         if db.is_member_unlink_set(&nonce_hex) {
-            // remove from unlink set
+            // remove nonce from unlink set
             assert!(db.remove_from_unlink_set(&nonce_hex));
         }
 

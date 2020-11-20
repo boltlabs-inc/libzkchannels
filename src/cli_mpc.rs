@@ -563,7 +563,7 @@ fn main() -> Result<(), confy::ConfyError> {
                 let (mut channel_state, mut merch_state) =
                     merch::load_merchant_state_info(&db_url).unwrap();
                 merch::pay(
-                    Some(0),
+                    unlink.amount,
                     create_connection!(unlink),
                     &db_url,
                     &mut channel_state,
@@ -572,7 +572,7 @@ fn main() -> Result<(), confy::ConfyError> {
                 .unwrap()
             }
             Party::CUST => cust::pay(
-                0,
+                unlink.amount.unwrap(),
                 create_connection!(unlink),
                 &db_url,
                 unlink.channel_name,

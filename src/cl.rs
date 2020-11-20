@@ -280,8 +280,8 @@ impl<E: Engine> SecretKey<E> {
                            <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(
     bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
-                        <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
-                        <E as pairing::Engine>::G2: serde::Deserialize<'de>")
+                         <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+                         <E as pairing::Engine>::G2: serde::Deserialize<'de>")
 )]
 
 pub struct PartialProducts<E: Engine> {

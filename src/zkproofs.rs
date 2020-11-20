@@ -60,12 +60,12 @@ impl fmt::Display for TransactionFeeInfo {
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
-                            <E as pairing::Engine>::G2: serde::Serialize, \
-                            <E as pairing::Engine>::G1: serde::Serialize"))]
+                           <E as pairing::Engine>::G2: serde::Serialize, \
+                           <E as pairing::Engine>::G1: serde::Serialize"))]
 #[serde(
     bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G2: serde::Deserialize<'de>,\
-                            <E as pairing::Engine>::G1: serde::Deserialize<'de>")
+                         <E as pairing::Engine>::G1: serde::Deserialize<'de>")
 )]
 pub struct ChannelcloseC<E: Engine> {
     pub rev_lock: FixedSizeArray32,
@@ -77,14 +77,14 @@ pub struct ChannelcloseC<E: Engine> {
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
-                            <E as pairing::Engine>::G1: serde::Serialize, \
-                            <E as pairing::Engine>::G2: serde::Serialize, \
-                            <E as pairing::Engine>::Fqk: serde::Serialize"))]
+                           <E as pairing::Engine>::G1: serde::Serialize, \
+                           <E as pairing::Engine>::G2: serde::Serialize, \
+                           <E as pairing::Engine>::Fqk: serde::Serialize"))]
 #[serde(
     bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
-                            <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
-                            <E as pairing::Engine>::G2: serde::Deserialize<'de>,\
-                            <E as pairing::Engine>::Fqk: serde::Deserialize<'de>")
+                         <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+                         <E as pairing::Engine>::G2: serde::Deserialize<'de>,\
+                         <E as pairing::Engine>::Fqk: serde::Deserialize<'de>")
 )]
 pub struct Payment<E: Engine> {
     proof: NIZKProof<E>,

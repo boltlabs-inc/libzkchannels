@@ -85,11 +85,11 @@ execute a payment session with the MPC with a 0-value amount. In a real deployme
 
 Customer runs the following command:
 
-    zkchannels-mpc unlink --party CUST --other-port 12347 --own-port 12346 --channel-name "alice1" -v
+    zkchannels-mpc unlink --party CUST --other-port 12347 --own-port 12346 --channel-name "alice1" --amount=10 -v
 
 Merchant does the same:
 
-    zkchannels-mpc unlink --party MERCH --own-port 12347 --other-port 12346
+    zkchannels-mpc unlink --party MERCH --own-port 12347 --other-port 12346 --amount=10
 
 If this is successful, the customer now has an unlinkable payment token from the merchant on the initial state of the channel.
 

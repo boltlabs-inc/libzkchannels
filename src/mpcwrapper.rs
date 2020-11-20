@@ -1,9 +1,8 @@
 use bindings::{
     build_masked_tokens_cust, build_masked_tokens_merch, cb_receive, cb_send, get_netio_ptr,
-    Balance_l, BitcoinPublicKey_l, CommitmentRandomness_l, ConnType_NETIO,
-    ConnType_TORNETIO, Conn_l, EcdsaSig_l, HMACKeyCommitment_l, HMACKey_l,
-    MaskCommitment_l, Mask_l, Nonce_l, PayToken_l, PublicKeyHash_l, RevLockCommitment_l, RevLock_l,
-    State_l, Txid_l,
+    Balance_l, BitcoinPublicKey_l, CommitmentRandomness_l, ConnType_NETIO, ConnType_TORNETIO,
+    Conn_l, EcdsaSig_l, HMACKeyCommitment_l, HMACKey_l, MaskCommitment_l, Mask_l, Nonce_l,
+    PayToken_l, PublicKeyHash_l, RevLockCommitment_l, RevLock_l, State_l, Txid_l,
 };
 // ConnType_CUSTOM, get_gonetio_ptr
 use channels_mpc::NetworkConfig;
