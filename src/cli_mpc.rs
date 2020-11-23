@@ -579,7 +579,7 @@ fn main() -> Result<(), confy::ConfyError> {
         },
         Command::ACTIVATE(activate) => match activate.party {
             Party::MERCH => {
-                let (result, merch_activate_time)  =
+                let (result, merch_activate_time) =
                     measure_one_arg!(merch::activate(create_connection!(activate), &db_url));
                 assert!(result.is_ok());
                 if activate.benchmark {
@@ -622,9 +622,15 @@ fn main() -> Result<(), confy::ConfyError> {
                     unlink.channel_name,
                     unlink.verbose,
                 );
-                assert!(result.is_ok());
                 if unlink.benchmark {
-                    println!("BENCHMARK >> Unlink customer: {} ms", result.unwrap());
+                    println!(
+                        "BENCHMARK >> Unlink customer: {} ms",
+                        result.clone().unwrap()
+                    );
+                }
+                match result {
+                    Err(e) => println!("Unlink protocol failed with error: {}", e),
+                    _ => (),
                 }
             }
         },
@@ -660,7 +666,7 @@ fn main() -> Result<(), confy::ConfyError> {
                 if pay.benchmark {
                     println!("BENCHMARK >> Pay customer: {} ms", result.clone().unwrap());
                 }
-                match result.clone() {
+                match result {
                     Err(e) => println!("Pay protocol failed with error: {}", e),
                     _ => (),
                 }
@@ -966,11 +972,11 @@ mod cust {
             handle_error_result!(serde_json::to_string(&channel_token)),
             handle_error_result!(serde_json::to_string(&s0)),
         ];
-        println!("Sending channel token and state (s0)");
+        // println!("Sending channel token and state (s0)");
         let msg2 = conn.send_and_wait(&msg1, None, false);
 
         let pay_token: [u8; 32] = serde_json::from_str(&msg2.get(0).unwrap()).unwrap();
-        println!("Obtained pay token (p0): {}", hex::encode(&pay_token));
+        // println!("Obtained pay token (p0): {}", hex::encode(&pay_token));
         handle_error_result!(mpc::activate_customer_finalize(pay_token, &mut cust_state));
 
         let cust_state_key = format!("cust:{}:cust_state", channel_name);
@@ -991,7 +997,6 @@ mod cust {
         let mut db_conn = handle_error_result!(create_db_connection(db_url.clone()));
         let key = format!("id:{}", channel_name);
 
-        let timer = Instant::now();
         // load the channel state from DB
         let channel_state_key = format!("cust:{}:channel_state", channel_name);
         let ser_channel_state =
@@ -1006,11 +1011,10 @@ mod cust {
         let mut cust_state: CustomerMPCState =
             handle_error_result!(serde_json::from_str(&ser_cust_state));
 
-        if verbose {
-            println!("Payment amount: {}", amount);
-            println!("Customer balance: {}", cust_state.cust_balance);
-            println!("Merchant balance: {}", cust_state.merch_balance);
-        }
+        // Uncomment for verbose/debugging
+        // println!("Payment amount: {}", amount);
+        // println!("Customer balance: {}", cust_state.cust_balance);
+        // println!("Merchant balance: {}", cust_state.merch_balance);
 
         // load the channel token from DB
         let channel_token_key = format!("cust:{}:channel_token", channel_name);
@@ -1019,22 +1023,25 @@ mod cust {
         let mut channel_token: ChannelMPCToken =
             handle_error_result!(serde_json::from_str(&ser_channel_token));
 
-        let old_state = cust_state.get_current_state();
+        // start the timer
+        let timer = Instant::now();
 
+        let old_state = cust_state.get_current_state();
         // prepare phase
         let (new_state, rev_state, rev_lock_com, session_id) =
             match mpc::pay_prepare_customer(rng, &mut channel_state, amount, &mut cust_state) {
                 Ok(n) => n,
                 Err(e) => return Err(e),
             };
-        if verbose {
-            let chan_id = channel_token.compute_channel_id().unwrap();
-            println!("====================================");
-            println!("Updating channel: ID={}", hex::encode(&chan_id));
-            println!("old state: {}", &old_state);
-            println!("new state: {}", &new_state);
-            println!("====================================");
-        }
+        // Uncomment for verbose/debugging
+        // if verbose {
+        //     let chan_id = channel_token.compute_channel_id().unwrap();
+        //     println!("====================================");
+        //     println!("Updating channel: ID={}", hex::encode(&chan_id));
+        //     println!("old state: {}", &old_state);
+        //     println!("new state: {}", &new_state);
+        //     println!("====================================");
+        // }
         let session_id_str = hex::encode(&session_id);
         let amount_str = hex::encode(amount.to_be_bytes());
         let rev_lock_com_str = hex::encode(&rev_lock_com);
@@ -1044,7 +1051,7 @@ mod cust {
         let msg1 = conn.send_and_wait(
             &msg,
             Some(String::from("amount, nonce and rev_lock com")),
-            true,
+            verbose,
         );
         let pay_token_mask_com_vec = hex::decode(msg1.get(0).unwrap()).unwrap();
         let mut pay_token_mask_com = [0u8; 32];
@@ -1077,7 +1084,7 @@ mod cust {
         };
 
         let msg1a = [handle_error_result!(serde_json::to_string(&is_ok))];
-        let msg2 = conn.send_and_wait(&msg1a, None, false);
+        let msg2 = conn.send_and_wait(&msg1a, None, verbose);
 
         let mask_bytes: MaskedTxMPCInputs = serde_json::from_str(msg2.get(0).unwrap()).unwrap();
 
@@ -1110,6 +1117,7 @@ mod cust {
                 pt_mask_r,
                 &mut cust_state
             ));
+        // stop the timer after unmasking
         let timed = timer.elapsed();
 
         conn.send(&[is_ok.to_string()]);
@@ -1126,7 +1134,7 @@ mod cust {
             cust_state,
         );
         assert!(rc.is_ok());
-        
+
         Ok(timed.as_millis())
     }
 
@@ -1162,18 +1170,19 @@ mod cust {
 
         let from_escrow = !from_merch_close;
 
-        let (signed_tx, txid_be, _) = handle_error_result!(mpc::force_customer_close(
+        let (signed_tx, _txid_be, _) = handle_error_result!(mpc::force_customer_close(
             &channel_state,
             &channel_token,
             from_escrow,
             &mut cust_state
         ));
 
-        if from_escrow {
-            println!("cust-close from escrow txid: {}", hex::encode(txid_be));
-        } else {
-            println!("cust-close from merch txid: {}", hex::encode(txid_be));
-        }
+        // Uncomment for verbose/debugging
+        // if from_escrow {
+        //     println!("cust-close from escrow txid: {}", hex::encode(txid_be));
+        // } else {
+        //     println!("cust-close from merch txid: {}", hex::encode(txid_be));
+        // }
         let cust_state_key = format!("cust:{}:cust_state", channel_id);
         let cust_state_json_str = handle_error_result!(serde_json::to_string(&cust_state));
         store_file_in_db(&mut db_conn, &key, &cust_state_key, &cust_state_json_str)?;
@@ -1362,7 +1371,8 @@ mod merch {
         };
 
         // now proceed to sign the cust-close transactions (escrow + merch-close-tx)
-        println!("Signing customer's initial closing tx...");
+        // Uncomment for verbose/debugging
+        // println!("Signing customer's initial closing tx...");
         let (escrow_sig, merch_sig) = merch_state.sign_initial_closing_transaction::<Testnet>(
             funding_tx,
             rev_lock,
@@ -1393,7 +1403,8 @@ mod merch {
             init_hash,
             &mut merch_state
         ));
-        println!("Initial state for customer is correct: {}", res);
+        // Uncomment for verbose/debugging
+        // println!("Initial state for customer is correct: {}", res);
 
         let msg5 = [handle_error_result!(serde_json::to_string(&res))];
 
@@ -1502,11 +1513,12 @@ mod merch {
                 i64::from_be_bytes(amount_buf)
             }
         };
-        println!(
-            "Payment request => nonce: {}, amount: {}",
-            hex::encode(&nonce),
-            amount
-        );
+        // Uncomment for verbose/debugging
+        // println!(
+        //     "Payment request => nonce: {}, amount: {}",
+        //     hex::encode(&nonce),
+        //     amount
+        // );
 
         let justification = match amount < 0 {
             true => Some(format!("empty-sig")),
@@ -1580,6 +1592,8 @@ mod merch {
                 ));
             }
         };
+        // end the timer since pay is over and what's left is processing/sending the result
+        let timed = timer.elapsed();
 
         let msg5 = [hex::encode(&pt_mask_bytes), hex::encode(&pt_mask_r)];
         let msg6 = conn.send_and_wait(&msg5, Some(String::from("Sending masked pt bytes")), true);
@@ -1590,7 +1604,6 @@ mod merch {
             println!("Transaction failed!")
         }
         println!("******************************************");
-        let timed = timer.elapsed();
 
         let rc = merch_save_state_in_db(&mut db.conn, Some(&channel_state), &merch_state);
         assert!(rc.is_ok());

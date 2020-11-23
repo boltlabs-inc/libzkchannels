@@ -19,4 +19,4 @@ echo "activating channel: '$name'"
 echo "established!"
 
 echo "now we can unlink: '$name'"
-../target/$mode/zkchannels-mpc unlink --party CUST --other-port 12347 --own-port 12346 --channel-name "$name" --amount=$amount -b -v
+../target/$mode/zkchannels-mpc unlink --party CUST --other-port 12347 --own-port 12346 --channel-name "$name" --amount=$amount -b
