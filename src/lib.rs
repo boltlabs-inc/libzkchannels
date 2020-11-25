@@ -1813,7 +1813,7 @@ mod tests {
                 &mut db,
                 &channel_state,
                 &mut cust_state,
-                10,
+                0,
                 &mut merch_state,
             );
 
@@ -1846,7 +1846,7 @@ mod tests {
             new_state,
             pay_mask_com,
             rev_lock_com,
-            10,
+            0,
             &mut cust_state,
             ptr::null_mut(),
             None,
@@ -2012,7 +2012,7 @@ mod tests {
                 &mut db,
                 &channel_state,
                 &mut cust_state,
-                10,
+                0,
                 &mut merch_state,
             );
 
@@ -2045,7 +2045,7 @@ mod tests {
             new_state,
             [11u8; 32], // bad pay-token-mask commitment
             rev_lock_com,
-            10,
+            0,
             &mut cust_state,
             ptr::null_mut(),
             None,
@@ -2071,6 +2071,6 @@ mod tests {
         let session_id_hex = hex::encode(session_id);
         let session_state = db.load_session_state(&session_id_hex).unwrap();
         print!("Session State: {:?}\n", session_state);
-        //assert!(session_state.status == PaymentStatus::Error);
+        assert!(session_state.status == PaymentStatus::Error);
     }
 }

@@ -1407,10 +1407,15 @@ impl MerchantMPCState {
         let nonce_is_unlink_set = db.is_member_unlink_set(&nonce_hex);
         // check if n_i not in S_spent
         let nonce_is_spent_set = db.check_spent_map(&nonce_hex);
-        if nonce_is_spent_set && nonce_is_unlink_set {
-            return Err(format!("Can only run unlink once"));
-        } else if nonce_is_spent_set && !nonce_is_unlink_set {
+
+        // check if nonce has already been spent
+        if nonce_is_spent_set {
             return Err(format!("nonce {} has been spent already.", &nonce_hex));
+        }
+
+        // make sure customer can only run unlink once
+        if amount == 0 && !nonce_is_unlink_set {
+            return Err(format!("Can only run unlink once."));
         }
 
         if amount < 0 {
