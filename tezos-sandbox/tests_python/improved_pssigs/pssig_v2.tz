@@ -2,31 +2,18 @@ parameter (pair (pair (pair (bls12_381_fr %chanID) (pair (mutez %custBal) (bls12
 storage   unit;
 code
   {
-    # Global variable: convert_to_bytes # pair @parameter @storage
+    # Global variable: convert_to_bls12_381_fr # pair @parameter @storage
     LAMBDA
       mutez
       bls12_381_fr
       {
-        PACK; DUP; SIZE;
-        PUSH nat 2;
-        SUB;
-        ABS;
-        ## Offset
-        PUSH nat 2;
-        SLICE;
-        ASSERT_SOME;
-        # We need to add 0x05 and also the prefix for the types BLS12_381_FR (0x0a00000020).
-        PUSH bytes 0x050a00000020;
-        CONCAT;
-        # We must also pad the values to get 32 bytes. In this case, it is 31 bytes.
-        PUSH bytes 0x00000000000000000000000000000000000000000000000000000000000000;
-        # PUSH bytes 0x00000000000000000000000000000000000000000000000000000000;
-        # Fr elements are encoded in little endian.
+        PUSH mutez 1;
         SWAP;
-        CONCAT;
-        # Now we can finally pack...
-        UNPACK bls12_381_fr;
+        EDIV;
         ASSERT_SOME;
+        CAR;
+        PUSH bls12_381_fr 1;
+        MUL;
       }; # lambda mutez bytes : pair @parameter @storage
     SWAP;       # pair @parameter @storage : lambda mutez bytes
     DUP;        # pair @parameter @storage : pair @parameter @storage : lambda mutez bytes
@@ -34,7 +21,7 @@ code
     SWAP;       # pair @parameter @storage : @storage : lambda mutez bytes
     CAR;        # @parameter : @storage : lambda mutez bytes
     # == run ==
-    # cust_bal_b = sp.local("cust_bal_b", self.convert_to_bytes(params.custBal)) # @parameter : @storage : lambda mutez bytes
+    # cust_bal_b = sp.local("cust_bal_b", self.convert_to_bls12_381_fr(params.custBal)) # @parameter : @storage : lambda mutez bytes
     DIG 2;      # lambda mutez bytes : @parameter : @storage
     DUP;        # lambda mutez bytes : lambda mutez bytes : @parameter : @storage
     DUG 3;      # lambda mutez bytes : @parameter : @storage : lambda mutez bytes
@@ -43,7 +30,7 @@ code
     DUG 2;      # @parameter : lambda mutez bytes : @parameter : @storage : lambda mutez bytes
     CAADAR;     # mutez : lambda mutez bytes : @parameter : @storage : lambda mutez bytes
     EXEC;       # bytes : @parameter : @storage : lambda mutez bytes
-    # merch_bal_b = sp.local("merch_bal_b", self.convert_to_bytes(params.merchBal)) # bytes : @parameter : @storage : lambda mutez bytes
+    # merch_bal_b = sp.local("merch_bal_b", self.convert_to_bls12_381_fr(params.merchBal)) # bytes : @parameter : @storage : lambda mutez bytes
     DIG 3;      # lambda mutez bytes : bytes : @parameter : @storage
     DUP;        # lambda mutez bytes : lambda mutez bytes : bytes : @parameter : @storage
     DUG 4;      # lambda mutez bytes : bytes : @parameter : @storage : lambda mutez bytes
