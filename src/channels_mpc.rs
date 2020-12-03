@@ -182,6 +182,7 @@ pub struct MaskedMPCOutputs {
     pt_masked: FixedSizeArray32,
     escrow_masked: FixedSizeArray32,
     merch_masked: FixedSizeArray32,
+    success: FixedSizeArray16,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -640,7 +641,7 @@ impl CustomerMPCState {
             channel_state.bal_min_merch,
             channel_state.val_cpfp,
         );
-        let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) =
+        let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar, success_ar) =
             match mpc_build_masked_tokens_cust(
                 net_conn,
                 p_ptr,
@@ -668,7 +669,7 @@ impl CustomerMPCState {
                 cust_payout_pub_key,
                 cust_public_key_hash,
             ) {
-                Ok(c) => (c.0, c.1, c.2),
+                Ok(c) => (c.0, c.1, c.2, c.3),
                 Err(e) => return Err(e.to_string()),
             };
 
@@ -676,6 +677,7 @@ impl CustomerMPCState {
             pt_masked: FixedSizeArray32(pt_masked_ar),
             escrow_masked: FixedSizeArray32(ct_escrow_masked_ar),
             merch_masked: FixedSizeArray32(ct_merch_masked_ar),
+            success: FixedSizeArray16(success_ar),
         };
 
         // save the masked outputs (will unmask later)
@@ -1791,6 +1793,9 @@ impl MerchantMPCState {
         let mut escrow_mask_bytes = [0u8; 32];
         csprng.fill_bytes(&mut escrow_mask_bytes);
 
+        let mut verify_success_bytes = [0u8; 16];
+        csprng.fill_bytes(&mut verify_success_bytes);
+
         // load the key_com from the channelState
         let hmac_key_com = channel_state.get_key_com();
 
@@ -1842,6 +1847,7 @@ impl MerchantMPCState {
             &pay_mask_bytes,
             &pay_mask_r,
             &escrow_mask_bytes,
+            &verify_success_bytes,
         );
 
         // store the rev_lock_com => (pt_mask_bytes, escrow_mask_bytes, merch_mask_bytes)
@@ -1860,6 +1866,7 @@ impl MerchantMPCState {
             merch_mask: FixedSizeArray32(merch_mask_bytes),
             r_escrow_sig: FixedSizeArray32(r_esc),
             r_merch_sig: FixedSizeArray32(r_merch),
+            verify_success: FixedSizeArray16(verify_success_bytes),
         };
 
         // let nonce_hex = hex::encode(nonce);
@@ -2093,15 +2100,17 @@ mod tests {
         pt_mask.copy_from_slice(hex::decode("37a5641c56c647dcfc8224f8327eca3fe129be06162a29e40d67c638c9b59154").unwrap().as_slice());
         let mut pt_mask_r = [0u8; 16];
         pt_mask_r.copy_from_slice(hex::decode("9b6f97a36598430eaf68b6052daa50dc").unwrap().as_slice());
+        let mut verify_success_r = [0u8; 16];
+        verify_success_r.copy_from_slice(hex::decode("8d554a313591832b4154ac3caeab9053").unwrap().as_slice());
 
         let mut escrow_mask = [0u8; 32];
         escrow_mask.copy_from_slice(hex::decode("6a68ab03de4554418fc0a943af057659d3dec60180115fe2fc18ffefd1234d06").unwrap().as_slice());
         let mut merch_mask = [0u8; 32];
         merch_mask.copy_from_slice(hex::decode("8beda3c4cac531d6b33c746052f32c39498e38e251187fba093a2f7b5de0c725").unwrap().as_slice());
         let mut r_escrow_sig = [0u8; 32];
-        r_escrow_sig.copy_from_slice(hex::decode("4c238531af51de9aedf6f6c896226c49252febe3494afd7ac307560405b7576d").unwrap().as_slice());
+        r_escrow_sig.copy_from_slice(hex::decode("a90b3e8c974e2ba7bc4ca9e56b5b5d9a5f2e11f90c0df4acecf9be6a865874be").unwrap().as_slice());
         let mut r_merch_sig = [0u8; 32];
-        r_merch_sig.copy_from_slice(hex::decode("073ab5239d02e596408d9e025c5c586ed6cd4779a23ab41901317833d6d1aec2").unwrap().as_slice());
+        r_merch_sig.copy_from_slice(hex::decode("af3bcf94dcc8efccd3c44ee37dcf6b1cf33db89c86c613c4b5a08d20f55b0078").unwrap().as_slice());
 
         let mask_bytes = Some(MaskedMPCInputs {
             pt_mask: FixedSizeArray32(pt_mask),
@@ -2110,6 +2119,7 @@ mod tests {
             merch_mask: FixedSizeArray32(merch_mask),
             r_escrow_sig: FixedSizeArray32(r_escrow_sig),
             r_merch_sig: FixedSizeArray32(r_merch_sig),
+            verify_success: FixedSizeArray16(verify_success_r),
         });
 
         if mask_bytes.is_some() {

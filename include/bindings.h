@@ -7,6 +7,8 @@
 
 #define _LIBCPP_DEBUG_LEVEL 0
 
+#define _LIBCPP_HAS_MERGED_TYPEINFO_NAMES_DEFAULT 1
+
 #define __STDCPP_THREADS__ 1
 
 typedef struct {

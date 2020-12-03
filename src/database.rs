@@ -33,6 +33,7 @@ pub struct MaskedMPCInputs {
     pub merch_mask: FixedSizeArray32,
     pub r_escrow_sig: FixedSizeArray32,
     pub r_merch_sig: FixedSizeArray32,
+    pub verify_success: FixedSizeArray16,
 }
 
 impl MaskedMPCInputs {
@@ -969,6 +970,7 @@ mod tests {
             merch_mask: FixedSizeArray32([4u8; 32]),
             r_escrow_sig: FixedSizeArray32([5u8; 32]),
             r_merch_sig: FixedSizeArray32([6u8; 32]),
+            verify_success: FixedSizeArray16([7u8; 16]),
         };
         let result = db.update_masked_mpc_inputs(&session_id_hex, mask_bytes);
         assert!(result);

@@ -2,7 +2,7 @@ use bindings::{
     build_masked_tokens_cust, build_masked_tokens_merch, cb_receive, cb_send, get_netio_ptr,
     Balance_l, BitcoinPublicKey_l, CommitmentRandomness_l, ConnType_NETIO, ConnType_TORNETIO,
     Conn_l, EcdsaSig_l, HMACKeyCommitment_l, HMACKey_l, MaskCommitment_l, Mask_l, Nonce_l,
-    PayToken_l, PublicKeyHash_l, RevLockCommitment_l, RevLock_l, State_l, Txid_l,
+    PayToken_l, PublicKeyHash_l, RevLockCommitment_l, RevLock_l, State_l, Txid_l, Randomness_l
 };
 // ConnType_CUSTOM, get_gonetio_ptr
 use channels_mpc::NetworkConfig;
@@ -69,11 +69,11 @@ pub fn mpc_build_masked_tokens_cust(
     cust_escrow_pub_key: secp256k1::PublicKey,
     cust_payout_pub_key: secp256k1::PublicKey,
     cust_pub_key_hash: [u8; 20],
-) -> Result<([u8; 32], [u8; 32], [u8; 32]), String> {
+) -> Result<([u8; 32], [u8; 32], [u8; 32], [u8; 16]), String> {
     // translate wpk
     let rl_c = translate_revlock_com(&rev_lock_com);
     // translate blinding factor
-    let rl_rand_c = translate_randomness(&rl_rand);
+    let rl_rand_c = translate_commitment_randomness(&rl_rand);
 
     // translate new_wallet
     let new_state_c = translate_state(&new_state);
@@ -115,6 +115,8 @@ pub fn mpc_build_masked_tokens_cust(
     let mut ct_escrow = EcdsaSig_l { sig: sig1_ar };
     let sig2_ar = [0u32; 8];
     let mut ct_merch = EcdsaSig_l { sig: sig2_ar };
+    let success_ar = [0u32; 4];
+    let mut success = Randomness_l { randomness: success_ar };
 
     // set the network config
     let path_ar = CString::new(net_conn.path).unwrap().into_raw();
@@ -163,6 +165,7 @@ pub fn mpc_build_masked_tokens_cust(
             &mut pt_return,
             &mut ct_escrow,
             &mut ct_merch,
+            &mut success,
         );
     };
     // Uncomment to benchmark C/C++ wrapper
@@ -175,19 +178,23 @@ pub fn mpc_build_masked_tokens_cust(
     ct_escrow_masked_ar.copy_from_slice(u32_to_bytes(&ct_escrow.sig[..]).as_slice());
     let mut ct_merch_masked_ar = [0u8; 32];
     ct_merch_masked_ar.copy_from_slice(u32_to_bytes(&ct_merch.sig[..]).as_slice());
+    let mut success_out_ar = [0u8; 16];
+    success_out_ar.copy_from_slice(u32_to_bytes(&success.randomness[..]).as_slice());
 
     // handle error case: if pt_masked_ar => 0xffff..
     let pt_masked_hex = hex::encode(&pt_masked_ar);
     let ct_escrow_masked_hex = hex::encode(&ct_escrow_masked_ar);
     let ct_merch_masked_hex = hex::encode(&ct_merch_masked_ar);
+    let success_hex = hex::encode(&success_out_ar);
     if pt_masked_hex == MPC_ERROR
         || ct_escrow_masked_hex == MPC_ERROR
         || ct_merch_masked_hex == MPC_ERROR
+        || success_hex == MPC_ERROR[..16]
     {
         return Err(format!("Failed to get valid output from MPC!"));
     }
 
-    Ok((pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar))
+    Ok((pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar, success_out_ar))
 }
 
 fn translate_bitcoin_key(pub_key: &secp256k1::PublicKey) -> BitcoinPublicKey_l {
@@ -214,11 +221,20 @@ fn translate_nonce(nonce: &[u8; 16]) -> Nonce_l {
     Nonce_l { nonce: nonce_ar }
 }
 
-fn translate_randomness(randomness: &[u8; 16]) -> CommitmentRandomness_l {
+fn translate_commitment_randomness(randomness: &[u8; 16]) -> CommitmentRandomness_l {
     let random_vec = bytes_to_u32(&randomness[..], 16);
     let mut rand_ar = [0u32; 4];
     rand_ar.copy_from_slice(random_vec.as_slice());
     CommitmentRandomness_l {
+        randomness: rand_ar,
+    }
+}
+
+fn translate_randomness(randomness: &[u8; 16]) -> Randomness_l {
+    let random_vec = bytes_to_u32(&randomness[..], 16);
+    let mut rand_ar = [0u32; 4];
+    rand_ar.copy_from_slice(random_vec.as_slice());
+    Randomness_l {
         randomness: rand_ar,
     }
 }
@@ -349,6 +365,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(
     pay_mask: &[u8; 32],
     pay_mask_r: &[u8; 16],
     escrow_mask: &[u8; 32],
+    verify_success_r: &[u8; 16],
 ) -> ([u8; 32], [u8; 32]) {
     // translate revlock commitment
     let rl_c = translate_revlock_com(rev_lock_com);
@@ -377,7 +394,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(
     let paytoken_mask_c = Mask_l {
         mask: translate_256_string(pay_mask),
     };
-    let paytoken_r = translate_randomness(pay_mask_r);
+    let paytoken_r = translate_commitment_randomness(pay_mask_r);
 
     //Create escrow_mask
     let escrow_mask = Mask_l {
@@ -394,7 +411,9 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(
         commitment: translate_256_string(key_com),
     };
     // translate randomness for hmac_key_com
-    let key_com_rand = translate_randomness(key_com_r);
+    let key_com_rand = translate_commitment_randomness(key_com_r);
+
+    let verify_success = translate_randomness(verify_success_r);
 
     //hmac key
     let hmac_key = HMACKey_l {
@@ -445,6 +464,7 @@ pub fn mpc_build_masked_tokens_merch<R: Rng>(
             paytoken_r,
             params1,
             params2,
+            verify_success,
         );
     };
     let stop = timer.elapsed();
@@ -529,6 +549,8 @@ mod tests {
             let paytoken_mask_r = [2u8; 16];
             let paytoken_mask_com = compute_commitment(&paytoken_mask_bytes.to_vec(), &paytoken_mask_r);
             println!("paytoken_mask_com : {}", hex::encode(&paytoken_mask_com));
+
+            let verify_success_r = [3u8; 16];
 
             let mut rev_lock_com = [0u8; 32];
             rev_lock_com.copy_from_slice(
@@ -627,6 +649,7 @@ mod tests {
                 &paytoken_mask_bytes,
                 &paytoken_mask_r,
                 &escrow_mask_bytes,
+                &verify_success_r
             );
 
             assert_eq!(
@@ -929,7 +952,8 @@ mod tests {
 
         // if this assert is triggered, then there was an error inside the mpc
         assert!(mpc_result.is_ok(), mpc_result.err().unwrap());
-        let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar) = mpc_result.unwrap();
+        let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar, success_ar) = mpc_result.unwrap();
+        assert_eq!(hex::encode(success_ar), "03030303030303030303030303030303");
 
         let mut paytoken_mask_bytes = [0u8; 32];
         paytoken_mask_bytes.copy_from_slice(
