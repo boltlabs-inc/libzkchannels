@@ -1167,11 +1167,10 @@ mod tests {
         );
         assert!(res_merch.is_ok(), res_merch.err().unwrap());
 
-        let mpc_result = res_merch.unwrap();
         let masked_inputs = mpc::pay_confirm_mpc_result(
             &mut db as &mut dyn StateDatabase,
             session_id.clone(),
-            mpc_result,
+            "6ae9c1ec9fe899664f2a35badbbcada8".to_string(),
             &mut merch_state,
         );
         assert!(masked_inputs.is_ok(), masked_inputs.err().unwrap());
@@ -1279,16 +1278,16 @@ mod tests {
             ptr::null_mut(),
             None,
             None,);
-            assert!(res_cust.is_ok() && res_cust.unwrap());
+            assert!(res_cust.is_ok());
 
             let mut escrow_mask = [0u8; 32];
             escrow_mask.copy_from_slice(hex::decode("28a6c48749023149e45657f824b8d2d710b18575a3d667b4bd56c5f6d9c394b4").unwrap().as_slice());
             let mut merch_mask = [0u8; 32];
             merch_mask.copy_from_slice(hex::decode("fddc371be95df8ea164916e88dcd895a1522fcff163fc3d70182c78d91d33699").unwrap().as_slice());
             let mut r_escrow_sig = [0u8; 32];
-            r_escrow_sig.copy_from_slice(hex::decode("e9b5a76742e28c1c5a2efb071abb5b37e62756ee0f02cc45ac79b3a5ed3bb824").unwrap().as_slice());
+            r_escrow_sig.copy_from_slice(hex::decode("f3c4bc971aaa9bba404dfb4ef79da1dfdfda7db2bc8678a64fc4e766aeec59d5").unwrap().as_slice());
             let mut r_merch_sig = [0u8; 32];
-            r_merch_sig.copy_from_slice(hex::decode("c1270ef7f78f7f8f208eb28da447d2e5820c9b7b9e37aee7f2f60af454d7ca31").unwrap().as_slice());
+            r_merch_sig.copy_from_slice(hex::decode("e8c38fa6d975568b6a60269098bdf3a2d5eb896a06d47ff9733772ffb2fe7e27").unwrap().as_slice());
 
             let masks = MaskedTxMPCInputs::new(
                 escrow_mask,
@@ -1650,6 +1649,7 @@ mod tests {
     fn complete_pay_helper(
         merch_db: &mut RedisDatabase,
         session_id: [u8; 16],
+        success: String,
         rev_state: mpc::RevokedState,
         channel_state: &mpc::ChannelMPCState,
         channel_token: &mpc::ChannelMPCToken,
@@ -1659,7 +1659,7 @@ mod tests {
         let mask_bytes = mpc::pay_confirm_mpc_result(
             merch_db as &mut dyn StateDatabase,
             session_id.clone(),
-            true,
+            success,
             merch_state,
         )
         .unwrap();
@@ -1853,8 +1853,6 @@ mod tests {
             None,
         );
         assert!(res_cust.is_ok());
-        let mpc_result_ok = res_cust.unwrap();
-        assert!(mpc_result_ok);
 
         // wait for mpctest to complete execution
         let ecode = mpc_child.wait().expect("failed to wait on mpctest");
@@ -1868,6 +1866,7 @@ mod tests {
         complete_pay_helper(
             &mut db,
             session_id,
+            res_cust.unwrap(),
             rev_state,
             &channel_state,
             &channel_token,
@@ -1916,8 +1915,6 @@ mod tests {
             None,
         );
         assert!(res_cust.is_ok());
-        let mpc_result_ok = res_cust.unwrap();
-        assert!(mpc_result_ok);
 
         let ecode = mpc_child.wait().expect("failed to wait on mpctest");
         assert!(ecode.success());
@@ -1931,6 +1928,7 @@ mod tests {
         complete_pay_helper(
             &mut db,
             session_id1,
+            res_cust.unwrap(),
             rev_state1,
             &channel_state,
             &channel_token,
@@ -2063,7 +2061,7 @@ mod tests {
         let mask = mpc::pay_confirm_mpc_result(
             &mut db as &mut dyn StateDatabase,
             session_id.clone(),
-            res_cust.is_ok(),
+            res_cust.unwrap(),
             &mut merch_state,
         );
         assert!(mask.is_err());

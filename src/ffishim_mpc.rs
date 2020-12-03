@@ -685,11 +685,11 @@ pub mod ffishim_mpc {
             send_cb,
             receive_cb,
         );
-        let is_ok: bool = handle_errors!(result);
+        let success = handle_errors!(result);
         let ser = [
-            "{\'is_ok\':",
-            &is_ok.to_string(),
-            ", \'cust_state\':\'",
+            "{\'success\':\'",
+            &success,
+            "\', \'cust_state\':\'",
             serde_json::to_string(&cust_state).unwrap().as_str(),
             "\'}",
         ]
@@ -766,20 +766,19 @@ pub mod ffishim_mpc {
     #[no_mangle]
     pub extern "C" fn mpc_get_masked_tx_inputs(
         ser_session_id: *mut c_char,
-        mpc_result: u32,
+        ser_success: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
-        let mut mpc_success = false;
-        if mpc_result >= 1 {
-            mpc_success = true;
-        }
-
         // Deserialize session_id
         let sess_id_result = deserialize_hex_string(ser_session_id);
         let session_id = handle_errors!(sess_id_result);
         check_vec_length!(session_id, 16);
         let mut session_id_ar = [0u8; 16];
         session_id_ar.copy_from_slice(session_id.as_slice());
+
+        // Deserialize success
+        let success_result = deserialize_string(ser_success);
+        let success = handle_errors!(success_result);
 
         // Deserialize the merch_state
         let merch_state_result: ResultSerdeType<MerchantMPCState> =
@@ -793,7 +792,7 @@ pub mod ffishim_mpc {
         let result = mpc::pay_confirm_mpc_result(
             &mut db as &mut dyn StateDatabase,
             session_id_ar,
-            mpc_success,
+            success,
             &mut merch_state,
         );
         let masked_tx_inputs = handle_errors!(result);

@@ -182,7 +182,6 @@ pub struct MaskedMPCOutputs {
     pt_masked: FixedSizeArray32,
     escrow_masked: FixedSizeArray32,
     merch_masked: FixedSizeArray32,
-    success: FixedSizeArray16,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -577,7 +576,7 @@ impl CustomerMPCState {
         p_ptr: *mut c_void,
         send_cb: cb_send,
         receive_cb: cb_receive,
-    ) -> Result<bool, String> {
+    ) -> Result<String, String> {
         let min_cust_bal = channel_state.bal_min_cust + self.fee_cc + channel_state.val_cpfp;
         if new_state.bc <= min_cust_bal {
             return Err(format!(
@@ -677,13 +676,12 @@ impl CustomerMPCState {
             pt_masked: FixedSizeArray32(pt_masked_ar),
             escrow_masked: FixedSizeArray32(ct_escrow_masked_ar),
             merch_masked: FixedSizeArray32(ct_merch_masked_ar),
-            success: FixedSizeArray16(success_ar),
         };
 
         // save the masked outputs (will unmask later)
         self.masked_outputs
             .insert(self.index, masked_output.clone());
-        Ok(true)
+        Ok(hex::encode(success_ar))
     }
 
     pub fn get_pubkeys(
@@ -1857,6 +1855,7 @@ impl MerchantMPCState {
         //    println!("merchant merch_mask: {:?}", hex::encode(&merch_mask_bytes));
         //    println!("merchant r_escrow_sig: {:?}", hex::encode(&r_esc));
         //    println!("merchant r_merch_sig: {:?}", hex::encode(&r_merch));
+        //    println!("merchant success bytes: {:?}", hex::encode(&verify_success_bytes));
         //    println!("=================================================================");
 
         let mask_bytes = MaskedMPCInputs {

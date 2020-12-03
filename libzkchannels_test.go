@@ -371,8 +371,11 @@ func Test_fullProtocolWithValidUTXO(t *testing.T) {
 	if !isOk {
 		t.Error("MPC execution failed for merchant!", err)
 	}
+	success := os.Getenv("successString")
+	success = strings.Trim(success, " ")
+
 	assert.True(t, isOk)
-	maskedTxInputs, err := PayConfirmMPCResult(sessionId, isOk, merchState)
+	maskedTxInputs, err := PayConfirmMPCResult(sessionId, success, merchState)
 	assert.Nil(t, err)
 
 	serCustState := os.Getenv("custStateRet")
@@ -577,6 +580,7 @@ func runPayCust(channelState ChannelState, channelToken ChannelToken, state Stat
 	out, _ := c.Output()
 	// fmt.Println("output: ", string(out))
 	os.Setenv("custStateRet", strings.Split(string(out), "|||")[1])
+	os.Setenv("successString", strings.Split(string(out), "*-*")[1])
 	os.Setenv("runTest", "")
 }
 
@@ -603,10 +607,10 @@ func TestPayUpdateCustomer(t *testing.T) {
 	err = json.Unmarshal([]byte(os.Getenv("custState")), &custState)
 	assert.Nil(t, err)
 
-	isOk, custState, err := PayUpdateCustomer(channelState, channelToken, state, newState, payTokenMaskCom, revLockCom, 10, custState, nil, nil, nil)
+	success, custState, err := PayUpdateCustomer(channelState, channelToken, state, newState, payTokenMaskCom, revLockCom, 10, custState, nil, nil, nil)
 	assert.Nil(t, err)
 	serCustState, err := json.Marshal(custState)
 	t.Log("\n|||", string(serCustState), "|||\n")
-	assert.True(t, isOk)
+	t.Log("\n*-*", success, "*-*\n")
 	assert.Nil(t, err)
 }

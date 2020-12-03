@@ -7,8 +7,6 @@
 
 #define _LIBCPP_DEBUG_LEVEL 0
 
-#define _LIBCPP_HAS_MERGED_TYPEINFO_NAMES_DEFAULT 1
-
 #define __STDCPP_THREADS__ 1
 
 typedef struct {
@@ -71,6 +69,10 @@ typedef struct {
 } EcdsaPartialSig_l;
 
 typedef struct {
+  uint32_t randomness[4];
+} Randomness_l;
+
+typedef struct {
   uint32_t commitment[8];
 } HMACKeyCommitment_l;
 
@@ -128,6 +130,7 @@ extern void issue_tokens(State_l old_state_l,
                          EcdsaPartialSig_l sig2,
                          CommitmentRandomness_l hmac_commitment_randomness_l,
                          CommitmentRandomness_l paytoken_mask_commitment_randomness_l,
+                         Randomness_l verify_success,
                          Balance_l epsilon_l,
                          HMACKeyCommitment_l hmac_key_commitment_l,
                          MaskCommitment_l paytoken_mask_commitment_l,
@@ -143,7 +146,8 @@ extern void issue_tokens(State_l old_state_l,
                          PublicKeyHash_l merch_publickey_hash_l,
                          PayToken_l *pt_return,
                          EcdsaSig_l *ct_escrow,
-                         EcdsaSig_l *ct_merch);
+                         EcdsaSig_l *ct_merch,
+                         Randomness_l *success);
 
 void ffishim_free_string(char *pointer);
 
@@ -324,7 +328,7 @@ char *mpc_pay_update_merchant(char *ser_channel_state,
                               cb_send send_cb,
                               cb_receive receive_cb);
 
-char *mpc_get_masked_tx_inputs(char *ser_session_id, uint32_t mpc_result, char *ser_merch_state);
+char *mpc_get_masked_tx_inputs(char *ser_session_id, char *ser_success, char *ser_merch_state);
 
 char *mpc_pay_unmask_sigs_customer(char *ser_channel_state,
                                    char *ser_channel_token,

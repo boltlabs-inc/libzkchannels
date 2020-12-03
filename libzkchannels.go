@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"unsafe"
 )
@@ -29,6 +30,7 @@ type setupResp struct {
 	PayTokenMask    string `json:"pay_token_mask"`
 	PayTokenMaskR   string `json:"pay_token_mask_r"`
 	IsOk            bool   `json:"is_ok"`
+	Success         string `json:"success"`
 	SignedTx        string `json:"signed_tx"`
 	TxIdBe          string `json:"txid_be"`
 	TxIdLe          string `json:"txid_le"`
@@ -655,37 +657,38 @@ func PreparePaymentMerchant(channelState ChannelState, sessionId string, nonce s
 	return r.PayTokenMaskCom, merchState, err
 }
 
-func PayUpdateCustomer(channelState ChannelState, channelToken ChannelToken, startState State, endState State, payTokenMaskCom string, revLockCom string, amount int64, custState CustState, pPtr, send_cb, receive_cb unsafe.Pointer) (bool, CustState, error) {
+func PayUpdateCustomer(channelState ChannelState, channelToken ChannelToken, startState State, endState State, payTokenMaskCom string, revLockCom string, amount int64, custState CustState, pPtr, send_cb, receive_cb unsafe.Pointer) (string, CustState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
-		return false, CustState{}, err
+		return "", CustState{}, err
 	}
 	serChannelToken, err := json.Marshal(channelToken)
 	if err != nil {
-		return false, CustState{}, err
+		return "", CustState{}, err
 	}
 	serStartState, err := json.Marshal(startState)
 	if err != nil {
-		return false, CustState{}, err
+		return "", CustState{}, err
 	}
 	serEndState, err := json.Marshal(endState)
 	if err != nil {
-		return false, CustState{}, err
+		return "", CustState{}, err
 	}
 	serCustState, err := json.Marshal(custState)
 	if err != nil {
-		return false, CustState{}, err
+		return "", CustState{}, err
 	}
 
 	resp := C.GoString(C.mpc_pay_update_customer(C.CString(string(serChannelState)), C.CString(string(serChannelToken)), C.CString(string(serStartState)),
 		C.CString(string(serEndState)), C.CString(payTokenMaskCom), C.CString(revLockCom), C.int64_t(amount), C.CString(string(serCustState)), pPtr, (C.cb_send)(send_cb), (C.cb_receive)(receive_cb)))
 	r, err := processCResponse(resp)
 	if err != nil {
-		return false, CustState{}, err
+		return "", CustState{}, err
 	}
 
 	err = json.Unmarshal([]byte(r.CustState), &custState)
-	return r.IsOk, custState, err
+	fmt.Println("success: " + resp)
+	return r.Success, custState, err
 }
 
 func PayUpdateMerchant(channelState ChannelState, sessionId string, payTokenMaskCom string, merchState MerchState, pPtr, send_cb, receive_cb unsafe.Pointer) (bool, MerchState, error) {
@@ -709,13 +712,13 @@ func PayUpdateMerchant(channelState ChannelState, sessionId string, payTokenMask
 	return r.IsOk, merchState, err
 }
 
-func PayConfirmMPCResult(sessionId string, mpcResult bool, merchState MerchState) (MaskedTxInputs, error) {
+func PayConfirmMPCResult(sessionId string, success string, merchState MerchState) (MaskedTxInputs, error) {
 	serMerchState, err := json.Marshal(merchState)
 	if err != nil {
 		return MaskedTxInputs{}, err
 	}
 
-	resp := C.GoString(C.mpc_get_masked_tx_inputs(C.CString(sessionId), C.uint(btoi(mpcResult)), C.CString(string(serMerchState))))
+	resp := C.GoString(C.mpc_get_masked_tx_inputs(C.CString(sessionId), C.CString(success), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return MaskedTxInputs{}, err

@@ -1066,7 +1066,7 @@ mod cust {
         cust_state.set_network_config(nc);
 
         // execute the mpc phase
-        let mut is_ok = match mpc::pay_update_customer(
+        let success = match mpc::pay_update_customer(
             &mut channel_state,
             &mut channel_token,
             old_state,
@@ -1083,14 +1083,13 @@ mod cust {
             Err(e) => return Err(e.to_string()),
         };
 
-        let msg1a = [handle_error_result!(serde_json::to_string(&is_ok))];
+        let msg1a = [handle_error_result!(serde_json::to_string(&success))];
         let msg2 = conn.send_and_wait(&msg1a, None, verbose);
 
         let mask_bytes: MaskedTxMPCInputs = serde_json::from_str(msg2.get(0).unwrap()).unwrap();
 
         // unmask the closing tx
-        is_ok = is_ok
-            && mpc::pay_unmask_sigs_customer(
+        let mut is_ok = mpc::pay_unmask_sigs_customer(
                 &mut channel_state,
                 &mut channel_token,
                 mask_bytes,
@@ -1563,15 +1562,11 @@ mod merch {
 
         // confirm customer got mpc output
         let msg1a = conn.wait_for(None, false);
-        let cust_mpc_ok: bool = serde_json::from_str(msg1a.get(0).unwrap()).unwrap();
-        if !cust_mpc_ok {
-            return Err(format!("failed to execute MPC successfully."));
-        }
 
         let masked_inputs = mpc::pay_confirm_mpc_result(
             &mut db as &mut dyn StateDatabase,
             session_id,
-            cust_mpc_ok,
+            serde_json::from_str(msg1a.get(0).unwrap()).unwrap(),
             merch_state,
         )
         .unwrap();

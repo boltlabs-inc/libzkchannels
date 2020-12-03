@@ -294,7 +294,7 @@ pub fn pay_update_customer(
     p_ptr: *mut c_void,
     send_cb: cb_send,
     receive_cb: cb_receive,
-) -> Result<bool, String> {
+) -> Result<String, String> {
     // verify that channel status is already activated or established (unlink)
     if (cust_state.protocol_status == ProtocolStatus::Activated && amount >= 0)
         || (cust_state.protocol_status == ProtocolStatus::Established && amount > 0)
@@ -386,33 +386,30 @@ pub fn pay_update_merchant<R: Rng>(
 pub fn pay_confirm_mpc_result(
     db: &mut dyn StateDatabase,
     session_id: [u8; 16],
-    mpc_result: bool,
+    success: String,
     _merch_state: &mut MerchantMPCState,
 ) -> Result<MaskedTxMPCInputs, String> {
     // check db is connected
     db.is_connected()?;
 
     let session_id_hex = hex::encode(session_id);
-    match mpc_result {
-        true => {
-            let mask_bytes = match db.get_masked_mpc_inputs(&session_id_hex) {
-                Ok(n) => Some(n),
-                Err(e) => return Err(e.to_string()),
-            };
-            let mask_bytes_unwrapped = mask_bytes.unwrap();
-            return Ok(mask_bytes_unwrapped.get_tx_masks());
-        }
-        false => {
-            let mut session_state = match db.load_session_state(&session_id_hex) {
-                Ok(s) => s,
-                Err(e) => return Err(e.to_string()),
-            };
-            session_state.status = PaymentStatus::Error;
-            db.update_session_state(&session_id_hex, &session_state);
-            return Err(format!(
-                "pay_confirm_mpc_result: will need to restart MPC session"
-            ));
-        }
+    let mask_bytes = match db.get_masked_mpc_inputs(&session_id_hex) {
+        Ok(n) => Some(n),
+        Err(e) => return Err(e.to_string()),
+    };
+    let mask_bytes_unwrapped = mask_bytes.unwrap();
+    if hex::encode(mask_bytes_unwrapped.verify_success.0) == success {
+        return Ok(mask_bytes_unwrapped.get_tx_masks());
+    } else {
+        let mut session_state = match db.load_session_state(&session_id_hex) {
+            Ok(s) => s,
+            Err(e) => return Err(e.to_string()),
+        };
+        session_state.status = PaymentStatus::Error;
+        db.update_session_state(&session_id_hex, &session_state);
+        return Err(format!(
+            "pay_confirm_mpc_result: will need to restart MPC session"
+        ));
     }
 }
 
