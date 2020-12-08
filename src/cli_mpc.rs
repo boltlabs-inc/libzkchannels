@@ -1090,12 +1090,12 @@ mod cust {
 
         // unmask the closing tx
         let mut is_ok = mpc::pay_unmask_sigs_customer(
-                &mut channel_state,
-                &mut channel_token,
-                mask_bytes,
-                &mut cust_state,
-            )
-            .unwrap();
+            &mut channel_state,
+            &mut channel_token,
+            mask_bytes,
+            &mut cust_state,
+        )
+        .unwrap();
 
         let msg3 = [serde_json::to_string(&rev_state).unwrap()];
 
