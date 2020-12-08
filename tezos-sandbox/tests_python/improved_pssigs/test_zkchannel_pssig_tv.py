@@ -26,7 +26,7 @@ def scenario_cust_close():
         # Launch node running protocol alpha
         sandbox.add_node(0, params=constants.NODE_PARAMS)
         utils.activate_alpha(sandbox.client(0))
-        sandbox.add_baker(0, 'baker5', proto=constants.ALPHA_DAEMON)
+        sandbox.add_baker(0, 'bootstrap5', proto=constants.ALPHA_DAEMON)
         time.sleep(5)
         burncap = "9"
 
@@ -38,7 +38,7 @@ def scenario_cust_close():
     
         # TODO: insert code here to test pssig in isolation
 
-        sandbox.client(0).bake('baker5', BAKE_ARGS)
+        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
 
         # Originate the zkchannel contract with hard coded values (without any funding)
         cust_addr = constants.IDENTITIES['bootstrap1']['identity']
@@ -74,7 +74,7 @@ def scenario_cust_close():
         args = ["--init", initial_storage, "--burn-cap", burncap]
         sandbox.client(0).originate(contract_name, 0, "bootstrap1", contract, args)
 
-        sandbox.client(0).bake('baker5', BAKE_ARGS)
+        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
 
         # Add customer's funds
         sandbox.client(0).transfer(cust_bal, 'bootstrap1', contract_name,
@@ -86,7 +86,7 @@ def scenario_cust_close():
                                    ['--entrypoint', 'addFunding',
                                     '--burn-cap', burncap])
 
-        sandbox.client(0).bake('baker5', BAKE_ARGS)
+        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
 
         print('cust balance')
         sandbox.client(0).get_balance(cust_addr)
@@ -98,7 +98,7 @@ def scenario_cust_close():
                                    ['--entrypoint', 'merchClose',
                                     '--burn-cap', burncap])
 
-        sandbox.client(0).bake('baker5', BAKE_ARGS)
+        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
 
         # A final payment happens - Merchant signs off on chanID, balances,
         # revlock (and for now addresses, although that may change)
@@ -129,8 +129,8 @@ def scenario_cust_close():
         # Each baked block increments the timestamp by 2 seconds. With a 
         # self_delay of 3 seconds, the customer will be able to claim their
         # balance.
-        sandbox.client(0).bake('baker5', BAKE_ARGS)
-        sandbox.client(0).bake('baker5', BAKE_ARGS)
+        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
+        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
 
         print('cust balance')
         sandbox.client(0).get_balance(cust_addr)
@@ -142,7 +142,7 @@ def scenario_cust_close():
                                    ['--entrypoint', 'custClaim',
                                     '--burn-cap', burncap])
         
-        sandbox.client(0).bake('baker5', BAKE_ARGS)
+        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
 
         print('cust balance')
         sandbox.client(0).get_balance(cust_addr)
