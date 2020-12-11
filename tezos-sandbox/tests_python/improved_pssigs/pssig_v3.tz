@@ -56,6 +56,7 @@ code
     DUP;        # @parameter : @parameter : bytes : bytes : bytes : bytes : @storage : lambda mutez bytes
     DUG 5;      # @parameter : bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
     CADDAR;     # bytes : bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    UNPACK bls12_381_fr;
     MUL; #CONCAT;     # bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
     # val3 = sp.local("val3", params.merchPk2 + cust_bal_b.value) # bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
     DIG 3;      # bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
