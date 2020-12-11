@@ -1,0 +1,130 @@
+parameter (pair (pair (pair (bls12_381_fr %chanID) (pair (mutez %custBal) (bls12_381_g2 %g2))) (pair (mutez %merchBal) (pair (bls12_381_g2 %merchPk0) (bls12_381_g2 %merchPk1)))) (pair (pair (bls12_381_g2 %merchPk2) (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4))) (pair (bytes %revLock) (pair (bls12_381_g1 %s1) (bls12_381_g1 %s2)))));
+storage   unit;
+code
+  {
+    # Global variable: convert_to_bls12_381_fr # pair @parameter @storage
+    LAMBDA
+      mutez
+      bls12_381_fr
+      {
+        PUSH mutez 1;
+        SWAP;
+        EDIV;
+        ASSERT_SOME;
+        CAR;
+        PUSH bls12_381_fr 1;
+        MUL;
+      }; # lambda mutez bytes : pair @parameter @storage
+    SWAP;       # pair @parameter @storage : lambda mutez bytes
+    DUP;        # pair @parameter @storage : pair @parameter @storage : lambda mutez bytes
+    CDR;        # @storage : pair @parameter @storage : lambda mutez bytes
+    SWAP;       # pair @parameter @storage : @storage : lambda mutez bytes
+    CAR;        # @parameter : @storage : lambda mutez bytes
+    # == run ==
+    # cust_bal_b = sp.local("cust_bal_b", self.convert_to_bytes(params.custBal)) # @parameter : @storage : lambda mutez bytes
+    DIG 2;      # lambda mutez bytes : @parameter : @storage
+    DUP;        # lambda mutez bytes : lambda mutez bytes : @parameter : @storage
+    DUG 3;      # lambda mutez bytes : @parameter : @storage : lambda mutez bytes
+    SWAP;       # @parameter : lambda mutez bytes : @storage : lambda mutez bytes
+    DUP;        # @parameter : @parameter : lambda mutez bytes : @storage : lambda mutez bytes
+    DUG 2;      # @parameter : lambda mutez bytes : @parameter : @storage : lambda mutez bytes
+    CAADAR;     # mutez : lambda mutez bytes : @parameter : @storage : lambda mutez bytes
+    EXEC;       # bytes : @parameter : @storage : lambda mutez bytes
+    # merch_bal_b = sp.local("merch_bal_b", self.convert_to_bytes(params.merchBal)) # bytes : @parameter : @storage : lambda mutez bytes
+    DIG 3;      # lambda mutez bytes : bytes : @parameter : @storage
+    DUP;        # lambda mutez bytes : lambda mutez bytes : bytes : @parameter : @storage
+    DUG 4;      # lambda mutez bytes : bytes : @parameter : @storage : lambda mutez bytes
+    DIG 2;      # @parameter : lambda mutez bytes : bytes : @storage : lambda mutez bytes
+    DUP;        # @parameter : @parameter : lambda mutez bytes : bytes : @storage : lambda mutez bytes
+    DUG 3;      # @parameter : lambda mutez bytes : bytes : @parameter : @storage : lambda mutez bytes
+    CADAR;      # mutez : lambda mutez bytes : bytes : @parameter : @storage : lambda mutez bytes
+    EXEC;       # bytes : bytes : @parameter : @storage : lambda mutez bytes
+    # val1 = sp.local("val1", params.merchPk0 + params.chanID) # bytes : bytes : @parameter : @storage : lambda mutez bytes
+    DIG 2;      # @parameter : bytes : bytes : @storage : lambda mutez bytes
+    DUP;        # @parameter : @parameter : bytes : bytes : @storage : lambda mutez bytes
+    CAAAR;      # bytes : @parameter : bytes : bytes : @storage : lambda mutez bytes
+    SWAP;       # @parameter : bytes : bytes : bytes : @storage : lambda mutez bytes
+    DUP;        # @parameter : @parameter : bytes : bytes : bytes : @storage : lambda mutez bytes
+    DUG 4;      # @parameter : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    CADDAR;     # bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    MUL; #CONCAT;     # bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    # val2 = sp.local("val2", params.merchPk0 + params.revLock) # bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    DIG 3;      # @parameter : bytes : bytes : bytes : @storage : lambda mutez bytes
+    DUP;        # @parameter : @parameter : bytes : bytes : bytes : @storage : lambda mutez bytes
+    CDDAR;      # bytes : @parameter : bytes : bytes : bytes : @storage : lambda mutez bytes
+    PUSH bytes 0x050a00000020;
+    CONCAT;
+    UNPACK bls12_381_fr;
+    ASSERT_SOME;
+    SWAP;       # @parameter : bytes : bytes : bytes : bytes : @storage : lambda mutez bytes
+    DUP;        # @parameter : @parameter : bytes : bytes : bytes : bytes : @storage : lambda mutez bytes
+    DUG 5;      # @parameter : bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    CADDAR;     # bytes : bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    MUL; #CONCAT;     # bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    # val3 = sp.local("val3", params.merchPk2 + cust_bal_b.value) # bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    DIG 3;      # bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    DIG 4;      # @parameter : bytes : bytes : bytes : bytes : @storage : lambda mutez bytes
+    DUP;        # @parameter : @parameter : bytes : bytes : bytes : bytes : @storage : lambda mutez bytes
+    DUG 5;      # @parameter : bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    CDAAR;      # bytes : bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    MUL; #CONCAT;     # bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    # val4 = sp.local("val4", params.merchPk3 + merch_bal_b.value) # bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    DIG 3;      # bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    DIG 4;      # @parameter : bytes : bytes : bytes : bytes : @storage : lambda mutez bytes
+    DUP;        # @parameter : @parameter : bytes : bytes : bytes : bytes : @storage : lambda mutez bytes
+    DUG 5;      # @parameter : bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    CDADAR;     # bytes : bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    MUL; #CONCAT;     # bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    # prod1 = sp.local("prod1", (((val1.value + val2.value) + val3.value) + val4.value) + params.merchPk4) # bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    DIG 4;      # @parameter : bytes : bytes : bytes : bytes : @storage : lambda mutez bytes
+    DUP;        # @parameter : @parameter : bytes : bytes : bytes : bytes : @storage : lambda mutez bytes
+    DUG 5;      # @parameter : bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    CDADDR;     # bytes : bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    SWAP;       # bytes : bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    DIG 2;      # bytes : bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    DIG 3;      # bytes : bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    DIG 4;      # bytes : bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    ADD; #CONCAT;     # bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    ADD; #CONCAT;     # bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    ADD; #CONCAT;     # bytes : bytes : @parameter : @storage : lambda mutez bytes
+    ADD; #CONCAT;     # bytes : @parameter : @storage : lambda mutez bytes
+    # pair_list = sp.local("pair_list", sp.list([(params.s1, prod1.value), (params.s2, params.g2)])) # bytes : @parameter : @storage : lambda mutez bytes
+    NIL (pair bls12_381_g1 bls12_381_g2); # list (pair bytes bytes) : bytes : @parameter : @storage : lambda mutez bytes
+    DIG 2;      # @parameter : list (pair bytes bytes) : bytes : @storage : lambda mutez bytes
+    DUP;        # @parameter : @parameter : list (pair bytes bytes) : bytes : @storage : lambda mutez bytes
+    CAADDR;     # bytes : @parameter : list (pair bytes bytes) : bytes : @storage : lambda mutez bytes
+    NEG;
+    SWAP;       # @parameter : bytes : list (pair bytes bytes) : bytes : @storage : lambda mutez bytes
+    DUP;        # @parameter : @parameter : bytes : list (pair bytes bytes) : bytes : @storage : lambda mutez bytes
+    DUG 4;      # @parameter : bytes : list (pair bytes bytes) : bytes : @parameter : @storage : lambda mutez bytes
+    CDDDDR;     # bytes : bytes : list (pair bytes bytes) : bytes : @parameter : @storage : lambda mutez bytes
+    PAIR;       # pair bytes bytes : list (pair bytes bytes) : bytes : @parameter : @storage : lambda mutez bytes
+    CONS;       # list (pair bytes bytes) : bytes : @parameter : @storage : lambda mutez bytes
+    SWAP;       # bytes : list (pair bytes bytes) : @parameter : @storage : lambda mutez bytes
+    DIG 2;      # @parameter : bytes : list (pair bytes bytes) : @storage : lambda mutez bytes
+    CDDDAR;     # bytes : bytes : list (pair bytes bytes) : @storage : lambda mutez bytes
+    PAIR;       # pair bytes bytes : list (pair bytes bytes) : @storage : lambda mutez bytes
+    CONS;       # list (pair bytes bytes) : @storage : lambda mutez bytes
+    PAIRING_CHECK;
+    IF
+      {
+        # out.value = True # @storage : lambda mutez bytes
+        PUSH bool True; # bool : @storage : lambda mutez bytes
+      }
+      {
+        # out.value = False # @storage : lambda mutez bytes
+        PUSH bool False; # bool : @storage : lambda mutez bytes
+      }; # bool : @storage : lambda mutez bytes
+    # sp.verify(out.value) # bool : @storage : lambda mutez bytes
+    IF
+      {
+        SWAP;       # lambda mutez bytes : @storage
+        DROP;       # @storage
+      }
+      {
+        PUSH string "WrongCondition: out.value"; # string : @storage : lambda mutez bytes
+        FAILWITH;   # FAILED
+      }; # @storage
+    NIL operation; # list operation : @storage
+    PAIR;       # pair (list operation) @storage
+  };
