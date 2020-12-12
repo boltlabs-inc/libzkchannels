@@ -2,7 +2,6 @@ parameter (pair (pair (pair (bls12_381_fr %chanID) (pair (mutez %custBal) (bls12
 storage   unit;
 code
   {
-    # Global variable: convert_to_bls12_381_fr # pair @parameter @storage
     LAMBDA
       mutez
       bls12_381_fr
@@ -48,18 +47,18 @@ code
     DUG 4;      # @parameter : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
     CADDAR;     # bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
     MUL; #CONCAT;     # bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
-    # val2 = sp.local("val2", params.merchPk0 + params.revLock) # bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    # val2 = sp.local("val2", params.merchPk1 + params.revLock) # bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
     DIG 3;      # @parameter : bytes : bytes : bytes : @storage : lambda mutez bytes
     DUP;        # @parameter : @parameter : bytes : bytes : bytes : @storage : lambda mutez bytes
     CDDAR;      # bytes : @parameter : bytes : bytes : bytes : @storage : lambda mutez bytes
-    PUSH bytes 0x050a00000020;
+    PUSH bytes 0x050a00000020; # convert revLock into bls12_381_fr
     CONCAT;
     UNPACK bls12_381_fr;
     ASSERT_SOME;
     SWAP;       # @parameter : bytes : bytes : bytes : bytes : @storage : lambda mutez bytes
     DUP;        # @parameter : @parameter : bytes : bytes : bytes : bytes : @storage : lambda mutez bytes
     DUG 5;      # @parameter : bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
-    CADDAR;     # bytes : bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
+    CADDDR;     # bytes : bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
     MUL; #CONCAT;     # bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
     # val3 = sp.local("val3", params.merchPk2 + cust_bal_b.value) # bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes
     DIG 3;      # bytes : bytes : bytes : bytes : @parameter : @storage : lambda mutez bytes

@@ -36,7 +36,7 @@ class PSSigContract(sp.Contract):
             merch_bal_b = sp.local("merch_bal_b", self.convert_to_bytes(params.merchBal))
 
             val1 = sp.local("val1", params.merchPk0 + params.chanID)
-            val2 = sp.local("val2", params.merchPk0 + params.revLock)
+            val2 = sp.local("val2", params.merchPk1 + params.revLock)
             val3 = sp.local("val3", params.merchPk2 + cust_bal_b.value)
             val4 = sp.local("val4", params.merchPk3 + merch_bal_b.value)
             
