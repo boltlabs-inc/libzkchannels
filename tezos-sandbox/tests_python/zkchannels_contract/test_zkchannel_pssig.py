@@ -1,4 +1,3 @@
-
 import time
 from tools import constants, paths, utils
 from launchers.sandbox import Sandbox
@@ -62,10 +61,10 @@ def scenario_cust_close(contract_path, pubkey, message, signature):
         # Launch node running protocol alpha
         sandbox.add_node(0, params=constants.NODE_PARAMS)
         utils.activate_alpha(sandbox.client(0))
-        sandbox.add_baker(0, 'baker5', proto=constants.ALPHA_DAEMON)
+        sandbox.add_baker(0, 'bootstrap5', proto=constants.ALPHA_DAEMON)
         time.sleep(5)
         burncap = "9"
-
+        
         cust_addr = constants.IDENTITIES['bootstrap1']['identity']
         cust_pk = constants.IDENTITIES['bootstrap1']['public']
         merch_addr = constants.IDENTITIES['bootstrap2']['identity']
@@ -79,7 +78,7 @@ def scenario_cust_close(contract_path, pubkey, message, signature):
         args = ["--init", "Unit", "--burn-cap", burncap]
 
         sandbox.client(0).originate(pssig_name, 0, "bootstrap1", pssig_contract, args)
-        sandbox.client(0).bake('baker5', BAKE_ARGS)
+        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
 
         entrypoint_cost = dict()
         current_bal = sandbox.client(0).get_balance(cust_addr)
@@ -110,7 +109,7 @@ def scenario_cust_close(contract_path, pubkey, message, signature):
         args = ["--init", initial_storage, "--burn-cap", burncap]
         sandbox.client(0).originate(contract_name, 0, "bootstrap1", contract, args)
         
-        sandbox.client(0).bake('baker5', BAKE_ARGS)
+        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
 
         old_bal = current_bal
         current_bal = sandbox.client(0).get_balance(cust_addr)
@@ -126,7 +125,7 @@ def scenario_cust_close(contract_path, pubkey, message, signature):
                                    ['--entrypoint', 'addFunding',
                                     '--burn-cap', burncap])
 
-        sandbox.client(0).bake('baker5', BAKE_ARGS)
+        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
 
         merch_old_bal = sandbox.client(0).get_balance(merch_addr)
 
@@ -139,7 +138,7 @@ def scenario_cust_close(contract_path, pubkey, message, signature):
                                    ['--entrypoint', 'merchClose',
                                     '--burn-cap', burncap])
 
-        sandbox.client(0).bake('baker5', BAKE_ARGS)
+        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
 
 
         merch_current_bal = sandbox.client(0).get_balance(merch_addr)
@@ -147,14 +146,14 @@ def scenario_cust_close(contract_path, pubkey, message, signature):
         
         # A final payment happens - Merchant signs off on chanID, balances,
         # revlock (and for now addresses, although that may change)
-        new_cust_bal = 1040 / 1000000
-        new_merch_bal = 19960 / 1000000
+        new_cust_bal = 19960 / 1000000
+        new_merch_bal = 1040 / 1000000
         new_cust_bal_mt = int(new_cust_bal * 1000000)
-        new_merch_bal_mt = int(new_merch_bal * 1000000)
-        # # secret_final = 0x123456789ccc
-        rev_lock_final = "0x90d774c7ce82fbe85a7bd34bf9cbb00689e1352e7bf6b54591ccd0d3fde9d729"
-        rev_lock_final_b = rev_lock_fr
+        new_merch_bal_mt = int(new_merch_bal * 1000000)        
+        rev_lock_final = rev_lock_fr
 
+        print("rev_lock_final: " + str(rev_lock_final))
+        
         # sample signature, merch-pk and g2 
         s1 = sig_s1 
         s2 = sig_s2 
@@ -165,7 +164,11 @@ def scenario_cust_close(contract_path, pubkey, message, signature):
         merchPk3 = pubkey.get("Y3") 
         merchPk4 = pubkey.get("X") 
 
-        storage = '(Pair (Pair (Pair {custBal} (Pair {custBalB} {g2})) (Pair (Pair {merchBal} {merchBalB}) (Pair {merchPk0} {merchPk1}))) (Pair (Pair {merchPk2} (Pair {merchPk3} {merchPk4})) (Pair (Pair {rev_lock_final} {rev_lock_final_b}) (Pair {s1} {s2}))))'.format(s1=s1, s2=s2, g2=g2, merchPk0=merchPk0, merchPk1=merchPk1, merchPk2=merchPk2, merchPk3=merchPk3, merchPk4=merchPk4, rev_lock_final=rev_lock_final, custBal=new_cust_bal_mt, merchBal=new_merch_bal_mt, custBalB=cust_bal_b, merchBalB=merch_bal_b, rev_lock_final_b=rev_lock_final_b)
+        # This storage format is for pssig_v3.tz
+        storage = '(Pair (Pair (Pair {custBal} {g2}) (Pair {merchBal} (Pair {merchPk0} {merchPk1}))) (Pair (Pair {merchPk2} (Pair {merchPk3} {merchPk4})) (Pair {rev_lock_final} (Pair {s1} {s2}))))'.format(s1=s1, s2=s2, g2=g2, merchPk0=merchPk0, merchPk1=merchPk1, merchPk2=merchPk2, merchPk3=merchPk3, merchPk4=merchPk4, rev_lock_final=rev_lock_final, custBal=new_cust_bal_mt, merchBal=new_merch_bal_mt)
+
+        # This storage format is for pssig_v2.tz
+        # storage = '(Pair (Pair (Pair {custBal} (Pair {custBalB} {g2})) (Pair (Pair {merchBal} {merchBalB}) (Pair {merchPk0} {merchPk1}))) (Pair (Pair {merchPk2} (Pair {merchPk3} {merchPk4})) (Pair (Pair {rev_lock_final} {rev_lock_final_b}) (Pair {s1} {s2}))))'.format(s1=s1, s2=s2, g2=g2, merchPk0=merchPk0, merchPk1=merchPk1, merchPk2=merchPk2, merchPk3=merchPk3, merchPk4=merchPk4, rev_lock_final=rev_lock_final, custBal=new_cust_bal_mt, merchBal=new_merch_bal_mt, custBalB=cust_bal_b, merchBalB=merch_bal_b, rev_lock_final_b=rev_lock_final_b)
 
         # Customer broadcasts custClose with the merchant's signature
         sandbox.client(0).transfer(0, 'bootstrap1', contract_name,
@@ -176,8 +179,8 @@ def scenario_cust_close(contract_path, pubkey, message, signature):
         # Each baked block increments the timestamp by 2 seconds. With a 
         # self_delay of 3 seconds, the customer will be able to claim their
         # balance.
-        sandbox.client(0).bake('baker5', BAKE_ARGS)
-        sandbox.client(0).bake('baker5', BAKE_ARGS)
+        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
+        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
 
         old_bal = current_bal
         current_bal = sandbox.client(0).get_balance(cust_addr)
@@ -188,7 +191,7 @@ def scenario_cust_close(contract_path, pubkey, message, signature):
                                    ['--entrypoint', 'custClaim',
                                     '--burn-cap', burncap])
         
-        sandbox.client(0).bake('baker5', BAKE_ARGS)
+        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
 
         old_bal = current_bal
         current_bal = sandbox.client(0).get_balance(cust_addr)
@@ -215,7 +218,7 @@ def scenario_mutual_close(contract_path, message):
         # Launch node running protocol alpha
         sandbox.add_node(0, params=constants.NODE_PARAMS)
         utils.activate_alpha(sandbox.client(0))
-        sandbox.add_baker(0, 'baker5', proto=constants.ALPHA_DAEMON)
+        sandbox.add_baker(0, 'bootstrap5', proto=constants.ALPHA_DAEMON)
         time.sleep(5)
         burncap = "9"
 
@@ -232,7 +235,7 @@ def scenario_mutual_close(contract_path, message):
         args = ["--init", "Unit", "--burn-cap", burncap]
 
         sandbox.client(0).originate(pssig_name, 0, "bootstrap1", pssig_contract, args)
-        sandbox.client(0).bake('baker5', BAKE_ARGS)
+        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
 
         entrypoint_cost = dict()
         current_bal = sandbox.client(0).get_balance(cust_addr)
@@ -245,10 +248,10 @@ def scenario_mutual_close(contract_path, message):
 
         contract_name = "my_zkchannel"
         chan_id = chan_id_fr
-        cust_bal = 20
-        merch_bal = 10
-        cust_bal_mt = cust_bal * 1000000
-        merch_bal_mt = merch_bal * 1000000
+        cust_bal = 21000 / 1000000
+        merch_bal = 0
+        cust_bal_mt = int(cust_bal * 1000000)
+        merch_bal_mt = int(merch_bal * 1000000)
         # Balance in mutez as bytes
         cust_bal_b = cust_bal_fr 
         merch_bal_b = merch_bal_fr 
@@ -263,7 +266,7 @@ def scenario_mutual_close(contract_path, message):
         args = ["--init", initial_storage, "--burn-cap", burncap]
         sandbox.client(0).originate(contract_name, 0, "bootstrap1", contract, args)
         
-        sandbox.client(0).bake('baker5', BAKE_ARGS)
+        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
 
         old_bal = current_bal
         current_bal = sandbox.client(0).get_balance(cust_addr)
@@ -279,7 +282,7 @@ def scenario_mutual_close(contract_path, message):
                                    ['--entrypoint', 'addFunding',
                                     '--burn-cap', burncap])
 
-        sandbox.client(0).bake('baker5', BAKE_ARGS)
+        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
 
         merch_old_bal = sandbox.client(0).get_balance(merch_addr)
 
@@ -288,10 +291,10 @@ def scenario_mutual_close(contract_path, message):
         entrypoint_cost["addFunding"] = old_bal - cust_bal - current_bal
 
         # Create the mutual close state that customer and merchant settle on
-        new_cust_bal = 1
-        new_merch_bal = 29
-        new_cust_bal_mt = new_cust_bal * 1000000
-        new_merch_bal_mt = new_merch_bal * 1000000
+        new_cust_bal = 19960 / 1000000
+        new_merch_bal = 1040 / 1000000
+        new_cust_bal_mt = int(new_cust_bal * 1000000)
+        new_merch_bal_mt = int(new_merch_bal * 1000000)
         mutual_state = form_mutual_state(chan_id, cust_addr, merch_addr, new_cust_bal_mt, new_merch_bal_mt)
 
         # Cust and Merch signs off on mutual close state
@@ -307,7 +310,7 @@ def scenario_mutual_close(contract_path, message):
                                     '--burn-cap', burncap,
                                     '--arg', storage])
 
-        sandbox.client(0).bake('baker5', BAKE_ARGS)
+        sandbox.client(0).bake('bootstrap5', BAKE_ARGS)
 
         old_bal = current_bal
         current_bal = sandbox.client(0).get_balance(cust_addr)
@@ -341,6 +344,6 @@ if __name__ == "__main__":
     print("signature: ", signature)
 
     scenario_cust_close(contract_path, merch_pk, message, signature)
-    scenario_mutual_close(contract_path, message)
+    # scenario_mutual_close(contract_path, message)
 
 
