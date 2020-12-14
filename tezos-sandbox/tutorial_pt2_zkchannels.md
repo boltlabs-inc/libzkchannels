@@ -17,7 +17,7 @@ The schema will be the following.
 
 ## The contracts
 
-Our current version of zkChannels on Tezos uses two smart contracts located in the ```libzkchannels/tezos-sandbox/tests_python/working_pssigs/``` subdirectory. The first is ```zkchannels_pssig.tz```, which defines the rules governing the channel, such as when the channel is considered open, closed, or in dispute. The second contract is ```pssig.tz```, which performs the Pointcheval-Sanders (PS) Signature verification. PS signatures are used in zkChannels for the merchant to provide a blind signature on the channel's state, so that the customer can update the state without revealing its contents to the merchant.
+Our current version of zkChannels on Tezos uses two smart contracts located in the ```libzkchannels/tezos-sandbox/tests_python/zkchannels_contract/``` subdirectory. The first is ```zkchannels_pssig.tz```, which defines the rules governing the channel, such as when the channel is considered open, closed, or in dispute. The second contract is ```pssig.tz```, which performs the Pointcheval-Sanders (PS) Signature verification. PS signatures are used in zkChannels for the merchant to provide a blind signature on the channel's state, so that the customer can update the state without revealing its contents to the merchant.
 
 Make sure the two contract files,  ```zkchannels_pssig.tz``` and ```pssig.tz``` are in the current directory. Alternatively, you can use the full file path when referencing them during contract origination.
 
