@@ -4,7 +4,7 @@
 
 This tutorial is designed to walk you through how to set up a zero-knowledge channel (zkchannel) on tezos sandbox mode. In part 1 we will go over the installation and setup for the Tezos sandbox node. In [part 2](tutorial_pt2_zkchannels.md) we will establish and use a zkChannel.
 
-# Installing Tezos (dalpha-release)
+# Installing Tezos (Edo branch)
 
 zkChannels uses a form of signature verification which can only be computed on the dalpha-release branch of tezos. To install this branch of Tezos, complete the following steps:
 

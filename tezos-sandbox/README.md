@@ -31,7 +31,7 @@ To switch back to latest stable version of rust do the following:
 
     rustup default stable
 	
-(4) Clone Tezos here (Dalpha Release). Make sure you have git 2.18+ installed:
+(4) Clone Tezos here (Edo branch). Make sure you have git 2.18+ installed:
     
     git clone https://gitlab.com/metastatedev/tezos.git
     cd tezos
