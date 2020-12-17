@@ -1,4 +1,4 @@
-#[no_mangle]
+//#[no_mangle]
 pub mod ffishim_mpc {
     extern crate libc;
 

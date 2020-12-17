@@ -2,7 +2,7 @@ use bindings::{
     build_masked_tokens_cust, build_masked_tokens_merch, cb_receive, cb_send, get_netio_ptr,
     Balance_l, BitcoinPublicKey_l, CommitmentRandomness_l, ConnType_NETIO, ConnType_TORNETIO,
     Conn_l, EcdsaSig_l, HMACKeyCommitment_l, HMACKey_l, MaskCommitment_l, Mask_l, Nonce_l,
-    PayToken_l, PublicKeyHash_l, RevLockCommitment_l, RevLock_l, State_l, Txid_l, Randomness_l
+    PayToken_l, PublicKeyHash_l, Randomness_l, RevLockCommitment_l, RevLock_l, State_l, Txid_l,
 };
 // ConnType_CUSTOM, get_gonetio_ptr
 use channels_mpc::NetworkConfig;
@@ -116,7 +116,9 @@ pub fn mpc_build_masked_tokens_cust(
     let sig2_ar = [0u32; 8];
     let mut ct_merch = EcdsaSig_l { sig: sig2_ar };
     let success_ar = [0u32; 4];
-    let mut success = Randomness_l { randomness: success_ar };
+    let mut success = Randomness_l {
+        randomness: success_ar,
+    };
 
     // set the network config
     let path_ar = CString::new(net_conn.path).unwrap().into_raw();
@@ -194,7 +196,12 @@ pub fn mpc_build_masked_tokens_cust(
         return Err(format!("Failed to get valid output from MPC!"));
     }
 
-    Ok((pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar, success_out_ar))
+    Ok((
+        pt_masked_ar,
+        ct_escrow_masked_ar,
+        ct_merch_masked_ar,
+        success_out_ar,
+    ))
 }
 
 fn translate_bitcoin_key(pub_key: &secp256k1::PublicKey) -> BitcoinPublicKey_l {
@@ -952,7 +959,8 @@ mod tests {
 
         // if this assert is triggered, then there was an error inside the mpc
         assert!(mpc_result.is_ok(), mpc_result.err().unwrap());
-        let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar, success_ar) = mpc_result.unwrap();
+        let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar, success_ar) =
+            mpc_result.unwrap();
         assert_eq!(hex::encode(success_ar), "03030303030303030303030303030303");
 
         let mut paytoken_mask_bytes = [0u8; 32];
