@@ -33,7 +33,7 @@ matrix:
         - cargo build --release
         - cargo test --release --lib mpcwrapper -- --nocapture
         - cargo test --release --lib channels_mpc -- --nocapture
-        - ./test_ignored.sh
+          #- ./test_ignored.sh
         
     - stage: Go tests
       language: go

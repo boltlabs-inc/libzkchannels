@@ -662,7 +662,7 @@ mod tests {
 
     #[test]
     #[ignore]
-        fn test_channel_activated_correctly() {
+    fn test_channel_activated_correctly() {
         let mut rng = XorShiftRng::seed_from_u64(0xc7175992415de87a);
         let mut db = RedisDatabase::new("mpclib", "redis://127.0.0.1/".to_string()).unwrap();
         db.clear_state();
@@ -1132,7 +1132,7 @@ mod tests {
 
     #[test]
     #[ignore]
-        fn test_unlink_fail_as_expected() {
+    fn test_unlink_fail_as_expected() {
         let mut rng = &mut rand::thread_rng();
         let mut db = RedisDatabase::new("mpchelpers", "redis://127.0.0.1/".to_string()).unwrap();
         db.clear_state();
