@@ -38,7 +38,7 @@ fn load_merchant_state_info(
     db_conn: &mut redis::Connection,
     db_key: &String,
 ) -> Result<(ChannelMPCState, MerchantMPCState), String> {
-    // let mut db = handle_error_result!(RedisDatabase::new("mpctest", db_url.clone()));
+    // let mut db = handle_error_result!(RedisDatabase::new("mpchelpers", db_url.clone()));
     // let key = String::from("cli:merch_db");
 
     // load the channel state from DB
@@ -91,7 +91,7 @@ fn save_merchant_state_info(
 }
 
 #[derive(StructOpt, Debug)]
-#[structopt(name = "mpctest")]
+#[structopt(name = "mpchelpers")]
 struct Cli {
     #[structopt(short = "k", long = "db-key")]
     db_key: String,
@@ -105,7 +105,7 @@ fn main() {
     let args = Cli::from_args();
 
     let db_url = "redis://127.0.0.1/".to_string();
-    let mut db = RedisDatabase::new("mpctest", db_url.clone()).unwrap();
+    let mut db = RedisDatabase::new("mpchelpers", db_url.clone()).unwrap();
     let db_key = args.db_key;
 
     let session_id_buf = hex::decode(args.session_id).unwrap();
