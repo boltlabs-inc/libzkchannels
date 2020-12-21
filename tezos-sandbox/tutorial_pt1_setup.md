@@ -58,7 +58,7 @@ In a terminal in your tezos directory, the following command will initialize a n
 ./src/bin_node/tezos-sandboxed-node.sh 1 --connections 1
 ```
 
-Once your node is running, open a new terminal and initialize the “sandboxed” client data in a temporary directory:
+Once your node is running, open a new terminal in the same tezos directory and initialize the “sandboxed” client data:
 
 ```
 export TEZOS_CLIENT_UNSAFE_DISABLE_DISCLAIMER=Y
@@ -104,22 +104,55 @@ Waiting for the operation to be included...
 You will notice that this command doesn’t terminate (hence the &), as usual it is waiting for the network to include the transaction in a block. Given that we are in a sandbox we need to bake a block ourselves and we can do so with the following command:
 
 ```
-$ tezos-client bake for baker5
+$ tezos-client bake for bootstrap5
 ```
 
 # Setting up zkChannels-cli 
 Now that we have got the Tezos sandbox node up and running, we are ready to set up the zkChannels rust cli used for the off-chain part of the protocol. For the tutorial, we will simulate communication between the customer and merchant by running two terminals communicating with each other. You can install the zkChannels-cli utility by running the following steps:
 ```
-cargo update
-rustup default stable
+git clone https://github.com/boltlabs-inc/libzkchannels.git
+cd libzkchannels
+```
 
-# build the release
+You should already have rustc installed from the previous step, however, for building libzkchannels you'll need to use version 1.40.0 or greater. You can update to 1.40 as follows:
+
+```
+rustup toolchain install 1.40.0
+rustup default 1.40.0
+```
+
+Can also update to the latest version instead:
+
+```
+rustup update
+```
+
+To be able to build libzkchannels, we require that you install the EMP-toolkit and other dependencies as follows:
+
+```
+. ./env
+make deps
+```
+
+In addition, you'll need to start the Redis database service as follows:
+
+```
+./setup_redis.sh
+```
+
+To build libzkchannels and execute all unit tests, run: 
+
+```
+make
+```
+
+Build the release:
+```
 cargo build --release
+```
 
-# path to the utility from cli/ dir
-../target/release/zkchannels-cli
-
-# or install in CARGO_INSTALL_ROOT
+You can run `zkchannels-cli` from the directory `../target/release/`, or install in `CARGO_INSTALL_ROOT`:
+```
 cargo install 
 ```
 

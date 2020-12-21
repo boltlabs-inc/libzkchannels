@@ -32,7 +32,7 @@ Our off-chain protocol will be simulated using the zkChannels-cli utility. For i
 
 ### zkChannels-cli
 
-Open two terminals in the `zkchannels-cli` directory, one for the customer and one for the merchant. In both terminals we'll begin by setting the minimum balance for each party:
+Open two terminals in the `libzkchannels` directory, one for the customer and one for the merchant. Make sure the environment has been set up by running `. ./env`. In both terminals we'll begin by setting the minimum balance for each party:
 
 ```
 $ zkchannels-cli setfees --bal-min-cust 0 --bal-min-merch 0
@@ -95,7 +95,13 @@ At this point, we are ready to originate and fund the contract.
 
 As part of originating the contracts, we will need to define our initial storage parameters that go with them. Since the ```zkchannel_main.tz``` contract will need to reference the on-chain address of the ```pssig.tz``` contract, we will need to originate the ```pssig.tz``` contract first so that we know its address. Below is the command that will originate the contract with the arguments included.
 
-After running the following command, hit enter.
+Copy the contracts into the current directory. 
+
+```
+cp ../libzkchannels/tezos-sandbox/tests_python/zkchannels_contract/* .
+```
+
+After running the following command, hit enter twice.
 
 ```
 $ tezos-client originate contract pssig_contract transferring 0 from bootstrap1 running pssig.tz --init Unit --burn-cap 9&
@@ -118,7 +124,7 @@ Breaking down the components:
 Next, we want to bake a block so that the origination is confirmed on chain:
 
 ```
-$ tezos-client bake for baker5 --minimal-timestamp
+$ tezos-client bake for bootstrap5 --minimal-timestamp
 
 Oct 22 16:08:51.179 - alpha.baking.forge: found 1 valid operations (0 refused) for timestamp 2020-10-22T14:16:24-00:00 (fitness 01::0000000000000001)
 Injected block BLtQWt6L479T
@@ -220,7 +226,7 @@ Breaking down the components:
 
 Run the `format_commands.py` helper script with the pssig contract address and channel id (channel token) as input arguments to create our tezos origination command:
 ```
-$ python format_commands.py --pssig_addr=KT1AQVd9GnJbHBZnbbuuyS9tzqxadJ2ajaY5 --chan_id=0x71f0fcd58b7d488e6bf571facc72baf5ce2ef2bb79e2fd97d2e82fdb9c351f1c 
+$ python3 format_commands.py --pssig_addr=KT1AQVd9GnJbHBZnbbuuyS9tzqxadJ2ajaY5 --chan_id=0x71f0fcd58b7d488e6bf571facc72baf5ce2ef2bb79e2fd97d2e82fdb9c351f1c 
 ```
 
 Now when we run the command in the tezos client we should get something like:
@@ -238,7 +244,7 @@ Waiting for the operation to be included...
 Hit enter, then bake a block:
 
 ```
-$ tezos-client bake for baker5
+$ tezos-client bake for bootstrap5
 
 Injected block BLzsNAUGuw65
 Operation found in block: BLzsNAUGuw655zHfexVkcYDY2sXTQBTfAkCeBTnezk8GmSmfceX (pass: 3, offset: 0)
@@ -289,7 +295,7 @@ Waiting for the operation to be included...
 Hit enter, then bake a block:
 
 ```
-$ tezos-client bake for baker5
+$ tezos-client bake for bootstrap5
 ```
 
 Now we will do the same for the merchant:
@@ -307,7 +313,7 @@ Waiting for the operation to be included...
 Hit enter, then bake a block:
 
 ```
-$ tezos-client bake for baker5
+$ tezos-client bake for bootstrap5
 ```
 
 Now, we should be able to check that the status of the zkChannel contract has changed from ```"awaitingFunding"``` to ```open``` by viewing its storage:
@@ -446,10 +452,10 @@ cust$ zkchannels-cli close --party CUST --channel-id "channel1" --file cust_clos
 This will create a json file `cust_close.json` containing the closing state as well as the merchant's closing signature and pubkey. The merchant's signature has 2 parts, `s1` and `s2`, and the pubkey has 6 parts, `g2`, `Y0`, `Y1`, `Y2`, `Y3` and `X`. In order to convert these outputs into a form ready to be entered into the zkchannel contract, we'll use the python helper script `format_commands.py`. This time we will include the cust_close.json file produced by zkchannels-cli.
 
 ```
-$ python format_commands.py --pssig_addr=KT1AQVd9GnJbHBZnbbuuyS9tzqxadJ2ajaY5 --chan_id=0x71f0fcd58b7d488e6bf571facc72baf5ce2ef2bb79e2fd97d2e82fdb9c351f1c --cust_close=cust_close.json
+$ python3 format_commands.py --pssig_addr=KT1AQVd9GnJbHBZnbbuuyS9tzqxadJ2ajaY5 --chan_id=0x71f0fcd58b7d488e6bf571facc72baf5ce2ef2bb79e2fd97d2e82fdb9c351f1c --cust_close=cust_close.json
 
 custClose call command:
-tezos-client transfer 0 from bootstrap1 to my_zkchannel_d --entrypoint custClose --burn-cap 9 --arg '(Pair (Pair (Pair 1000000 (Pair ...
+tezos-client transfer 0 from bootstrap1 to my_zkchannel --entrypoint custClose --burn-cap 9 --arg '(Pair (Pair (Pair 1000000 (Pair ...
 ...
 <Abbreviated output>
 ```
@@ -457,7 +463,7 @@ tezos-client transfer 0 from bootstrap1 to my_zkchannel_d --entrypoint custClose
 The output will be the formatted storage needed to call the `custClose` entrypoint. Execute the command in the tezos node:
 
 ```
-$ tezos-client transfer 0 from bootstrap1 to my_zkchannel_d --entrypoint custClose --burn-cap 9 --arg '(Pair (Pair (Pair 1000000 (Pair ...
+$ tezos-client transfer 0 from bootstrap1 to my_zkchannel --entrypoint custClose --burn-cap 9 --arg '(Pair (Pair (Pair 1000000 (Pair ...
 
 Estimated gas: 180434332 units (will add 100000 for safety)
 Estimated storage: 3 bytes added (will add 20 for safety)
@@ -469,7 +475,7 @@ Waiting for the operation to be included...
 Hit enter, then bake a block:
 
 ```
-$ tezos-client bake for baker5
+$ tezos-client bake for bootstrap5
 ```
 
 Then in the output under `Transaction: Updated storage:` the channel state should have changed to `"custClose`. 

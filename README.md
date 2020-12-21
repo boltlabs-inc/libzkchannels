@@ -73,7 +73,6 @@ To be able to build libzkchannels, we require that you install the EMP-toolkit a
 
 	. ./env
 	make deps
-	./test_emp.sh
 
 In addition, you'll need to start the Redis database service as follows:
 
