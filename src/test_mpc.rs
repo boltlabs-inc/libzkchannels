@@ -19,7 +19,6 @@ mod tests {
     use FundingTxInfo;
 
     #[test]
-    #[ignore]
     fn test_establish_mpc_channel() {
         let mut rng = &mut rand::thread_rng();
         // let mut db = RedisDatabase::new("lib", "redis://127.0.0.1/").unwrap();
@@ -200,7 +199,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_payment_mpc_channel_merch() {
         let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d76);
         let mut db = RedisDatabase::new("merch.lib", "redis://127.0.0.1/".to_string()).unwrap();
@@ -355,7 +353,6 @@ mod tests {
 
     rusty_fork_test! {
         #[test]
-        #[ignore]
         fn test_payment_mpc_channel_cust() {
             let mut rng = XorShiftRng::seed_from_u64(0x5dbe62598d313d76);
             let mut db = RedisDatabase::new("cust.lib", "redis://127.0.0.1/".to_string()).unwrap();
@@ -974,7 +971,7 @@ mod tests {
             conn_type: ConnType_NETIO,
             path: String::from("tmpsock"),
             dest_ip: String::from("127.0.0.1"),
-            dest_port: 5000,
+            dest_port: 5002,
         };
         cust_state.set_network_config(nc.clone());
         merch_state.set_network_config(nc.clone());
@@ -1132,6 +1129,7 @@ mod tests {
 
     #[test]
     #[ignore]
+    //#[should_panic(expected = "Failed to get valid output from MPC!")]
     fn test_unlink_fail_as_expected() {
         let mut rng = &mut rand::thread_rng();
         let mut db = RedisDatabase::new("mpchelpers", "redis://127.0.0.1/".to_string()).unwrap();
@@ -1172,7 +1170,7 @@ mod tests {
             conn_type: ConnType_NETIO,
             path: String::from("tmpsock"),
             dest_ip: String::from("127.0.0.1"),
-            dest_port: 5000,
+            dest_port: 5003,
         };
         cust_state.set_network_config(nc.clone());
         merch_state.set_network_config(nc.clone());
@@ -1215,7 +1213,7 @@ mod tests {
         let mask = mpc::pay_confirm_mpc_result(
             &mut db as &mut dyn StateDatabase,
             session_id.clone(),
-            res_cust.unwrap(),
+            "False".to_string(),
             &mut merch_state,
         );
         assert!(mask.is_err());
