@@ -35,7 +35,7 @@ Allows the customer or merchant to withdraw funds if the other party has not fun
 
 ## Channel Closure
 
-The following figure illustrates the possible ways a channel can be closed. In this example, a channel with a total of 20 tez is being closed on, where the final customer balance is 18 tez and the final merchant balance is 2 tez.
+The following figure illustrates the possible ways a channel can be closed. In this example, a channel with a total of 20 tez is being closed on, where the final customer balance is 2 tez and the final merchant balance is 18 tez.
 
 <img src="closingflow.jpg" align=center>
 <br><br>
