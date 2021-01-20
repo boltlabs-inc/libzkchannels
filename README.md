@@ -52,11 +52,11 @@ Note that the above rust dependencies will be compiled and installed as a result
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    ```
 
-Make sure the version of `rustc` is `1.40.0` or greater. If you have an older version, you can update to `1.40` as follows:
+Make sure the version of `rustc` is `1.49` or greater. If you have an older version, you can update to `1.49` as follows:
 
    ```bash
-	rustup toolchain install 1.40.0
-	rustup default 1.40.0
+	rustup toolchain install 1.49
+	rustup default 1.49
    ```
 
 Can also update to the latest version instead: 
