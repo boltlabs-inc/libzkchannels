@@ -215,7 +215,7 @@ Finally, we will need to specify the initial balances. The initial balances corr
 Here is the complete template of the command used to originate the main zkChannel contract (this is not a command):
 
 ```
-originate contract my_zkchannel transferring 0 from bootstrap1 running ./zkchannel_main.tz --init (Pair (Pair (Pair <channel_token> (Pair <cust_addr> 0)) (Pair (Pair <cust_balance> "<cust_public_key>") (Pair "0" "<merch_balance>))) (Pair (Pair 0 (Pair <merch_balance "<merch_public_key>")) (Pair (Pair "<pssig_addr>"  <rev_lock>) (Pair <self_delay> "awaitingFunding"))))
+originate contract my_zkchannel transferring 0 from bootstrap1 running ./zkchannel_main.tz --init '(Pair (Pair (Pair <channel_token> (Pair <cust_addr> 0)) (Pair (Pair <cust_balance> "<cust_public_key>") (Pair "0" "<merch_balance>))) (Pair (Pair 0 (Pair <merch_balance "<merch_public_key>")) (Pair (Pair "<pssig_addr>"  <rev_lock>) (Pair <self_delay> "awaitingFunding"))))'
 ```
 
 Breaking down the components:
@@ -232,7 +232,7 @@ $ python3 format_commands.py --pssig_addr=KT1AQVd9GnJbHBZnbbuuyS9tzqxadJ2ajaY5 -
 Now when we run the command in the tezos client we should get something like:
 
 ```
-$ tezos-client originate contract my_zkchannel transferring 0 from bootstrap1 running ./zkchannel_main.tz --init (Pair (Pair (Pair 0x71f0fcd58b7d488e6bf571facc72baf5ce2ef2bb79e2fd97d2e82fdb9c351f1c (Pair "tz1KqTpEZ7Yob7QbPE4Hy4Wo8fHG8LhKxZSx" 0)) (Pair (Pair 20000000 "edpkuBknW28nW72KG6RoHtYW7p12T6GKc7nAbwYX5m8Wd9sDVC9yav") (Pair "0" "tz1gjaF81ZRRvdzjobyfVNsAeSC6PScjfQwN"))) (Pair (Pair 0 (Pair 10000000 "edpktzNbDAUjUk697W7gYg2CRuBQjyPxbEg8dLccYYwKSKvkPvjtV9")) (Pair (Pair "KT1AWZfj8xGxFjyK5A1K6uF2yFF933s1vcm5"  0x1f98c84caf714d00ede5d23142bc166d84f8cd42adc18be22c3d47453853ea49) (Pair 3 "awaitingFunding")))) --burn-cap 9&
+$ tezos-client originate contract my_zkchannel transferring 0 from bootstrap1 running ./zkchannel_main.tz --init '(Pair (Pair (Pair 0x71f0fcd58b7d488e6bf571facc72baf5ce2ef2bb79e2fd97d2e82fdb9c351f1c (Pair "tz1KqTpEZ7Yob7QbPE4Hy4Wo8fHG8LhKxZSx" 0)) (Pair (Pair 20000000 "edpkuBknW28nW72KG6RoHtYW7p12T6GKc7nAbwYX5m8Wd9sDVC9yav") (Pair "0" "tz1gjaF81ZRRvdzjobyfVNsAeSC6PScjfQwN"))) (Pair (Pair 0 (Pair 10000000 "edpktzNbDAUjUk697W7gYg2CRuBQjyPxbEg8dLccYYwKSKvkPvjtV9")) (Pair (Pair "KT1AWZfj8xGxFjyK5A1K6uF2yFF933s1vcm5"  0x1f98c84caf714d00ede5d23142bc166d84f8cd42adc18be22c3d47453853ea49) (Pair 3 "awaitingFunding"))))' --burn-cap 9&
 
 Estimated gas: 26616000 units (will add 100000 for safety)
 Estimated storage: 887 bytes added (will add 20 for safety)
