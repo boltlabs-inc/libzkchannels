@@ -17,49 +17,41 @@ MERCH_PK4_G2 = "0x0299ade68875ade0e4f01b2b648f7c00695fffec98f71402947e53dc10f0bc
 class PSSigContract(sp.Contract):
     @sp.entry_point
     def run(self, params):
-        def checksig(params):
-            sp.set_type(params.chanID, sp.TBls12_381_fr)
-            sp.set_type(params.revLock, sp.TBytes)
-            sp.set_type(params.custBal, sp.TMutez)
-            sp.set_type(params.merchBal, sp.TMutez)
-            
-            sp.set_type(params.s1, sp.TBls12_381_g1)
-            sp.set_type(params.s2, sp.TBls12_381_g1)
-            sp.set_type(params.g2, sp.TBls12_381_g2)
-            
-            sp.set_type(params.merchPk0, sp.TBls12_381_g2)
-            sp.set_type(params.merchPk1, sp.TBls12_381_g2)
-            sp.set_type(params.merchPk2, sp.TBls12_381_g2)
-            sp.set_type(params.merchPk3, sp.TBls12_381_g2)
-            sp.set_type(params.merchPk4, sp.TBls12_381_g2)
-            
-            cust_b = sp.local('cust_b', sp.fst(sp.ediv(params.custBal, sp.mutez(1)).open_some()))
-            one = sp.local('one', sp.bls12_381_fr("0x01"))
-            cust_bal_b = sp.local("cust_bal_b", sp.mul(cust_b.value, one.value))
-
-            merch_b = sp.local('merch_b', sp.fst(sp.ediv(params.merchBal, sp.mutez(1)).open_some()))
-            merch_bal_b = sp.local("merch_bal_b", sp.mul(merch_b.value, one.value))
-
-            revLockConcat = sp.local('revLockConcat', sp.concat([sp.bytes("0x050a00000020"), params.revLock]))
-            rev_lock_b = sp.local('rev_lock_b', sp.unpack(revLockConcat.value, t = sp.TBls12_381_fr).open_some())
-
-            val1 = sp.local("val1", sp.mul(params.merchPk0, params.chanID))
-            val2 = sp.local("val2", sp.mul(params.merchPk1, rev_lock_b.value))
-            val3 = sp.local("val3", sp.mul(params.merchPk2, cust_bal_b.value))
-            val4 = sp.local("val4", sp.mul(params.merchPk3, merch_bal_b.value))
-            
-            prod1 = sp.local("prod1", val1.value + val2.value + val3.value + val4.value + params.merchPk4)
-            g2_negated = - params.g2
-            pair_list = sp.local("pair_list", [sp.pair(params.s1, prod1.value), sp.pair(params.s2, g2_negated)])
-            out = sp.local('out', False)
-            sp.if sp.pairing_check(pair_list.value):
-                out.value = True
-            sp.else:
-                out.value = False
+        sp.set_type(params.chanID, sp.TBls12_381_fr)
+        sp.set_type(params.revLock, sp.TBytes)
+        sp.set_type(params.custBal, sp.TMutez)
+        sp.set_type(params.merchBal, sp.TMutez)
         
-            return out.value
-                    
-        sp.verify(checksig(params))
+        sp.set_type(params.s1, sp.TBls12_381_g1)
+        sp.set_type(params.s2, sp.TBls12_381_g1)
+        sp.set_type(params.g2, sp.TBls12_381_g2)
+        
+        sp.set_type(params.merchPk0, sp.TBls12_381_g2)
+        sp.set_type(params.merchPk1, sp.TBls12_381_g2)
+        sp.set_type(params.merchPk2, sp.TBls12_381_g2)
+        sp.set_type(params.merchPk3, sp.TBls12_381_g2)
+        sp.set_type(params.merchPk4, sp.TBls12_381_g2)
+        
+        cust_b = sp.local('cust_b', sp.fst(sp.ediv(params.custBal, sp.mutez(1)).open_some()))
+        one = sp.local('one', sp.bls12_381_fr("0x01"))
+        cust_bal_b = sp.local("cust_bal_b", sp.mul(cust_b.value, one.value))
+
+        merch_b = sp.local('merch_b', sp.fst(sp.ediv(params.merchBal, sp.mutez(1)).open_some()))
+        merch_bal_b = sp.local("merch_bal_b", sp.mul(merch_b.value, one.value))
+
+        revLockConcat = sp.local('revLockConcat', sp.concat([sp.bytes("0x050a00000020"), params.revLock]))
+        rev_lock_b = sp.local('rev_lock_b', sp.unpack(revLockConcat.value, t = sp.TBls12_381_fr).open_some())
+
+        val1 = sp.local("val1", sp.mul(params.merchPk0, params.chanID))
+        val2 = sp.local("val2", sp.mul(params.merchPk1, rev_lock_b.value))
+        val3 = sp.local("val3", sp.mul(params.merchPk2, cust_bal_b.value))
+        val4 = sp.local("val4", sp.mul(params.merchPk3, merch_bal_b.value))
+        
+        prod1 = sp.local("prod1", val1.value + val2.value + val3.value + val4.value + params.merchPk4)
+        g2_negated = - params.g2
+        pair_list = sp.local("pair_list", [sp.pair(params.s1, prod1.value), sp.pair(params.s2, g2_negated)])
+        out = sp.local('out', False)
+        sp.verify(sp.pairing_check(pair_list.value))
         
 # chanID is a unique identifier for the channel.
 # Addresses are used both for interacting with contract, and receiving payouts.
