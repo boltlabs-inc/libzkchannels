@@ -14,23 +14,25 @@ MERCH_PK2_G2 = "0x058693ea4800a1167ed1ff1c4f1f29f0f082a4d7fb73841ee3dc579556329d
 MERCH_PK3_G2 = "0x014b185fefcd1831976ad28254586b4687879a5179bfa0ac900fcc1d492678701cbaac605f6511905cd29e98eef0edea18c17510a2d1f66dc2cf2c150198e0cb0873478d0016a43cbcddc69acb842cfe74593cbc41d48d0dc9b97e2af101debb02886e9573937095b3f6c9c400635b4776de403fe65d4ee10e678d5686cae05acd595451c3bb53bbc584764700ac1d22126a4b950cad3b94aeb29435af9b6869477c5757ac63dc7cb6b5840e8c6cb3e40caccd690ca95dc8da084fd6f9ddae28"
 MERCH_PK4_G2 = "0x0299ade68875ade0e4f01b2b648f7c00695fffec98f71402947e53dc10f0bc8361099357e26a1992770dc84698a8fd0817004a219baa2b20d9b57b6dc81588a2a626adbf34d4533d0118e12af5a2ebad25c6fa519b5e69645be5a98e7e205d60014bb16af8d117795130650bec2b6b8a21934481ce1c0fd1f7f60ed11dd38036e9535d4ec870b2433d1c712e3ffc24a501e951dfad03111098bdf92caffb6b27a5ba7910029ce59f4ed6fc428eb6c544a993019a4c24e2d2040a089ed3a61161"
 
+tk = sp.TRecord(
+    chanID = sp.TBls12_381_fr, 
+    custBal = sp.TMutez, 
+    merchBal = sp.TMutez, 
+    revLock = sp.TBytes,
+    s1 = sp.TBls12_381_g1,
+    s2 = sp.TBls12_381_g1,
+    g2 = sp.TBls12_381_g2,
+    merchPk0 = sp.TBls12_381_g2,
+    merchPk1 = sp.TBls12_381_g2,
+    merchPk2 = sp.TBls12_381_g2,
+    merchPk3 = sp.TBls12_381_g2,
+    merchPk4 = sp.TBls12_381_g2,
+    )
+    
 class PSSigContract(sp.Contract):
     @sp.entry_point
     def run(self, params):
-        sp.set_type(params.chanID, sp.TBls12_381_fr)
-        sp.set_type(params.revLock, sp.TBytes)
-        sp.set_type(params.custBal, sp.TMutez)
-        sp.set_type(params.merchBal, sp.TMutez)
-        
-        sp.set_type(params.s1, sp.TBls12_381_g1)
-        sp.set_type(params.s2, sp.TBls12_381_g1)
-        sp.set_type(params.g2, sp.TBls12_381_g2)
-        
-        sp.set_type(params.merchPk0, sp.TBls12_381_g2)
-        sp.set_type(params.merchPk1, sp.TBls12_381_g2)
-        sp.set_type(params.merchPk2, sp.TBls12_381_g2)
-        sp.set_type(params.merchPk3, sp.TBls12_381_g2)
-        sp.set_type(params.merchPk4, sp.TBls12_381_g2)
+        sp.set_type(params, tk)
         
         cust_b = sp.local('cust_b', sp.fst(sp.ediv(params.custBal, sp.mutez(1)).open_some()))
         one = sp.local('one', sp.bls12_381_fr("0x01"))
@@ -142,21 +144,6 @@ class ZkChannel(sp.Contract):
         self.data.revLock = params.revLock
         
         # Check merchant signature using contract call
-        tk = sp.TRecord(
-            chanID = sp.TBls12_381_fr, 
-            custBal = sp.TMutez, 
-            merchBal = sp.TMutez, 
-            revLock = sp.TBytes,
-            s1 = sp.TBls12_381_g1,
-            s2 = sp.TBls12_381_g1,
-            g2 = sp.TBls12_381_g2,
-            merchPk0 = sp.TBls12_381_g2,
-            merchPk1 = sp.TBls12_381_g2,
-            merchPk2 = sp.TBls12_381_g2,
-            merchPk3 = sp.TBls12_381_g2,
-            merchPk4 = sp.TBls12_381_g2,
-            )
-            
         params = sp.record(
             chanID = self.data.chanID,
             custBal = params.custBal,
