@@ -114,11 +114,11 @@ git clone https://github.com/boltlabs-inc/libzkchannels.git
 cd libzkchannels
 ```
 
-You should already have rustc installed from the previous step, however, for building libzkchannels you'll need to use version 1.40.0 or greater. You can update to 1.40 as follows:
+You should already have rustc installed from the previous step, however, for building libzkchannels you'll need to use version 1.49 or greater. You can update to 1.49 as follows:
 
 ```
-rustup toolchain install 1.40.0
-rustup default 1.40.0
+rustup toolchain install 1.49
+rustup default 1.49
 ```
 
 Can also update to the latest version instead:
