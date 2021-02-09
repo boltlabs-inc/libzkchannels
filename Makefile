@@ -1,4 +1,4 @@
-.PHONY: all deps mpc debug bench test mpctest mpcgotest update doc clean distclean
+.PHONY: all deps mpc debug bench test mpctest mpcgotest update doc clean distclean install
 
 all:
 	export RUSTFLAGS=-Awarnings
@@ -46,3 +46,5 @@ clean:
 distclean:
 	make -C deps distclean
 
+install:
+	cargo install
