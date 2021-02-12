@@ -750,7 +750,8 @@ mod cust {
         let channel_token: ChannelToken<Bls12> =
             handle_error_result!(serde_json::from_str(&ser_channel_token));
 
-        println!("Channel token: {}", &channel_token.compute_channel_id());
+        // println!("Channel token: {}", &channel_token.compute_channel_id());
+        let chan_id = channel_token.compute_channel_id();
 
         // now sign the customer's initial closing txs
         log!("Verified the closing token...", true);
@@ -766,6 +767,7 @@ mod cust {
         let got_close_token = true; // handle the serde_json unwrapping
 
         if got_close_token {
+            let json_file = format!("{}_chan_id.json", channel_name);
             // if broadcast successful, then we can mark the channel as open
             handle_error_result!(zkproofs::customer_mark_open_channel(
                 init_close_token,
@@ -780,8 +782,18 @@ mod cust {
                 Some(channel_token),
                 cust_state,
             )?;
-        }
 
+            let json = [
+                "{\"channel_id\":",
+                serde_json::to_string(&chan_id).unwrap().as_str(),
+                "}",
+            ]
+            .concat();
+            let output_str = String::from(json);
+            let out_file = PathBuf::from_str(&json_file).unwrap();
+            write_pathfile(out_file, output_str)?;
+            println!("Channel id: {}", &chan_id);
+        }
         log!("Can now proceed with channel funding", true);
         Ok(())
     }
