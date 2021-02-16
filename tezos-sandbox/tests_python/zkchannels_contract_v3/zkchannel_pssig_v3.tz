@@ -1,0 +1,165 @@
+parameter (pair (pair (pair (bls12_381_fr %chanID) (pair (mutez %custBal) (bls12_381_g2 %g2))) (pair (mutez %merchBal) (pair (bls12_381_g2 %merchPk0) (bls12_381_g2 %merchPk1)))) (pair (pair (bls12_381_g2 %merchPk2) (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4))) (pair (bytes %revLock) (pair (bls12_381_g1 %s1) (bls12_381_g1 %s2)))));
+storage   unit;
+code
+  {
+    DUP;        # pair @parameter @storage : pair @parameter @storage
+    CDR;        # @storage : pair @parameter @storage
+    SWAP;       # pair @parameter @storage : @storage
+    CAR;        # @parameter : @storage
+    # == run ==
+    # cust_b = sp.local("cust_b", sp.fst(sp.ediv(params.custBal, sp.mutez(1)).open_some())) # @parameter : @storage
+    DUP;        # @parameter : @parameter : @storage
+    CAR;        # pair (pair (bls12_381_fr %chanID) (pair (mutez %custBal) (bls12_381_g2 %g2))) (pair (mutez %merchBal) (pair (bls12_381_g2 %merchPk0) (bls12_381_g2 %merchPk1))) : @parameter : @storage
+    CAR;        # pair (bls12_381_fr %chanID) (pair (mutez %custBal) (bls12_381_g2 %g2)) : @parameter : @storage
+    CDR;        # pair (mutez %custBal) (bls12_381_g2 %g2) : @parameter : @storage
+    CAR;        # mutez : @parameter : @storage
+    PUSH mutez 1; # mutez : mutez : @parameter : @storage
+    SWAP;       # mutez : mutez : @parameter : @storage
+    EDIV;       # option (pair nat mutez) : @parameter : @storage
+    IF_SOME
+      {}
+      {
+        PUSH int 43; # int : @parameter : @storage
+        FAILWITH;   # FAILED
+      }; # @some : @parameter : @storage
+    CAR;        # nat : @parameter : @storage
+    # one = sp.local("one", sp.bls12_381_fr('0x01')) # nat : @parameter : @storage
+    PUSH bls12_381_fr 0x01; # bls12_381_fr : nat : @parameter : @storage
+    # cust_bal_b = sp.local("cust_bal_b", sp.mul(cust_b.value, one.value)) # bls12_381_fr : nat : @parameter : @storage
+    DUP;        # bls12_381_fr : bls12_381_fr : nat : @parameter : @storage
+    DIG 2;      # nat : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    MUL;        # bls12_381_fr : bls12_381_fr : @parameter : @storage
+    # merch_b = sp.local("merch_b", sp.fst(sp.ediv(params.merchBal, sp.mutez(1)).open_some())) # bls12_381_fr : bls12_381_fr : @parameter : @storage
+    PUSH mutez 1; # mutez : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    DIG 3;      # @parameter : mutez : bls12_381_fr : bls12_381_fr : @storage
+    DUP;        # @parameter : @parameter : mutez : bls12_381_fr : bls12_381_fr : @storage
+    DUG 4;      # @parameter : mutez : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    CAR;        # pair (pair (bls12_381_fr %chanID) (pair (mutez %custBal) (bls12_381_g2 %g2))) (pair (mutez %merchBal) (pair (bls12_381_g2 %merchPk0) (bls12_381_g2 %merchPk1))) : mutez : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    CDR;        # pair (mutez %merchBal) (pair (bls12_381_g2 %merchPk0) (bls12_381_g2 %merchPk1)) : mutez : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    CAR;        # mutez : mutez : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    EDIV;       # option (pair nat mutez) : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    IF_SOME
+      {}
+      {
+        PUSH int 47; # int : bls12_381_fr : bls12_381_fr : @parameter : @storage
+        FAILWITH;   # FAILED
+      }; # @some : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    CAR;        # nat : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    # merch_bal_b = sp.local("merch_bal_b", sp.mul(merch_b.value, one.value)) # nat : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    DIG 2;      # bls12_381_fr : nat : bls12_381_fr : @parameter : @storage
+    MUL;        # bls12_381_fr : bls12_381_fr : @parameter : @storage
+    # revLockConcat = sp.local("revLockConcat", sp.concat(sp.list([sp.bytes('0x050a00000020'), params.revLock]))) # bls12_381_fr : bls12_381_fr : @parameter : @storage
+    DIG 2;      # @parameter : bls12_381_fr : bls12_381_fr : @storage
+    DUP;        # @parameter : @parameter : bls12_381_fr : bls12_381_fr : @storage
+    DUG 3;      # @parameter : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    CDR;        # pair (pair (bls12_381_g2 %merchPk2) (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4))) (pair (bytes %revLock) (pair (bls12_381_g1 %s1) (bls12_381_g1 %s2))) : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    CDR;        # pair (bytes %revLock) (pair (bls12_381_g1 %s1) (bls12_381_g1 %s2)) : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    CAR;        # bytes : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    PUSH bytes 0x050a00000020; # bytes : bytes : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    CONCAT;     # bytes : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    # rev_lock_b = sp.local("rev_lock_b", sp.unpack(revLockConcat.value, sp.TBls12_381_fr).open_some()) # bytes : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    UNPACK bls12_381_fr; # option bls12_381_fr : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    IF_SOME
+      {}
+      {
+        PUSH int 51; # int : bls12_381_fr : bls12_381_fr : @parameter : @storage
+        FAILWITH;   # FAILED
+      }; # @some : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    # val1 = sp.local("val1", sp.mul(params.merchPk0, params.chanID)) # @some : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    DIG 3;      # @parameter : @some : bls12_381_fr : bls12_381_fr : @storage
+    DUP;        # @parameter : @parameter : @some : bls12_381_fr : bls12_381_fr : @storage
+    CAR;        # pair (pair (bls12_381_fr %chanID) (pair (mutez %custBal) (bls12_381_g2 %g2))) (pair (mutez %merchBal) (pair (bls12_381_g2 %merchPk0) (bls12_381_g2 %merchPk1))) : @parameter : @some : bls12_381_fr : bls12_381_fr : @storage
+    CAR;        # pair (bls12_381_fr %chanID) (pair (mutez %custBal) (bls12_381_g2 %g2)) : @parameter : @some : bls12_381_fr : bls12_381_fr : @storage
+    CAR;        # bls12_381_fr : @parameter : @some : bls12_381_fr : bls12_381_fr : @storage
+    SWAP;       # @parameter : bls12_381_fr : @some : bls12_381_fr : bls12_381_fr : @storage
+    DUP;        # @parameter : @parameter : bls12_381_fr : @some : bls12_381_fr : bls12_381_fr : @storage
+    DUG 5;      # @parameter : bls12_381_fr : @some : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    CAR;        # pair (pair (bls12_381_fr %chanID) (pair (mutez %custBal) (bls12_381_g2 %g2))) (pair (mutez %merchBal) (pair (bls12_381_g2 %merchPk0) (bls12_381_g2 %merchPk1))) : bls12_381_fr : @some : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    CDR;        # pair (mutez %merchBal) (pair (bls12_381_g2 %merchPk0) (bls12_381_g2 %merchPk1)) : bls12_381_fr : @some : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    CDR;        # pair (bls12_381_g2 %merchPk0) (bls12_381_g2 %merchPk1) : bls12_381_fr : @some : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    CAR;        # bls12_381_g2 : bls12_381_fr : @some : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    MUL;        # bls12_381_g2 : @some : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    SWAP;       # @some : bls12_381_g2 : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    # val2 = sp.local("val2", sp.mul(params.merchPk1, rev_lock_b.value)) # @some : bls12_381_g2 : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    DIG 4;      # @parameter : @some : bls12_381_g2 : bls12_381_fr : bls12_381_fr : @storage
+    DUP;        # @parameter : @parameter : @some : bls12_381_g2 : bls12_381_fr : bls12_381_fr : @storage
+    DUG 5;      # @parameter : @some : bls12_381_g2 : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    CAR;        # pair (pair (bls12_381_fr %chanID) (pair (mutez %custBal) (bls12_381_g2 %g2))) (pair (mutez %merchBal) (pair (bls12_381_g2 %merchPk0) (bls12_381_g2 %merchPk1))) : @some : bls12_381_g2 : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    CDR;        # pair (mutez %merchBal) (pair (bls12_381_g2 %merchPk0) (bls12_381_g2 %merchPk1)) : @some : bls12_381_g2 : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    CDR;        # pair (bls12_381_g2 %merchPk0) (bls12_381_g2 %merchPk1) : @some : bls12_381_g2 : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    CDR;        # bls12_381_g2 : @some : bls12_381_g2 : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    MUL;        # bls12_381_g2 : bls12_381_g2 : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    # val3 = sp.local("val3", sp.mul(params.merchPk2, cust_bal_b.value)) # bls12_381_g2 : bls12_381_g2 : bls12_381_fr : bls12_381_fr : @parameter : @storage
+    DIG 3;      # bls12_381_fr : bls12_381_g2 : bls12_381_g2 : bls12_381_fr : @parameter : @storage
+    DIG 4;      # @parameter : bls12_381_fr : bls12_381_g2 : bls12_381_g2 : bls12_381_fr : @storage
+    DUP;        # @parameter : @parameter : bls12_381_fr : bls12_381_g2 : bls12_381_g2 : bls12_381_fr : @storage
+    DUG 5;      # @parameter : bls12_381_fr : bls12_381_g2 : bls12_381_g2 : bls12_381_fr : @parameter : @storage
+    CDR;        # pair (pair (bls12_381_g2 %merchPk2) (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4))) (pair (bytes %revLock) (pair (bls12_381_g1 %s1) (bls12_381_g1 %s2))) : bls12_381_fr : bls12_381_g2 : bls12_381_g2 : bls12_381_fr : @parameter : @storage
+    CAR;        # pair (bls12_381_g2 %merchPk2) (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4)) : bls12_381_fr : bls12_381_g2 : bls12_381_g2 : bls12_381_fr : @parameter : @storage
+    CAR;        # bls12_381_g2 : bls12_381_fr : bls12_381_g2 : bls12_381_g2 : bls12_381_fr : @parameter : @storage
+    MUL;        # bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : bls12_381_fr : @parameter : @storage
+    # val4 = sp.local("val4", sp.mul(params.merchPk3, merch_bal_b.value)) # bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : bls12_381_fr : @parameter : @storage
+    DIG 3;      # bls12_381_fr : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : @parameter : @storage
+    DIG 4;      # @parameter : bls12_381_fr : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : @storage
+    DUP;        # @parameter : @parameter : bls12_381_fr : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : @storage
+    DUG 5;      # @parameter : bls12_381_fr : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : @parameter : @storage
+    CDR;        # pair (pair (bls12_381_g2 %merchPk2) (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4))) (pair (bytes %revLock) (pair (bls12_381_g1 %s1) (bls12_381_g1 %s2))) : bls12_381_fr : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : @parameter : @storage
+    CAR;        # pair (bls12_381_g2 %merchPk2) (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4)) : bls12_381_fr : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : @parameter : @storage
+    CDR;        # pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4) : bls12_381_fr : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : @parameter : @storage
+    CAR;        # bls12_381_g2 : bls12_381_fr : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : @parameter : @storage
+    MUL;        # bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : @parameter : @storage
+    # prod1 = sp.local("prod1", (((val1.value + val2.value) + val3.value) + val4.value) + params.merchPk4) # bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : @parameter : @storage
+    DIG 4;      # @parameter : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : @storage
+    DUP;        # @parameter : @parameter : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : @storage
+    DUG 5;      # @parameter : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : @parameter : @storage
+    CDR;        # pair (pair (bls12_381_g2 %merchPk2) (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4))) (pair (bytes %revLock) (pair (bls12_381_g1 %s1) (bls12_381_g1 %s2))) : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : @parameter : @storage
+    CAR;        # pair (bls12_381_g2 %merchPk2) (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4)) : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : @parameter : @storage
+    CDR;        # pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4) : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : @parameter : @storage
+    CDR;        # bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : @parameter : @storage
+    SWAP;       # bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : @parameter : @storage
+    DIG 2;      # bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : @parameter : @storage
+    DIG 3;      # bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : @parameter : @storage
+    DIG 4;      # bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : @parameter : @storage
+    ADD;        # bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : @parameter : @storage
+    ADD;        # bls12_381_g2 : bls12_381_g2 : bls12_381_g2 : @parameter : @storage
+    ADD;        # bls12_381_g2 : bls12_381_g2 : @parameter : @storage
+    ADD;        # bls12_381_g2 : @parameter : @storage
+    # pair_list = sp.local("pair_list", sp.list([(params.s1, prod1.value), (params.s2, - params.g2)])) # bls12_381_g2 : @parameter : @storage
+    NIL (pair bls12_381_g1 bls12_381_g2); # list (pair bls12_381_g1 bls12_381_g2) : bls12_381_g2 : @parameter : @storage
+    DIG 2;      # @parameter : list (pair bls12_381_g1 bls12_381_g2) : bls12_381_g2 : @storage
+    DUP;        # @parameter : @parameter : list (pair bls12_381_g1 bls12_381_g2) : bls12_381_g2 : @storage
+    DUG 3;      # @parameter : list (pair bls12_381_g1 bls12_381_g2) : bls12_381_g2 : @parameter : @storage
+    CAR;        # pair (pair (bls12_381_fr %chanID) (pair (mutez %custBal) (bls12_381_g2 %g2))) (pair (mutez %merchBal) (pair (bls12_381_g2 %merchPk0) (bls12_381_g2 %merchPk1))) : list (pair bls12_381_g1 bls12_381_g2) : bls12_381_g2 : @parameter : @storage
+    CAR;        # pair (bls12_381_fr %chanID) (pair (mutez %custBal) (bls12_381_g2 %g2)) : list (pair bls12_381_g1 bls12_381_g2) : bls12_381_g2 : @parameter : @storage
+    CDR;        # pair (mutez %custBal) (bls12_381_g2 %g2) : list (pair bls12_381_g1 bls12_381_g2) : bls12_381_g2 : @parameter : @storage
+    CDR;        # bls12_381_g2 : list (pair bls12_381_g1 bls12_381_g2) : bls12_381_g2 : @parameter : @storage
+    NEG;        # bls12_381_g2 : list (pair bls12_381_g1 bls12_381_g2) : bls12_381_g2 : @parameter : @storage
+    DIG 3;      # @parameter : bls12_381_g2 : list (pair bls12_381_g1 bls12_381_g2) : bls12_381_g2 : @storage
+    DUP;        # @parameter : @parameter : bls12_381_g2 : list (pair bls12_381_g1 bls12_381_g2) : bls12_381_g2 : @storage
+    DUG 4;      # @parameter : bls12_381_g2 : list (pair bls12_381_g1 bls12_381_g2) : bls12_381_g2 : @parameter : @storage
+    CDR;        # pair (pair (bls12_381_g2 %merchPk2) (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4))) (pair (bytes %revLock) (pair (bls12_381_g1 %s1) (bls12_381_g1 %s2))) : bls12_381_g2 : list (pair bls12_381_g1 bls12_381_g2) : bls12_381_g2 : @parameter : @storage
+    CDR;        # pair (bytes %revLock) (pair (bls12_381_g1 %s1) (bls12_381_g1 %s2)) : bls12_381_g2 : list (pair bls12_381_g1 bls12_381_g2) : bls12_381_g2 : @parameter : @storage
+    CDR;        # pair (bls12_381_g1 %s1) (bls12_381_g1 %s2) : bls12_381_g2 : list (pair bls12_381_g1 bls12_381_g2) : bls12_381_g2 : @parameter : @storage
+    CDR;        # bls12_381_g1 : bls12_381_g2 : list (pair bls12_381_g1 bls12_381_g2) : bls12_381_g2 : @parameter : @storage
+    PAIR;       # pair bls12_381_g1 bls12_381_g2 : list (pair bls12_381_g1 bls12_381_g2) : bls12_381_g2 : @parameter : @storage
+    CONS;       # list (pair bls12_381_g1 bls12_381_g2) : bls12_381_g2 : @parameter : @storage
+    SWAP;       # bls12_381_g2 : list (pair bls12_381_g1 bls12_381_g2) : @parameter : @storage
+    DIG 2;      # @parameter : bls12_381_g2 : list (pair bls12_381_g1 bls12_381_g2) : @storage
+    CDR;        # pair (pair (bls12_381_g2 %merchPk2) (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4))) (pair (bytes %revLock) (pair (bls12_381_g1 %s1) (bls12_381_g1 %s2))) : bls12_381_g2 : list (pair bls12_381_g1 bls12_381_g2) : @storage
+    CDR;        # pair (bytes %revLock) (pair (bls12_381_g1 %s1) (bls12_381_g1 %s2)) : bls12_381_g2 : list (pair bls12_381_g1 bls12_381_g2) : @storage
+    CDR;        # pair (bls12_381_g1 %s1) (bls12_381_g1 %s2) : bls12_381_g2 : list (pair bls12_381_g1 bls12_381_g2) : @storage
+    CAR;        # bls12_381_g1 : bls12_381_g2 : list (pair bls12_381_g1 bls12_381_g2) : @storage
+    PAIR;       # pair bls12_381_g1 bls12_381_g2 : list (pair bls12_381_g1 bls12_381_g2) : @storage
+    CONS;       # list (pair bls12_381_g1 bls12_381_g2) : @storage
+    # out = sp.local("out", False)
+    # sp.verify(sp.pairing_check(pair_list.value)) # list (pair bls12_381_g1 bls12_381_g2) : @storage
+    PAIRING_CHECK; # bool : @storage
+    IF
+      {}
+      {
+        PUSH string "WrongCondition: sp.pairing_check(pair_list.value)"; # string : @storage
+        FAILWITH;   # FAILED
+      }; # @storage
+    NIL operation; # list operation : @storage
+    PAIR;       # pair (list operation) @storage
+  };
