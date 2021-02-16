@@ -120,8 +120,8 @@ if __name__ == "__main__":
 
     # Cust close entrypoint
 
-    new_merch_bal_mt = cust_close_json.get("merch_bal")
-    new_cust_bal_mt = cust_close_json.get("cust_bal")
+    new_merch_bal_mt = cust_close_json["message"]["merch_bal"]
+    new_cust_bal_mt = cust_close_json["message"]["cust_bal"]
 
     # sample signature, merch-pk and g2 
     s1 = sig_s1 
