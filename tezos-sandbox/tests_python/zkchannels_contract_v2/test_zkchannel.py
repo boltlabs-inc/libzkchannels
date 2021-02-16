@@ -73,7 +73,7 @@ def scenario_cust_close(contract_path, pubkey, message, signature):
         cust_bal_start = sandbox.client(0).get_balance(cust_addr)
 
         # Originate pssigs contract
-        pssig_contract = "zkchannel_pssig_v2.tz"
+        pssig_contract = contract_path +"zkchannel_pssig_v2.tz"
         pssig_name = "pssig_contract"
         args = ["--init", "Unit", "--burn-cap", burncap]
 
