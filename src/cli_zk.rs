@@ -782,13 +782,13 @@ mod cust {
                 Some(channel_token),
                 cust_state,
             )?;
-            
+
             let cid = format!("{}", &chan_id.into_repr());
             let mut cid_vec = hex::decode(cid[2..].to_string()).unwrap();
             cid_vec.reverse();
 
             let json = [
-                "{\"channel_id\":",    
+                "{\"channel_id\":",
                 format!("\"{}\"", hex::encode(&cid_vec)).as_str(),
                 "}",
             ]
@@ -796,7 +796,7 @@ mod cust {
             let output_str = String::from(json);
             let out_file = PathBuf::from_str(&json_file).unwrap();
             write_pathfile(out_file, output_str)?;
-            println!("Channel id: {}", &chan_id);
+            println!("Channel id: 0x{}", hex::encode(&cid_vec));
         }
         log!("Can now proceed with channel funding", true);
         Ok(())
