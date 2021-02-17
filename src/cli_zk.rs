@@ -473,7 +473,7 @@ impl Conn {
                     return;
                 }
                 Err(e) => {
-                    println!("Failed to connect, try: {}, error: {}", i, e);
+                    //println!("Failed to connect, try: {}, error: {}", i, e);
                     let duration = time::Duration::from_secs(5);
                     sleep(duration)
                 }
@@ -782,10 +782,14 @@ mod cust {
                 Some(channel_token),
                 cust_state,
             )?;
+            
+            let cid = format!("{}", &chan_id.into_repr());
+            let mut cid_vec = hex::decode(cid[2..].to_string()).unwrap();
+            cid_vec.reverse();
 
             let json = [
-                "{\"channel_id\":",
-                serde_json::to_string(&chan_id).unwrap().as_str(),
+                "{\"channel_id\":",    
+                format!("\"{}\"", hex::encode(&cid_vec)).as_str(),
                 "}",
             ]
             .concat();
@@ -1114,14 +1118,14 @@ mod cust {
             signature_map.insert("s1".to_string(), hex::encode(&s1));
             signature_map.insert("s2".to_string(), hex::encode(&s2));
 
-            message_map.insert(
-                "channel_id",
-                format!("{}", cust_close.message.channelId.into_repr()),
-            );
-            message_map.insert(
-                "rev_lock",
-                format!("{}", cust_close.message.rev_lock.into_repr()),
-            );
+            let cid = format!("{}", cust_close.message.channelId.into_repr());
+            let mut channel_id_vec = hex::decode(cid[2..].to_string()).unwrap();
+            channel_id_vec.reverse();
+            let rlock = format!("{}", cust_close.message.rev_lock.into_repr());
+            let mut rev_lock_vec = hex::decode(rlock[2..].to_string()).unwrap();
+            rev_lock_vec.reverse();
+            message_map.insert("channel_id", hex::encode(&channel_id_vec));
+            message_map.insert("rev_lock", hex::encode(&rev_lock_vec));
             message_map.insert("cust_bal", cust_close.message.bc.to_string());
             message_map.insert("merch_bal", cust_close.message.bm.to_string());
 
@@ -1152,7 +1156,7 @@ mod cust {
             ]
             .concat();
             let output_str = String::from(json);
-            // println!("decompressed cust close json => \n{}\n", output_str);
+            println!("decompressed cust close json => \n{}\n", output_str);
             write_pathfile(out_file, output_str)?;
         } else {
             println!("Obtained the channel close message:");
