@@ -20,12 +20,12 @@ Testing with Tezos using BLS12-381
     curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3
     source $HOME/.poetry/env
 
-(3) Install rust 1.49
+(3) Install rust 1.44
 	
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
     source $HOME/.cargo/env
-    rustup toolchain install 1.49.0
-    rustup default 1.49.0
+    rustup toolchain install 1.44.0
+    rustup default 1.44.0
 
 To switch back to latest stable version of rust do the following:
 
@@ -38,6 +38,7 @@ To switch back to latest stable version of rust do the following:
     git checkout latest-release
     opam init --bare
     make build-deps
+    eval $(opam env)
     make
     export PATH=~/tezos:$PATH
     source ./src/bin_client/bash-completion.sh
