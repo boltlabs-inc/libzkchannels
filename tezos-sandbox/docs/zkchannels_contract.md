@@ -4,7 +4,7 @@
 
 The following figure illustrates the entrypoints and transactions used in a dual funded channel. In this example, a channel designed to hold a total of 20 tez, with 10 tez coming from the customer and 10 tez coming from the merchant. If it were a single funded channel, only the customer would need to add funds.
 
-<img src="fundingflow.jpg" align=center>
+<img src="fundingflow.png" align=center>
 <br><br>
 
 The first step is originating the zkchannel smart contract on chain. Anyone can perform this step and doing so incurs some gas cost. The fields within the channel storage need to be specified at the time of creating the contract. These include:
