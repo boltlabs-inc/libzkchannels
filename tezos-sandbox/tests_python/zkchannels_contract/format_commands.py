@@ -77,8 +77,12 @@ if __name__ == "__main__":
         sys.exit("To create the origination command for the main zkchannel contract, enter the address of the on-chain pssig contract '--pssig_addr', and the channel id '--chan_id'.")
 
     pssig_addr = input_args.pssig_addr
-    chan_id = input_args.chan_id
+
+    chan_id_file = input_args.chan_id
+    chan_id_json = read_json_file(chan_id_file)
     
+    chan_id = add_hex_prefix(chan_id_json["channel_id"])
+
     contract = "zkchannel_main.tz"
     
     zkchannel_name = "my_zkchannel"
