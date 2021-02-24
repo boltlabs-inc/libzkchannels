@@ -24,12 +24,9 @@ def get_cust_close_token(data):
     for k,v in merch_pk.items():
         pubkey[k] = "0x" + str(v)
     m = data.get("message")
-    # TODO: Dont flip endianness after zkchannels-cli fix
-    channel_id = convert_to_little_endian(m["channel_id"])
-    rev_lock = convert_to_little_endian(m["rev_lock"])
     message = [ 
-        add_hex_prefix(channel_id), 
-        add_hex_prefix(rev_lock),
+        add_hex_prefix(m["channel_id"]), 
+        add_hex_prefix(m["rev_lock"]),
         add_hex_prefix(int(m["cust_bal"]).to_bytes(32, 'little').hex()),
         add_hex_prefix(int(m["merch_bal"]).to_bytes(32, 'little').hex()),
     ]
