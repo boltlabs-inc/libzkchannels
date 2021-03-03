@@ -251,8 +251,8 @@ pub struct Close {
     file: PathBuf,
     #[structopt(short = "e", long = "from-merch")]
     from_merch_close: bool,
-    #[structopt(short = "n", long = "channel-id", default_value = "")]
-    channel_id: String,
+    #[structopt(short = "n", long = "channel-name", default_value = "")]
+    channel_name: String,
     #[structopt(short = "d", long = "decompress-cust-close")]
     decompress: bool,
 }
@@ -646,13 +646,13 @@ fn main() -> Result<(), confy::ConfyError> {
                 &db_url,
                 close.cust_close,
                 close.file,
-                close.channel_id
+                close.channel_name
             )),
             Party::CUST => print_error_result!(cust::close(
                 &db_url,
                 close.file,
                 close.from_merch_close,
-                close.channel_id,
+                close.channel_name,
                 close.decompress
             )),
         },
@@ -1059,28 +1059,28 @@ mod cust {
         db_url: &String,
         out_file: PathBuf,
         from_merch_close: bool,
-        channel_id: String,
+        channel_name: String,
         decompress_cust_close: bool,
     ) -> Result<(), String> {
         let mut db_conn = handle_error_result!(create_db_connection(db_url.clone()));
-        let key = format!("id:{}", channel_id);
+        let key = format!("id:{}", channel_name);
 
         // load the channel state from DB
-        let channel_state_key = format!("cust:{}:channel_state", channel_id);
+        let channel_state_key = format!("cust:{}:channel_state", channel_name);
         let ser_channel_state =
             handle_error_result!(get_file_from_db(&mut db_conn, &key, &channel_state_key));
         let channel_state: ChannelState<Bls12> =
             handle_error_result!(serde_json::from_str(&ser_channel_state));
 
         // load the customer state from DB
-        let cust_state_key = format!("cust:{}:cust_state", channel_id);
+        let cust_state_key = format!("cust:{}:cust_state", channel_name);
         let ser_cust_state =
             handle_error_result!(get_file_from_db(&mut db_conn, &key, &cust_state_key));
         let cust_state: CustomerState<Bls12> =
             handle_error_result!(serde_json::from_str(&ser_cust_state));
 
         // load the channel token from DB
-        let channel_token_key = format!("cust:{}:channel_token", channel_id);
+        let channel_token_key = format!("cust:{}:channel_token", channel_name);
         let ser_channel_token =
             handle_error_result!(get_file_from_db(&mut db_conn, &key, &channel_token_key));
         let channel_token: ChannelToken<Bls12> =

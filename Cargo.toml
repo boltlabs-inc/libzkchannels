@@ -30,7 +30,7 @@ hmac = "0.7"
 bit-array = "*"
 typenum = "*"
 num = "*"
-hex = "0.3.2"
+hex = "0.4.2"
 structopt = "0.3.7"
 bufstream = "0.1"
 zkchan-tx = { git = "https://github.com/boltlabs-inc/zkchan-tx" }

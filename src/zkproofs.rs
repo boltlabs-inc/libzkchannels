@@ -397,6 +397,7 @@ pub mod pay {
         };
         let (proof, coms, nonce, rev_lock, new_cust_state) =
             cust_state.generate_payment(csprng, &channel_state, payment_amount);
+
         let payment = Payment {
             proof,
             coms,
