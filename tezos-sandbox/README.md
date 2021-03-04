@@ -35,7 +35,7 @@ To switch back to latest stable version of rust do the following:
     
     git clone https://gitlab.com/tezos/tezos.git
     cd tezos
-    git checkout latest-release
+    git checkout master
     opam init --bare
     make build-deps
     eval $(opam env)
@@ -54,7 +54,6 @@ To switch back to latest stable version of rust do the following:
     
     virtualenv --python=python3 venv
     source ./venv/bin/activate
-    pip3 install -r tests_python/requirements.txt
     
 (7) Setup poetry environment (using `pyproject.toml` from the tezos-sandbox dir)
 
