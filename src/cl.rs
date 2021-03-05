@@ -220,6 +220,22 @@ pub struct ProofState<E: Engine> {
     pub blindSig: Signature<E>,
 }
 
+impl<E: Engine> ProofState<E> {
+    #[cfg(test)]
+    fn fs_challenge(&self, mpk: &PublicParams<E>) -> E::Fr
+        where <E as pairing::Engine>::G1: serde::Serialize,
+              <E as pairing::Engine>::G2: serde::Serialize,
+              <E as pairing::Engine>::Fqk: serde::Serialize
+    {
+        let mut transcript: Vec<u8> = Vec::new();
+        transcript.extend(serde_json::to_value(&mpk.g1).unwrap().as_str().unwrap().bytes());
+        transcript.extend(serde_json::to_value(&mpk.g2).unwrap().as_str().unwrap().bytes());
+        transcript.extend(serde_json::to_value(&self.a).unwrap().as_str().unwrap().bytes());
+
+        util::hash_to_fr::<E>(transcript)
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
                            <E as pairing::Engine>::G1: serde::Serialize, \
@@ -910,10 +926,17 @@ mod tests {
 
         let sig = keypair.sign(&mut rng, &message1);
         let proof_state = keypair.public.prove_commitment(rng, &mpk, &sig, None, None);
-        let challenge = Fr::rand(&mut rng);
+        let challenge = proof_state.fs_challenge(&mpk);
         let proof = keypair
             .public
             .prove_response(&proof_state.clone(), challenge, &mut message1);
+
+        // println!("{:?}", serde_json::to_string(&mpk).unwrap());
+        // println!("{:?}", serde_json::to_string(&challenge).unwrap());
+        // println!("{:?}", serde_json::to_string(&keypair).unwrap());
+        // println!("{:?}", serde_json::to_string(&proof_state.blindSig).unwrap());
+        // println!("{:?}", serde_json::to_string(&proof).unwrap());
+        // println!("{:?}", proof.a.to_string());
 
         assert_eq!(
             keypair

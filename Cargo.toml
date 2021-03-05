@@ -36,6 +36,7 @@ bufstream = "0.1"
 zkchan-tx = { git = "https://github.com/boltlabs-inc/zkchan-tx" }
 enum-display-derive = "0.1.0"
 confy = "0.4"
+num-bigint = "0.3.2"
 
 [build-dependencies]
 bindgen="*"

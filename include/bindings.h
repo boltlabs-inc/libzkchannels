@@ -9,94 +9,94 @@
 
 #define __STDCPP_THREADS__ 1
 
-typedef struct {
+typedef struct Nonce_l {
   uint32_t nonce[4];
 } Nonce_l;
 
-typedef struct {
+typedef struct RevLock_l {
   uint32_t revlock[8];
 } RevLock_l;
 
-typedef struct {
+typedef struct Balance_l {
   uint32_t balance[2];
 } Balance_l;
 
-typedef struct {
+typedef struct Txid_l {
   uint32_t txid[8];
 } Txid_l;
 
-typedef struct {
-  Nonce_l nonce;
-  RevLock_l rl;
-  Balance_l balance_cust;
-  Balance_l balance_merch;
-  Txid_l txid_merch;
-  Txid_l txid_escrow;
-  Txid_l HashPrevOuts_merch;
-  Txid_l HashPrevOuts_escrow;
-  Balance_l min_fee;
-  Balance_l max_fee;
-  Balance_l fee_mc;
+typedef struct State_l {
+  struct Nonce_l nonce;
+  struct RevLock_l rl;
+  struct Balance_l balance_cust;
+  struct Balance_l balance_merch;
+  struct Txid_l txid_merch;
+  struct Txid_l txid_escrow;
+  struct Txid_l HashPrevOuts_merch;
+  struct Txid_l HashPrevOuts_escrow;
+  struct Balance_l min_fee;
+  struct Balance_l max_fee;
+  struct Balance_l fee_mc;
 } State_l;
 
-typedef struct {
+typedef struct PayToken_l {
   uint32_t paytoken[8];
 } PayToken_l;
 
-typedef struct {
+typedef struct BitcoinPublicKey_l {
   uint32_t key[9];
 } BitcoinPublicKey_l;
 
-typedef struct {
+typedef struct CommitmentRandomness_l {
   uint32_t randomness[4];
 } CommitmentRandomness_l;
 
-typedef struct {
+typedef struct PublicKeyHash_l {
   uint32_t hash[5];
 } PublicKeyHash_l;
 
-typedef struct {
+typedef struct HMACKey_l {
   uint32_t key[16];
 } HMACKey_l;
 
-typedef struct {
+typedef struct Mask_l {
   uint32_t mask[8];
 } Mask_l;
 
-typedef struct {
+typedef struct EcdsaPartialSig_l {
   char r[256];
   char k_inv[256];
 } EcdsaPartialSig_l;
 
-typedef struct {
+typedef struct Randomness_l {
   uint32_t randomness[4];
 } Randomness_l;
 
-typedef struct {
+typedef struct HMACKeyCommitment_l {
   uint32_t commitment[8];
 } HMACKeyCommitment_l;
 
-typedef struct {
+typedef struct MaskCommitment_l {
   uint32_t commitment[8];
 } MaskCommitment_l;
 
-typedef struct {
+typedef struct RevLockCommitment_l {
   uint32_t commitment[8];
 } RevLockCommitment_l;
 
-typedef struct {
+typedef struct EcdsaSig_l {
   uint32_t sig[8];
 } EcdsaSig_l;
 
 typedef char *(*cb_send)(void *arg1, int arg2, void *arg3);
 
-typedef struct {
+typedef struct Receive_return {
   char *r0;
   int r1;
   char *r2;
 } Receive_return;
 
-typedef Receive_return (*cb_receive)(void *arg1);
+typedef struct Receive_return (*cb_receive)(void *arg1);
 
 typedef unsigned int ConnType;
 
@@ -114,40 +114,40 @@ extern void *get_gonetio_ptr(void *raw_stream_fd, int party);
 
 extern void *load_circuit_file(const char *path);
 
-extern void issue_tokens(State_l old_state_l,
-                         State_l new_state_l,
-                         Balance_l fee_cc,
-                         PayToken_l old_paytoken_l,
-                         BitcoinPublicKey_l cust_escrow_pub_key_l,
-                         BitcoinPublicKey_l cust_payout_pub_key_l,
-                         CommitmentRandomness_l revlock_commitment_randomness_l,
-                         PublicKeyHash_l cust_publickey_hash_l,
-                         HMACKey_l hmac_key_l,
-                         Mask_l paytoken_mask_l,
-                         Mask_l merch_mask_l,
-                         Mask_l escrow_mask_l,
-                         EcdsaPartialSig_l sig1,
-                         EcdsaPartialSig_l sig2,
-                         CommitmentRandomness_l hmac_commitment_randomness_l,
-                         CommitmentRandomness_l paytoken_mask_commitment_randomness_l,
-                         Randomness_l verify_success,
-                         Balance_l epsilon_l,
-                         HMACKeyCommitment_l hmac_key_commitment_l,
-                         MaskCommitment_l paytoken_mask_commitment_l,
-                         RevLockCommitment_l rlc_l,
-                         Nonce_l nonce_l,
-                         Balance_l val_cpfp,
-                         Balance_l bal_min_cust,
-                         Balance_l bal_min_merch,
+extern void issue_tokens(struct State_l old_state_l,
+                         struct State_l new_state_l,
+                         struct Balance_l fee_cc,
+                         struct PayToken_l old_paytoken_l,
+                         struct BitcoinPublicKey_l cust_escrow_pub_key_l,
+                         struct BitcoinPublicKey_l cust_payout_pub_key_l,
+                         struct CommitmentRandomness_l revlock_commitment_randomness_l,
+                         struct PublicKeyHash_l cust_publickey_hash_l,
+                         struct HMACKey_l hmac_key_l,
+                         struct Mask_l paytoken_mask_l,
+                         struct Mask_l merch_mask_l,
+                         struct Mask_l escrow_mask_l,
+                         struct EcdsaPartialSig_l sig1,
+                         struct EcdsaPartialSig_l sig2,
+                         struct CommitmentRandomness_l hmac_commitment_randomness_l,
+                         struct CommitmentRandomness_l paytoken_mask_commitment_randomness_l,
+                         struct Randomness_l verify_success,
+                         struct Balance_l epsilon_l,
+                         struct HMACKeyCommitment_l hmac_key_commitment_l,
+                         struct MaskCommitment_l paytoken_mask_commitment_l,
+                         struct RevLockCommitment_l rlc_l,
+                         struct Nonce_l nonce_l,
+                         struct Balance_l val_cpfp,
+                         struct Balance_l bal_min_cust,
+                         struct Balance_l bal_min_merch,
                          uint16_t self_delay,
-                         BitcoinPublicKey_l merch_escrow_pub_key_l,
-                         BitcoinPublicKey_l merch_dispute_key_l,
-                         BitcoinPublicKey_l merch_payout_pub_key_l,
-                         PublicKeyHash_l merch_publickey_hash_l,
-                         PayToken_l *pt_return,
-                         EcdsaSig_l *ct_escrow,
-                         EcdsaSig_l *ct_merch,
-                         Randomness_l *success);
+                         struct BitcoinPublicKey_l merch_escrow_pub_key_l,
+                         struct BitcoinPublicKey_l merch_dispute_key_l,
+                         struct BitcoinPublicKey_l merch_payout_pub_key_l,
+                         struct PublicKeyHash_l merch_publickey_hash_l,
+                         struct PayToken_l *pt_return,
+                         struct EcdsaSig_l *ct_escrow,
+                         struct EcdsaSig_l *ct_merch,
+                         struct Randomness_l *success);
 
 void ffishim_free_string(char *pointer);
 

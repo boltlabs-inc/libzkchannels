@@ -4,6 +4,7 @@ use hmac::{Hmac, Mac};
 use pairing::Engine;
 use ripemd160::Ripemd160;
 use sha2::{Digest, Sha256};
+use num::BigUint;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -72,8 +73,10 @@ pub fn compute_the_hash<E: Engine>(bytes: &Vec<u8>) -> E::Fr {
     let sha2_digest = hasher.result();
     let mut hash_buf: [u8; 32] = [0; 32];
     hash_buf.copy_from_slice(&sha2_digest);
-    let hexresult = fmt_bytes_to_int(hash_buf);
-    return E::Fr::from_str(&hexresult).unwrap();
+    let big_uint = BigUint::from_bytes_be(&hash_buf[..]);
+    let big_modulus = BigUint::from_bytes_be(E::Fr::char().to_string().as_ref());
+    let hexresult = big_uint % big_modulus;
+    return E::Fr::from_str(&hexresult.to_string()).unwrap();
 }
 
 pub fn hash_secret_to_fr<E: Engine>(bytes: &Vec<u8>) -> ([u8; 32], E::Fr) {
