@@ -36,7 +36,8 @@ To switch back to latest stable version of rust do the following:
     git clone https://gitlab.com/tezos/tezos.git
     cd tezos
     git checkout master
-    opam init --bare
+    opam init --bare -y
+    opam switch create for_tezos 4.09.1
     make build-deps
     eval $(opam env)
     make
@@ -60,13 +61,11 @@ To switch back to latest stable version of rust do the following:
     cp ../libzkchannels/tezos-sandbox/pyproject.toml .
     poetry install 
     
-(8) Run the test sandbox script for PS signature verification
+(8) Run the test sandbox script for the zkChannels contract
 
-    cp ../libzkchannels/tezos-sandbox/pssigs_verify_optimized.py tests_python/
-    cp ../libzkchannels/tezos-sandbox/dec_cust_close.json tests_python/
-    cd tests_python
-    poetry run python3 pssigs_verify_optimized.py -c dec_cust_close.json
-
+    cp -r ../libzkchannels/tezos-sandbox/tests_python/zkchannels_contract tests_python/
+    cd tests_python/
+    ./zkchannels_contract/run_test.sh zkchannels_contract/test_zkchannel.py zkchannels_contract/sample_cust_close.json 
 ## Installing SmartPy
 
 SmartPy is only needed to run the SmartPy scripts. It is not needed for testing the tezos smart contracts with the Tezos sandbox node. Alternatively, you can also use the [SmartPy online IDE](https://smartpy.io/) to run the SmartPy scripts.
