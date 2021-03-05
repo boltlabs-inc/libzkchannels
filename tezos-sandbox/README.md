@@ -37,7 +37,7 @@ To switch back to latest stable version of rust do the following:
     cd tezos
     git checkout master
     opam init --bare -y
-    opam switch create for_tezos 4.09.1
+    opam switch create for_tezos 4.09.1   (if Linux)
     make build-deps
     eval $(opam env)
     make
