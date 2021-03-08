@@ -8,9 +8,9 @@ from pytezos import pytezos
 from pytezos import Contract
 from pytezos import ContractInterface
 
-pssig_code = Contract.from_file('mock_pssig3.tz')
+pssig_code = ContractInterface.from_file('mock_pssig3.tz')
 
-out = pytezos.using(shell='http://localhost:18731', key='edsk3gUfUPyBSfrS9CCgmCiQsTCHGkviBDusMxDJstFtojtc1zcpsh').origination(script=pssig_code.script()).autofill().sign().inject()
+out = pytezos.using(shell='http://localhost:18731', key='edsk3gUfUPyBSfrS9CCgmCiQsTCHGkviBDusMxDJstFtojtc1zcpsh').origination(script=pssig_code.script()).autofill(branch_offset=1).sign().inject()
 
 input("Bake to confirm origination of pssig contract, then hit enter continue.")
 
@@ -18,7 +18,7 @@ opg = pytezos.using(shell='http://localhost:18731', key='edsk3gUfUPyBSfrS9CCgmCi
 
 pssig_id = opg['contents'][0]['metadata']['operation_result']['originated_contracts'][0]
 
-main_code = Contract.from_file('zkchannel_mock_ps3.tz')
+main_code = ContractInterface.from_file('zkchannel_mock_ps3.tz')
 
 main_storage = {'chanID': '123456789ccc', 
 'custAddr': 'tz1KqTpEZ7Yob7QbPE4Hy4Wo8fHG8LhKxZSx', 
@@ -35,7 +35,7 @@ main_storage = {'chanID': '123456789ccc',
 'selfDelay': 3, 
 'status': 'awaitingFunding'}
 
-out = pytezos.using(shell='http://localhost:18731', key='edsk3gUfUPyBSfrS9CCgmCiQsTCHGkviBDusMxDJstFtojtc1zcpsh').origination(script=main_code.script(storage=main_storage)).autofill().sign().inject()
+out = pytezos.using(shell='http://localhost:18731', key='edsk3gUfUPyBSfrS9CCgmCiQsTCHGkviBDusMxDJstFtojtc1zcpsh').origination(script=main_code.script(initial_storage=main_storage)).autofill(branch_offset=1).sign().inject()
 
 input("Bake a block to confirm origination of zkchannel contract.")
 
