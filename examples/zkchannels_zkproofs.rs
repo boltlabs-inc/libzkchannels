@@ -46,6 +46,7 @@ fn execute_pay_protocol(
         &session_id,
         nonce,
         amount,
+        String::from(""),
         merch_state
     ));
 
@@ -78,7 +79,7 @@ fn execute_pay_protocol(
 
     // verify the pay token and update internal state
     assert!(zkproofs::pay::customer_unmask_pay_token(
-        new_pay_token.unwrap(),
+        new_pay_token.unwrap().0,
         &channel_state,
         cust_state
     )
@@ -148,7 +149,7 @@ fn main() {
     .unwrap();
 
     // send revoke token and get pay-token in response
-    let new_pay_token_result: BoltResult<Signature<Bls12>> =
+    let new_pay_token_result: BoltResult<(Signature<Bls12>, String)> =
         zkproofs::unlink::merchant_validate_rev_lock(&session_id, &rt_pair, &mut merch_state);
     let new_pay_token = handle_bolt_result!(new_pay_token_result);
 
@@ -156,7 +157,7 @@ fn main() {
     let is_ok = zkproofs::unlink::customer_finalize(
         &mut channel_state,
         &mut cust_state,
-        new_pay_token.unwrap(),
+        new_pay_token.unwrap().0,
     );
     assert!(is_ok);
 
