@@ -1,0 +1,24 @@
+{
+  "mnemonic": [
+    "boost",
+    "air",
+    "ask",
+    "cricket",
+    "okay",
+    "fan",
+    "slight",
+    "air",
+    "trust",
+    "face",
+    "anchor",
+    "empty",
+    "organ",
+    "angle",
+    "toilet"
+  ],
+  "secret": "39d37249b215ada19f3663c273acf74cebd6d038",
+  "amount": "21160891760",
+  "pkh": "tz1S6eSPZVQzHyPF2bRKhSKZhDZZSikB3e51",
+  "password": "FxXhuRqiXU",
+  "email": "peafbpfc.lcevvnlz@tezos.example.org"
+}
