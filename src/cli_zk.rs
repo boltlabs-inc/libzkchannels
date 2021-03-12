@@ -39,7 +39,7 @@ use std::thread::sleep;
 use std::time;
 use structopt::StructOpt;
 use zkchan_tx::fixed_size_array::FixedSizeArray16;
-use zkchannels::cl;
+use zkchannels::crypto::cl;
 use zkchannels::database::create_db_connection;
 use zkchannels::database::{RedisDatabase, StateDatabase};
 use zkchannels::zkproofs;

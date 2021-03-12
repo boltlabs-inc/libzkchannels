@@ -3,7 +3,7 @@
 use super::*;
 use ff::PrimeField;
 use pairing::{CurveProjective, Engine};
-use ped92::{CSMultiParams, Commitment};
+use crypto::ped92::{CSMultiParams, Commitment};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use util;

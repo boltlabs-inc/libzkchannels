@@ -50,13 +50,13 @@ extern crate enum_display_derive;
 extern crate rusty_fork;
 extern crate rand_xorshift;
 extern crate serde_bytes;
+extern crate core;
 
 pub mod bindings;
-pub mod ccs08;
+pub mod crypto;
 pub mod channels_mpc;
 pub mod channels_util;
 pub mod channels_zk;
-pub mod cl;
 pub mod database;
 pub mod ecdsa_partial;
 pub mod ffishim_bls12;
@@ -64,12 +64,11 @@ pub mod ffishim_bls12;
 pub mod ffishim_mpc;
 pub mod mpc;
 pub mod mpcwrapper;
-pub mod nizk;
-pub mod ped92;
 pub mod tze_utils;
 pub mod util;
 pub mod wallet;
 pub mod zkproofs;
+pub mod extensions;
 
 #[cfg(test)]
 pub mod test_e2e;
@@ -189,7 +188,7 @@ mod tests {
         .unwrap();
 
         // send revoke token and get pay-token in response
-        let new_pay_token_result: BoltResult<cl::Signature<Bls12>> =
+        let new_pay_token_result: BoltResult<crypto::cl::Signature<Bls12>> =
             zkproofs::unlink::merchant_validate_rev_lock(&session_id, &rt_pair, merch_state);
         let new_pay_token = handle_bolt_result!(new_pay_token_result);
 
@@ -242,7 +241,7 @@ mod tests {
         .unwrap();
 
         // send revoke token and get pay-token in response
-        let new_pay_token_result: BoltResult<cl::Signature<Bls12>> =
+        let new_pay_token_result: BoltResult<crypto::cl::Signature<Bls12>> =
             zkproofs::pay::merchant_validate_rev_lock(&session_id, &rev_lock_pair, merch_state);
         let new_pay_token = handle_bolt_result!(new_pay_token_result);
 
@@ -318,7 +317,7 @@ mod tests {
         .unwrap();
 
         // send revoke token and get pay-token in response
-        let new_pay_token_result: BoltResult<cl::Signature<Bls12>> =
+        let new_pay_token_result: BoltResult<crypto::cl::Signature<Bls12>> =
             zkproofs::unlink::merchant_validate_rev_lock(&session_id, &rt_pair, &mut merch_state);
         let new_pay_token = handle_bolt_result!(new_pay_token_result);
 
@@ -361,7 +360,7 @@ mod tests {
         .unwrap();
 
         // send revoke token and get pay-token in response
-        let new_pay_token_result: BoltResult<cl::Signature<Bls12>> =
+        let new_pay_token_result: BoltResult<crypto::cl::Signature<Bls12>> =
             zkproofs::pay::merchant_validate_rev_lock(&session_id, &rt_pair, &mut merch_state);
         let new_pay_token = handle_bolt_result!(new_pay_token_result);
 
@@ -713,7 +712,7 @@ mod tests {
         .unwrap();
 
         // send both revoke tokens to intermediary and get pay-tokens in response
-        let new_pay_token_result: BoltResult<(cl::Signature<Bls12>, cl::Signature<Bls12>)> =
+        let new_pay_token_result: BoltResult<(crypto::cl::Signature<Bls12>, crypto::cl::Signature<Bls12>)> =
             zkproofs::pay::multi_merchant_unmask(
                 &revoke_token_alice,
                 &revoke_token_bob,
