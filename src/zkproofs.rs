@@ -1,5 +1,5 @@
 use super::*;
-use cl;
+use crypto::cl;
 use pairing::Engine;
 use rand::Rng;
 use wallet;
@@ -14,11 +14,11 @@ pub use channels_zk::{
     BoltError, ChannelParams, ChannelState, ChannelToken, ChannelcloseM, CustomerState,
     MerchantState, ResultBoltType, RevLockPair,
 };
-pub use cl::PublicParams;
-pub use cl::{PartialProducts, PublicKey, Signature};
-pub use nizk::NIZKProof;
-pub use ped92::Commitment;
-pub use ped92::CommitmentProof;
+pub use crypto::cl::PublicParams;
+pub use crypto::cl::{PartialProducts, PublicKey, Signature};
+pub use crypto::nizk::NIZKProof;
+pub use crypto::ped92::Commitment;
+pub use crypto::ped92::CommitmentProof;
 use serde::{Deserialize, Serialize};
 use util::{encode_short_bytes_to_fr, hash_to_slice};
 pub use wallet::{serialize_compact, Wallet};

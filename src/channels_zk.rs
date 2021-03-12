@@ -1,9 +1,9 @@
 use super::*;
 use channels_util::{ChannelStatus, ProtocolStatus};
-use cl::{BlindKeyPair, Signature};
-use nizk::{NIZKProof, NIZKPublicParams, NIZKSecretParams};
+use crypto::cl::{BlindKeyPair, Signature};
+use crypto::nizk::{NIZKProof, NIZKPublicParams, NIZKSecretParams};
 use pairing::Engine;
-use ped92::{CSMultiParams, Commitment};
+use crypto::ped92::{CSMultiParams, Commitment};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -97,9 +97,9 @@ pub struct ChannelToken<E: Engine> {
     // pk_c
     pub pk_m: secp256k1::PublicKey,
     // pk_m
-    pub cl_pk_m: cl::PublicKey<E>,
+    pub cl_pk_m: crypto::cl::PublicKey<E>,
     // PK_m (used for verifying blind signatures)
-    pub mpk: cl::PublicParams<E>,
+    pub mpk: crypto::cl::PublicParams<E>,
     // mpk for PK_m
     pub comParams: CSMultiParams<E>,
 }
@@ -148,7 +148,7 @@ impl<E: Engine> ChannelState<E> {
     ///
     /// keygen - takes as input public parameters and generates a digital signature keypair
     ///
-    pub fn keygen<R: Rng>(&mut self, csprng: &mut R, _id: String) -> cl::BlindKeyPair<E> {
+    pub fn keygen<R: Rng>(&mut self, csprng: &mut R, _id: String) -> crypto::cl::BlindKeyPair<E> {
         let cp = self.cp.as_ref();
         let keypair =
             BlindKeyPair::<E>::generate(csprng, &cp.unwrap().pub_params.mpk, cp.unwrap().l);
@@ -352,7 +352,7 @@ impl<E: Engine> CustomerState<E> {
         return pk_h;
     }
 
-    pub fn get_close_token(&self) -> cl::Signature<E> {
+    pub fn get_close_token(&self) -> crypto::cl::Signature<E> {
         let index = self.index;
         let close_token = self.close_tokens.get(&index).unwrap();
         // rerandomize first
@@ -722,7 +722,7 @@ pub struct ChannelcloseM {
 )]
 pub struct MerchantState<E: Engine> {
     id: String,
-    keypair: cl::BlindKeyPair<E>,
+    keypair: crypto::cl::BlindKeyPair<E>,
     nizkParams: NIZKSecretParams<E>,
     pk: secp256k1::PublicKey,
     // pk_m
@@ -732,7 +732,7 @@ pub struct MerchantState<E: Engine> {
     pub keys: HashMap<String, String>,
     pub unlink_nonces: HashSet<String>,
     pub spent_nonces: HashSet<String>,
-    pub pay_tokens: HashMap<String, cl::Signature<E>>,
+    pub pay_tokens: HashMap<String, crypto::cl::Signature<E>>,
 }
 
 impl<E: Engine> MerchantState<E> {

@@ -7,7 +7,7 @@ extern crate zkchannels;
 
 use pairing::bls12_381::Bls12;
 use std::time::Instant;
-use zkchannels::cl::Signature;
+use zkchannels::crypto::cl::Signature;
 use zkchannels::util::encode_short_bytes_to_fr;
 use zkchannels::zkproofs;
 use zkchannels::zkproofs::{ChannelState, CustomerState, MerchantState};

@@ -1,10 +1,10 @@
 // Useful routines that simplify the Bolt TZE implementation for Zcash
 pub use channels_zk::ChannelToken;
 use channels_zk::ChannelcloseM;
-use cl;
-pub use cl::Signature;
+use crypto::cl;
+pub use crypto::cl::Signature;
 use pairing::bls12_381::Bls12;
-use ped92::CSMultiParams;
+use crypto::ped92::CSMultiParams;
 pub use wallet::Wallet;
 use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
 use {util, BoltResult};
