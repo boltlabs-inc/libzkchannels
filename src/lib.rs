@@ -188,13 +188,13 @@ mod tests {
         .unwrap();
 
         // send revoke token and get pay-token in response
-        let new_pay_token_result: BoltResult<crypto::cl::Signature<Bls12>> =
+        let new_pay_token_result: BoltResult<(crypto::cl::Signature<Bls12>, String)> =
             zkproofs::unlink::merchant_validate_rev_lock(&session_id, &rt_pair, merch_state);
         let new_pay_token = handle_bolt_result!(new_pay_token_result);
 
         // verify the pay token and update internal state
         let is_ok =
-            zkproofs::unlink::customer_finalize(channel_state, cust_state, new_pay_token.unwrap());
+            zkproofs::unlink::customer_finalize(channel_state, cust_state, new_pay_token.unwrap().0);
         assert!(is_ok);
     }
 
@@ -214,6 +214,7 @@ mod tests {
             &session_id,
             nonce,
             payment_increment,
+            String::from(""),
             merch_state
         ));
 
@@ -241,13 +242,13 @@ mod tests {
         .unwrap();
 
         // send revoke token and get pay-token in response
-        let new_pay_token_result: BoltResult<crypto::cl::Signature<Bls12>> =
+        let new_pay_token_result: BoltResult<(crypto::cl::Signature<Bls12>, String)> =
             zkproofs::pay::merchant_validate_rev_lock(&session_id, &rev_lock_pair, merch_state);
         let new_pay_token = handle_bolt_result!(new_pay_token_result);
 
         // verify the pay token and update internal state
         assert!(zkproofs::pay::customer_unmask_pay_token(
-            new_pay_token.unwrap(),
+            new_pay_token.unwrap().0,
             channel_state,
             cust_state
         )
@@ -317,7 +318,7 @@ mod tests {
         .unwrap();
 
         // send revoke token and get pay-token in response
-        let new_pay_token_result: BoltResult<crypto::cl::Signature<Bls12>> =
+        let new_pay_token_result: BoltResult<(crypto::cl::Signature<Bls12>, String)> =
             zkproofs::unlink::merchant_validate_rev_lock(&session_id, &rt_pair, &mut merch_state);
         let new_pay_token = handle_bolt_result!(new_pay_token_result);
 
@@ -325,7 +326,7 @@ mod tests {
         assert!(zkproofs::unlink::customer_finalize(
             &mut channel_state,
             &mut cust_state,
-            new_pay_token.unwrap()
+            new_pay_token.unwrap().0
         ));
 
         println!("Channel unlinked and established!");
@@ -337,6 +338,7 @@ mod tests {
             &session_id,
             nonce,
             10,
+            String::from(""),
             &mut merch_state
         ));
 
@@ -360,13 +362,13 @@ mod tests {
         .unwrap();
 
         // send revoke token and get pay-token in response
-        let new_pay_token_result: BoltResult<crypto::cl::Signature<Bls12>> =
+        let new_pay_token_result: BoltResult<(crypto::cl::Signature<Bls12>, String)> =
             zkproofs::pay::merchant_validate_rev_lock(&session_id, &rt_pair, &mut merch_state);
         let new_pay_token = handle_bolt_result!(new_pay_token_result);
 
         // verify the pay token and update internal state
         assert!(zkproofs::pay::customer_unmask_pay_token(
-            new_pay_token.unwrap(),
+            new_pay_token.unwrap().0,
             &channel_state,
             &mut cust_state
         )
@@ -664,6 +666,7 @@ mod tests {
             &alice_session_id,
             alice_nonce,
             amount,
+            String::from(""),
             &mut merch_state
         ));
 
@@ -676,6 +679,7 @@ mod tests {
             &bob_session_id,
             bob_nonce,
             -amount,
+            String::from(""),
             &mut merch_state
         ));
 

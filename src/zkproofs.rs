@@ -316,6 +316,8 @@ pub mod unlink {
 
 pub mod pay {
     use super::*;
+    use extensions::extension::Extensions;
+    use extensions::{ExtensionInput, ExtensionOutput};
 
     ///
     /// pay::customer_prepare() - takes as input an rng, the channel state, the payment amount, and the customer state.
@@ -361,16 +363,21 @@ pub mod pay {
     }
 
     ///
-    /// pay::merchant_prepare() - takes as input the session id, the nonce of the old state, amount and
-    /// the merchant state
+    /// pay::merchant_prepare() - takes as input the session id, the nonce of the old state, amount,
+    /// auxiliary information, and the merchant state
     /// output: true or false if the payment would be successful
     ///
     pub fn merchant_prepare<E: Engine>(
-        _session_id: &[u8; 16],
+        session_id: &[u8; 16],
         nonce: FixedSizeArray16,
         amount: i64,
+        aux: String,
         merch_state: &mut MerchantState<E>,
     ) -> bool {
+        match Extensions::parse(aux) {
+            Some(ext) => merch_state.store_ext(FixedSizeArray16(*session_id), ext),
+            None => {}
+        };
         if !merch_state.spent_nonces.contains(&nonce.to_string()) && amount != 0 {
             merch_state.spent_nonces.insert(nonce.to_string());
             return true;
@@ -521,10 +528,10 @@ pub mod pay {
     /// generate a new signature for the new wallet (from the PoK of committed values in new wallet).
     ///
     pub fn merchant_validate_rev_lock<E: Engine>(
-        _session_id: &[u8; 16],
+        session_id: &[u8; 16],
         rt: &RevLockPair,
         merch_state: &mut MerchantState<E>,
-    ) -> BoltResult<cl::Signature<E>> {
+    ) -> BoltResult<(cl::Signature<E>, String)> {
         if merch_state.keys.contains_key(&hex::encode(&rt.rev_lock))
             && merch_state.keys.get(&hex::encode(&rt.rev_lock)).unwrap() != ""
         {
@@ -542,7 +549,15 @@ pub mod pay {
             &rt.rev_lock,
             Some(rt.rev_secret.clone()),
         );
-        Ok(Some(new_pay_token))
+        let ext = merch_state.get_ext(FixedSizeArray16(*session_id));
+        let ext_output = match ext {
+            Some(ext_unwrapped) => match ext_unwrapped.output() {
+                Ok(ext_str) => ext_str,
+                Err(err) => return Err(err)
+            }
+            None => String::from("")
+        };
+        Ok(Some((new_pay_token, ext_output)))
     }
 
     ///

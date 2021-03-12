@@ -1464,6 +1464,7 @@ mod merch {
             &session_id,
             FixedSizeArray16(nonce),
             amount,
+            String::from(""),
             merch_state,
         );
 
