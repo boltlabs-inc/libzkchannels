@@ -124,7 +124,7 @@ Breaking down the components:
 Next, we want to bake a block so that the origination is confirmed on chain:
 
 ```
-$ tezos-client bake for bootstrap5 --minimal-timestamp
+$ tezos-client bake for baker5 --minimal-timestamp
 
 Oct 22 16:08:51.179 - alpha.baking.forge: found 1 valid operations (0 refused) for timestamp 2020-10-22T14:16:24-00:00 (fitness 01::0000000000000001)
 Injected block BLtQWt6L479T
@@ -244,7 +244,7 @@ Waiting for the operation to be included...
 Hit enter, then bake a block:
 
 ```
-$ tezos-client bake for bootstrap5
+$ tezos-client bake for baker5
 
 Injected block BLzsNAUGuw65
 Operation found in block: BLzsNAUGuw655zHfexVkcYDY2sXTQBTfAkCeBTnezk8GmSmfceX (pass: 3, offset: 0)
@@ -295,7 +295,7 @@ Waiting for the operation to be included...
 Hit enter, then bake a block:
 
 ```
-$ tezos-client bake for bootstrap5
+$ tezos-client bake for baker5
 ```
 
 Now we will do the same for the merchant:
@@ -313,7 +313,7 @@ Waiting for the operation to be included...
 Hit enter, then bake a block:
 
 ```
-$ tezos-client bake for bootstrap5
+$ tezos-client bake for baker5
 ```
 
 Now, we should be able to check that the status of the zkChannel contract has changed from ```"awaitingFunding"``` to ```open``` by viewing its storage:
@@ -475,7 +475,7 @@ Waiting for the operation to be included...
 Hit enter, then bake a block:
 
 ```
-$ tezos-client bake for bootstrap5
+$ tezos-client bake for baker5
 ```
 
 Then in the output under `Transaction: Updated storage:` the channel state should have changed to `"custClose`. 

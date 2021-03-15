@@ -104,7 +104,7 @@ Waiting for the operation to be included...
 You will notice that this command doesn’t terminate (hence the &), as usual it is waiting for the network to include the transaction in a block. Given that we are in a sandbox we need to bake a block ourselves and we can do so with the following command:
 
 ```
-$ tezos-client bake for bootstrap5
+$ tezos-client bake for baker5
 ```
 
 # Setting up zkChannels-cli 
