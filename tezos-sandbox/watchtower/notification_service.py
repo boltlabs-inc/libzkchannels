@@ -25,9 +25,9 @@ def contract_origin_search(contract_hash):
     while found == -1:
         anchor = int((end+start+1)/2)
         try:
-            storage = contract.storage(block_id=anchor)
+            storage = contract.storage(anchor)
             try:
-                storage = contract.storage(block_id=anchor-1)
+                storage = contract.storage(anchor-1)
                 end = anchor
             except Exception:
                 found = anchor
@@ -86,7 +86,7 @@ def contract_all_update_search(contract_hash, start=None, end=None):
                             entrypoint = content["parameters"]["entrypoint"]
 
                             # Get contract storage
-                            storage = p.contract(contract_hash).storage(block_id=counter)
+                            storage = p.contract(contract_hash).storage(counter)
 
                             # Get notification request
                             data = contract_dict[contract_hash]["data"]
@@ -155,7 +155,7 @@ def read_from_head():
                                 entrypoint = content["parameters"]["entrypoint"]
 
                                 # Get contract storage
-                                storage = p.contract(contract_hash).storage(block_id=head_level)
+                                storage = p.contract(contract_hash).storage(head_level)
 
                                 if verbose:
                                     print_notification(head_level, contract_hash, entrypoint=entrypoint, storage=storage)
@@ -215,14 +215,14 @@ def clean_contracts():
 
 
 @dispatcher.add_method
-def get_storage(contract_hash, block_id=None):
+def get_storage(contract_hash):
     # Send contract's storage
     storage = None
     try: 
         if block_id is None:
             storage = pytezos.using(shell=network).contract(contract_hash).storage()
         else:
-            storage = pytezos.using(shell=network).contract(contract_hash).storage(block_id=block_id)
+            storage = pytezos.using(shell=network).contract(contract_hash).storage(block_id)
     except Exception as e:
         print("Error", e)
         return {"error":str(e)}
@@ -317,7 +317,7 @@ def contract_update(contract_hash, start=None, end=None):
         
         try:
             # Check contract exists
-            storage = pytezos.using(shell=network).contract(contract_hash).storage(block_id=head_level)
+            storage = pytezos.using(shell=network).contract(contract_hash).storage(head_level)
             with lock:
                 # Make new notification request
                 contract_dict[contract_hash] = {"contract_hash": contract_hash, "status":"in progress", "data":{}, "bound_search":bound_search}

@@ -14,9 +14,9 @@ def contract_origin_search(p, contract_hash, verbose = 0):
     while found == -1:
         anchor = int((end+start)/2)
         try:
-            data = contract.storage(block_id=anchor)
+            data = contract.storage(anchor)
             try:
-                data = contract.storage(block_id=anchor-1)
+                data = contract.storage(anchor-1)
                 end=anchor
             except Exception:
                 found = anchor
@@ -36,7 +36,7 @@ def contract_all_update_search(p, contract_hash, start=-1, end=-1):
         start = origin_level
         results.append([origin_level, data])
     else:
-        data = contract.storage(block_id=start)
+        data = contract.storage(start)
         results.append([start, data])
     end = end
     if end > head_level or end ==-1:
@@ -44,7 +44,7 @@ def contract_all_update_search(p, contract_hash, start=-1, end=-1):
     for lvl in range(start+1, end+1):
         if contract_hash not in contract_dict.keys():
             break
-        data = contract.storage(block_id=lvl)
+        data = contract.storage(lvl)
         if data != results[len(results)-1][1]:
             print("Ntf past", contract_hash, lvl, data, "\n")
             results.append([lvl, data])
@@ -62,7 +62,7 @@ def contract_first_update_search(p, contract_hash, start=-1):
         start = origin_level
 
     for lvl in range(start+1, head_level+1):
-        new_data = contract.storage(block_id=lvl)
+        new_data = contract.storage(lvl)
         if new_data != data:
             print("Ntf first:", contract_hash, start, lvl, new_data, "\n")
             return start, [lvl, new_data]
@@ -79,8 +79,8 @@ def contract_last_update_search(p, contract_hash, end=-1):
         end = head_level
 
     for lvl in range(end, origin_level, -1):
-        new_data = contract.storage(block_id=lvl)
-        prev_data = contract.storage(block_id=lvl-1)
+        new_data = contract.storage(lvl)
+        prev_data = contract.storage(lvl-1)
         if new_data != prev_data:
             print("Ntf end:", contract_hash, end, lvl, new_data, "\n")
             return end, [lvl, new_data]
@@ -91,7 +91,7 @@ def read_from_head(p):
     while len(contract_dict) != 0:
         for contract_hash in contract_dict.keys():
             head_level = p.shell.head.header()["level"]
-            data = p.contract(contract_hash).storage(block_id=head_level)
+            data = p.contract(contract_hash).storage(head_level)
             if data != contract_dict[contract_hash]["last_data"]:
                 print("Ntf head:", contract_hash, head_level, data, "\n")
                 contract_dict[contract_hash]["last_data"] = data
@@ -146,7 +146,7 @@ def main():
     storage = None
     try:
         ci = p.contract(contract_hash)
-        storage = ci.storage(block_id=head_level)
+        storage = ci.storage(head_level)
     except Exception as e:
         print("Error: contract not found", e, "\n")
         return
