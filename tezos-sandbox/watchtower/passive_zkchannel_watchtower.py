@@ -18,9 +18,9 @@ def contract_origin_search(p, contract_hash, verbose = 0):
         counter +=1
         anchor = int((end+start+1)/2)
         try:
-            data = contract.storage(block_id=anchor)
+            data = contract.storage(anchor)
             try:
-                data = contract.storage(block_id=anchor-1)
+                data = contract.storage(anchor-1)
                 end=anchor
             except Exception:
                 found = anchor
@@ -46,7 +46,7 @@ def contract_all_update_search(p, contract_hash, start=-1, end=-1):
     for lvl in range(start+1, end+1):
         if contract_hash not in contract_past_dict.keys():
             break
-        storage = contract.storage(block_id=lvl)
+        storage = contract.storage(lvl)
         data = None
         user_id = None
         if (storage["status"] == "custClose" and contract_past_dict[contract_hash]["user_id"] == "merchant") or (storage["status"] == "merchClose" and contract_past_dict[contract_hash]["user_id"] == "customer"):
@@ -83,7 +83,7 @@ def read_from_head(p):
                         if content["destination"] in contract_dict.keys():
                             contract_hash = content["destination"]
                             entrypoint = content["parameters"]["entrypoint"]
-                            storage = p.contract(contract_hash).storage(block_id=head_level)
+                            storage = p.contract(contract_hash).storage(head_level)
                             data = None
                             user_id = None
                             if (storage["status"] == "custClose" and contract_past_dict[contract_hash]["user_id"] == "merchant") or (storage["status"] == "merchClose" and contract_past_dict[contract_hash]["user_id"] == "customer"):
@@ -166,7 +166,7 @@ def main():
     storage = None
     try:
         ci = p.contract(contract_hash)
-        storage = ci.storage(block_id=head_level)
+        storage = ci.storage(head_level)
     except Exception as e:
         print("Error: contract not found", e, "\n")
         return

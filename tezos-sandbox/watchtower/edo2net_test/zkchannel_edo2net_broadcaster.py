@@ -52,9 +52,9 @@ if __name__ == "__main__":
         
     parser = argparse.ArgumentParser()
     parser.add_argument("--shell", "-n", help="the address to connect to edo2net", default = "https://rpc.tzkt.io/edo2net/")
-    parser.add_argument("--cust", "-c", help="customer's testnet json file")
-    parser.add_argument("--merch", "-m", help="merchant's testnet json file")
-    parser.add_argument("--close", "-cc", help="Enter the filename (with path) to the cust_close.json file created by zkchannels-cli")
+    parser.add_argument("--cust", "-c", required=True, help="customer's testnet json file")
+    parser.add_argument("--merch", "-m", required=True, help="merchant's testnet json file")
+    parser.add_argument("--close", "-cc", required=True, help="Enter the filename (with path) to the cust_close.json file created by zkchannels-cli")
     args = parser.parse_args()
 
     if args.shell:
@@ -141,6 +141,11 @@ if __name__ == "__main__":
     main_id = opg['contents'][0]['metadata']['operation_result']['originated_contracts'][0]
     print("zkChannel contract address: ", main_id)
 
+
+    watchtower_command = "python3 passive_zkchannel_watchtower.py --contract {cid} --network {shell} --identity merchant".format(cid=main_id, shell=args.shell)
+    print("Run the watchtower with \n" + watchtower_command)
+    input("Press enter to continue")
+
     # Set contract interfaces for cust and merch
     cust_ci = cust_py.contract(main_id)
     merch_ci = merch_py.contract(main_id)
@@ -195,8 +200,6 @@ if __name__ == "__main__":
     # print(cust_ci.custClose(close_storage).cmdline())
     out = cust_ci.custClose(close_storage).inject(_async=False)
     print("Cust Close ophash: ", out['hash'])
-
-    import pdb; pdb.set_trace();
 
     print("Broadcasting Cust Claim")
     out = cust_ci.custClaim().inject()
