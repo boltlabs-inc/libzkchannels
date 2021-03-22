@@ -1,10 +1,10 @@
 use super::*;
 use ff::PrimeField;
 use hmac::{Hmac, Mac};
+use num::BigUint;
 use pairing::Engine;
 use ripemd160::Ripemd160;
 use sha2::{Digest, Sha256};
-use num::BigUint;
 
 type HmacSha256 = Hmac<Sha256>;
 

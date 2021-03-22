@@ -223,14 +223,33 @@ pub struct ProofState<E: Engine> {
 impl<E: Engine> ProofState<E> {
     #[cfg(test)]
     fn fs_challenge(&self, mpk: &PublicParams<E>) -> E::Fr
-        where <E as pairing::Engine>::G1: serde::Serialize,
-              <E as pairing::Engine>::G2: serde::Serialize,
-              <E as pairing::Engine>::Fqk: serde::Serialize
+    where
+        <E as pairing::Engine>::G1: serde::Serialize,
+        <E as pairing::Engine>::G2: serde::Serialize,
+        <E as pairing::Engine>::Fqk: serde::Serialize,
     {
         let mut transcript: Vec<u8> = Vec::new();
-        transcript.extend(serde_json::to_value(&mpk.g1).unwrap().as_str().unwrap().bytes());
-        transcript.extend(serde_json::to_value(&mpk.g2).unwrap().as_str().unwrap().bytes());
-        transcript.extend(serde_json::to_value(&self.a).unwrap().as_str().unwrap().bytes());
+        transcript.extend(
+            serde_json::to_value(&mpk.g1)
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .bytes(),
+        );
+        transcript.extend(
+            serde_json::to_value(&mpk.g2)
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .bytes(),
+        );
+        transcript.extend(
+            serde_json::to_value(&self.a)
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .bytes(),
+        );
 
         util::hash_to_fr::<E>(transcript)
     }

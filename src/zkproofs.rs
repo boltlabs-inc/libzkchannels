@@ -638,10 +638,17 @@ where
     let msg = secp256k1::Message::from_slice(&m).unwrap();
     let seckey = cust_state.get_secret_key();
     let cust_sig = secp.sign(&msg, &seckey);
+    let closing_state_wallet = Wallet {
+        channelId: wallet.channelId,
+        nonce: E::Fr::zero(),
+        rev_lock: wallet.rev_lock,
+        bm: wallet.bm,
+        bc: wallet.bc,
+    };
 
     Ok(ChannelcloseC {
         rev_lock: FixedSizeArray32(cust_state.rev_lock.0.clone()),
-        message: wallet,
+        message: closing_state_wallet,
         merch_signature: close_token,
         cust_signature: cust_sig,
         // pp: pp,

@@ -137,7 +137,7 @@ fn main() {
         None,
         None,
     );
-    assert!(res_merch.is_ok(), res_merch.err().unwrap());
+    assert!(res_merch.is_ok(), "{}", res_merch.err().unwrap());
 
     println!("MPC executed successfully");
 
