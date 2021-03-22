@@ -1139,8 +1139,7 @@ mod cust {
             .concat();
             let output_str = String::from(json);
             println!("decompressed cust close json => \n{}\n", output_str);
-            let dec_out_file = format!("dec_{}", out_file.display().to_string());
-            write_pathfile(PathBuf::from(dec_out_file), output_str)?;
+            write_pathfile(out_file.clone(), output_str)?;
         }
 
         println!("Obtained the channel close message:");
@@ -1150,7 +1149,8 @@ mod cust {
 
         // write out to a file
         let cust_close_json_str = handle_error_result!(serde_json::to_string(&cust_close));
-        write_pathfile(out_file, cust_close_json_str)?;
+        let cli_out_file = format!("cli_{}", out_file.display().to_string());
+        write_pathfile(PathBuf::from(cli_out_file), cust_close_json_str)?;
 
         Ok(())
     }
