@@ -1,12 +1,15 @@
 use super::*;
 use extensions::ExtensionOutput;
 use extensions::spydermix::Spydermix;
+use extensions::intermediary::Intermediary;
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum Extensions {
     #[serde(rename = "spydermix")]
     Spydermix(Spydermix),
+    #[serde(rename = "intermediary")]
+    Intermediary(Intermediary),
     Default
 }
 
@@ -27,6 +30,9 @@ impl ExtensionOutput for Extensions {
             }
             Extensions::Default => {
                 Err("unimplemented".to_string())
+            }
+            Extensions::Intermediary(obj) => {
+                obj.output()
             }
         }
     }
