@@ -15,6 +15,7 @@ use util::{
 use wallet::Wallet;
 use zkchan_tx::fixed_size_array::FixedSizeArray16;
 use extensions::extension::Extensions;
+use zkproofs::PublicParams;
 
 #[derive(Debug)]
 pub struct BoltError {
@@ -734,8 +735,8 @@ pub struct MerchantState<E: Engine> {
     pub unlink_nonces: HashSet<String>,
     pub spent_nonces: HashSet<String>,
     pub pay_tokens: HashMap<String, crypto::cl::Signature<E>>,
-    extensions: HashMap<String, Extensions>,
-    intermediary: Option<Intermediary<E>>,
+    extensions: HashMap<String, Extensions<E>>,
+    pub intermediary: Option<Intermediary<E>>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -748,8 +749,9 @@ bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G2: serde::Deserialize<'de>")
 )]
 pub struct Intermediary<E: Engine> {
-    keypair_ac: crypto::cl::BlindKeyPair<E>,
-    keypair_inv: crypto::cl::BlindKeyPair<E>,
+    pub mpk: PublicParams<E>,
+    pub keypair_ac: crypto::cl::BlindKeyPair<E>,
+    pub keypair_inv: crypto::cl::BlindKeyPair<E>,
 }
 
 impl<E: Engine> MerchantState<E> {
@@ -777,6 +779,7 @@ impl<E: Engine> MerchantState<E> {
 
         let intermediary_state = match intermediary {
             true => Some(Intermediary {
+                mpk: nizkParams.pubParams.mpk.clone(),
                 keypair_ac: BlindKeyPair::<E>::generate(csprng, &nizkParams.pubParams.mpk, 1),
                 keypair_inv: BlindKeyPair::<E>::generate(csprng, &nizkParams.pubParams.mpk, 3),
             }),
@@ -933,11 +936,11 @@ impl<E: Engine> MerchantState<E> {
     //     };
     // }
 
-    pub fn get_ext(&mut self, session_id: FixedSizeArray16) -> Option<&Extensions> {
+    pub fn get_ext(&mut self, session_id: FixedSizeArray16) -> Option<&Extensions<E>> {
         self.extensions.get(session_id.to_string().as_str())
     }
 
-    pub fn store_ext(&mut self, session_id: FixedSizeArray16, ext: Extensions) {
+    pub fn store_ext(&mut self, session_id: FixedSizeArray16, ext: Extensions<E>) {
         self.extensions.insert(session_id.to_string(), ext);
     }
 }

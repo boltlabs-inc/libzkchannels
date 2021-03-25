@@ -368,13 +368,17 @@ pub mod pay {
     /// auxiliary information, and the merchant state
     /// output: true or false if the payment would be successful
     ///
-    pub fn merchant_prepare<E: Engine>(
+    pub fn merchant_prepare<'de, E: Engine>(
         session_id: &[u8; 16],
         nonce: FixedSizeArray16,
         amount: i64,
-        aux: String,
+        aux: &'de String,
         merch_state: &mut MerchantState<E>,
-    ) -> bool {
+    ) -> bool where
+        <E as pairing::Engine>::G1: serde::Deserialize<'de>,
+        <E as pairing::Engine>::G2: serde::Deserialize<'de>,
+        <E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>,
+    {
         match Extensions::parse(aux) {
             Some(ext) => merch_state.store_ext(FixedSizeArray16(*session_id), ext),
             None => {}

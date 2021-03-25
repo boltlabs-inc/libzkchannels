@@ -17,10 +17,11 @@ impl ExtensionOutput for Spydermix {
 mod tests{
     use super::*;
     use extensions::extension::Extensions;
+    use pairing::bls12_381::Bls12;
 
     #[test]
     fn test_parse() {
-        let result = Extensions::parse("{\"type\": \"spydermix\", \"amount\": 10, \"duration\": 7}".to_string());
+        let result = Extensions::<Bls12>::parse(&"{\"type\": \"spydermix\", \"amount\": 10, \"duration\": 7}".to_string());
         assert!(result.is_some());
         match result.unwrap() {
             Extensions::Spydermix(obj) => {

@@ -685,7 +685,7 @@ pub mod ffishim {
             &session_id,
             FixedSizeArray16(nonce_fixed),
             amount,
-            String::from(""),
+            &String::from(""),
             &mut merch_state,
         );
         // Serialize the results and return to caller
