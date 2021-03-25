@@ -762,6 +762,7 @@ mod tests {
     use rand::SeedableRng;
     use rand_xorshift::XorShiftRng;
     use util::convert_str_to_fr;
+    use std::collections::HashMap;
 
     #[test]
     fn sign_and_verify() {

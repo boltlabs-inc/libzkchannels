@@ -1,3 +1,4 @@
+use super::*;
 use extensions::ExtensionOutput;
 
 #[derive(Clone, Serialize, Deserialize)]

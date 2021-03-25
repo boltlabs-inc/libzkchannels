@@ -17,7 +17,7 @@ impl ExtensionInput for Extensions {
     fn parse(aux: String) -> Option<Self> {
         match serde_json::from_str(aux.as_str()) {
             Ok(out) => Some(out),
-            Err(e) => None
+            Err(_) => None
         }
     }
 }
