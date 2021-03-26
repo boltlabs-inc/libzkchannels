@@ -36,14 +36,21 @@ impl<E: Engine> ExtensionOutput for Intermediary<E> {
 
 /// Invoice object
 pub struct Invoice<E:Engine> {
-    amount: i64,
+    pub amount: i64,
     nonce: E::Fr,
     // provider id is an anonymous credential
     provider_id: E::Fr,
 }
 
 impl<E:Engine> Invoice<E> {
-    fn as_fr(&self) -> Vec<E::Fr> {
+    pub fn new(amount: i64, nonce: E::Fr, provider_id: E::Fr) -> Self {
+        Invoice {
+            amount,
+            nonce,
+            provider_id
+        }
+    }
+    pub fn as_fr(&self) -> Vec<E::Fr> {
         vec![util::convert_int_to_fr::<E>(self.amount), self.nonce, self.provider_id]
     }
 }
@@ -90,7 +97,7 @@ impl<E: Engine> IntermediaryMerchant<E> {
     }
 
     /// produces the public key (generators) for the invoice keypair
-    pub fn get_invoice_public_key(&self) -> crypto::ped92::CSMultiParams<E> {
+    pub fn get_invoice_public_keys(&self) -> crypto::ped92::CSMultiParams<E> {
         self.keypair_inv.generate_cs_multi_params(&self.mpk)
     }
 }
@@ -131,15 +138,17 @@ impl<E: Engine> IntermediaryCustomer<E> {
     
     /// Produces a commitment to an invoice
     /// and a NIZK-PoK of the opening of the commitment
-    fn prepare_invoice<R: Rng>(
+    pub fn prepare_invoice<R: Rng>(
         &self, 
-        invoice: Invoice<E>, 
+        invoice: &Invoice<E>, 
         rng: &mut R,
     ) -> (Commitment<E>, CommitmentProof<E>) 
     {
         let r = util::convert_int_to_fr::<E>(rng.gen());
         let message = invoice.as_fr();
-        self.pubkey_inv.commit(&message, &r);
-        unimplemented!()
+        let invoice_commit = self.pubkey_inv.commit(&message, &r);
+        
+        let proof = CommitmentProof::new(rng, &self.pubkey_inv, &invoice_commit.c, &message, &r, &vec![0]);
+        (invoice_commit, proof)
     }
 }

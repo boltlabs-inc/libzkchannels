@@ -654,13 +654,36 @@ mod tests {
 
         // run pay protocol - flow for third-party
         // BOB generates an invoice and "sends" to ALICE
+        let invoice = intermediary::Invoice::new(
+            rng.gen_range(5,100), // amount
+            Fr::rand(rng), // nonce
+            Fr::rand(rng) // provider id (merchant anon credential)
+        );
 
         // ALICE commits to invoice with INT's invoice keys
         // and proves knowledge of opening commitment
+        let (invoice_commit, invoice_pok) = alice.prepare_invoice(&invoice, rng);
 
         // ALICE initializes pay with INT, passing invoice stuff as aux
         // and receiving signature on invoice as output
         // this is all hidden here...
+        let (alice_nonce, alice_session_id) =
+            zkproofs::pay::customer_prepare(rng, &int_merch.channel_state, invoice.amount, &alice.cust_state)
+                .unwrap();
+        assert!(zkproofs::pay::merchant_prepare(
+            &alice_session_id,
+            alice_nonce,
+            invoice.amount,
+            &String::from("{\"type\": \"intermediary\", \"invoice\": ".to_owned() +
+                serde_json::to_string(&invoice_commit).unwrap().as_str() +
+                ", \"proof\": " +
+                serde_json::to_string(&invoice_pok).unwrap().as_str() + "}"),
+            &mut int_merch.merch_state,
+        ));
+        
+        let (sender_payment, new_alice_cust_state) =
+            zkproofs::pay::customer_update_state(rng, &int_merch.channel_state, &alice.cust_state, invoice.amount);
+
 
         // ALICE unblinds signature and sends to BOB
 
@@ -668,7 +691,7 @@ mod tests {
 
         // BOB commits to invoice and makes PoK
 
-        // BOB initializes pay with INT, passing commint and PoK as aux
+        // BOB initializes pay with INT, passing commit and PoK as aux
         // and receiving no aux output
 
 
@@ -676,8 +699,6 @@ mod tests {
         // TODO: refactor this chunk of test to use the IntermediaryX types
         // and actually run the whole payment
 
-        let (sender_payment, new_alice_cust_state) =
-            zkproofs::pay::customer_update_state(rng, &channel_state, &alice_cust_state, amount);
 
         let (bob_nonce, bob_session_id) =
             zkproofs::pay::customer_prepare(rng, &channel_state, -amount, &bob_cust_state).unwrap();
