@@ -129,7 +129,7 @@ pub mod ffishim {
         let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
 
         let (channel_token, merch_state, channel_state) =
-            zkproofs::merchant_init(rng, &mut channel_state, name, false);
+            zkproofs::merchant_init(rng, &mut channel_state, name);
 
         let ser = [
             "{\'channel_token\':\'",

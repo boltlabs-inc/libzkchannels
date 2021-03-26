@@ -736,7 +736,7 @@ pub struct MerchantState<E: Engine> {
     pub spent_nonces: HashSet<String>,
     pub pay_tokens: HashMap<String, crypto::cl::Signature<E>>,
     extensions: HashMap<String, Extensions<E>>,
-    pub intermediary: Option<Intermediary<E>>,
+    //pub intermediary: Option<Intermediary<E>>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -759,7 +759,7 @@ impl<E: Engine> MerchantState<E> {
         csprng: &mut R,
         channel: &mut ChannelState<E>,
         id: String,
-        intermediary: bool,
+        //intermediary: bool,
     ) -> (Self, ChannelState<E>) {
         let l = 5;
         // generate keys
@@ -777,15 +777,6 @@ impl<E: Engine> MerchantState<E> {
             extra_verify: true,
         });
 
-        let intermediary_state = match intermediary {
-            true => Some(Intermediary {
-                mpk: nizkParams.pubParams.mpk.clone(),
-                keypair_ac: BlindKeyPair::<E>::generate(csprng, &nizkParams.pubParams.mpk, 1),
-                keypair_inv: BlindKeyPair::<E>::generate(csprng, &nizkParams.pubParams.mpk, 3),
-            }),
-            false => None
-        };
-
         (
             MerchantState {
                 id: id.clone(),
@@ -799,7 +790,7 @@ impl<E: Engine> MerchantState<E> {
                 spent_nonces: HashSet::new(),
                 pay_tokens: HashMap::new(),
                 extensions: HashMap::new(),
-                intermediary: intermediary_state,
+                //intermediary: intermediary_state,
             },
             ch,
         )
@@ -962,7 +953,7 @@ mod tests {
         // in order to derive the channel tokens
         // initialize on the merchant side with balance: b0_merch
         let (mut merch_state, mut channel) =
-            MerchantState::<Bls12>::new(rng, &mut channel, String::from("Merchant B"), false);
+            MerchantState::<Bls12>::new(rng, &mut channel, String::from("Merchant B"));
 
         // initialize the merchant wallet with the balance
         let mut channel_token = merch_state.init(&mut channel);
@@ -1042,7 +1033,7 @@ mod tests {
 
         // initialize on the merchant side with balance: b0_merch
         let (mut merch_state, mut channel) =
-            MerchantState::<Bls12>::new(rng, &mut channel, String::from("Merchant B"), false);
+            MerchantState::<Bls12>::new(rng, &mut channel, String::from("Merchant B"));
 
         // initialize the merchant wallet with the balance
         let channel_token = merch_state.init(&mut channel);
@@ -1061,7 +1052,7 @@ mod tests {
         // in order to derive the channel tokens
         // initialize on the merchant side with balance: b0_merch
         let (mut merch_state, mut channel) =
-            MerchantState::<Bn256>::new(rng, &mut channel, String::from("Merchant B"), false);
+            MerchantState::<Bn256>::new(rng, &mut channel, String::from("Merchant B"));
 
         // initialize the merchant wallet with the balance
         let mut channel_token = merch_state.init(&mut channel);

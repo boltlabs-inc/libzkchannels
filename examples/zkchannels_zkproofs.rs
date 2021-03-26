@@ -96,7 +96,7 @@ fn main() {
     let b0_merchant = 10;
 
     let (mut channel_token, mut merch_state, mut channel_state) =
-        zkproofs::merchant_init(rng, &mut channel_state, "Merchant Bob", false);
+        zkproofs::merchant_init(rng, &mut channel_state, "Merchant Bob");
 
     let mut cust_state =
         zkproofs::customer_init(rng, &mut channel_token, b0_customer, b0_merchant, "Alice");
