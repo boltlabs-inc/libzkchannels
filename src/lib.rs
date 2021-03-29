@@ -258,6 +258,68 @@ mod tests {
             .unwrap());
     }
 
+    /// Executes payment protocol with auxiliary input and output (returned)
+    fn execute_payment_protocol_aux_helper(
+        channel_state: &mut zkproofs::ChannelState<Bls12>,
+        merch_state: &mut zkproofs::MerchantState<Bls12>,
+        cust_state: &mut zkproofs::CustomerState<Bls12>,
+        payment_increment: i64,
+        aux: String,
+    ) -> String {
+        let rng = &mut rand::thread_rng();
+
+        let (nonce, session_id) =
+            zkproofs::pay::customer_prepare(rng, &channel_state, payment_increment, &cust_state)
+                .unwrap();
+
+        assert!(zkproofs::pay::merchant_prepare(
+            &session_id,
+            nonce,
+            payment_increment,
+            &aux,
+            merch_state,
+        ));
+
+        let (payment, new_cust_state) = zkproofs::pay::customer_update_state(
+            rng,
+            channel_state,
+            &cust_state,
+            payment_increment,
+        );
+
+        let new_close_token = zkproofs::pay::merchant_update_state(
+            rng,
+            &channel_state,
+            &session_id,
+            &payment,
+            merch_state,
+        );
+
+        let rev_lock_pair = zkproofs::pay::customer_unmask(
+            &channel_state,
+            cust_state,
+            new_cust_state,
+            &new_close_token,
+        )
+            .unwrap();
+
+        // send revoke token and get pay-token in response
+        let new_pay_token_result: BoltResult<(crypto::cl::Signature<Bls12>, String)> =
+            zkproofs::pay::merchant_validate_rev_lock(&session_id, &rev_lock_pair, merch_state);
+        let new_payment_output = handle_bolt_result!(new_pay_token_result);
+
+        // verify the pay token and update internal state
+        let (new_pay_token, aux_out) = new_payment_output.unwrap();
+        
+        assert!(zkproofs::pay::customer_unmask_pay_token(
+            new_pay_token,
+            channel_state,
+            cust_state,
+        )
+            .unwrap());
+        aux_out
+    }
+
     #[test]
     fn bidirectional_payment_basics_work() {
         // just bidirectional case (w/o third party)
@@ -631,7 +693,7 @@ mod tests {
         // each party initializes a channel with the agreed initial challenge balance
         // in order to derive the channel tokens
         // initialize on the merchant side with balance: b0_merch
-        let (mut int_merch, mut channel_token) = intermediary::IntermediaryMerchant::init(rng, &mut channel_state, merch_name);
+        let (mut int_merch, mut channel_token, mut channel_state) = intermediary::IntermediaryMerchant::init(rng, &mut channel_state, merch_name);
 
         // initialize on the customer side with balance: b0_cust
         let mut alice = intermediary::IntermediaryCustomer::init(rng, &mut channel_token, &int_merch, b0_alice, b0_merch_a, "Alice");
@@ -639,12 +701,12 @@ mod tests {
 
         // run establish protocol for customer and merchant channel
         execute_establish_protocol_helper(
-            &mut int_merch.channel_state,
+            &mut channel_state,
             &mut int_merch.merch_state,
             &mut alice.cust_state,
         );
         execute_establish_protocol_helper(
-            &mut int_merch.channel_state,
+            &mut channel_state,
             &mut int_merch.merch_state,
             &mut bob.cust_state,
         );
@@ -662,32 +724,24 @@ mod tests {
 
         // ALICE commits to invoice with INT's invoice keys
         // and proves knowledge of opening commitment
-        let (invoice_commit, invoice_pok) = alice.prepare_invoice(&invoice, rng);
+        let validated_invoice = alice.prepare_payment_invoice(&invoice, rng);
 
         // ALICE initializes pay with INT, passing invoice stuff as aux
         // and receiving signature on invoice as output
-        // this is all hidden here...
-        let (alice_nonce, alice_session_id) =
-            zkproofs::pay::customer_prepare(rng, &int_merch.channel_state, invoice.amount, &alice.cust_state)
-                .unwrap();
-        assert!(zkproofs::pay::merchant_prepare(
-            &alice_session_id,
-            alice_nonce,
+        let signed_invoice = execute_payment_protocol_aux_helper(
+            &mut channel_state, 
+            &mut int_merch.merch_state, 
+            &mut alice.cust_state, 
             invoice.amount,
-            &String::from("{\"type\": \"intermediary\", \"invoice\": ".to_owned() +
-                serde_json::to_string(&invoice_commit).unwrap().as_str() +
-                ", \"proof\": " +
-                serde_json::to_string(&invoice_pok).unwrap().as_str() + "}"),
-            &mut int_merch.merch_state,
-        ));
-        
-        let (sender_payment, new_alice_cust_state) =
-            zkproofs::pay::customer_update_state(rng, &int_merch.channel_state, &alice.cust_state, invoice.amount);
-
+            validated_invoice.to_aux_string());
 
         // ALICE unblinds signature and sends to BOB
+        // TODO: replace signing here with unblinding of obj returned from pay!!!
+        println!("blind signature: {}", signed_invoice);
+        let unblinded_sig = int_merch.sign_invoice(&invoice, rng);
 
-        // BOB verifies siganture
+        // BOB verifies signature
+        assert!(bob.validate_invoice_signature(invoice, unblinded_sig));
 
         // BOB commits to invoice and makes PoK
 
