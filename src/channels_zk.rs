@@ -759,8 +759,7 @@ impl<E: Engine> MerchantState<E> {
         csprng: &mut R,
         channel: &mut ChannelState<E>,
         id: String,
-        //intermediary: bool,
-    ) -> (Self, ChannelState<E>) {
+    ) -> Self { 
         let l = 5;
         // generate keys
         let secp = secp256k1::Secp256k1::new();
@@ -769,34 +768,29 @@ impl<E: Engine> MerchantState<E> {
         let rev_wsk = secp256k1::SecretKey::from_slice(&seckey).unwrap();
         let rev_wpk = secp256k1::PublicKey::from_secret_key(&secp, &rev_wsk);
 
-        let mut ch = channel.clone();
         let nizkParams = NIZKSecretParams::<E>::setup(csprng, l);
-        ch.cp = Some(ChannelParams::<E> {
+        channel.cp = Some(ChannelParams::<E> {
             pub_params: nizkParams.pubParams.clone(),
             l,
             extra_verify: true,
         });
 
-        (
-            MerchantState {
-                id: id.clone(),
-                keypair: nizkParams.keypair.clone(),
-                nizkParams: nizkParams.clone(),
-                pk: rev_wpk,
-                sk: rev_wsk,
-                comParams: nizkParams.pubParams.comParams.clone(),
-                keys: HashMap::new(), // store rev_locks/revoke_tokens
-                unlink_nonces: HashSet::new(),
-                spent_nonces: HashSet::new(),
-                pay_tokens: HashMap::new(),
-                extensions: HashMap::new(),
-                //intermediary: intermediary_state,
-            },
-            ch,
-        )
+        MerchantState {
+            id: id.clone(),
+            keypair: nizkParams.keypair.clone(),
+            nizkParams: nizkParams.clone(),
+            pk: rev_wpk,
+            sk: rev_wsk,
+            comParams: nizkParams.pubParams.comParams.clone(),
+            keys: HashMap::new(), // store rev_locks/revoke_tokens
+            unlink_nonces: HashSet::new(),
+            spent_nonces: HashSet::new(),
+            pay_tokens: HashMap::new(),
+            extensions: HashMap::new(),
+        }
     }
 
-    pub fn init(&mut self, channel: &mut ChannelState<E>) -> ChannelToken<E> {
+    pub fn init(&mut self, channel: &ChannelState<E>) -> ChannelToken<E> {
         let cp = channel.cp.as_ref().unwrap(); // if not set, then panic!
         let mpk = cp.pub_params.mpk.clone();
         let cl_pk = self.keypair.get_public_key(&mpk);
@@ -952,7 +946,7 @@ mod tests {
         // each party executes the init algorithm on the agreed initial challenge balance
         // in order to derive the channel tokens
         // initialize on the merchant side with balance: b0_merch
-        let (mut merch_state, mut channel) =
+        let mut merch_state = 
             MerchantState::<Bls12>::new(rng, &mut channel, String::from("Merchant B"));
 
         // initialize the merchant wallet with the balance
@@ -1032,7 +1026,7 @@ mod tests {
         let rng = &mut rand::thread_rng();
 
         // initialize on the merchant side with balance: b0_merch
-        let (mut merch_state, mut channel) =
+        let mut merch_state = 
             MerchantState::<Bls12>::new(rng, &mut channel, String::from("Merchant B"));
 
         // initialize the merchant wallet with the balance
@@ -1051,7 +1045,7 @@ mod tests {
         // each party executes the init algorithm on the agreed initial challenge balance
         // in order to derive the channel tokens
         // initialize on the merchant side with balance: b0_merch
-        let (mut merch_state, mut channel) =
+        let mut merch_state =
             MerchantState::<Bn256>::new(rng, &mut channel, String::from("Merchant B"));
 
         // initialize the merchant wallet with the balance

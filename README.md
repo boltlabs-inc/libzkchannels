@@ -276,7 +276,7 @@ To initialize state/keys for both parties, call the ``zkproofs::merchant_init()`
 	let b0_cust = 100;
 
 	// initialize the merchant state and initialize with balance
-	let (mut channel_token, mut merch_state, mut channel_state) = zkproofs::merchant_init(rng, &mut channel_state, "Bob");
+	let (mut channel_token, mut merch_state) = zkproofs::merchant_init(rng, &mut channel_state, "Bob");
 
 	// generate the customer state using the channel token from the merchant
 	let mut cust_state = zkproofs::customer_init(rng, // rng

@@ -1220,7 +1220,7 @@ mod merch {
                     return Err(s);
                 }
 
-                let (channel_token, merch_state, channel_state) =
+                let (channel_token, merch_state) =
                     zkproofs::merchant_init(rng, &mut channel_state, "Merchant");
 
                 let mut db = handle_error_result!(get_merch_db_connection(db_url.clone()));

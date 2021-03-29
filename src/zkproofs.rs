@@ -102,15 +102,14 @@ pub fn merchant_init<'a, R: Rng, E: Engine>(
     csprng: &mut R,
     channel_state: &mut ChannelState<E>,
     name: &'a str,
-) -> (ChannelToken<E>, MerchantState<E>, ChannelState<E>) {
+) -> (ChannelToken<E>, MerchantState<E>) {
     // create new merchant state
     let merch_name = String::from(name);
-    let (mut merch_state, mut channel_state) =
-        MerchantState::<E>::new(csprng, channel_state, merch_name);
+    let (mut merch_state) = MerchantState::<E>::new(csprng, channel_state, merch_name);
     // initialize the merchant state
-    let channel_token = merch_state.init(&mut channel_state);
+    let channel_token = merch_state.init(channel_state);
 
-    return (channel_token, merch_state, channel_state.clone());
+    return (channel_token, merch_state);
 }
 
 ///

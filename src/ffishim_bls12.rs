@@ -128,7 +128,7 @@ pub mod ffishim {
         let bytes = unsafe { CStr::from_ptr(name_ptr).to_bytes() };
         let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
 
-        let (channel_token, merch_state, channel_state) =
+        let (channel_token, merch_state) =
             zkproofs::merchant_init(rng, &mut channel_state, name);
 
         let ser = [

@@ -114,7 +114,6 @@ mod tests {
         zkproofs::ChannelToken<Bls12>,
         zkproofs::MerchantState<Bls12>,
         zkproofs::CustomerState<Bls12>,
-        zkproofs::ChannelState<Bls12>,
     ) {
         let rng = &mut rand::thread_rng();
         let merch_name = "Bob";
@@ -126,14 +125,14 @@ mod tests {
         // each party executes the init algorithm on the agreed initial challenge balance
         // in order to derive the channel tokens
         // initialize on the merchant side with balance: b0_merch
-        let (mut channel_token, merch_state, channel_state) =
+        let (mut channel_token, merch_state) =
             zkproofs::merchant_init(rng, channel_state, merch_name);
 
         // initialize on the customer side with balance: b0_cust
         let cust_state =
             zkproofs::customer_init(rng, &mut channel_token, b0_cust, b0_merch, cust_name);
 
-        return (channel_token, merch_state, cust_state, channel_state);
+        return (channel_token, merch_state, cust_state);
     }
 
     fn execute_establish_protocol_helper(
@@ -331,7 +330,7 @@ mod tests {
         let b0_merchant = 20;
 
         // initialize the channel
-        let (mut channel_token, mut merch_state, mut channel_state) =
+        let (mut channel_token, mut merch_state) =
             zkproofs::merchant_init(rng, &mut channel_state, "Merchant Bob");
 
         let mut cust_state =
@@ -461,7 +460,7 @@ mod tests {
         let fee = 5;
         channel_state.set_channel_fee(fee);
 
-        let (_channel_token, mut merch_state, mut cust_state, mut channel_state) =
+        let (_channel_token, mut merch_state, mut cust_state) =
             setup_new_channel_helper(&mut channel_state, b0_customer, b0_merchant);
 
         // run establish protocol for customer and merchant channel
@@ -511,7 +510,7 @@ mod tests {
         let mut channel_state =
             zkproofs::ChannelState::<Bls12>::new(String::from("Channel A -> B"), false);
 
-        let (_channel_token, mut merch_state, mut cust_state, mut channel_state) =
+        let (_channel_token, mut merch_state, mut cust_state) =
             setup_new_channel_helper(&mut channel_state, b0_customer, b0_merchant);
 
         // run establish protocol for customer and merchant channel
@@ -550,7 +549,7 @@ mod tests {
         let mut channel_state =
             zkproofs::ChannelState::<Bls12>::new(String::from("Channel A -> B"), false);
 
-        let (channel_token, mut merch_state, mut cust_state, mut channel_state) =
+        let (channel_token, mut merch_state, mut cust_state) =
             setup_new_channel_helper(&mut channel_state, b0_customer, b0_merchant);
 
         // run establish protocol for customer and merchant channel
@@ -624,7 +623,7 @@ mod tests {
         let mut channel_state =
             zkproofs::ChannelState::<Bls12>::new(String::from("Channel A -> B"), false);
 
-        let (channel_token, mut merch_state, mut cust_state, mut channel_state) =
+        let (channel_token, mut merch_state, mut cust_state) =
             setup_new_channel_helper(&mut channel_state, b0_customer, b0_merchant);
 
         // run establish protocol for customer and merchant channel
@@ -632,7 +631,7 @@ mod tests {
 
         assert!(cust_state.protocol_status == ProtocolStatus::Established);
 
-        // let's make a few payments then exit channel (will post an old channel state
+        // let's make a few payments then exit channel (will post an old channel state)
         execute_payment_protocol_helper(
             &mut channel_state,
             &mut merch_state,
@@ -685,21 +684,19 @@ mod tests {
         let b0_merch_a = rng.gen_range(100, 1000);
         let b0_merch_b = rng.gen_range(100, 1000);
         let tx_fee = rng.gen_range(1, 5);
-        let mut channel_state =
-            zkproofs::ChannelState::<Bls12>::new(String::from("New Channel State"), true);
+        let mut channel_state = zkproofs::ChannelState::<Bls12>::new(String::from("three-party channel?!"), true);
+        //let mut alice_channel_state = zkproofs::ChannelState::<Bls12>::new(String::from("A -> I"), false);
+        //let mut bob_channel_state = zkproofs::ChannelState::<Bls12>::new(String::from("A -> I"), false);
         channel_state.set_channel_fee(tx_fee);
 
         let merch_name = "Hub";
-        // each party initializes a channel with the agreed initial challenge balance
-        // in order to derive the channel tokens
-        // initialize on the merchant side with balance: b0_merch
-        let (mut int_merch, mut channel_token, mut channel_state) = intermediary::IntermediaryMerchant::init(rng, &mut channel_state, merch_name);
-
-        // initialize on the customer side with balance: b0_cust
+        
+        // Define three participants in the intermediary protocol and derive channel tokens (e.g. public key info)
+        let (mut int_merch, mut channel_token) = intermediary::IntermediaryMerchant::init(rng, &mut channel_state, merch_name);
         let mut alice = intermediary::IntermediaryCustomer::init(rng, &mut channel_token, &int_merch, b0_alice, b0_merch_a, "Alice");
         let mut bob = intermediary::IntermediaryCustomer::init(rng, &mut channel_token, &int_merch, b0_bob, b0_merch_b, "Bob");
 
-        // run establish protocol for customer and merchant channel
+        // Establish channels between the two customers and the intermediary
         execute_establish_protocol_helper(
             &mut channel_state,
             &mut int_merch.merch_state,
@@ -714,7 +711,6 @@ mod tests {
         assert!(alice.cust_state.protocol_status == ProtocolStatus::Established);
         assert!(bob.cust_state.protocol_status == ProtocolStatus::Established);
 
-        // run pay protocol - flow for third-party
         // BOB generates an invoice and "sends" to ALICE
         let invoice = intermediary::Invoice::new(
             rng.gen_range(5,100), // amount
@@ -741,80 +737,23 @@ mod tests {
         let unblinded_sig = int_merch.sign_invoice(&invoice, rng);
 
         // BOB verifies signature
-        assert!(bob.validate_invoice_signature(invoice, unblinded_sig));
+        assert!(bob.validate_invoice_signature(&invoice, unblinded_sig));
 
         // BOB commits to invoice and makes PoK
+        let redemption_invoice = bob.prepare_redemption_invoice(&invoice, rng);
 
         // BOB initializes pay with INT, passing commit and PoK as aux
         // and receiving no aux output
-
-
-        /*
-        // TODO: refactor this chunk of test to use the IntermediaryX types
-        // and actually run the whole payment
-
-
-        let (bob_nonce, bob_session_id) =
-            zkproofs::pay::customer_prepare(rng, &channel_state, -amount, &bob_cust_state).unwrap();
-        assert!(zkproofs::pay::merchant_prepare(
-            &bob_session_id,
-            bob_nonce,
-            -amount,
-            &String::from("{\"type\": \"intermediary\", \"invoice\": ".to_owned() +
-                serde_json::to_string(&invoice_com).unwrap().as_str() +
-                ", \"proof\": " +
-                serde_json::to_string(&proof).unwrap().as_str() + "}"),
-            &mut merch_state,
-        ));
-
-        let (receiver_payment, new_bob_cust_state) =
-            zkproofs::pay::customer_update_state(rng, &channel_state, &bob_cust_state, -amount);
-
-        // TODO: figure out how to attach conditions on payment recipients close token that they must (1) produce revocation token for sender's old wallet and (2) must have channel open
-
-        // intermediary executes the following on the two payment proofs
-        let close_token_result = zkproofs::pay::multi_customer_update_state(
-            rng,
-            &channel_state,
-            &sender_payment,
-            &receiver_payment,
-            &mut merch_state,
-        );
-        let (alice_close_token, bob_cond_close_token) =
-            handle_bolt_result!(close_token_result).unwrap();
-
-        // both alice and bob generate a revoke token
-        let revoke_token_alice = zkproofs::pay::customer_unmask(
-            &channel_state,
-            &mut alice_cust_state,
-            new_alice_cust_state,
-            &alice_close_token,
-        )
-            .unwrap();
-        let revoke_token_bob = zkproofs::pay::customer_unmask(
-            &channel_state,
-            &mut bob_cust_state,
-            new_bob_cust_state,
-            &bob_cond_close_token,
-        )
-            .unwrap();
-
-        // send both revoke tokens to intermediary and get pay-tokens in response
-        let new_pay_token_result: BoltResult<(crypto::cl::Signature<Bls12>, crypto::cl::Signature<Bls12>)> =
-            zkproofs::pay::multi_merchant_unmask(
-                &revoke_token_alice,
-                &revoke_token_bob,
-                &mut merch_state,
-            );
-        let (new_pay_token_alice, new_pay_token_bob) =
-            handle_bolt_result!(new_pay_token_result).unwrap();
-
-        // verify the pay tokens and update internal state
-        assert!(alice_cust_state.pay_unmask_customer(&channel_state, &new_pay_token_alice));
-        assert!(bob_cust_state.pay_unmask_customer(&channel_state, &new_pay_token_bob));
-
-        println!("Successful payment with intermediary!");
-        */
+        execute_payment_protocol_aux_helper(
+            &mut channel_state, 
+            &mut int_merch.merch_state, 
+            &mut bob.cust_state, 
+            -invoice.amount, 
+            redemption_invoice.to_aux_string());
+        
+        
+        // TODO: confirm that balances were updated correctly
+            println!("Successful payment with intermediary!");
     }
 
     #[test]
@@ -828,7 +767,7 @@ mod tests {
 
         let _chan_state: zkproofs::ChannelState<Bls12> = serde_json::from_str(&serialized).unwrap();
 
-        let (mut channel_token, _merch_state, _channel_state) =
+        let (mut channel_token, _merch_state) =
             zkproofs::merchant_init(rng, &mut channel_state, "Merchant A");
 
         let b0_cust = 100;

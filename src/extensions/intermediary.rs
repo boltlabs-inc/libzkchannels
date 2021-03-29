@@ -95,8 +95,8 @@ impl<E: Engine> IntermediaryMerchant<E> {
         csprng: &mut R,
         channel_state: &mut ChannelState<E>,
         name: &'a str,
-    ) -> (Self, ChannelToken<E>, ChannelState<E>) {
-        let (channel_token, merch_state, channel_state) =
+    ) -> (Self, ChannelToken<E>) {
+        let (channel_token, merch_state) =
             zkproofs::merchant_init(csprng, channel_state, name);
         
         // create additional keys used in intermediary protocol
@@ -110,8 +110,7 @@ impl<E: Engine> IntermediaryMerchant<E> {
             keypair_ac,
             keypair_inv,
         },
-        channel_token,
-        channel_state)
+        channel_token)
     }
 
     /// produces the public key (generators) for the invoice keypair
@@ -223,7 +222,7 @@ impl<E: Engine> IntermediaryCustomer<E> {
 
     pub fn validate_invoice_signature(
         &self,
-        invoice: Invoice<E>,
+        invoice: &Invoice<E>,
         signature: crypto::cl::Signature<E>,
     ) -> bool
     {
@@ -235,9 +234,9 @@ impl<E: Engine> IntermediaryCustomer<E> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crypto::ped92::{CSMultiParams,CSParams};
-    use ff::{Field, Rand};
-    use pairing::bls12_381::{Bls12, Fr, G1};
+    use crypto::ped92::CSMultiParams;
+    use ff::Rand;
+    use pairing::bls12_381::{Bls12, Fr};
     use rand::thread_rng;
     use extensions::extension::Extensions;
 
