@@ -44,7 +44,11 @@ fn main() {
     // TODO: Create build for libtoken-utils here
 
     let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    cbindgen::generate(crate_dir)
-        .expect("Unable to generate bindings")
-        .write_to_file("include/bindings.h");
+    let binding_success = match cbindgen::generate(crate_dir) {
+        Err(_) => false, 
+        Ok(bs) => bs.write_to_file("include/bindings.h")
+    };
+    if ! binding_success {
+        println!("failed to generate C bindings");
+    }
 }
