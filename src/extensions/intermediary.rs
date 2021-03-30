@@ -44,7 +44,16 @@ impl<E:Engine> Intermediary<E> {
 }
 
 impl<E: Engine> ExtensionInit for Intermediary<E> {
-    fn init(&self) {}
+    fn init(&self, payment_amount: i64) {
+        match self.nonce {
+            None => {
+                // check payment invoice
+            }
+            Some(n) => {
+                // check redemption invoice
+            }
+        }
+    }
 }
 
 impl<E: Engine> ExtensionOutput for Intermediary<E> {
@@ -76,14 +85,14 @@ impl<E:Engine> Invoice<E> {
     }
 }
 
-pub struct IntermediaryMerchantKeys<E: Engine> {
+pub struct IntermediaryMerchantInfo<E: Engine> {
     /// merchant public parameters 
     mpk: zkproofs::PublicParams<E>,
     /// additional keys for handling anonymous credentials
     keypair_ac: crypto::cl::BlindKeyPair<E>,
     /// additional keys for handling invoices
     keypair_inv: crypto::cl::BlindKeyPair<E>,
-
+    // TODO: add list of intermediary nonces
 }
 
 /// Intermediary node; acts as a zkChannels merchant; can pass payments among its customers
@@ -94,7 +103,7 @@ pub struct IntermediaryMerchant<E: Engine> {
     /// channel state information (public parameters, etc)
     pub channel_state: zkproofs::ChannelState<E>,
     /// extra key information
-    intermediary_keys: IntermediaryMerchantKeys<E>,
+    intermediary_keys: IntermediaryMerchantInfo<E>,
 }
 
 impl<E: Engine> IntermediaryMerchant<E> {
@@ -113,7 +122,7 @@ impl<E: Engine> IntermediaryMerchant<E> {
         let mpk = channel_token.mpk.clone();
         let keypair_ac = crypto::cl::BlindKeyPair::<E>::generate(csprng, &mpk, 1);
         let keypair_inv = crypto::cl::BlindKeyPair::<E>::generate(csprng, &mpk, 3);
-        let intermediary_keys = IntermediaryMerchantKeys {
+        let intermediary_keys = IntermediaryMerchantInfo {
             mpk,
             keypair_ac,
             keypair_inv,
@@ -128,12 +137,12 @@ impl<E: Engine> IntermediaryMerchant<E> {
     }
 
     /// produces the public key (generators) for the invoice keypair
-    pub fn get_invoice_public_keys(&self) -> IntermediaryMerchantPublicKeys<E> {
+    pub fn get_invoice_public_keys(&self) -> IntermediaryCustomerInfo<E> {
         let mpk = &self.intermediary_keys.mpk;
-        IntermediaryMerchantPublicKeys {
+        IntermediaryCustomerInfo {
             mpk: mpk.clone(),
             invoice_commit: self.intermediary_keys.keypair_inv.generate_cs_multi_params(mpk),
-            invoice_sign: self.intermediary_keys.keypair_inv.get_public_key(mpk)
+            invoice_sign: self.intermediary_keys.keypair_inv.get_public_key(mpk),
         }
     }
 
@@ -148,7 +157,8 @@ impl<E: Engine> IntermediaryMerchant<E> {
     }
 }
 
-pub struct IntermediaryMerchantPublicKeys<E:Engine> {
+pub struct IntermediaryCustomerInfo<E:Engine> {
+    /// merchant public keys (general, commitment, signing)
     mpk: zkproofs::PublicParams<E>,
     invoice_commit: crypto::ped92::CSMultiParams<E>, 
     invoice_sign: crypto::cl::PublicKey<E>,
@@ -163,7 +173,7 @@ pub struct IntermediaryCustomer<E:Engine> {
     /// channel state information (public parameters, etc)
     pub channel_state: zkproofs::ChannelState<E>,
     /// merchant public keys 
-    merchant_keys: IntermediaryMerchantPublicKeys<E>
+    merchant_keys: IntermediaryCustomerInfo<E>
 }
 
 impl<E: Engine> IntermediaryCustomer<E> {
@@ -299,7 +309,7 @@ mod tests {
         let aux = original.to_aux_string();
         
         // convert back
-        let result = match Extensions::parse(&aux).unwrap() {
+        let result = match Extensions::parse(&aux, 0).unwrap() {
             Extensions::Intermediary(obj) => obj,
             _ => panic!("wrong extension type".to_string())
         };
@@ -315,7 +325,7 @@ mod tests {
         let aux = original.to_aux_string();
 
         // convert back
-        let result = match Extensions::parse(&aux).unwrap() {
+        let result = match Extensions::parse(&aux, 0).unwrap() {
             Extensions::Intermediary(obj) => obj,
             _ => panic!("wrong extension type".to_string())
         };
@@ -324,7 +334,3 @@ mod tests {
         compare_intermediaries(original, result);
     }
 }
-
-
-
-

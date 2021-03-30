@@ -21,7 +21,9 @@ mod tests{
 
     #[test]
     fn test_parse() {
-        let result = Extensions::<Bls12>::parse(&"{\"type\": \"spydermix\", \"amount\": 10, \"duration\": 7}".to_string());
+        let result = Extensions::<Bls12>::parse(
+            &"{\"type\": \"spydermix\", \"amount\": 10, \"duration\": 7}".to_string(),
+            0);
         assert!(result.is_some());
         match result.unwrap() {
             Extensions::Spydermix(obj) => {

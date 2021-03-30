@@ -23,14 +23,14 @@ pub enum Extensions<E: Engine> {
 }
 
 impl<'de, E: Engine> ExtensionInput<'de, E> for Extensions<E> {
-    fn parse(aux: &'de String) -> Option<Self> where
+    fn parse(aux: &'de String, payment_amount: i64) -> Option<Self> where
         <E as pairing::Engine>::G1: serde::Deserialize<'de>,
         <E as pairing::Engine>::G2: serde::Deserialize<'de>,
         <E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>,
     {
         match serde_json::from_str::<Extensions<E>>(aux.as_str()) {
             Ok(out) => {
-                out.init();
+                out.init(payment_amount);
                 Some(out)
             },
             Err(e) => {
@@ -42,10 +42,10 @@ impl<'de, E: Engine> ExtensionInput<'de, E> for Extensions<E> {
 }
 
 impl<E: Engine> ExtensionInit for Extensions<E> {
-    fn init(&self) {
+    fn init(&self, payment_amount: i64) {
         match self {
             Extensions::Intermediary(obj) => {
-                obj.init()
+                obj.init(payment_amount)
             }
             _ => {}
         }
