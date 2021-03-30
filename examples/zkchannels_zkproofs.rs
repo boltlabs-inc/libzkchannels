@@ -46,7 +46,7 @@ fn execute_pay_protocol(
         &session_id,
         nonce,
         amount,
-        String::from(""),
+        &String::from(""),
         merch_state
     ));
 
@@ -89,7 +89,7 @@ fn execute_pay_protocol(
 fn main() {
     println!("******************************************");
     let mut channel_state =
-        zkproofs::ChannelState::<Bls12>::new(String::from("Direct channel A -> B"), false);
+        zkproofs::ChannelState::<Bls12>::new(String::from("Direct channel A -> B"));
     let rng = &mut rand::thread_rng();
 
     let b0_customer = 150;

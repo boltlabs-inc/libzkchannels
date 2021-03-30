@@ -76,49 +76,64 @@ impl<E:Engine> Invoice<E> {
     }
 }
 
-/// Intermediary node; acts as a zkChannels merchant; can pass payments among its customers
-/// Holds extra key material for generating objects used in intermediary protocol
-pub struct IntermediaryMerchant<E: Engine> {
-    /// zkChannel merchant state
-    pub merch_state: zkproofs::MerchantState<E>,
+pub struct IntermediaryMerchantKeys<E: Engine> {
     /// merchant public parameters 
     mpk: zkproofs::PublicParams<E>,
     /// additional keys for handling anonymous credentials
     keypair_ac: crypto::cl::BlindKeyPair<E>,
     /// additional keys for handling invoices
     keypair_inv: crypto::cl::BlindKeyPair<E>,
+
+}
+
+/// Intermediary node; acts as a zkChannels merchant; can pass payments among its customers
+/// Holds extra key material for generating objects used in intermediary protocol
+pub struct IntermediaryMerchant<E: Engine> {
+    /// zkChannel merchant state
+    pub merch_state: zkproofs::MerchantState<E>,
+    /// channel state information (public parameters, etc)
+    pub channel_state: zkproofs::ChannelState<E>,
+    /// extra key information
+    intermediary_keys: IntermediaryMerchantKeys<E>,
 }
 
 impl<E: Engine> IntermediaryMerchant<E> {
     
     pub fn init<'a, R: Rng>(
         csprng: &mut R,
-        channel_state: &mut ChannelState<E>,
+        //channel_state: &mut ChannelState<E>,
         name: &'a str,
     ) -> (Self, ChannelToken<E>) {
+        let mut channel_state = zkproofs::ChannelState::<E>::new(String::from("an intermediary node"));
+
         let (channel_token, merch_state) =
-            zkproofs::merchant_init(csprng, channel_state, name);
+            zkproofs::merchant_init(csprng, &mut channel_state, name);
         
         // create additional keys used in intermediary protocol
         let mpk = channel_token.mpk.clone();
         let keypair_ac = crypto::cl::BlindKeyPair::<E>::generate(csprng, &mpk, 1);
         let keypair_inv = crypto::cl::BlindKeyPair::<E>::generate(csprng, &mpk, 3);
-        
-        (IntermediaryMerchant {
-            merch_state,
+        let intermediary_keys = IntermediaryMerchantKeys {
             mpk,
             keypair_ac,
             keypair_inv,
+        };
+        
+        (IntermediaryMerchant {
+            merch_state,
+            channel_state,
+            intermediary_keys,
         },
         channel_token)
     }
 
     /// produces the public key (generators) for the invoice keypair
     pub fn get_invoice_public_keys(&self) -> IntermediaryMerchantPublicKeys<E> {
+        let mpk = &self.intermediary_keys.mpk;
         IntermediaryMerchantPublicKeys {
-            mpk: self.mpk.clone(),
-            invoice_commit: self.keypair_inv.generate_cs_multi_params(&self.mpk),
-            invoice_sign: self.keypair_inv.get_public_key(&self.mpk)
+            mpk: mpk.clone(),
+            invoice_commit: self.intermediary_keys.keypair_inv.generate_cs_multi_params(mpk),
+            invoice_sign: self.intermediary_keys.keypair_inv.get_public_key(mpk)
         }
     }
 
@@ -129,7 +144,7 @@ impl<E: Engine> IntermediaryMerchant<E> {
         invoice: &Invoice<E>,
         rng: &mut R,
     ) -> zkproofs::Signature<E> {
-        self.keypair_inv.sign(rng, &invoice.as_fr())
+        self.intermediary_keys.keypair_inv.sign(rng, &invoice.as_fr())
     }
 }
 
@@ -145,6 +160,8 @@ pub struct IntermediaryMerchantPublicKeys<E:Engine> {
 pub struct IntermediaryCustomer<E:Engine> {
     /// holds the customer state
     pub cust_state: zkproofs::CustomerState<E>,
+    /// channel state information (public parameters, etc)
+    pub channel_state: zkproofs::ChannelState<E>,
     /// merchant public keys 
     merchant_keys: IntermediaryMerchantPublicKeys<E>
 }
@@ -169,6 +186,7 @@ impl<E: Engine> IntermediaryCustomer<E> {
 
         IntermediaryCustomer {
             cust_state,
+            channel_state: merch.channel_state.clone(),
             merchant_keys,
         }
         

@@ -97,11 +97,12 @@ pub mod ffishim {
         let bytes = unsafe { CStr::from_ptr(channel_name).to_bytes() };
         let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
 
+        // NOTE: this used to be a parameter to ChannelState, but that feature is now deprecated.
         let mut tps = false;
         if third_party_support > 1 {
             tps = true;
         }
-        let channel_state = zkproofs::ChannelState::<CURVE>::new(name.to_string(), tps);
+        let channel_state = zkproofs::ChannelState::<CURVE>::new(name.to_string());
 
         let ser = [
             "{\'channel_state\':\'",

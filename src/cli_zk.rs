@@ -1212,7 +1212,6 @@ mod merch {
                 let rng = &mut rand::thread_rng();
                 let mut channel_state = zkproofs::ChannelState::<Bls12>::new(
                     String::from("Direct channel A -> B"),
-                    false,
                 );
 
                 if tx_fee_info.bal_min_cust == 0 || tx_fee_info.bal_min_merch == 0 {

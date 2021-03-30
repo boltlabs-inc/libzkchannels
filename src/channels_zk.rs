@@ -81,8 +81,6 @@ pub struct ChannelState<E: Engine> {
     pub cp: Option<ChannelParams<E>>,
     pub name: String,
     pub pay_init: bool,
-    // pub channel_status: ChannelStatus,
-    pub third_party: bool,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -136,14 +134,13 @@ impl<E: Engine> ChannelToken<E> {
 /// Channel state for generating/loading channel parameters and generating keypairs
 ///
 impl<E: Engine> ChannelState<E> {
-    pub fn new(name: String, third_party_support: bool) -> ChannelState<E> {
+    pub fn new(name: String) -> ChannelState<E> {
         ChannelState {
             R: 0,
             tx_fee: 0,
             cp: None,
             name: name.to_string(),
             pay_init: false,
-            third_party: third_party_support,
         }
     }
 
@@ -444,7 +441,7 @@ impl<E: Engine> CustomerState<E> {
 
     pub fn unlink_verify_pay_token(
         &mut self,
-        channel: &mut ChannelState<E>,
+        channel: &ChannelState<E>,
         pay_token: &Signature<E>,
     ) -> bool {
         let verified = self.pay_unmask_customer(channel, pay_token);
@@ -938,7 +935,7 @@ mod tests {
 
     #[test]
     fn channel_util_works_with_Bls12() {
-        let mut channel = ChannelState::<Bls12>::new(String::from("Channel A <-> B"), false);
+        let mut channel = ChannelState::<Bls12>::new(String::from("Channel A <-> B"));
         let rng = &mut rand::thread_rng();
 
         let b0_cust = 100;
@@ -1022,7 +1019,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "pk_c is not initialized yet")]
     fn compute_channel_id_panics() {
-        let mut channel = ChannelState::<Bls12>::new(String::from("Channel A <-> B"), false);
+        let mut channel = ChannelState::<Bls12>::new(String::from("Channel A <-> B"));
         let rng = &mut rand::thread_rng();
 
         // initialize on the merchant side with balance: b0_merch
@@ -1037,7 +1034,7 @@ mod tests {
 
     #[test]
     fn channel_util_works_with_Bn256() {
-        let mut channel = ChannelState::<Bn256>::new(String::from("Channel A <-> B"), false);
+        let mut channel = ChannelState::<Bn256>::new(String::from("Channel A <-> B"));
         let rng = &mut rand::thread_rng();
 
         let b0_cust = 100;

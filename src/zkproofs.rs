@@ -221,7 +221,7 @@ pub mod activate {
     /// blinded signature to the wallet.
     ///
     pub fn customer_finalize<E: Engine>(
-        channel_state: &mut ChannelState<E>,
+        channel_state: &ChannelState<E>,
         cust_state: &mut CustomerState<E>,
         pay_token: cl::Signature<E>,
     ) -> bool {
@@ -299,7 +299,7 @@ pub mod unlink {
     }
 
     pub fn customer_finalize<E: Engine>(
-        channel_state: &mut ChannelState<E>,
+        channel_state: &ChannelState<E>,
         cust_state: &mut CustomerState<E>,
         pay_token: cl::Signature<E>,
     ) -> bool {
