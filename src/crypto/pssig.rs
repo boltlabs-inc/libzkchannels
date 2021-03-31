@@ -1,5 +1,5 @@
-// cl.rs
-// CL Sigs - Pointcheval Sanders ('06)
+// pssig.rs
+// PS Sigs - Pointcheval Sanders ('06)
 use super::*;
 use crypto::ped92::{CSMultiParams, Commitment};
 use ff::PrimeField;
@@ -39,12 +39,10 @@ impl<E: Engine> PublicParams<E> {
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
-                           <E as pairing::Engine>::G1: serde::Serialize, \
-                           <E as pairing::Engine>::G2: serde::Serialize"))]
+                           <E as pairing::Engine>::G1: serde::Serialize"))]
 #[serde(
     bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
-                         <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
-                         <E as pairing::Engine>::G2: serde::Deserialize<'de>")
+                         <E as pairing::Engine>::G1: serde::Deserialize<'de>")
 )]
 pub struct SecretKey<E: Engine> {
     pub x: E::Fr,

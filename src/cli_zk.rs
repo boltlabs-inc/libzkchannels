@@ -39,7 +39,7 @@ use std::thread::sleep;
 use std::time;
 use structopt::StructOpt;
 use zkchan_tx::fixed_size_array::FixedSizeArray16;
-use zkchannels::crypto::cl;
+use zkchannels::crypto::pssig;
 use zkchannels::database::create_db_connection;
 use zkchannels::database::{RedisDatabase, StateDatabase};
 use zkchannels::zkproofs;
@@ -762,7 +762,7 @@ mod cust {
         let msg2 = [handle_error_result!(serde_json::to_string(&init_state))];
         let msg3 = conn.send_and_wait(&msg2, None, false);
 
-        let init_close_token: cl::Signature<Bls12> =
+        let init_close_token: pssig::Signature<Bls12> =
             handle_error_result!(serde_json::from_str(&msg3.get(0).unwrap()));
         let got_close_token = true; // handle the serde_json unwrapping
 
@@ -839,7 +839,7 @@ mod cust {
         println!("Sending channel token and state (s0)");
         let msg2 = conn.send_and_wait(&msg1, None, false);
 
-        let pay_token: cl::Signature<Bls12> = serde_json::from_str(&msg2.get(0).unwrap()).unwrap();
+        let pay_token: pssig::Signature<Bls12> = serde_json::from_str(&msg2.get(0).unwrap()).unwrap();
         println!("Obtained pay token (p0): {}", pay_token);
         let res =
             zkproofs::activate::customer_finalize(&mut channel_state, &mut cust_state, pay_token);
@@ -1210,9 +1210,8 @@ mod merch {
             Err(_) => {
                 // create a new channel state and merchant state DB
                 let rng = &mut rand::thread_rng();
-                let mut channel_state = zkproofs::ChannelState::<Bls12>::new(
-                    String::from("Direct channel A -> B"),
-                );
+                let mut channel_state =
+                    zkproofs::ChannelState::<Bls12>::new(String::from("Direct channel A -> B"));
 
                 if tx_fee_info.bal_min_cust == 0 || tx_fee_info.bal_min_merch == 0 {
                     let s = format!("Dust limit must be greater than 0!");

@@ -1,5 +1,5 @@
 use super::*;
-use crypto::cl;
+use crypto::pssig;
 use pairing::Engine;
 use rand::Rng;
 use wallet;
@@ -14,11 +14,11 @@ pub use channels_zk::{
     BoltError, ChannelParams, ChannelState, ChannelToken, ChannelcloseM, CustomerState,
     MerchantState, ResultBoltType, RevLockPair,
 };
-pub use crypto::cl::PublicParams;
-pub use crypto::cl::{PartialProducts, PublicKey, Signature};
 pub use crypto::nizk::NIZKProof;
 pub use crypto::ped92::Commitment;
 pub use crypto::ped92::CommitmentProof;
+pub use crypto::pssig::PublicParams;
+pub use crypto::pssig::{PartialProducts, PublicKey, Signature};
 use serde::{Deserialize, Serialize};
 use util::{encode_short_bytes_to_fr, hash_to_slice};
 pub use wallet::{serialize_compact, Wallet};
@@ -70,7 +70,7 @@ impl fmt::Display for TransactionFeeInfo {
 pub struct ChannelcloseC<E: Engine> {
     pub rev_lock: FixedSizeArray32,
     pub message: wallet::Wallet<E>,
-    pub merch_signature: cl::Signature<E>,
+    pub merch_signature: pssig::Signature<E>,
     pub cust_signature: secp256k1::Signature,
     // pub pp: PartialProducts<E>, // for debug purposes
 }
@@ -154,7 +154,7 @@ pub fn validate_channel_params<R: Rng, E: Engine>(
     csprng: &mut R,
     init_state: &Wallet<E>,
     merch_state: &MerchantState<E>,
-) -> cl::Signature<E> {
+) -> pssig::Signature<E> {
     merch_state.issue_init_close_token(csprng, init_state)
 }
 
@@ -162,7 +162,7 @@ pub fn validate_channel_params<R: Rng, E: Engine>(
 /// customer_mark_open_channel() - changes channel status in customer state
 ///
 pub fn customer_mark_open_channel<E: Engine>(
-    init_close_token: cl::Signature<E>,
+    init_close_token: pssig::Signature<E>,
     channel_state: &mut ChannelState<E>,
     cust_state: &mut CustomerState<E>,
 ) -> Result<bool, BoltError> {
@@ -208,7 +208,7 @@ pub mod activate {
         csprng: &mut R,
         init_state: &Wallet<E>,
         merch_state: &mut MerchantState<E>,
-    ) -> cl::Signature<E> {
+    ) -> pssig::Signature<E> {
         merch_state
             .unlink_nonces
             .insert(init_state.nonce.to_string());
@@ -223,7 +223,7 @@ pub mod activate {
     pub fn customer_finalize<E: Engine>(
         channel_state: &ChannelState<E>,
         cust_state: &mut CustomerState<E>,
-        pay_token: cl::Signature<E>,
+        pay_token: pssig::Signature<E>,
     ) -> bool {
         // verify the pay-token first
         if !cust_state.verify_init_pay_token(&channel_state, pay_token) {
@@ -279,7 +279,7 @@ pub mod unlink {
         session_id: &[u8; 16],
         payment: &Payment<E>,
         merch_state: &mut MerchantState<E>,
-    ) -> BoltResult<cl::Signature<E>> {
+    ) -> BoltResult<pssig::Signature<E>> {
         if merch_state
             .unlink_nonces
             .contains(&encode_short_bytes_to_fr::<E>(payment.nonce.0).to_string())
@@ -301,7 +301,7 @@ pub mod unlink {
     pub fn customer_finalize<E: Engine>(
         channel_state: &ChannelState<E>,
         cust_state: &mut CustomerState<E>,
-        pay_token: cl::Signature<E>,
+        pay_token: pssig::Signature<E>,
     ) -> bool {
         // verify the pay-token
         if !cust_state.unlink_verify_pay_token(channel_state, &pay_token) {
@@ -372,7 +372,8 @@ pub mod pay {
         amount: i64,
         aux: &'de String,
         merch_state: &mut MerchantState<E>,
-    ) -> bool where
+    ) -> bool
+    where
         <E as pairing::Engine>::G1: serde::Deserialize<'de>,
         <E as pairing::Engine>::G2: serde::Deserialize<'de>,
         <E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>,
@@ -429,7 +430,7 @@ pub mod pay {
         _session_id: &[u8; 16],
         payment: &Payment<E>,
         merch_state: &mut MerchantState<E>,
-    ) -> cl::Signature<E> {
+    ) -> pssig::Signature<E> {
         // if payment proof verifies, then returns close-token and records wpk => pay-token
         // if valid revoke_token is provided later for wpk, then release pay-token
         let tx_fee = channel_state.get_channel_fee();
@@ -462,7 +463,7 @@ pub mod pay {
         sender_payment: &Payment<E>,
         receiver_payment: &Payment<E>,
         merch_state: &mut MerchantState<E>,
-    ) -> BoltResult<(cl::Signature<E>, cl::Signature<E>)> {
+    ) -> BoltResult<(pssig::Signature<E>, pssig::Signature<E>)> {
         let tx_fee = channel_state.get_channel_fee();
         let amount = sender_payment.amount + receiver_payment.amount;
         if amount != 0 {
@@ -510,7 +511,7 @@ pub mod pay {
         channel_state: &ChannelState<E>,
         old_cust_state: &mut CustomerState<E>,
         new_cust_state: CustomerState<E>,
-        new_close_token: &cl::Signature<E>,
+        new_close_token: &pssig::Signature<E>,
     ) -> ResultBoltType<RevLockPair> {
         // let's update the old wallet
         assert!(old_cust_state.update(new_cust_state));
@@ -534,7 +535,7 @@ pub mod pay {
         session_id: &[u8; 16],
         rt: &RevLockPair,
         merch_state: &mut MerchantState<E>,
-    ) -> BoltResult<(cl::Signature<E>, String)> {
+    ) -> BoltResult<(pssig::Signature<E>, String)> {
         if merch_state.keys.contains_key(&hex::encode(&rt.rev_lock))
             && merch_state.keys.get(&hex::encode(&rt.rev_lock)).unwrap() != ""
         {
@@ -556,9 +557,9 @@ pub mod pay {
         let ext_output = match ext {
             Some(ext_unwrapped) => match ext_unwrapped.output() {
                 Ok(ext_str) => ext_str,
-                Err(err) => return Err(err)
-            }
-            None => String::from("")
+                Err(err) => return Err(err),
+            },
+            None => String::from(""),
         };
         Ok(Some((new_pay_token, ext_output)))
     }
@@ -569,7 +570,7 @@ pub mod pay {
     /// output: success boolean
     ///
     pub fn customer_unmask_pay_token<E: Engine>(
-        pay_token: cl::Signature<E>,
+        pay_token: pssig::Signature<E>,
         channel_state: &ChannelState<E>,
         cust_state: &mut CustomerState<E>,
     ) -> Result<bool, String> {
@@ -586,7 +587,7 @@ pub mod pay {
         rt_sender: &RevLockPair,
         rt_receiver: &RevLockPair,
         merch_state: &mut MerchantState<E>,
-    ) -> BoltResult<(cl::Signature<E>, cl::Signature<E>)> {
+    ) -> BoltResult<(pssig::Signature<E>, pssig::Signature<E>)> {
         let pay_token_sender_result =
             merch_state.verify_revoke_message(&rt_sender.rev_lock, &rt_sender.rev_secret);
         let pay_token_receiver_result =

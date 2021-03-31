@@ -1,9 +1,10 @@
 use super::*;
 use channels_util::{ChannelStatus, ProtocolStatus};
-use crypto::cl::{BlindKeyPair, Signature};
 use crypto::nizk::{NIZKProof, NIZKPublicParams, NIZKSecretParams};
-use pairing::Engine;
 use crypto::ped92::{CSMultiParams, Commitment};
+use crypto::pssig::{BlindKeyPair, Signature};
+use extensions::extension::Extensions;
+use pairing::Engine;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -14,7 +15,6 @@ use util::{
 };
 use wallet::Wallet;
 use zkchan_tx::fixed_size_array::FixedSizeArray16;
-use extensions::extension::Extensions;
 use zkproofs::PublicParams;
 
 #[derive(Debug)]
@@ -97,9 +97,9 @@ pub struct ChannelToken<E: Engine> {
     // pk_c
     pub pk_m: secp256k1::PublicKey,
     // pk_m
-    pub cl_pk_m: crypto::cl::PublicKey<E>,
+    pub cl_pk_m: crypto::pssig::PublicKey<E>,
     // PK_m (used for verifying blind signatures)
-    pub mpk: crypto::cl::PublicParams<E>,
+    pub mpk: crypto::pssig::PublicParams<E>,
     // mpk for PK_m
     pub comParams: CSMultiParams<E>,
 }
@@ -147,7 +147,11 @@ impl<E: Engine> ChannelState<E> {
     ///
     /// keygen - takes as input public parameters and generates a digital signature keypair
     ///
-    pub fn keygen<R: Rng>(&mut self, csprng: &mut R, _id: String) -> crypto::cl::BlindKeyPair<E> {
+    pub fn keygen<R: Rng>(
+        &mut self,
+        csprng: &mut R,
+        _id: String,
+    ) -> crypto::pssig::BlindKeyPair<E> {
         let cp = self.cp.as_ref();
         let keypair =
             BlindKeyPair::<E>::generate(csprng, &cp.unwrap().pub_params.mpk, cp.unwrap().l);
@@ -351,7 +355,7 @@ impl<E: Engine> CustomerState<E> {
         return pk_h;
     }
 
-    pub fn get_close_token(&self) -> crypto::cl::Signature<E> {
+    pub fn get_close_token(&self) -> crypto::pssig::Signature<E> {
         let index = self.index;
         let close_token = self.close_tokens.get(&index).unwrap();
         // rerandomize first
@@ -721,7 +725,7 @@ pub struct ChannelcloseM {
 )]
 pub struct MerchantState<E: Engine> {
     id: String,
-    keypair: crypto::cl::BlindKeyPair<E>,
+    keypair: crypto::pssig::BlindKeyPair<E>,
     nizkParams: NIZKSecretParams<E>,
     pk: secp256k1::PublicKey,
     // pk_m
@@ -731,7 +735,7 @@ pub struct MerchantState<E: Engine> {
     pub keys: HashMap<String, String>,
     pub unlink_nonces: HashSet<String>,
     pub spent_nonces: HashSet<String>,
-    pub pay_tokens: HashMap<String, crypto::cl::Signature<E>>,
+    pub pay_tokens: HashMap<String, crypto::pssig::Signature<E>>,
     extensions: HashMap<String, Extensions<E>>,
     //pub intermediary: Option<Intermediary<E>>,
 }
@@ -741,22 +745,18 @@ pub struct MerchantState<E: Engine> {
                            <E as pairing::Engine>::G1: serde::Serialize, \
                            <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(
-bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+    bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G2: serde::Deserialize<'de>")
 )]
 pub struct Intermediary<E: Engine> {
     pub mpk: PublicParams<E>,
-    pub keypair_ac: crypto::cl::BlindKeyPair<E>,
-    pub keypair_inv: crypto::cl::BlindKeyPair<E>,
+    pub keypair_ac: crypto::pssig::BlindKeyPair<E>,
+    pub keypair_inv: crypto::pssig::BlindKeyPair<E>,
 }
 
 impl<E: Engine> MerchantState<E> {
-    pub fn new<R: Rng>(
-        csprng: &mut R,
-        channel: &mut ChannelState<E>,
-        id: String,
-    ) -> Self { 
+    pub fn new<R: Rng>(csprng: &mut R, channel: &mut ChannelState<E>, id: String) -> Self {
         let l = 5;
         // generate keys
         let secp = secp256k1::Secp256k1::new();
@@ -943,7 +943,7 @@ mod tests {
         // each party executes the init algorithm on the agreed initial challenge balance
         // in order to derive the channel tokens
         // initialize on the merchant side with balance: b0_merch
-        let mut merch_state = 
+        let mut merch_state =
             MerchantState::<Bls12>::new(rng, &mut channel, String::from("Merchant B"));
 
         // initialize the merchant wallet with the balance
@@ -1023,7 +1023,7 @@ mod tests {
         let rng = &mut rand::thread_rng();
 
         // initialize on the merchant side with balance: b0_merch
-        let mut merch_state = 
+        let mut merch_state =
             MerchantState::<Bls12>::new(rng, &mut channel, String::from("Merchant B"));
 
         // initialize the merchant wallet with the balance

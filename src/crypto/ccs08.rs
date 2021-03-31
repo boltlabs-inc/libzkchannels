@@ -6,12 +6,12 @@ Asiacrypt 2008
 */
 
 use super::*;
-use crypto::cl::{
+use crypto::ped92::{CSMultiParams, Commitment};
+use crypto::pssig::{
     setup, BlindKeyPair, BlindPublicKey, ProofState, PublicParams, Signature, SignatureProof,
 };
 use ff::PrimeField;
 use pairing::{CurveProjective, Engine};
-use crypto::ped92::{CSMultiParams, Commitment};
 use rand::Rng;
 use std::collections::HashMap;
 

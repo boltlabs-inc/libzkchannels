@@ -1,9 +1,9 @@
 use super::*;
-use crypto::ccs08::{ParamsUL, ProofUL, SecretParamsUL};
 use channels_zk::ClosedCommitments;
-use crypto::cl::{setup, BlindKeyPair, BlindPublicKey, PublicParams, Signature, SignatureProof};
-use pairing::{CurveProjective, Engine};
+use crypto::ccs08::{ParamsUL, ProofUL, SecretParamsUL};
 use crypto::ped92::{CSMultiParams, Commitment, CommitmentProof};
+use crypto::pssig::{setup, BlindKeyPair, BlindPublicKey, PublicParams, Signature, SignatureProof};
+use pairing::{CurveProjective, Engine};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use util;

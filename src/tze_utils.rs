@@ -1,10 +1,10 @@
 // Useful routines that simplify the Bolt TZE implementation for Zcash
 pub use channels_zk::ChannelToken;
 use channels_zk::ChannelcloseM;
-use crypto::cl;
-pub use crypto::cl::Signature;
-use pairing::bls12_381::Bls12;
 use crypto::ped92::CSMultiParams;
+use crypto::pssig;
+pub use crypto::pssig::Signature;
+use pairing::bls12_381::Bls12;
 pub use wallet::Wallet;
 use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
 use {util, BoltResult};
@@ -43,7 +43,7 @@ pub fn reconstruct_close_wallet_bls12(
     };
 }
 
-pub fn reconstruct_signature_bls12(sig: &Vec<u8>) -> BoltResult<cl::Signature<Bls12>> {
+pub fn reconstruct_signature_bls12(sig: &Vec<u8>) -> BoltResult<pssig::Signature<Bls12>> {
     if (sig.len() != BLS12_381_G1_LEN * 2) {
         return Err(String::from("signature has invalid length"));
     }
@@ -60,7 +60,7 @@ pub fn reconstruct_signature_bls12(sig: &Vec<u8>) -> BoltResult<cl::Signature<Bl
     let str_cl_H = util::encode_as_hexstring(&ser_cl_H);
     let H = str_cl_H.as_bytes();
 
-    let cl_sig = cl::Signature::<Bls12>::from_slice(&h, &H);
+    let cl_sig = pssig::Signature::<Bls12>::from_slice(&h, &H);
 
     Ok(Some(cl_sig))
 }
@@ -97,7 +97,8 @@ pub fn reconstruct_channel_token_bls12(channel_token: &Vec<u8>) -> BoltResult<Ch
         let str_cl_y = ser_cl_y.as_bytes();
         Y.extend(str_cl_y);
     }
-    let cl_pk = cl::PublicKey::<Bls12>::from_slice(&X, &Y.as_slice(), str_cl_x.len(), num_y_elems);
+    let cl_pk =
+        pssig::PublicKey::<Bls12>::from_slice(&X, &Y.as_slice(), str_cl_x.len(), num_y_elems);
 
     cur_index = end_index;
     end_index += BLS12_381_G1_LEN;
@@ -112,7 +113,7 @@ pub fn reconstruct_channel_token_bls12(channel_token: &Vec<u8>) -> BoltResult<Ch
     let ser_g1 = ser_mpk_g1.as_bytes();
     let ser_g2 = ser_mpk_g2.as_bytes();
 
-    let mpk = cl::PublicParams::<Bls12>::from_slice(&ser_g1, &ser_g2);
+    let mpk = pssig::PublicParams::<Bls12>::from_slice(&ser_g1, &ser_g2);
 
     let mut comparams = Vec::new();
     for _ in 0..num_com_params {
@@ -143,7 +144,7 @@ pub fn reconstruct_channel_token_bls12(channel_token: &Vec<u8>) -> BoltResult<Ch
 //     channel_token: &ChannelToken<Bls12>,
 //     wpk: &secp256k1::PublicKey,
 //     close_msg: &Wallet<Bls12>,
-//     close_token: &cl::Signature<Bls12>,
+//     close_token: &pssig::Signature<Bls12>,
 // ) -> bool {
 //     // close_msg => <pkc> || <wpk> || <balance-cust> || <balance-merch> || CLOSE
 //     // close_token = regular CL signature on close_msg
