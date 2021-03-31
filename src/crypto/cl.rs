@@ -1,9 +1,9 @@
 // cl.rs
 // CL Sigs - Pointcheval Sanders ('06)
 use super::*;
+use crypto::ped92::{CSMultiParams, Commitment};
 use ff::PrimeField;
 use pairing::{CurveProjective, Engine};
-use crypto::ped92::{CSMultiParams, Commitment};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use util;
@@ -38,9 +38,18 @@ impl<E: Engine> PublicParams<E> {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
+                           <E as pairing::Engine>::G1: serde::Serialize, \
+                           <E as pairing::Engine>::G2: serde::Serialize"))]
+#[serde(
+    bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+                         <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+                         <E as pairing::Engine>::G2: serde::Deserialize<'de>")
+)]
 pub struct SecretKey<E: Engine> {
     pub x: E::Fr,
     pub y: Vec<E::Fr>,
+    pub X: E::G1,
 }
 
 impl<E: Engine> fmt::Display for SecretKey<E> {
@@ -275,17 +284,17 @@ pub struct SignatureProof<E: Engine> {
 }
 
 impl<E: Engine> SecretKey<E> {
-    pub fn generate<R: Rng>(csprng: &mut R, l: usize) -> Self {
+    pub fn generate<R: Rng>(csprng: &mut R, mpk: &PublicParams<E>, l: usize) -> Self {
         let mut y: Vec<E::Fr> = Vec::new();
         for _i in 0..l {
             let _y = E::Fr::rand(csprng);
             y.push(_y);
         }
-
-        SecretKey {
-            x: E::Fr::rand(csprng),
-            y: y,
-        }
+        let x = E::Fr::rand(csprng);
+        // X1 = g1 ^ x
+        let mut X = mpk.g1;
+        X.mul_assign(x.clone());
+        SecretKey { x: x, y: y, X: X }
     }
 
     pub fn sign<R: Rng>(&self, csprng: &mut R, message: &Vec<E::Fr>) -> Signature<E> {
@@ -640,7 +649,7 @@ pub fn setup<R: Rng, E: Engine>(csprng: &mut R) -> PublicParams<E> {
 ///
 impl<E: Engine> KeyPair<E> {
     pub fn generate<R: Rng>(csprng: &mut R, mpk: &PublicParams<E>, l: usize) -> Self {
-        let secret = SecretKey::generate(csprng, l);
+        let secret = SecretKey::generate(csprng, mpk, l);
         let public = PublicKey::from_secret(mpk, &secret);
         KeyPair { secret, public }
     }
@@ -666,7 +675,7 @@ impl<E: Engine> KeyPair<E> {
 impl<E: Engine> BlindKeyPair<E> {
     /// generate public/private keypair given public params and size of vectors
     pub fn generate<R: Rng>(csprng: &mut R, mpk: &PublicParams<E>, l: usize) -> Self {
-        let secret = SecretKey::generate(csprng, l);
+        let secret = SecretKey::generate(csprng, mpk, l);
         let public = BlindPublicKey::from_secret(mpk, &secret);
         BlindKeyPair { secret, public }
     }
@@ -716,9 +725,7 @@ impl<E: Engine> BlindKeyPair<E> {
         h1.mul_assign(u); // g1 ^ u
 
         let com1 = com.c.clone();
-        // X1 = g1 ^ x
-        let mut H1 = mpk.g1;
-        H1.mul_assign(self.secret.x);
+        let mut H1 = self.secret.X.clone();
         H1.add_assign(&com1); // (X * com)
         H1.mul_assign(u); // (X * com) ^ u (blinding factor)
 
@@ -761,8 +768,8 @@ mod tests {
     };
     use rand::SeedableRng;
     use rand_xorshift::XorShiftRng;
-    use util::convert_str_to_fr;
     use std::collections::HashMap;
+    use util::convert_str_to_fr;
 
     #[test]
     fn sign_and_verify() {
