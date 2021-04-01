@@ -322,11 +322,11 @@ impl<E: Engine> IntermediaryCustomer<E> {
 
         // PoK: prover knows the opening of the commitment
         // and reveals the invoice amount and nonce
-        let proof_state_ac = self.intermediary_keys.pub_key_ac.prove_commitment(rng, &self.intermediary_keys.mpk, &self.merch_ac.clone().unwrap(), None, None);
-        let proof_state_inv = self.intermediary_keys.pub_key_inv.prove_commitment(rng, &self.intermediary_keys.mpk, invoice_sig, None, None); //TODO: reuse t for merch_id
-        let challenge = Self::fs_challenge(&self.intermediary_keys.mpk, proof_state_ac.a, proof_state_inv.a);
-        let proof1 = self.intermediary_keys.pub_key_ac.prove_response(&proof_state_ac, challenge, &mut vec![self.merch_id.unwrap()]);
-        let proof2 = self.intermediary_keys.pub_key_inv.prove_response(&proof_state_inv, challenge, &mut message);
+        let proof_state_inv = self.intermediary_keys.pub_key_inv.prove_commitment(rng, &self.intermediary_keys.mpk, invoice_sig, None, None);
+        let proof_state_ac = self.intermediary_keys.pub_key_ac.prove_commitment(rng, &self.intermediary_keys.mpk, &self.merch_ac.clone().unwrap(), Some(vec![proof_state_inv.t[2]]), None);
+        let challenge = Self::fs_challenge(&self.intermediary_keys.mpk, proof_state_inv.a, proof_state_ac.a);
+        let proof1 = self.intermediary_keys.pub_key_inv.prove_response(&proof_state_inv, challenge, &mut message);
+        let proof2 = self.intermediary_keys.pub_key_ac.prove_response(&proof_state_ac, challenge, &mut vec![self.merch_id.unwrap()]);
 
         Intermediary {
             invoice: invoice_commit,
