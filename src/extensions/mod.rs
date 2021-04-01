@@ -12,10 +12,7 @@ pub trait ExtensionInput<'de, E: Engine> {
     <E as pairing::Engine>::Fqk: serde::Deserialize<'de>,;
 }
 
-pub trait ExtensionInit {
-    fn init(&self, payment_amount: i64);
-}
-
-pub trait ExtensionOutput {
+pub trait ExtensionTrait {
+    fn init(&self, payment_amount: i64) -> Result<(), String>;
     fn output(&self) -> Result<String, String>;
 }

@@ -1,5 +1,4 @@
 use super::*;
-use extensions::ExtensionOutput;
 use extensions::spydermix::Spydermix;
 use extensions::intermediary::Intermediary;
 use pairing::Engine;
@@ -21,7 +20,7 @@ pub enum Extensions<E: Engine> {
     Spydermix(Spydermix),
     #[serde(rename = "intermediary")]
     Intermediary(Intermediary<E>),
-    Default
+    Default,
 }
 
 impl<'de, E: Engine> ExtensionInput<'de, E> for Extensions<E> {
@@ -33,7 +32,6 @@ impl<'de, E: Engine> ExtensionInput<'de, E> for Extensions<E> {
     {
         match serde_json::from_str::<Extensions<E>>(aux.as_str()) {
             Ok(out) => {
-                out.init(payment_amount);
                 Some(out)
             },
             Err(e) => {
@@ -44,18 +42,16 @@ impl<'de, E: Engine> ExtensionInput<'de, E> for Extensions<E> {
     }
 }
 
-impl<E: Engine> ExtensionInit for Extensions<E> {
-    fn init(&self, payment_amount: i64) {
+impl<E: Engine> ExtensionTrait for Extensions<E> {
+    fn init(&self, payment_amount: i64) -> Result<(), String> {
         match self {
             Extensions::Intermediary(obj) => {
                 obj.init(payment_amount)
             }
-            _ => {}
+            _ => { Ok(()) }
         }
     }
-}
 
-impl<E: Engine> ExtensionOutput for Extensions<E> {
     fn output(&self) -> Result<String, String> {
         match self {
             Extensions::Spydermix(obj) => {

@@ -1,13 +1,13 @@
 use super::*;
 use crypto;
-use extensions::ExtensionOutput;
 use pairing::Engine;
-use rand::Rng;
+use rand::{Rng, thread_rng};
 use util;
 use zkproofs;
 use zkproofs::{ChannelState, ChannelToken, Commitment, CommitmentProof};
 use ff::Rand;
 use crypto::pssig::{Signature, SignatureProof, PublicParams};
+use crypto::ped92::CSMultiParams;
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
@@ -40,7 +40,9 @@ impl<E: Engine> Intermediary<E> {
         String::from(
             "{\"type\": \"intermediary\", \"invoice\": ".to_owned()
                 + serde_json::to_string(&self.invoice).unwrap().as_str()
-                + ", \"proof\": "
+                + ", \"inv_proof\": "
+                + serde_json::to_string(&self.inv_proof).unwrap().as_str()
+                + ", \"claim_proof\": "
                 + serde_json::to_string(&self.claim_proof).unwrap().as_str()
                 + ", \"nonce\": "
                 + serde_json::to_string(&self.nonce).unwrap().as_str()
@@ -49,24 +51,32 @@ impl<E: Engine> Intermediary<E> {
     }
 }
 
-impl<E: Engine> ExtensionInit for Intermediary<E> {
-    fn init(&self, payment_amount: i64) {
+impl<E: Engine> ExtensionTrait for Intermediary<E> {
+    fn init(&self, payment_amount: i64) -> Result<(), String> {
         match self.nonce {
             None => {
+                // let proof = self.inv_proof.unwrap();
+                // let xvec: Vec<E::G1> = vec![proof.T.clone(), self.invoice.c];
+                // let challenge = util::hash_g1_to_fr::<E>(&xvec);
+                // let com_params = CSMultiParams::setup_gen_params(&mut thread_rng(), 3);
+                // if proof.verify_proof(&com_params, &self.invoice, challenge, None) { //TODO: reveal option for amount
+                //     Ok(())
+                // } else {
+                //     Err("could not verify proof".to_string())
+                // }
                 // check payment invoice
+                Ok(())
             }
             Some(n) => {
+                Ok(())
                 // check redemption invoice
             }
         }
     }
-}
 
-impl<E: Engine> ExtensionOutput for Intermediary<E> {
     /// Returns blind signature on invoice commitment
     fn output(&self) -> Result<String, String> {
         Ok("This is a valid blind signature!".to_string())
-        // unimplemented!()
     }
 }
 

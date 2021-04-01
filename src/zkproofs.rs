@@ -316,7 +316,7 @@ pub mod unlink {
 pub mod pay {
     use super::*;
     use extensions::extension::Extensions;
-    use extensions::{ExtensionInput, ExtensionOutput};
+    use extensions::{ExtensionTrait, ExtensionInput};
 
     ///
     /// pay::customer_prepare() - takes as input an rng, the channel state, the payment amount, and the customer state.

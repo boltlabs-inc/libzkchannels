@@ -1,5 +1,4 @@
 use super::*;
-use extensions::ExtensionOutput;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Spydermix {
@@ -7,7 +6,8 @@ pub struct Spydermix {
     duration: u64,
 }
 
-impl ExtensionOutput for Spydermix {
+impl ExtensionTrait for Spydermix {
+    fn init(&self, _payment_amount: i64)  -> Result<(), String> { unimplemented!() }
     fn output(&self) -> Result<String, String> {
         unimplemented!()
     }
