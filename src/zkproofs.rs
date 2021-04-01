@@ -377,6 +377,7 @@ pub mod pay {
         <E as pairing::Engine>::G1: serde::Deserialize<'de>,
         <E as pairing::Engine>::G2: serde::Deserialize<'de>,
         <E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>,
+        <E as pairing::Engine>::Fqk: serde::Deserialize<'de>,
     {
         match Extensions::parse(aux, amount) {
             Some(ext) => merch_state.store_ext(FixedSizeArray16(*session_id), ext),

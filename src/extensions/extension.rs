@@ -7,11 +7,13 @@ use pairing::Engine;
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
                            <E as pairing::Engine>::G1: serde::Serialize, \
-                           <E as pairing::Engine>::G2: serde::Serialize"))]
+                           <E as pairing::Engine>::G2: serde::Serialize, \
+                           <E as pairing::Engine>::Fqk: serde::Serialize"))]
 #[serde(
 bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
-                         <E as pairing::Engine>::G2: serde::Deserialize<'de>")
+                         <E as pairing::Engine>::G2: serde::Deserialize<'de>, \
+                         <E as pairing::Engine>::Fqk: serde::Deserialize<'de>")
 )]
 #[serde(tag = "type")]
 pub enum Extensions<E: Engine> {
@@ -27,6 +29,7 @@ impl<'de, E: Engine> ExtensionInput<'de, E> for Extensions<E> {
         <E as pairing::Engine>::G1: serde::Deserialize<'de>,
         <E as pairing::Engine>::G2: serde::Deserialize<'de>,
         <E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>,
+        <E as pairing::Engine>::Fqk: serde::Deserialize<'de>,
     {
         match serde_json::from_str::<Extensions<E>>(aux.as_str()) {
             Ok(out) => {

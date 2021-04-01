@@ -692,19 +692,25 @@ mod tests {
         let mut alice = intermediary::IntermediaryCustomer::init(
             rng,
             &mut channel_token,
-            &int_merch,
+            int_merch.get_invoice_public_keys(),
+            int_merch.channel_state.clone(),
             b0_alice,
             b0_merch_a,
             "Alice",
+            false,
         );
         let mut bob = intermediary::IntermediaryCustomer::init(
             rng,
             &mut channel_token,
-            &int_merch,
+            int_merch.get_invoice_public_keys(),
+            int_merch.channel_state.clone(),
             b0_bob,
             b0_merch_b,
             "Bob",
+            true,
         );
+        let ac = int_merch.register_merchant(rng, bob.merch_id.unwrap());
+        bob.merch_ac = Some(ac);
 
         // Establish channels between the two customers and the intermediary
         execute_establish_protocol_helper(
@@ -747,10 +753,10 @@ mod tests {
         let unblinded_sig = int_merch.sign_invoice(&invoice, rng);
 
         // BOB verifies signature
-        assert!(bob.validate_invoice_signature(&invoice, unblinded_sig));
+        assert!(bob.validate_invoice_signature(&invoice, unblinded_sig.clone()));
 
         // BOB commits to invoice and makes PoK
-        let redemption_invoice = bob.prepare_redemption_invoice(&invoice, rng);
+        let redemption_invoice = bob.prepare_redemption_invoice(&invoice, &unblinded_sig.clone(), rng);
 
         // BOB initializes pay with INT, passing commit and PoK as aux
         // and receiving no aux output

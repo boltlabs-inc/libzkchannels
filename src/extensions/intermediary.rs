@@ -6,37 +6,42 @@ use rand::Rng;
 use util;
 use zkproofs;
 use zkproofs::{ChannelState, ChannelToken, Commitment, CommitmentProof};
+use ff::Rand;
+use crypto::pssig::{Signature, SignatureProof, PublicParams};
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
                            <E as pairing::Engine>::G1: serde::Serialize, \
-                           <E as pairing::Engine>::G2: serde::Serialize"))]
+                           <E as pairing::Engine>::G2: serde::Serialize, \
+                           <E as pairing::Engine>::Fqk: serde::Serialize"))]
 #[serde(
-    bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
                          <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
-                         <E as pairing::Engine>::G2: serde::Deserialize<'de>")
+                         <E as pairing::Engine>::G2: serde::Deserialize<'de>, \
+                         <E as pairing::Engine>::Fqk: serde::Deserialize<'de>")
 )]
-
 /// Auxiliary intermediary information
 /// (passed as input and output to pay functionality)
 pub struct Intermediary<E: Engine> {
     invoice: Commitment<E>,
-    proof: CommitmentProof<E>,
+    inv_proof: Option<CommitmentProof<E>>,
+    claim_proof: Option<(SignatureProof<E>, SignatureProof<E>)>,
     nonce: Option<E::Fr>,
 }
 
 impl<E: Engine> Intermediary<E> {
     pub fn to_aux_string(&self) -> String
-    where
-        <E as pairing::Engine>::G1: serde::Serialize,
-        <E as pairing::Engine>::G2: serde::Serialize,
-        <E as ff::ScalarEngine>::Fr: serde::Serialize,
+        where
+            <E as pairing::Engine>::G1: serde::Serialize,
+            <E as pairing::Engine>::G2: serde::Serialize,
+            <E as ff::ScalarEngine>::Fr: serde::Serialize,
+            <E as pairing::Engine>::Fqk: serde::Serialize,
     {
         String::from(
             "{\"type\": \"intermediary\", \"invoice\": ".to_owned()
                 + serde_json::to_string(&self.invoice).unwrap().as_str()
                 + ", \"proof\": "
-                + serde_json::to_string(&self.proof).unwrap().as_str()
+                + serde_json::to_string(&self.claim_proof).unwrap().as_str()
                 + ", \"nonce\": "
                 + serde_json::to_string(&self.nonce).unwrap().as_str()
                 + "}",
@@ -143,6 +148,15 @@ impl<E: Engine> IntermediaryMerchant<E> {
         )
     }
 
+    /// registers a merchant with the intermediary given a merchant id
+    pub fn register_merchant<R: Rng>(&self,
+                                     rng: &mut R,
+                                     id: E::Fr,
+    ) -> crypto::pssig::Signature<E> {
+        //TODO: merchant verification?
+        self.intermediary_keys.keypair_ac.secret.sign(rng, &vec![id])
+    }
+
     /// produces the public key (generators) for the invoice keypair
     pub fn get_invoice_public_keys(&self) -> IntermediaryCustomerInfo<E> {
         let mpk = &self.intermediary_keys.mpk;
@@ -152,7 +166,8 @@ impl<E: Engine> IntermediaryMerchant<E> {
                 .intermediary_keys
                 .keypair_inv
                 .generate_cs_multi_params(mpk),
-            invoice_sign: self.intermediary_keys.keypair_inv.get_public_key(mpk),
+            pub_key_inv: self.intermediary_keys.keypair_inv.public.clone(),
+            pub_key_ac: self.intermediary_keys.keypair_ac.public.clone(),
         }
     }
 
@@ -173,7 +188,8 @@ pub struct IntermediaryCustomerInfo<E: Engine> {
     /// merchant public keys (general, commitment, signing)
     mpk: zkproofs::PublicParams<E>,
     invoice_commit: crypto::ped92::CSMultiParams<E>,
-    invoice_sign: crypto::pssig::PublicKey<E>,
+    pub_key_inv: crypto::pssig::BlindPublicKey<E>,
+    pub_key_ac: crypto::pssig::BlindPublicKey<E>,
 }
 
 /// Intermediary customer; acts as a zkChannels customer
@@ -184,32 +200,44 @@ pub struct IntermediaryCustomer<E: Engine> {
     pub cust_state: zkproofs::CustomerState<E>,
     /// channel state information (public parameters, etc)
     pub channel_state: zkproofs::ChannelState<E>,
+    /// Merchant id if this is indeed a merchant in the intermediary setting
+    pub merch_id: Option<E::Fr>,
+    /// Merchant anonymous credential if this is indeed a merchant in the intermediary setting
+    pub merch_ac: Option<crypto::pssig::Signature<E>>,
     /// merchant public keys
-    merchant_keys: IntermediaryCustomerInfo<E>,
+    intermediary_keys: IntermediaryCustomerInfo<E>,
 }
 
 impl<E: Engine> IntermediaryCustomer<E> {
     pub fn init<'a, R: Rng>(
         csprng: &mut R,
         channel_token: &mut ChannelToken<E>,
-        merch: &IntermediaryMerchant<E>,
+        intermediary_keys: IntermediaryCustomerInfo<E>,
+        channel_state: ChannelState<E>,
         cust_balance: i64,
         merch_balance: i64,
         name: &'a str,
+        is_merchant: bool,
     ) -> Self
-    where
-        <E as pairing::Engine>::G1: serde::Serialize,
-        <E as pairing::Engine>::G2: serde::Serialize,
-        <E as ff::ScalarEngine>::Fr: serde::Serialize,
+        where
+            <E as pairing::Engine>::G1: serde::Serialize,
+            <E as pairing::Engine>::G2: serde::Serialize,
+            <E as ff::ScalarEngine>::Fr: serde::Serialize,
     {
         let cust_state =
             zkproofs::customer_init(csprng, channel_token, cust_balance, merch_balance, name);
-        let merchant_keys = merch.get_invoice_public_keys();
+        let merch_id = if is_merchant {
+            Some(E::Fr::rand(csprng))
+        } else {
+            None
+        };
 
         IntermediaryCustomer {
             cust_state,
-            channel_state: merch.channel_state.clone(),
-            merchant_keys,
+            channel_state: channel_state.clone(),
+            merch_id,
+            merch_ac: None,
+            intermediary_keys,
         }
     }
 
@@ -222,7 +250,7 @@ impl<E: Engine> IntermediaryCustomer<E> {
     ) -> Intermediary<E> {
         let r = util::convert_int_to_fr::<E>(rng.gen());
         let message = invoice.as_fr();
-        let commit_key = &self.merchant_keys.invoice_commit;
+        let commit_key = &self.intermediary_keys.invoice_commit;
         let invoice_commit = commit_key.commit(&message, &r);
 
         // PoK: prover knows the opening of the commitment
@@ -231,36 +259,79 @@ impl<E: Engine> IntermediaryCustomer<E> {
             CommitmentProof::new(rng, commit_key, &invoice_commit.c, &message, &r, &vec![0]);
         Intermediary {
             invoice: invoice_commit,
-            proof,
+            inv_proof: Some(proof),
+            claim_proof: None,
             nonce: None,
         }
+    }
+
+    fn fs_challenge(mpk: &PublicParams<E>, a1: E::Fqk, a2: E::Fqk) -> E::Fr
+        where
+            <E as pairing::Engine>::G1: serde::Serialize,
+            <E as pairing::Engine>::G2: serde::Serialize,
+            <E as pairing::Engine>::Fqk: serde::Serialize,
+    {
+        let mut transcript: Vec<u8> = Vec::new();
+        transcript.extend(
+            serde_json::to_value(&mpk.g1)
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .bytes(),
+        );
+        transcript.extend(
+            serde_json::to_value(&mpk.g2)
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .bytes(),
+        );
+        transcript.extend(
+            serde_json::to_value(&a1)
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .bytes(),
+        );
+        transcript.extend(
+            serde_json::to_value(&a2)
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .bytes(),
+        );
+
+        util::hash_to_fr::<E>(transcript)
     }
 
     pub fn prepare_redemption_invoice<R: Rng>(
         &self,
         invoice: &Invoice<E>,
+        invoice_sig: &Signature<E>,
         rng: &mut R,
-    ) -> Intermediary<E> {
+    ) -> Intermediary<E>
+        where
+            <E as pairing::Engine>::G1: serde::Serialize,
+            <E as pairing::Engine>::G2: serde::Serialize,
+            <E as pairing::Engine>::Fqk: serde::Serialize,
+    {
         let r = util::convert_int_to_fr::<E>(rng.gen());
-        let commit_key = &self.merchant_keys.invoice_commit;
-        let message = invoice.as_fr();
+        let commit_key = &self.intermediary_keys.invoice_commit;
+        let mut message = invoice.as_fr();
         let invoice_commit = commit_key.commit(&message, &r);
 
         // PoK: prover knows the opening of the commitment
         // and reveals the invoice amount and nonce
-        // TODO: and the prover has a valid credential for the provider_id
-        // TODO: and the prover has a merchant signature on the opening of the commitment
-        let proof = CommitmentProof::new(
-            rng,
-            commit_key,
-            &invoice_commit.c,
-            &message,
-            &r,
-            &vec![0, 1],
-        );
+        let proof_state_ac = self.intermediary_keys.pub_key_ac.prove_commitment(rng, &self.intermediary_keys.mpk, &self.merch_ac.clone().unwrap(), None, None);
+        let proof_state_inv = self.intermediary_keys.pub_key_inv.prove_commitment(rng, &self.intermediary_keys.mpk, invoice_sig, None, None); //TODO: reuse t for merch_id
+        let challenge = Self::fs_challenge(&self.intermediary_keys.mpk, proof_state_ac.a, proof_state_inv.a);
+        let proof1 = self.intermediary_keys.pub_key_ac.prove_response(&proof_state_ac, challenge, &mut vec![self.merch_id.unwrap()]);
+        let proof2 = self.intermediary_keys.pub_key_inv.prove_response(&proof_state_inv, challenge, &mut message);
+
         Intermediary {
             invoice: invoice_commit,
-            proof,
+            inv_proof: None,
+            claim_proof: Some((proof1, proof2)),
             nonce: Some(invoice.nonce),
         }
     }
@@ -270,8 +341,8 @@ impl<E: Engine> IntermediaryCustomer<E> {
         invoice: &Invoice<E>,
         signature: crypto::pssig::Signature<E>,
     ) -> bool {
-        self.merchant_keys.invoice_sign.verify(
-            &self.merchant_keys.mpk,
+        self.intermediary_keys.pub_key_inv.get_pub_key().verify(
+            &self.intermediary_keys.mpk,
             &invoice.as_fr(),
             &signature,
         )
@@ -307,7 +378,8 @@ mod tests {
 
         Intermediary {
             invoice,
-            proof,
+            inv_proof: Some(proof),
+            claim_proof: None,
             nonce,
         }
     }
