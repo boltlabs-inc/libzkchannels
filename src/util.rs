@@ -242,7 +242,7 @@ mod tests {
         two.double();
         assert_eq!(
             format!("{}", hash_g2_to_fr::<Bls12>(&two).into_repr()),
-            "0x6550a1431236024424ac8e7f65781f244b70a38e5b3c275000a2b91089706868"
+            "0x5926ca46945234004a7c779db0b4b2ab0c1458864971671bc327d72f444146f3" // "0x6550a1431236024424ac8e7f65781f244b70a38e5b3c275000a2b91089706868"
         );
     }
 
@@ -254,7 +254,7 @@ mod tests {
         x_vec.extend(format!("{}", two).bytes());
         assert_eq!(
             format!("{}", hash_to_fr::<Bls12>(x_vec).into_repr()),
-            "0x6550a1431236024424ac8e7f65781f244b70a38e5b3c275000a2b91089706868"
+            "0x5926ca46945234004a7c779db0b4b2ab0c1458864971671bc327d72f444146f3" // "0x6550a1431236024424ac8e7f65781f244b70a38e5b3c275000a2b91089706868"
         );
     }
 

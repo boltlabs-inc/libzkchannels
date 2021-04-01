@@ -48,19 +48,20 @@ extern crate enum_display_derive;
 #[cfg(test)]
 #[macro_use]
 extern crate rusty_fork;
+extern crate core;
 extern crate rand_xorshift;
 extern crate serde_bytes;
-extern crate core;
 
 pub mod bindings;
-pub mod crypto;
 pub mod channels_mpc;
 pub mod channels_util;
 pub mod channels_zk;
+pub mod crypto;
 pub mod database;
 pub mod ecdsa_partial;
 pub mod ffishim_bls12;
 // pub mod ffishim_bn256;
+pub mod extensions;
 pub mod ffishim_mpc;
 pub mod mpc;
 pub mod mpcwrapper;
@@ -68,7 +69,6 @@ pub mod tze_utils;
 pub mod util;
 pub mod wallet;
 pub mod zkproofs;
-pub mod extensions;
 
 #[cfg(test)]
 pub mod test_e2e;
@@ -99,11 +99,11 @@ mod benches {
 mod tests {
     use super::*;
     use channels_util::ProtocolStatus;
+    use extensions::intermediary;
     use pairing::bls12_381::Bls12;
     use pairing::bls12_381::Fr;
     use rand::Rng;
     use sha2::Digest;
-    use extensions::intermediary;
 
     fn setup_new_channel_helper(
         channel_state: &mut zkproofs::ChannelState<Bls12>,
@@ -186,7 +186,7 @@ mod tests {
             unlinked_cust_state.clone(),
             &new_close_token,
         )
-            .unwrap();
+        .unwrap();
 
         // send revoke token and get pay-token in response
         let new_pay_token_result: BoltResult<(crypto::pssig::Signature<Bls12>, String)> =
@@ -194,8 +194,11 @@ mod tests {
         let new_pay_token = handle_bolt_result!(new_pay_token_result);
 
         // verify the pay token and update internal state
-        let is_ok =
-            zkproofs::unlink::customer_finalize(channel_state, cust_state, new_pay_token.unwrap().0);
+        let is_ok = zkproofs::unlink::customer_finalize(
+            channel_state,
+            cust_state,
+            new_pay_token.unwrap().0,
+        );
         assert!(is_ok);
     }
 
@@ -240,7 +243,7 @@ mod tests {
             new_cust_state,
             &new_close_token,
         )
-            .unwrap();
+        .unwrap();
 
         // send revoke token and get pay-token in response
         let new_pay_token_result: BoltResult<(crypto::pssig::Signature<Bls12>, String)> =
@@ -253,7 +256,7 @@ mod tests {
             channel_state,
             cust_state,
         )
-            .unwrap());
+        .unwrap());
     }
 
     /// Executes payment protocol with auxiliary input and output (returned)
@@ -299,7 +302,7 @@ mod tests {
             new_cust_state,
             &new_close_token,
         )
-            .unwrap();
+        .unwrap();
 
         // send revoke token and get pay-token in response
         let new_pay_token_result: BoltResult<(crypto::pssig::Signature<Bls12>, String)> =
@@ -308,12 +311,11 @@ mod tests {
 
         // verify the pay token and update internal state
         let (new_pay_token, aux_out) = new_payment_output.unwrap();
-        
-        assert!(zkproofs::pay::customer_unmask_pay_token(
-            new_pay_token,
-            channel_state,
-            cust_state,
-        ).unwrap());
+
+        assert!(
+            zkproofs::pay::customer_unmask_pay_token(new_pay_token, channel_state, cust_state,)
+                .unwrap()
+        );
         aux_out
     }
 
@@ -377,7 +379,7 @@ mod tests {
             unlinked_cust_state,
             &new_close_token,
         )
-            .unwrap();
+        .unwrap();
 
         // send revoke token and get pay-token in response
         let new_pay_token_result: BoltResult<(crypto::pssig::Signature<Bls12>, String)> =
@@ -421,7 +423,7 @@ mod tests {
             new_cust_state.clone(),
             &new_close_token,
         )
-            .unwrap();
+        .unwrap();
 
         // send revoke token and get pay-token in response
         let new_pay_token_result: BoltResult<(crypto::pssig::Signature<Bls12>, String)> =
@@ -434,7 +436,7 @@ mod tests {
             &channel_state,
             &mut cust_state,
         )
-            .unwrap());
+        .unwrap());
         println!("Successful payment!");
 
         let cust_close = zkproofs::force_customer_close(&channel_state, &cust_state).unwrap();
@@ -683,11 +685,26 @@ mod tests {
         let b0_merch_b = rng.gen_range(100, 1000);
 
         let merch_name = "Hub";
-        
+
         // Define three participants in the intermediary protocol and derive channel tokens (e.g. public key info)
-        let (mut int_merch, mut channel_token) = intermediary::IntermediaryMerchant::<Bls12>::init(rng, merch_name);
-        let mut alice = intermediary::IntermediaryCustomer::init(rng, &mut channel_token, &int_merch, b0_alice, b0_merch_a, "Alice");
-        let mut bob = intermediary::IntermediaryCustomer::init(rng, &mut channel_token, &int_merch, b0_bob, b0_merch_b, "Bob");
+        let (mut int_merch, mut channel_token) =
+            intermediary::IntermediaryMerchant::<Bls12>::init(rng, merch_name);
+        let mut alice = intermediary::IntermediaryCustomer::init(
+            rng,
+            &mut channel_token,
+            &int_merch,
+            b0_alice,
+            b0_merch_a,
+            "Alice",
+        );
+        let mut bob = intermediary::IntermediaryCustomer::init(
+            rng,
+            &mut channel_token,
+            &int_merch,
+            b0_bob,
+            b0_merch_b,
+            "Bob",
+        );
 
         // Establish channels between the two customers and the intermediary
         execute_establish_protocol_helper(
@@ -705,9 +722,9 @@ mod tests {
 
         // BOB generates an invoice and "sends" to ALICE
         let invoice = intermediary::Invoice::new(
-            rng.gen_range(5,100), // amount
-            Fr::rand(rng), // nonce
-            Fr::rand(rng) // provider id (merchant anon credential)
+            rng.gen_range(5, 100), // amount
+            Fr::rand(rng),         // nonce
+            Fr::rand(rng),         // provider id (merchant anon credential)
         );
 
         // ALICE commits to invoice with INT's invoice keys
@@ -717,11 +734,12 @@ mod tests {
         // ALICE initializes pay with INT, passing invoice stuff as aux
         // and receiving signature on invoice as output
         let signed_invoice = execute_payment_protocol_aux_helper(
-            &int_merch.channel_state, 
-            &mut int_merch.merch_state, 
-            &mut alice.cust_state, 
+            &int_merch.channel_state,
+            &mut int_merch.merch_state,
+            &mut alice.cust_state,
             invoice.amount,
-            validated_invoice.to_aux_string());
+            validated_invoice.to_aux_string(),
+        );
 
         // ALICE unblinds signature and sends to BOB
         // TODO: replace signing here with unblinding of obj returned from pay!!!
@@ -737,18 +755,19 @@ mod tests {
         // BOB initializes pay with INT, passing commit and PoK as aux
         // and receiving no aux output
         execute_payment_protocol_aux_helper(
-            &int_merch.channel_state, 
-            &mut int_merch.merch_state, 
-            &mut bob.cust_state, 
-            -invoice.amount, 
-            redemption_invoice.to_aux_string());
-        
+            &int_merch.channel_state,
+            &mut int_merch.merch_state,
+            &mut bob.cust_state,
+            -invoice.amount,
+            redemption_invoice.to_aux_string(),
+        );
+
         // Check that all balances were correctly updated
         assert_eq!(alice.cust_state.cust_balance, b0_alice - invoice.amount);
         assert_eq!(alice.cust_state.merch_balance, b0_merch_a + invoice.amount);
         assert_eq!(bob.cust_state.cust_balance, b0_bob + invoice.amount);
         assert_eq!(bob.cust_state.merch_balance, b0_merch_b - invoice.amount);
-        
+
         println!("Successful payment with intermediary!");
     }
 
@@ -817,7 +836,7 @@ mod tests {
         let channelId = channel_token.compute_channel_id();
 
         let original_channelId =
-            "[\"e4f4bb9c5c64440788682c5ea06f457f265bd24186689fa50ce24a3be00c6107\"]";
+            "\"40d8d5ce100f7d4c7d465e68b28a9d1412fd086a5f85794bdb15334966eac95a\"";
         let computed_channelId = serde_json::to_string(&channelId).unwrap();
 
         println!("channel ID: {}", channelId);
