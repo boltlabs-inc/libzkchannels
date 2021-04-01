@@ -1,13 +1,14 @@
 use super::*;
 use crypto;
 use pairing::Engine;
-use rand::{Rng, thread_rng};
+use rand::{Rng};
+use ff::PrimeField;
 use util;
 use zkproofs;
 use zkproofs::{ChannelState, ChannelToken, Commitment, CommitmentProof};
 use ff::Rand;
 use crypto::pssig::{Signature, SignatureProof, PublicParams};
-use crypto::ped92::CSMultiParams;
+use std::collections::HashSet;
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
@@ -22,6 +23,7 @@ bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
 )]
 /// Auxiliary intermediary information
 /// (passed as input and output to pay functionality)
+/// An Intermediary should hold either an inv_proof OR a claim proof and nonce
 pub struct Intermediary<E: Engine> {
     invoice: Commitment<E>,
     inv_proof: Option<CommitmentProof<E>>,
@@ -53,8 +55,8 @@ impl<E: Engine> Intermediary<E> {
 
 impl<E: Engine> ExtensionTrait for Intermediary<E> {
     fn init(&self, payment_amount: i64) -> Result<(), String> {
-        match self.nonce {
-            None => {
+        match (&self.inv_proof, &self.claim_proof, self.nonce) {
+            (Some(proof), None, None) => {
                 // let proof = self.inv_proof.unwrap();
                 // let xvec: Vec<E::G1> = vec![proof.T.clone(), self.invoice.c];
                 // let challenge = util::hash_g1_to_fr::<E>(&xvec);
@@ -67,9 +69,22 @@ impl<E: Engine> ExtensionTrait for Intermediary<E> {
                 // check payment invoice
                 Ok(())
             }
-            Some(n) => {
-                Ok(())
+            (None, Some(proof), Some(n)) => {
+                // check if nonce has been seen before
+                /*
+                let nonces = HashSet::new(); // TODO: replace this with the actual set of nonces from IntermediaryMerchantInfo
+                //let nint = n.from_repr().expect("Badly formed nonce"); // TODO: figure out if field elements have a hashable representation
+                if nonces.contains(nint) {
+                    panic!("Nonce has already been redeemed.".to_string());
+                }
+                nonces.insert(nint);
+                */
+
                 // check redemption invoice
+                Ok(())
+            }
+            _ => {
+                Err("Incorrectly formed Intermediary struct.".to_string())
             }
         }
     }
@@ -113,6 +128,7 @@ pub struct IntermediaryMerchantInfo<E: Engine> {
     /// additional keys for handling invoices
     keypair_inv: crypto::pssig::BlindKeyPair<E>,
     // TODO: add list of intermediary nonces
+    nonces: HashSet<E::Fr>,
 }
 
 /// Intermediary node; acts as a zkChannels merchant; can pass payments among its customers
@@ -146,6 +162,7 @@ impl<E: Engine> IntermediaryMerchant<E> {
             mpk,
             keypair_ac,
             keypair_inv,
+            nonces: HashSet::new(),
         };
 
         (
@@ -214,7 +231,7 @@ pub struct IntermediaryCustomer<E: Engine> {
     pub merch_id: Option<E::Fr>,
     /// Merchant anonymous credential if this is indeed a merchant in the intermediary setting
     pub merch_ac: Option<crypto::pssig::Signature<E>>,
-    /// merchant public keys
+    /// intermediary public keys
     intermediary_keys: IntermediaryCustomerInfo<E>,
 }
 
