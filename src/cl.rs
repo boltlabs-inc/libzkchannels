@@ -113,8 +113,11 @@ impl<E: Engine> PublicKey<E> {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(bound(serialize = "<E as pairing::Engine>::G1: serde::Serialize, \
+                           <E as pairing::Engine>::G2: serde::Serialize"))]
+#[serde(bound(deserialize = "<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+                         <E as pairing::Engine>::G2: serde::Deserialize<'de>"))]
 pub struct BlindPublicKey<E: Engine> {
-    pub X1: E::G1,
     pub X2: E::G2,
     pub Y1: Vec<E::G1>,
     pub Y2: Vec<E::G2>,
@@ -134,16 +137,15 @@ impl<E: Engine> fmt::Display for BlindPublicKey<E> {
 
         write!(
             f,
-            "Blind PK : \nX1={},\nX2{},\nY1=[{}\n],\nY2=[{}\n]",
-            self.X1, self.X2, y1_str, y2_str
+            "Blind PK : \nX2{},\nY1=[{}\n],\nY2=[{}\n]",
+            self.X2, y1_str, y2_str
         )
     }
 }
 
 impl<E: Engine> PartialEq for BlindPublicKey<E> {
     fn eq(&self, other: &BlindPublicKey<E>) -> bool {
-        self.X1 == other.X1
-            && self.X2 == other.X2
+        self.X2 == other.X2
             && util::is_vec_g1_equal::<E>(&self.Y1, &other.Y1)
             && util::is_vec_g2_equal::<E>(&self.Y2, &other.Y2)
     }
@@ -429,14 +431,10 @@ impl<E: Engine> BlindPublicKey<E> {
             Y1.push(g1y);
             Y2.push(g2y);
         }
-        // X1 = g1 ^ x
-        let mut X1 = mpk.g1;
-        X1.mul_assign(secret.x);
         // X2 = g2 ^ x
         let mut X2 = mpk.g2;
         X2.mul_assign(secret.x);
         BlindPublicKey {
-            X1: X1,
             X2: X2,
             Y1: Y1,
             Y2: Y2,
@@ -718,7 +716,9 @@ impl<E: Engine> BlindKeyPair<E> {
         h1.mul_assign(u); // g1 ^ u
 
         let com1 = com.c.clone();
-        let mut H1 = self.public.X1.clone();
+        // X1 = g1 ^ x
+        let mut H1 = mpk.g1;
+        H1.mul_assign(self.secret.x);
         H1.add_assign(&com1); // (X * com)
         H1.mul_assign(u); // (X * com) ^ u (blinding factor)
 
