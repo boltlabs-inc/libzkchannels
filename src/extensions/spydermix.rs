@@ -8,7 +8,7 @@ pub struct Spydermix {
 
 impl<'de, E: Engine> ExtensionTrait<'de, E> for Spydermix {
     fn init(&self, _payment_amount: i64, _ei: &ExtensionInfoWrapper<E>)  -> Result<(), String> { unimplemented!() }
-    fn output(&self, _ei: &ExtensionInfoWrapper<E>) -> Result<String, String> {
+    fn output<R: Rng>(&self, _rng: &mut R, _ei: &ExtensionInfoWrapper<E>) -> Result<String, String> {
         unimplemented!()
     }
 }

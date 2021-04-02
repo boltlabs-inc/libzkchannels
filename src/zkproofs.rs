@@ -542,7 +542,8 @@ pub mod pay {
     /// from the customer and the merchant state. If the revocation token is valid,
     /// generate a new signature for the new wallet (from the PoK of committed values in new wallet).
     ///
-    pub fn merchant_validate_rev_lock<E: Engine>(
+    pub fn merchant_validate_rev_lock<R: Rng, E: Engine>(
+        rng: &mut R,
         session_id: &[u8; 16],
         rt: &RevLockPair,
         merch_state: &mut MerchantState<E>,
@@ -566,7 +567,7 @@ pub mod pay {
         );
         let ext = merch_state.get_ext(FixedSizeArray16(*session_id));
         let ext_output = match ext {
-            Some(ext_unwrapped) => match ext_unwrapped.output(merch_state.get_extensions_info()) {
+            Some(ext_unwrapped) => match ext_unwrapped.output(rng, merch_state.get_extensions_info()) {
                 Ok(ext_str) => ext_str,
                 Err(err) => return Err(err),
             },

@@ -28,7 +28,7 @@ pub trait ExtensionWrapper<'de, E: Engine> {
         <E as pairing::Engine>::G1: serde::Serialize,
         <E as pairing::Engine>::G2: serde::Serialize,
         <E as pairing::Engine>::Fqk: serde::Serialize,;
-    fn output(&self, ei: HashMap<String, ExtensionInfoWrapper<E>>) -> Result<String, String>;
+    fn output<R: Rng>(&self, rng: &mut R, ei: HashMap<String, ExtensionInfoWrapper<E>>) -> Result<String, String>;
 }
 
 impl<'de, E: Engine> ExtensionInput<'de, E> for Extensions<E> {
@@ -70,7 +70,7 @@ impl<'de, E: Engine> ExtensionWrapper<'de, E> for Extensions<E> {
         }
     }
 
-    fn output(&self, ei: HashMap<String, ExtensionInfoWrapper<E>>) -> Result<String, String> {
+    fn output<R: Rng>(&self, rng: &mut R, ei: HashMap<String, ExtensionInfoWrapper<E>>) -> Result<String, String> {
         match self {
             Extensions::Spydermix(_) => {
                 Err("unimplemented".to_string())
@@ -80,7 +80,7 @@ impl<'de, E: Engine> ExtensionWrapper<'de, E> for Extensions<E> {
             }
             Extensions::Intermediary(obj) => {
                 if !obj.is_claim() {
-                    obj.output(ei.get("intermediary").unwrap_or(&ExtensionInfoWrapper::Default))
+                    obj.output(rng, ei.get("intermediary").unwrap_or(&ExtensionInfoWrapper::Default))
                 } else {
                     Ok("".to_string())
                 }

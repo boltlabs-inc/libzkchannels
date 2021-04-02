@@ -543,6 +543,8 @@ pub mod ffishim {
         ser_revoked_state: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
+        let rng = &mut rand::thread_rng();
+
         // Deserialize session id
         let session_id_buf = unsafe { CStr::from_ptr(ser_session_id).to_bytes() };
         check_vec_length!(session_id_buf, 16);
@@ -561,6 +563,7 @@ pub mod ffishim {
 
         // send revoke token and get pay-token in response
         let pay_token_result = zkproofs::unlink::merchant_validate_rev_lock(
+            rng,
             &session_id,
             &revoked_state,
             &mut merch_state,
@@ -888,6 +891,7 @@ pub mod ffishim {
         ser_revoke_token: *mut c_char,
         ser_merch_state: *mut c_char,
     ) -> *mut c_char {
+        let rng = &mut rand::thread_rng();
         // Deserialize session id
         let session_id_buf = unsafe { CStr::from_ptr(ser_session_id).to_bytes() };
         check_vec_length!(session_id_buf, 16);
@@ -906,7 +910,7 @@ pub mod ffishim {
 
         // send revoke token and get pay-token in response
         let pay_token_result =
-            zkproofs::pay::merchant_validate_rev_lock(&session_id, &revoke_token, &mut merch_state);
+            zkproofs::pay::merchant_validate_rev_lock(rng, &session_id, &revoke_token, &mut merch_state);
         let pay_token = handle_errors!(pay_token_result);
 
         let ser = [

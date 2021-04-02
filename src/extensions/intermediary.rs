@@ -1,12 +1,12 @@
 use super::*;
 use crypto;
 use pairing::Engine;
-use rand::{Rng, thread_rng};
+use rand::Rng;
 use util;
 use zkproofs;
 use zkproofs::{ChannelState, ChannelToken, Commitment, CommitmentProof};
 use ff::Rand;
-use crypto::pssig::{Signature, SignatureProof, PublicParams};
+use crypto::pssig::{Signature, SignatureProof, PublicParams, setup};
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
@@ -104,12 +104,12 @@ impl<'de, E: Engine> ExtensionTrait<'de, E> for Intermediary<E> {
     }
 
     /// Returns blind signature on invoice commitment
-    fn output(&self, ei: &ExtensionInfoWrapper<E>) -> Result<String, String> {
+    fn output<R: Rng>(&self, rng: &mut R, ei: &ExtensionInfoWrapper<E>) -> Result<String, String> {
         let info = match ei {
             ExtensionInfoWrapper::Intermediary(info) => info,
             _ => return Err("wrong extension info".to_string())
         };
-        let signature = info.keypair_inv.sign_blind(&mut thread_rng(), &info.mpk, self.invoice.clone()); //TODO: pass in rng instead of thread_rng()
+        let signature = info.keypair_inv.sign_blind(rng, &info.mpk, self.invoice.clone()); //TODO: pass in rng instead of thread_rng()
         Ok(signature.to_string())
     }
 }
@@ -410,35 +410,57 @@ impl<E: Engine> IntermediaryCustomer<E> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crypto::ped92::CSMultiParams;
     use extensions::extension::Extensions;
     use ff::Rand;
     use pairing::bls12_381::{Bls12, Fr};
     use rand::thread_rng;
 
-    fn get_random_intermediary(with_nonce: bool) -> Intermediary<Bls12> {
+    fn get_random_intermediary(with_nonce: bool) -> (Intermediary<Bls12>, HashMap<String, ExtensionInfoWrapper<Bls12>>) {
         // get a commitment
         let rng = &mut thread_rng();
-        let csp = CSMultiParams::<Bls12>::setup_gen_params(rng, 5);
         let m1 = vec![Fr::rand(rng)];
         let r = Fr::rand(rng);
-        let invoice = csp.commit(&m1, &r);
 
-        // get a PoK
-        let proof = CommitmentProof::new(rng, &csp, &invoice.c, &m1, &r, &vec![0]);
+        let info = get_key_material();
+        let mut extension_info = HashMap::new();
+        extension_info.insert("intermediary".to_string(), ExtensionInfoWrapper::Intermediary(info.clone()));
+
+        let com_params = info.keypair_inv
+            .generate_cs_multi_params(&info.mpk);
+        let invoice = com_params.commit(&m1, &r);
 
         // get a nonce
-        let nonce = if with_nonce {
-            Some(Fr::rand(rng))
-        } else {
-            None
-        };
+        if with_nonce {
+            // get a PoK
+            let mpk = info.mpk;
+            let pair1 = info.keypair_inv;
+            let pair2 = info.keypair_ac;
+            let mut msg1 = vec![Fr::rand(rng), Fr::rand(rng), Fr::rand(rng)];
+            let mut msg2 = vec![Fr::rand(rng)];
+            let sig1 = pair1.secret.sign(rng, &msg1);
+            let sig2 = pair2.secret.sign(rng, &msg2);
+            let ps1 = pair1.public.prove_commitment(rng, &mpk, &sig1, None, None);
+            let ps2 = pair2.public.prove_commitment(rng, &mpk, &sig2, None, None);
+            let challenge = IntermediaryCustomer::fs_challenge(&mpk, ps1.a, ps2.a);
+            let proof1 = pair1.public.prove_response(&ps1, challenge.clone(), &mut msg1);
+            let proof2 = pair2.public.prove_response(&ps2, challenge.clone(), &mut msg2);
 
-        Intermediary {
-            invoice,
-            inv_proof: Some(proof),
-            claim_proof: None,
-            nonce,
+            (Intermediary {
+                invoice,
+                inv_proof: None,
+                claim_proof: Some((ps1.blindSig, proof1, ps2.blindSig, proof2)),
+                nonce: Some(Fr::rand(rng)),
+            }, extension_info)
+        } else {
+            // get a PoK
+            let proof = CommitmentProof::new(rng, &com_params, &invoice.c, &m1, &r, &vec![0]);
+
+            (Intermediary {
+                invoice,
+                inv_proof: Some(proof),
+                claim_proof: None,
+                nonce: None,
+            }, extension_info)
         }
     }
 
@@ -456,11 +478,12 @@ mod tests {
     #[test]
     fn test_encoding_nonce() {
         // encode random value as json string
-        let original = get_random_intermediary(true);
+        let (original, extension_info) = get_random_intermediary(true);
         let aux = original.to_aux_string();
 
         // convert back
-        let result = match Extensions::parse(&aux, 0, HashMap::new()).unwrap().unwrap() {
+
+        let result = match Extensions::parse(&aux, 0, extension_info).unwrap().unwrap() {
             Extensions::Intermediary(obj) => obj,
             _ => panic!("{}", "wrong extension type".to_string()),
         };
@@ -472,16 +495,29 @@ mod tests {
     #[test]
     fn test_encoding_no_nonce() {
         // encode random value WITHOUT A NONCE to json string
-        let original = get_random_intermediary(false);
+        let (original, extension_info) = get_random_intermediary(false);
         let aux = original.to_aux_string();
 
         // convert back
-        let result = match Extensions::parse(&aux, 0, HashMap::new()).unwrap().unwrap() {
+        let result = match Extensions::parse(&aux, 0, extension_info).unwrap().unwrap() {
             Extensions::Intermediary(obj) => obj,
             _ => panic!("{}", "wrong extension type".to_string()),
         };
 
         // check
         compare_intermediaries(original, result);
+    }
+
+    fn get_key_material() -> IntermediaryMerchantInfo<Bls12> {
+        let rng = &mut rand::thread_rng();
+        let mpk = setup(rng);
+        let keypair_ac = crypto::pssig::BlindKeyPair::<Bls12>::generate(rng, &mpk, 1);
+        let keypair_inv = crypto::pssig::BlindKeyPair::<Bls12>::generate(rng, &mpk, 3);
+        IntermediaryMerchantInfo {
+            mpk,
+            keypair_ac,
+            keypair_inv,
+            // nonces: HashSet::new(),
+        }
     }
 }

@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use pairing::Engine;
 use extensions::intermediary::IntermediaryMerchantInfo;
 use std::collections::HashMap;
+use rand::Rng;
 
 pub trait ExtensionInput<'de, E: Engine> {
     fn parse(aux: &'de String, payment_amount: i64, extension_info: HashMap<String, ExtensionInfoWrapper<E>>) -> Result<Option<Self>, String> where Self: Sized,
@@ -23,7 +24,7 @@ pub trait ExtensionTrait<'de, E: Engine> {
         <E as pairing::Engine>::G1: serde::Serialize,
         <E as pairing::Engine>::G2: serde::Serialize,
         <E as pairing::Engine>::Fqk: serde::Serialize,;
-    fn output(&self, ei: &ExtensionInfoWrapper<E>) -> Result<String, String>;
+    fn output<R: Rng>(&self, rng: &mut R, ei: &ExtensionInfoWrapper<E>) -> Result<String, String>;
 }
 
 #[derive(Clone, Serialize, Deserialize)]

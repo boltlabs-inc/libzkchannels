@@ -191,7 +191,7 @@ mod tests {
 
         // send revoke token and get pay-token in response
         let new_pay_token_result: BoltResult<(crypto::pssig::Signature<Bls12>, String)> =
-            zkproofs::unlink::merchant_validate_rev_lock(&session_id, &rt_pair, merch_state);
+            zkproofs::unlink::merchant_validate_rev_lock(rng, &session_id, &rt_pair, merch_state);
         let new_pay_token = handle_bolt_result!(new_pay_token_result);
 
         // verify the pay token and update internal state
@@ -248,7 +248,7 @@ mod tests {
 
         // send revoke token and get pay-token in response
         let new_pay_token_result: BoltResult<(crypto::pssig::Signature<Bls12>, String)> =
-            zkproofs::pay::merchant_validate_rev_lock(&session_id, &rev_lock_pair, merch_state);
+            zkproofs::pay::merchant_validate_rev_lock(rng, &session_id, &rev_lock_pair, merch_state);
         let new_pay_token = handle_bolt_result!(new_pay_token_result);
 
         // verify the pay token and update internal state
@@ -307,7 +307,7 @@ mod tests {
 
         // send revoke token and get pay-token in response
         let new_pay_token_result: BoltResult<(crypto::pssig::Signature<Bls12>, String)> =
-            zkproofs::pay::merchant_validate_rev_lock(&session_id, &rev_lock_pair, merch_state);
+            zkproofs::pay::merchant_validate_rev_lock(rng, &session_id, &rev_lock_pair, merch_state);
         let new_payment_output = handle_bolt_result!(new_pay_token_result);
 
         // verify the pay token and update internal state
@@ -384,7 +384,7 @@ mod tests {
 
         // send revoke token and get pay-token in response
         let new_pay_token_result: BoltResult<(crypto::pssig::Signature<Bls12>, String)> =
-            zkproofs::unlink::merchant_validate_rev_lock(&session_id, &rt_pair, &mut merch_state);
+            zkproofs::unlink::merchant_validate_rev_lock(rng, &session_id, &rt_pair, &mut merch_state);
         let new_pay_token = handle_bolt_result!(new_pay_token_result);
 
         // verify the pay token and update internal state
@@ -428,7 +428,7 @@ mod tests {
 
         // send revoke token and get pay-token in response
         let new_pay_token_result: BoltResult<(crypto::pssig::Signature<Bls12>, String)> =
-            zkproofs::pay::merchant_validate_rev_lock(&session_id, &rt_pair, &mut merch_state);
+            zkproofs::pay::merchant_validate_rev_lock(rng, &session_id, &rt_pair, &mut merch_state);
         let new_pay_token = handle_bolt_result!(new_pay_token_result);
 
         // verify the pay token and update internal state

@@ -1415,6 +1415,7 @@ mod merch {
         let ser_rt_pair = msg2.get(0).unwrap();
         let rt_pair = handle_error_result!(serde_json::from_str(ser_rt_pair));
         let new_pay_token = handle_option_result!(zkproofs::unlink::merchant_validate_rev_lock(
+            rng,
             &session_id,
             &rt_pair,
             merch_state
@@ -1499,6 +1500,7 @@ mod merch {
         let ser_rt_pair = msg4.get(0).unwrap();
         let rt_pair = handle_error_result!(serde_json::from_str(ser_rt_pair));
         let new_pay_token = handle_option_result!(zkproofs::pay::merchant_validate_rev_lock(
+            rng,
             &session_id,
             &rt_pair,
             merch_state
