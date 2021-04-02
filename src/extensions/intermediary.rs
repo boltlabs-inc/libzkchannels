@@ -6,7 +6,7 @@ use util;
 use zkproofs;
 use zkproofs::{ChannelState, ChannelToken, Commitment, CommitmentProof};
 use ff::Rand;
-use crypto::pssig::{Signature, SignatureProof, PublicParams, setup};
+use crypto::pssig::{Signature, SignatureProof, PublicParams};
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
@@ -67,7 +67,7 @@ impl<'de, E: Engine> ExtensionTrait<'de, E> for Intermediary<E> {
         };
         match (&self.inv_proof, &self.claim_proof, self.nonce) {
             (Some(proof), None, None) => {
-                let xvec: Vec<E::G1> = vec![proof.T.clone(), self.invoice.c];
+                let xvec: Vec<E::G1> = vec![proof.T, self.invoice.c];
                 let challenge = util::hash_g1_to_fr::<E>(&xvec);
                 let com_params = info.keypair_inv
                     .generate_cs_multi_params(&info.mpk);
@@ -90,9 +90,9 @@ impl<'de, E: Engine> ExtensionTrait<'de, E> for Intermediary<E> {
             */
 
                 // check redemption invoice
-                let challenge = IntermediaryCustomer::fs_challenge(&info.mpk, proof.1.a.clone(), proof.3.a.clone());
-                if !info.keypair_inv.public.verify_proof(&info.mpk, proof.0.clone(), proof.1.clone(), challenge) ||
-                    !info.keypair_ac.public.verify_proof(&info.mpk, proof.2.clone(), proof.3.clone(), challenge) {
+                let challenge = IntermediaryCustomer::fs_challenge(&info.mpk, &proof.1.a, &proof.3.a);
+                if !info.keypair_inv.public.verify_proof(&info.mpk, &proof.0, &proof.1, challenge) ||
+                    !info.keypair_ac.public.verify_proof(&info.mpk, &proof.2, &proof.3, challenge) {
                     return Err("could not verify proof".to_string());
                 }
                 Ok(())
@@ -111,7 +111,7 @@ impl<'de, E: Engine> ExtensionTrait<'de, E> for Intermediary<E> {
             ExtensionInfoWrapper::Intermediary(info) => info,
             _ => return Err("wrong extension info".to_string())
         };
-        let signature = info.keypair_inv.sign_blind(rng, &info.mpk, self.invoice.clone());
+        let signature = info.keypair_inv.sign_blind(rng, &info.mpk, &self.invoice);
         match serde_json::to_string(&signature) {
             Ok(output) => Ok(output),
             Err(e) => Err(e.to_string())
@@ -165,20 +165,17 @@ pub struct IntermediaryMerchantInfo<E: Engine> {
 }
 
 /// Intermediary node; acts as a zkChannels merchant; can pass payments among its customers
-/// Holds extra key material for generating objects used in intermediary protocol
 pub struct IntermediaryMerchant<E: Engine> {
     /// zkChannel merchant state
+    /// this must contain an extension with additional key pairs used by intermediary
     pub merch_state: zkproofs::MerchantState<E>,
     /// channel state information (public parameters, etc)
     pub channel_state: zkproofs::ChannelState<E>,
-    /// extra key information
-    intermediary_keys: IntermediaryMerchantInfo<E>,
 }
 
 impl<E: Engine> IntermediaryMerchant<E> {
     pub fn init<'a, R: Rng>(
         csprng: &mut R,
-        //channel_state: &mut ChannelState<E>,
         name: &'a str,
     ) -> (Self, ChannelToken<E>) {
         let mut channel_state =
@@ -197,16 +194,23 @@ impl<E: Engine> IntermediaryMerchant<E> {
             keypair_inv,
             // nonces: HashSet::new(),
         };
-        merch_state.add_extensions_info("intermediary".to_string(), ExtensionInfoWrapper::Intermediary(intermediary_keys.clone()));
+        merch_state.add_extensions_info("intermediary".to_string(), ExtensionInfoWrapper::Intermediary(intermediary_keys));
 
         (
             IntermediaryMerchant {
                 merch_state,
                 channel_state,
-                intermediary_keys,
             },
             channel_token,
         )
+    }
+
+    fn get_intermediary_keys(&self) -> &IntermediaryMerchantInfo<E> {
+        let ei = self.merch_state.get_extensions_info().get("intermediary");
+        match ei {
+            Some(ExtensionInfoWrapper::Intermediary(info)) => info,
+            _ => panic!("Intermediary extension info is invalid."),
+        }
     }
 
     /// registers a merchant with the intermediary given a merchant id
@@ -215,20 +219,20 @@ impl<E: Engine> IntermediaryMerchant<E> {
                                      id: E::Fr,
     ) -> crypto::pssig::Signature<E> {
         //TODO: merchant verification?
-        self.intermediary_keys.keypair_ac.secret.sign(rng, &vec![id])
+        self.get_intermediary_keys().keypair_ac.secret.sign(rng, &vec![id])
     }
 
     /// produces the public key (generators) for the invoice keypair
     pub fn get_invoice_public_keys(&self) -> IntermediaryCustomerInfo<E> {
-        let mpk = &self.intermediary_keys.mpk;
+        let mpk = &self.get_intermediary_keys().mpk;
         IntermediaryCustomerInfo {
             mpk: mpk.clone(),
             invoice_commit: self
-                .intermediary_keys
+                .get_intermediary_keys()
                 .keypair_inv
                 .generate_cs_multi_params(mpk),
-            pub_key_inv: self.intermediary_keys.keypair_inv.public.clone(),
-            pub_key_ac: self.intermediary_keys.keypair_ac.public.clone(),
+            pub_key_inv: self.get_intermediary_keys().keypair_inv.public.clone(),
+            pub_key_ac: self.get_intermediary_keys().keypair_ac.public.clone(),
         }
     }
 
@@ -239,7 +243,7 @@ impl<E: Engine> IntermediaryMerchant<E> {
         sig: &Signature<E>,
         bf: &E::Fr,
     ) -> zkproofs::Signature<E> {
-        self.intermediary_keys
+        self.get_intermediary_keys()
             .keypair_inv
             .unblind(bf, sig)
     }
@@ -295,7 +299,7 @@ impl<E: Engine> IntermediaryCustomer<E> {
 
         IntermediaryCustomer {
             cust_state,
-            channel_state: channel_state.clone(),
+            channel_state,
             merch_id,
             merch_ac: None,
             intermediary_keys,
@@ -326,7 +330,7 @@ impl<E: Engine> IntermediaryCustomer<E> {
         }, r)
     }
 
-    pub fn fs_challenge(mpk: &PublicParams<E>, a1: E::Fqk, a2: E::Fqk) -> E::Fr
+    pub fn fs_challenge(mpk: &PublicParams<E>, a1: &E::Fqk, a2: &E::Fqk) -> E::Fr
         where
             <E as pairing::Engine>::G1: serde::Serialize,
             <E as pairing::Engine>::G2: serde::Serialize,
@@ -383,13 +387,13 @@ impl<E: Engine> IntermediaryCustomer<E> {
 
         // PoK: prover knows the opening of the commitment
         // and reveals the invoice amount and nonce
-        let merch_ac = self.merch_ac.clone().unwrap();
+        let merch_ac = self.merch_ac.as_ref().unwrap();
 
-        let proof_state_inv = self.intermediary_keys.pub_key_inv.prove_commitment(rng, &self.intermediary_keys.mpk, &invoice_sig.clone(), None, None);
-        let proof_state_ac = self.intermediary_keys.pub_key_ac.prove_commitment(rng, &self.intermediary_keys.mpk, &merch_ac.clone(), Some(vec![proof_state_inv.t[2]]), None);
-        let challenge = Self::fs_challenge(&self.intermediary_keys.mpk, proof_state_inv.a, proof_state_ac.a);
-        let proof1 = self.intermediary_keys.pub_key_inv.prove_response(&proof_state_inv, challenge, &mut message);
-        let proof2 = self.intermediary_keys.pub_key_ac.prove_response(&proof_state_ac, challenge, &mut vec![self.merch_id.unwrap()]);
+        let proof_state_inv = self.intermediary_keys.pub_key_inv.prove_commitment(rng, &self.intermediary_keys.mpk, &invoice_sig, None, None);
+        let proof_state_ac = self.intermediary_keys.pub_key_ac.prove_commitment(rng, &self.intermediary_keys.mpk, &merch_ac, Some(vec![proof_state_inv.t[2]]), None);
+        let challenge = Self::fs_challenge(&self.intermediary_keys.mpk, &proof_state_inv.a, &proof_state_ac.a);
+        let proof1 = self.intermediary_keys.pub_key_inv.prove_response(&proof_state_inv, &challenge, &mut message);
+        let proof2 = self.intermediary_keys.pub_key_ac.prove_response(&proof_state_ac, &challenge, &mut vec![self.merch_id.unwrap()]);
 
         Intermediary {
             invoice: invoice_commit,
@@ -402,12 +406,12 @@ impl<E: Engine> IntermediaryCustomer<E> {
     pub fn validate_invoice_signature(
         &self,
         invoice: &Invoice<E>,
-        signature: crypto::pssig::Signature<E>,
+        signature: &crypto::pssig::Signature<E>,
     ) -> bool {
         self.intermediary_keys.pub_key_inv.get_pub_key().verify(
             &self.intermediary_keys.mpk,
             &invoice.as_fr(),
-            &signature,
+            signature,
         )
     }
 }
@@ -419,6 +423,7 @@ mod tests {
     use ff::Rand;
     use pairing::bls12_381::{Bls12, Fr};
     use rand::thread_rng;
+    use crypto::pssig::{setup};
 
     fn get_random_intermediary(with_nonce: bool) -> (Intermediary<Bls12>, HashMap<String, ExtensionInfoWrapper<Bls12>>) {
         // get a commitment
@@ -446,9 +451,9 @@ mod tests {
             let sig2 = pair2.secret.sign(rng, &msg2);
             let ps1 = pair1.public.prove_commitment(rng, &mpk, &sig1, None, None);
             let ps2 = pair2.public.prove_commitment(rng, &mpk, &sig2, None, None);
-            let challenge = IntermediaryCustomer::fs_challenge(&mpk, ps1.a, ps2.a);
-            let proof1 = pair1.public.prove_response(&ps1, challenge.clone(), &mut msg1);
-            let proof2 = pair2.public.prove_response(&ps2, challenge.clone(), &mut msg2);
+            let challenge = IntermediaryCustomer::fs_challenge(&mpk, &ps1.a, &ps2.a);
+            let proof1 = pair1.public.prove_response(&ps1, &challenge, &mut msg1);
+            let proof2 = pair2.public.prove_response(&ps2, &challenge, &mut msg2);
 
             (Intermediary {
                 invoice,
@@ -488,7 +493,7 @@ mod tests {
 
         // convert back
 
-        let result = match Extensions::parse(&aux, 0, extension_info).unwrap().unwrap() {
+        let result = match Extensions::parse(&aux, 0, &extension_info).unwrap().unwrap() {
             Extensions::Intermediary(obj) => obj,
             _ => panic!("{}", "wrong extension type".to_string()),
         };
@@ -504,7 +509,7 @@ mod tests {
         let aux = original.to_aux_string();
 
         // convert back
-        let result = match Extensions::parse(&aux, 0, extension_info).unwrap().unwrap() {
+        let result = match Extensions::parse(&aux, 0, &extension_info).unwrap().unwrap() {
             Extensions::Intermediary(obj) => obj,
             _ => panic!("{}", "wrong extension type".to_string()),
         };

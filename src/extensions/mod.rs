@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use rand::Rng;
 
 pub trait ExtensionInput<'de, E: Engine> {
-    fn parse(aux: &'de String, payment_amount: i64, extension_info: HashMap<String, ExtensionInfoWrapper<E>>) -> Result<Option<Self>, String> where Self: Sized,
+    fn parse(aux: &'de String, payment_amount: i64, extension_info: &HashMap<String, ExtensionInfoWrapper<E>>) -> Result<Option<Self>, String> where Self: Sized,
                                                                                                                                                     <E as pairing::Engine>::G1: serde::Serialize,
                                                                                                                                                     <E as pairing::Engine>::G2: serde::Serialize,
                                                                                                                                                     <E as pairing::Engine>::Fqk: serde::Serialize,

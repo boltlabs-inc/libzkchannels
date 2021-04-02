@@ -516,8 +516,8 @@ impl<E: Engine> BlindPublicKey<E> {
     pub fn verify_proof(
         &self,
         mpk: &PublicParams<E>,
-        blindSig: Signature<E>,
-        p: SignatureProof<E>,
+        blindSig: &Signature<E>,
+        p: &SignatureProof<E>,
         challenge: E::Fr,
     ) -> bool {
         let mut gx = E::pairing(blindSig.h, self.X2);
@@ -613,8 +613,8 @@ impl<E: Engine> BlindPublicKey<E> {
     pub fn prove_response(
         &self,
         ps: &ProofState<E>,
-        challenge: E::Fr,
-        message: &mut Vec<E::Fr>,
+        challenge: &E::Fr,
+        message: &Vec<E::Fr>,
     ) -> SignatureProof<E> {
         let mut zsig = ps.t.clone();
         let z_len = zsig.len();
@@ -622,14 +622,14 @@ impl<E: Engine> BlindPublicKey<E> {
         for i in 0..message.len() {
             if i < z_len {
                 let mut message1 = message[i];
-                message1.mul_assign(&challenge);
+                message1.mul_assign(challenge);
                 zsig[i].add_assign(&message1);
             }
         }
 
         let mut zv = ps.tt.clone();
         let mut vic = ps.v.clone();
-        vic.mul_assign(&challenge);
+        vic.mul_assign(challenge);
         zv.add_assign(&vic);
         SignatureProof { zsig, zv, a: ps.a }
     }
@@ -716,13 +716,13 @@ impl<E: Engine> BlindKeyPair<E> {
         &self,
         csprng: &mut R,
         mpk: &PublicParams<E>,
-        com: Commitment<E>,
+        com: &Commitment<E>,
     ) -> Signature<E> {
         let u = E::Fr::rand(csprng);
         let mut h1 = mpk.g1;
         h1.mul_assign(u); // g1 ^ u
 
-        let com1 = com.c.clone();
+        let com1 = com.c;
         let mut H1 = self.secret.X.clone();
         H1.add_assign(&com1); // (X * com)
         H1.mul_assign(u); // (X * com) ^ u (blinding factor)
@@ -901,7 +901,7 @@ mod tests {
         let t = Fr::rand(rng);
         let com = com_params.commit(&message1, &t);
 
-        let signature = keypair.sign_blind(rng, &mpk, com);
+        let signature = keypair.sign_blind(rng, &mpk, &com);
 
         let unblinded_sig = keypair.unblind(&t, &signature);
 
@@ -954,7 +954,7 @@ mod tests {
         let challenge = proof_state.fs_challenge(&mpk);
         let proof = keypair
             .public
-            .prove_response(&proof_state.clone(), challenge, &mut message1);
+            .prove_response(&proof_state, &challenge, &mut message1);
 
         // println!("{:?}", serde_json::to_string(&mpk).unwrap());
         // println!("{:?}", serde_json::to_string(&challenge).unwrap());
@@ -966,7 +966,7 @@ mod tests {
         assert_eq!(
             keypair
                 .public
-                .verify_proof(&mpk, proof_state.blindSig, proof, challenge),
+                .verify_proof(&mpk, &proof_state.blindSig, &proof, challenge),
             true
         );
     }

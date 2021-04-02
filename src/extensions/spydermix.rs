@@ -23,7 +23,7 @@ mod tests{
     fn test_parse() {
         let result = Extensions::<Bls12>::parse(
             &"{\"type\": \"spydermix\", \"amount\": 10, \"duration\": 7}".to_string(),
-            0, HashMap::new());
+            0, &HashMap::new());
         assert!(result.is_ok());
         let unwrapped_result = result.unwrap();
         assert!(unwrapped_result.is_some());

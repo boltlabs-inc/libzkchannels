@@ -813,7 +813,7 @@ impl<E: Engine> MerchantState<E> {
     ) -> Signature<E> {
         return self
             .keypair
-            .sign_blind(csprng, &cp.pub_params.mpk, com.clone());
+            .sign_blind(csprng, &cp.pub_params.mpk, com);
     }
 
     pub fn issue_pay_token<R: Rng>(
@@ -825,7 +825,7 @@ impl<E: Engine> MerchantState<E> {
         //println!("com for pay-token: {}", &pay_com);
         return self
             .keypair
-            .sign_blind(csprng, &cp.pub_params.mpk, com.clone());
+            .sign_blind(csprng, &cp.pub_params.mpk, com);
     }
 
     pub fn issue_init_close_token<R: Rng>(
@@ -930,8 +930,8 @@ impl<E: Engine> MerchantState<E> {
         self.extensions.insert(session_id.to_string(), ext);
     }
 
-    pub fn get_extensions_info(&self) -> HashMap<String, ExtensionInfoWrapper<E>> {
-        self.extensions_info.clone()
+    pub fn get_extensions_info(&self) -> &HashMap<String, ExtensionInfoWrapper<E>> {
+        &self.extensions_info
     }
 
     pub fn add_extensions_info(&mut self, typ: String, ei: ExtensionInfoWrapper<E>) {

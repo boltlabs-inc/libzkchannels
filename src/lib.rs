@@ -755,10 +755,10 @@ mod tests {
         let unblinded_sig = int_merch.unblind_invoice(&blinded_sig, &bf);
 
         // BOB verifies signature
-        assert!(bob.validate_invoice_signature(&invoice, unblinded_sig.clone()));
+        assert!(bob.validate_invoice_signature(&invoice, &unblinded_sig));
 
         // BOB commits to invoice and makes PoK
-        let redemption_invoice = bob.prepare_redemption_invoice(&invoice, &unblinded_sig.clone(), rng);
+        let redemption_invoice = bob.prepare_redemption_invoice(&invoice, &unblinded_sig, rng);
 
         // BOB initializes pay with INT, passing commit and PoK as aux
         // and receiving no aux output
@@ -948,23 +948,23 @@ mod tests {
         let unblinded_sig = int_merch.unblind_invoice(&blinded_sig, &bf);
 
         // BOB verifies signature
-        assert!(bob.validate_invoice_signature(&invoice, unblinded_sig.clone()));
+        assert!(bob.validate_invoice_signature(&invoice, &unblinded_sig));
 
         // BOB commits to invoice and makes PoK
         let r = util::convert_int_to_fr::<Bls12>(rng.gen());
         let commit_key = &bob.intermediary_keys.invoice_commit;
-        let mut message = vec![Fr::rand(rng), Fr::rand(rng), Fr::rand(rng)];
+        let message = vec![Fr::rand(rng), Fr::rand(rng), Fr::rand(rng)];
         let invoice_commit = commit_key.commit(&message, &r);
 
         // PoK: prover knows the opening of the commitment
         // and reveals the invoice amount and nonce
         let merch_ac = bob.merch_ac.clone().unwrap();
 
-        let proof_state_inv = bob.intermediary_keys.pub_key_inv.prove_commitment(rng, &bob.intermediary_keys.mpk, &unblinded_sig.clone(), None, None);
-        let proof_state_ac = bob.intermediary_keys.pub_key_ac.prove_commitment(rng, &bob.intermediary_keys.mpk, &merch_ac.clone(), Some(vec![proof_state_inv.t[2]]), None);
-        let challenge = IntermediaryCustomer::fs_challenge(&bob.intermediary_keys.mpk, proof_state_inv.a, proof_state_ac.a);
-        let proof1 = bob.intermediary_keys.pub_key_inv.prove_response(&proof_state_inv, challenge.clone(), &mut message);
-        let proof2 = bob.intermediary_keys.pub_key_ac.prove_response(&proof_state_ac, challenge, &mut vec![bob.merch_id.unwrap()]);
+        let proof_state_inv = bob.intermediary_keys.pub_key_inv.prove_commitment(rng, &bob.intermediary_keys.mpk, &unblinded_sig, None, None);
+        let proof_state_ac = bob.intermediary_keys.pub_key_ac.prove_commitment(rng, &bob.intermediary_keys.mpk, &merch_ac, Some(vec![proof_state_inv.t[2]]), None);
+        let challenge = IntermediaryCustomer::fs_challenge(&bob.intermediary_keys.mpk, &proof_state_inv.a, &proof_state_ac.a);
+        let proof1 = bob.intermediary_keys.pub_key_inv.prove_response(&proof_state_inv, &challenge, &message);
+        let proof2 = bob.intermediary_keys.pub_key_ac.prove_response(&proof_state_ac, &challenge, &vec![bob.merch_id.unwrap()]);
 
         let aux = Intermediary {
             invoice: invoice_commit,

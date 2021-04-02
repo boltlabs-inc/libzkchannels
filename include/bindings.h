@@ -13,8 +13,6 @@
 
 #define _ISOC11_SOURCE 1
 
-#define _ISOC2X_SOURCE 1
-
 #define _POSIX_SOURCE 1
 
 #define _POSIX_C_SOURCE 200809
@@ -28,8 +26,6 @@
 #define _DEFAULT_SOURCE 1
 
 #define _ATFILE_SOURCE 1
-
-#define __GLIBC_USE_ISOC2X 1
 
 #define __USE_ISOC11 1
 
@@ -77,8 +73,6 @@
 
 #define __GLIBC_USE_DEPRECATED_GETS 0
 
-#define __GLIBC_USE_DEPRECATED_SCANF 0
-
 #define _STDC_PREDEF_H 1
 
 #define __STDC_IEC_559__ 1
@@ -91,7 +85,7 @@
 
 #define __GLIBC__ 2
 
-#define __GLIBC_MINOR__ 31
+#define __GLIBC_MINOR__ 28
 
 #define _SYS_CDEFS_H 1
 
@@ -101,25 +95,17 @@
 
 #define __SYSCALL_WORDSIZE 64
 
-#define __LONG_DOUBLE_USES_FLOAT128 0
-
 #define __HAVE_GENERIC_SELECTION 0
 
 #define __GLIBC_USE_LIB_EXT2 1
 
 #define __GLIBC_USE_IEC_60559_BFP_EXT 1
 
-#define __GLIBC_USE_IEC_60559_BFP_EXT_C2X 1
-
 #define __GLIBC_USE_IEC_60559_FUNCS_EXT 1
-
-#define __GLIBC_USE_IEC_60559_FUNCS_EXT_C2X 1
 
 #define __GLIBC_USE_IEC_60559_TYPES_EXT 1
 
 #define _BITS_TYPES_H 1
-
-#define __TIMESIZE 64
 
 #define _BITS_TYPESIZES_H 1
 
@@ -129,11 +115,7 @@
 
 #define __RLIM_T_MATCHES_RLIM64_T 1
 
-#define __STATFS_MATCHES_STATFS64 1
-
 #define __FD_SETSIZE 1024
-
-#define _BITS_TIME64_H 1
 
 #define _BITS_WCHAR_H 1
 

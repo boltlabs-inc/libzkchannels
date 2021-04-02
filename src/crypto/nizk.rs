@@ -120,12 +120,12 @@ impl<E: Engine> NIZKSecretParams<E> {
         //verify knowledge of signature
         let mut r1 = self.keypair.public.verify_proof(
             &self.pubParams.mpk,
-            proof.sig,
-            proof.sigProof.clone(),
+            &proof.sig,
+            &proof.sigProof,
             challenge,
         );
         let mut noncec = nonce.clone();
-        noncec.mul_assign(&challenge.clone());
+        noncec.mul_assign(&challenge);
         r1 = r1 && proof.sigProof.zsig[1] == noncec;
 
         //verify knowledge of commitment
@@ -254,7 +254,7 @@ impl<E: Engine> NIZKPublicParams<E> {
         let oldWalletVec = oldWallet.as_fr_vec();
         let sigProof = self
             .pk
-            .prove_response(&proofState, challenge, &mut oldWalletVec.clone());
+            .prove_response(&proofState, &challenge, &oldWalletVec);
 
         //response commitment
         let rlComProof = CommitmentProof::<E>::prove_response(
@@ -442,7 +442,7 @@ mod tests {
         let blindPaymentToken =
             secParams
                 .keypair
-                .sign_blind(rng, &secParams.pubParams.mpk, s_com1.clone());
+                .sign_blind(rng, &secParams.pubParams.mpk, &s_com1);
         let paymentToken = secParams.keypair.unblind(&tau, &blindPaymentToken);
 
         let proof = secParams.pubParams.prove(
@@ -521,7 +521,7 @@ mod tests {
         let blindPaymentToken =
             secParams
                 .keypair
-                .sign_blind(rng, &secParams.pubParams.mpk, s_com1.clone());
+                .sign_blind(rng, &secParams.pubParams.mpk, &s_com1);
         let paymentToken = secParams.keypair.unblind(&tau, &blindPaymentToken);
 
         let proof = secParams.pubParams.prove(
@@ -601,13 +601,13 @@ mod tests {
         let blindPaymentToken =
             secParams
                 .keypair
-                .sign_blind(rng, &secParams.pubParams.mpk, s_com.clone());
+                .sign_blind(rng, &secParams.pubParams.mpk, &s_com);
         let paymentToken = secParams.keypair.unblind(&tau, &blindPaymentToken);
 
         let blindCloseToken =
             secParams
                 .keypair
-                .sign_blind(rng, &secParams.pubParams.mpk, s_bar_com2.clone());
+                .sign_blind(rng, &secParams.pubParams.mpk, &s_bar_com2);
         let closeToken = secParams.pubParams.pk.unblind(&tau_bar2, &blindCloseToken);
 
         // verify the blind signatures
@@ -703,7 +703,7 @@ mod tests {
         let blindPaymentToken =
             secParams
                 .keypair
-                .sign_blind(rng, &secParams.pubParams.mpk, s_com.clone());
+                .sign_blind(rng, &secParams.pubParams.mpk, &s_com);
         let paymentToken = secParams.keypair.unblind(&tau, &blindPaymentToken);
         let proof = secParams.pubParams.prove(
             rng,
