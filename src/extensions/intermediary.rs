@@ -1,3 +1,4 @@
+use HashSet;
 use super::*;
 use crypto;
 use pairing::Engine;
@@ -56,9 +57,10 @@ impl<E: Engine> Intermediary<E> {
 }
 
 impl<'de, E: Engine> ExtensionTrait<'de, E> for Intermediary<E> {
-    fn init(&self, _payment_amount: i64, ei: &ExtensionInfoWrapper<E>) -> Result<(), String> where
+    fn init(&self, _payment_amount: i64, ei: &mut ExtensionInfoWrapper<E>) -> Result<(), String> where
         <E as pairing::Engine>::G1: serde::Serialize,
         <E as pairing::Engine>::G2: serde::Serialize,
+        <E as ff::ScalarEngine>::Fr: serde::Serialize,
         <E as pairing::Engine>::Fqk: serde::Serialize,
     {
         let info = match ei {
@@ -78,16 +80,18 @@ impl<'de, E: Engine> ExtensionTrait<'de, E> for Intermediary<E> {
                 }
                 // check payment invoice
             }
-            (None, Some(proof), Some(_n)) => {
+            (None, Some(proof), Some(n)) => {
                 // check if nonce has been seen before
-                /*
-            let nonces = HashSet::new(); // TODO: replace this with the actual set of nonces from IntermediaryMerchantInfo
-            //let nint = n.from_repr().expect("Badly formed nonce"); // TODO: figure out if field elements have a hashable representation
-            if nonces.contains(nint) {
-                panic!("Nonce has already been redeemed.".to_string());
-            }
-            nonces.insert(nint);
-            */
+                let nstr = match serde_json::to_string(&n) {
+                    Ok(nstr) => nstr,
+                    Err(e) => return Err(format!("Poorly formed nonce: {}", e)),
+                };
+                if info.nonces.contains(&nstr) {
+                    return Err("Nonce has already been redeemed".to_string());
+                }
+                if !info.nonces.insert(nstr) {
+                    return Err("Failed to save nonce".to_string());
+                }
 
                 // check redemption invoice
                 let challenge = IntermediaryCustomer::fs_challenge(&info.mpk, &proof.1.a, &proof.3.a);
@@ -161,7 +165,7 @@ pub struct IntermediaryMerchantInfo<E: Engine> {
     /// additional keys for handling invoices
     keypair_inv: crypto::pssig::BlindKeyPair<E>,
     // TODO: add list of intermediary nonces
-    // nonces: HashSet<E::Fr>,
+    nonces: HashSet<String>,
 }
 
 /// Intermediary node; acts as a zkChannels merchant; can pass payments among its customers
@@ -192,7 +196,7 @@ impl<E: Engine> IntermediaryMerchant<E> {
             mpk,
             keypair_ac,
             keypair_inv,
-            // nonces: HashSet::new(),
+            nonces: HashSet::new(),
         };
         merch_state.add_extensions_info("intermediary".to_string(), ExtensionInfoWrapper::Intermediary(intermediary_keys));
 
@@ -206,7 +210,7 @@ impl<E: Engine> IntermediaryMerchant<E> {
     }
 
     fn get_intermediary_keys(&self) -> &IntermediaryMerchantInfo<E> {
-        let ei = self.merch_state.get_extensions_info().get("intermediary");
+        let ei = self.merch_state.extensions_info.get("intermediary");
         match ei {
             Some(ExtensionInfoWrapper::Intermediary(info)) => info,
             _ => panic!("Intermediary extension info is invalid."),
@@ -236,8 +240,7 @@ impl<E: Engine> IntermediaryMerchant<E> {
         }
     }
 
-    /// signs an invoice, not blind
-    /// this should probably only be used for testing.
+    /// Unblinds a signature on an invoice using the merchant public keys
     pub fn unblind_invoice(
         &self,
         sig: &Signature<E>,
@@ -488,12 +491,12 @@ mod tests {
     #[test]
     fn test_encoding_nonce() {
         // encode random value as json string
-        let (original, extension_info) = get_random_intermediary(true);
+        let (original, mut extension_info) = get_random_intermediary(true);
         let aux = original.to_aux_string();
 
         // convert back
 
-        let result = match Extensions::parse(&aux, 0, &extension_info).unwrap().unwrap() {
+        let result = match Extensions::parse(&aux, 0, &mut extension_info).unwrap().unwrap() {
             Extensions::Intermediary(obj) => obj,
             _ => panic!("{}", "wrong extension type".to_string()),
         };
@@ -505,11 +508,11 @@ mod tests {
     #[test]
     fn test_encoding_no_nonce() {
         // encode random value WITHOUT A NONCE to json string
-        let (original, extension_info) = get_random_intermediary(false);
+        let (original, mut extension_info) = get_random_intermediary(false);
         let aux = original.to_aux_string();
 
         // convert back
-        let result = match Extensions::parse(&aux, 0, &extension_info).unwrap().unwrap() {
+        let result = match Extensions::parse(&aux, 0, &mut extension_info).unwrap().unwrap() {
             Extensions::Intermediary(obj) => obj,
             _ => panic!("{}", "wrong extension type".to_string()),
         };
@@ -527,7 +530,73 @@ mod tests {
             mpk,
             keypair_ac,
             keypair_inv,
-            // nonces: HashSet::new(),
+            nonces: HashSet::new(),
         }
+    }
+
+    #[test]
+    fn nonces_update_correctly() {
+        let rng = &mut rand::thread_rng();
+
+        let merch_name = "Hub";
+        // Define three participants in the intermediary protocol and derive channel tokens (e.g. public key info)
+        let (mut int_merch, mut channel_token) =
+            intermediary::IntermediaryMerchant::<Bls12>::init(rng, merch_name);
+
+        // merchant initially has 0 nonces
+        let info = match int_merch.merch_state.extensions_info.get("intermediary") {
+            Some(ExtensionInfoWrapper::Intermediary(info)) => info,
+            _ => panic!("Bad extension type."),
+        };
+        assert_eq!(0, info.nonces.len());
+
+        let mut bob = intermediary::IntermediaryCustomer::init(
+            rng,
+            &mut channel_token,
+            int_merch.get_invoice_public_keys(),
+            int_merch.channel_state.clone(),
+            1000,
+            1000,
+            "bob",
+            true,
+        );
+        let ac = int_merch.register_merchant(rng, bob.merch_id.unwrap());
+        bob.merch_ac = Some(ac);
+
+        let invoice = intermediary::Invoice::new(
+            rng.gen_range(5, 100), // amount
+            Fr::rand(rng),         // nonce
+            Fr::rand(rng),         // provider id (merchant anon credential)
+        );
+
+        // skip straight to second payment
+        let unblinded_sig = int_merch.get_intermediary_keys().keypair_inv.sign(rng, &invoice.as_fr());
+        let redemption_invoice = bob.prepare_redemption_invoice(&invoice, &unblinded_sig, rng);
+
+        let _ = redemption_invoice.init(
+            invoice.amount,
+            int_merch.merch_state.extensions_info
+                .get_mut("intermediary")
+                .expect("Merchant is incorrectly formed (should have an intermediary extension)")
+        );
+
+        // after payment, merchant has 1 nonce
+        let info = match int_merch.merch_state.extensions_info.get("intermediary") {
+            Some(ExtensionInfoWrapper::Intermediary(info)) => info,
+            _ => panic!("Bad extension type."),
+        };
+        assert_eq!(1, info.nonces.len());
+
+        // bob cannot redeem invoice again 
+        let result = redemption_invoice.init(
+            invoice.amount,
+            int_merch.merch_state.extensions_info
+                .get_mut("intermediary")
+                .expect("Merchant is incorrectly formed (should have an intermediary extension)")
+        );
+        match result {
+            Err(e) => assert_eq!(e, "Nonce has already been redeemed"),
+            Ok(_) => panic!("Invoice should not be redeemable")
+        };
     }
 }

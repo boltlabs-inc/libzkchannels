@@ -383,7 +383,7 @@ pub mod pay {
         <E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>,
         <E as pairing::Engine>::Fqk: serde::Deserialize<'de>,
     {
-        match Extensions::parse(aux, amount, merch_state.get_extensions_info()) {
+        match Extensions::parse(aux, amount, &mut merch_state.extensions_info) {
             Ok(ext) => match ext {
                 Some(ext) => merch_state.store_ext(FixedSizeArray16(*session_id), ext),
                 None => {}
@@ -569,7 +569,7 @@ pub mod pay {
         );
         let ext = merch_state.get_ext(FixedSizeArray16(*session_id));
         let ext_output = match ext {
-            Some(ext_unwrapped) => match ext_unwrapped.output(rng, merch_state.get_extensions_info()) {
+            Some(ext_unwrapped) => match ext_unwrapped.output(rng, &merch_state.extensions_info) {
                 Ok(ext_str) => ext_str,
                 Err(err) => return Err(err),
             },

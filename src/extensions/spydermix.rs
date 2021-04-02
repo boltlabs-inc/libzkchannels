@@ -7,7 +7,7 @@ pub struct Spydermix {
 }
 
 impl<'de, E: Engine> ExtensionTrait<'de, E> for Spydermix {
-    fn init(&self, _payment_amount: i64, _ei: &ExtensionInfoWrapper<E>)  -> Result<(), String> { unimplemented!() }
+    fn init(&self, _payment_amount: i64, _ei: &mut ExtensionInfoWrapper<E>)  -> Result<(), String> { unimplemented!() }
     fn output<R: Rng>(&self, _rng: &mut R, _ei: &ExtensionInfoWrapper<E>) -> Result<String, String> {
         unimplemented!()
     }
@@ -23,7 +23,7 @@ mod tests{
     fn test_parse() {
         let result = Extensions::<Bls12>::parse(
             &"{\"type\": \"spydermix\", \"amount\": 10, \"duration\": 7}".to_string(),
-            0, &HashMap::new());
+            0, &mut HashMap::new());
         assert!(result.is_ok());
         let unwrapped_result = result.unwrap();
         assert!(unwrapped_result.is_some());

@@ -24,19 +24,21 @@ pub enum Extensions<E: Engine> {
 }
 
 pub trait ExtensionWrapper<'de, E: Engine> {
-    fn init(&self, payment_amount: i64, ei: &HashMap<String, ExtensionInfoWrapper<E>>) -> Result<(), String> where
+    fn init(&self, payment_amount: i64, ei: &mut HashMap<String, ExtensionInfoWrapper<E>>) -> Result<(), String> where
         <E as pairing::Engine>::G1: serde::Serialize,
         <E as pairing::Engine>::G2: serde::Serialize,
+        <E as ff::ScalarEngine>::Fr: serde::Serialize,
         <E as pairing::Engine>::Fqk: serde::Serialize,;
     fn output<R: Rng>(&self, rng: &mut R, ei: &HashMap<String, ExtensionInfoWrapper<E>>) -> Result<String, String> where
         <E as pairing::Engine>::G1: serde::Serialize,;
 }
 
 impl<'de, E: Engine> ExtensionInput<'de, E> for Extensions<E> {
-    fn parse(aux: &'de String, payment_amount: i64, extension_info: &HashMap<String, ExtensionInfoWrapper<E>>) -> Result<Option<Self>, String>
+    fn parse(aux: &'de String, payment_amount: i64, extension_info: &mut HashMap<String, ExtensionInfoWrapper<E>>) -> Result<Option<Self>, String>
         where
             <E as pairing::Engine>::G1: serde::Serialize,
             <E as pairing::Engine>::G2: serde::Serialize,
+            <E as ff::ScalarEngine>::Fr: serde::Serialize,
             <E as pairing::Engine>::Fqk: serde::Serialize,
             <E as pairing::Engine>::G1: serde::Deserialize<'de>,
             <E as pairing::Engine>::G2: serde::Deserialize<'de>,
@@ -59,13 +61,14 @@ impl<'de, E: Engine> ExtensionInput<'de, E> for Extensions<E> {
 }
 
 impl<'de, E: Engine> ExtensionWrapper<'de, E> for Extensions<E> {
-    fn init(&self, payment_amount: i64, ei: &HashMap<String, ExtensionInfoWrapper<E>>) -> Result<(), String> where
+    fn init(&self, payment_amount: i64, ei: &mut HashMap<String, ExtensionInfoWrapper<E>>) -> Result<(), String> where
         <E as pairing::Engine>::G1: serde::Serialize,
         <E as pairing::Engine>::G2: serde::Serialize,
+        <E as ff::ScalarEngine>::Fr: serde::Serialize,
         <E as pairing::Engine>::Fqk: serde::Serialize, {
         match self {
             Extensions::Intermediary(obj) => {
-                obj.init(payment_amount, ei.get("intermediary").unwrap_or(&ExtensionInfoWrapper::Default))
+                obj.init(payment_amount, ei.get_mut("intermediary").unwrap_or(&mut ExtensionInfoWrapper::Default))
             }
             _ => { Ok(()) }
         }

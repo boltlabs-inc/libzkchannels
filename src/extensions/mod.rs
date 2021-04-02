@@ -9,20 +9,23 @@ use std::collections::HashMap;
 use rand::Rng;
 
 pub trait ExtensionInput<'de, E: Engine> {
-    fn parse(aux: &'de String, payment_amount: i64, extension_info: &HashMap<String, ExtensionInfoWrapper<E>>) -> Result<Option<Self>, String> where Self: Sized,
-                                                                                                                                                    <E as pairing::Engine>::G1: serde::Serialize,
-                                                                                                                                                    <E as pairing::Engine>::G2: serde::Serialize,
-                                                                                                                                                    <E as pairing::Engine>::Fqk: serde::Serialize,
-                                                                                                                                                    <E as pairing::Engine>::G1: Deserialize<'de>,
-                                                                                                                                                    <E as pairing::Engine>::G2: Deserialize<'de>,
-                                                                                                                                                    <E as ff::ScalarEngine>::Fr: Deserialize<'de>,
-                                                                                                                                                    <E as pairing::Engine>::Fqk: Deserialize<'de>,;
+    fn parse(aux: &'de String, payment_amount: i64, extension_info: &mut HashMap<String, ExtensionInfoWrapper<E>>) -> Result<Option<Self>, String> where 
+        Self: Sized,
+        <E as pairing::Engine>::G1: serde::Serialize,
+        <E as pairing::Engine>::G2: serde::Serialize,
+        <E as ff::ScalarEngine>::Fr: serde::Serialize,
+        <E as pairing::Engine>::Fqk: serde::Serialize,
+        <E as pairing::Engine>::G1: Deserialize<'de>,
+        <E as pairing::Engine>::G2: Deserialize<'de>,
+        <E as ff::ScalarEngine>::Fr: Deserialize<'de>,
+        <E as pairing::Engine>::Fqk: Deserialize<'de>,;
 }
 
 pub trait ExtensionTrait<'de, E: Engine> {
-    fn init(&self, payment_amount: i64, ei: &ExtensionInfoWrapper<E>) -> Result<(), String> where
+    fn init(&self, payment_amount: i64, ei: &mut ExtensionInfoWrapper<E>) -> Result<(), String> where
         <E as pairing::Engine>::G1: serde::Serialize,
         <E as pairing::Engine>::G2: serde::Serialize,
+        <E as ff::ScalarEngine>::Fr: serde::Serialize,
         <E as pairing::Engine>::Fqk: serde::Serialize,;
     fn output<R: Rng>(&self, rng: &mut R, ei: &ExtensionInfoWrapper<E>) -> Result<String, String> where
         <E as pairing::Engine>::G1: serde::Serialize,;

@@ -740,7 +740,7 @@ pub struct MerchantState<E: Engine> {
     pub spent_nonces: HashSet<String>,
     pub pay_tokens: HashMap<String, crypto::pssig::Signature<E>>,
     extensions: HashMap<String, Extensions<E>>,
-    extensions_info: HashMap<String, ExtensionInfoWrapper<E>>,
+    pub extensions_info: HashMap<String, ExtensionInfoWrapper<E>>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -928,10 +928,6 @@ impl<E: Engine> MerchantState<E> {
 
     pub fn store_ext(&mut self, session_id: FixedSizeArray16, ext: Extensions<E>) {
         self.extensions.insert(session_id.to_string(), ext);
-    }
-
-    pub fn get_extensions_info(&self) -> &HashMap<String, ExtensionInfoWrapper<E>> {
-        &self.extensions_info
     }
 
     pub fn add_extensions_info(&mut self, typ: String, ei: ExtensionInfoWrapper<E>) {

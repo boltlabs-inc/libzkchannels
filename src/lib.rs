@@ -100,12 +100,12 @@ mod benches {
 mod tests {
     use super::*;
     use channels_util::ProtocolStatus;
-    use extensions::intermediary;
     use pairing::bls12_381::Bls12;
     use pairing::bls12_381::Fr;
     use rand::Rng;
     use sha2::Digest;
     use crypto::ped92::CommitmentProof;
+    use extensions::intermediary;
     use extensions::intermediary::{Intermediary, IntermediaryCustomer};
 
     fn setup_new_channel_helper(
