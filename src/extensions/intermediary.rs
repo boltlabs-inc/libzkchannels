@@ -23,10 +23,10 @@ bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
 /// (passed as input and output to pay functionality)
 /// An Intermediary should hold either an inv_proof OR a claim proof and nonce
 pub struct Intermediary<E: Engine> {
-    invoice: Commitment<E>,
-    inv_proof: Option<CommitmentProof<E>>,
-    claim_proof: Option<(Signature<E>, SignatureProof<E>, Signature<E>, SignatureProof<E>)>,
-    nonce: Option<E::Fr>,
+    pub(crate) invoice: Commitment<E>,
+    pub(crate) inv_proof: Option<CommitmentProof<E>>,
+    pub(crate) claim_proof: Option<(Signature<E>, SignatureProof<E>, Signature<E>, SignatureProof<E>)>,
+    pub(crate) nonce: Option<E::Fr>,
 }
 
 impl<E: Engine> Intermediary<E> {
@@ -247,10 +247,10 @@ impl<E: Engine> IntermediaryMerchant<E> {
 
 pub struct IntermediaryCustomerInfo<E: Engine> {
     /// merchant public keys (general, commitment, signing)
-    mpk: zkproofs::PublicParams<E>,
-    invoice_commit: crypto::ped92::CSMultiParams<E>,
-    pub_key_inv: crypto::pssig::BlindPublicKey<E>,
-    pub_key_ac: crypto::pssig::BlindPublicKey<E>,
+    pub(crate) mpk: zkproofs::PublicParams<E>,
+    pub(crate) invoice_commit: crypto::ped92::CSMultiParams<E>,
+    pub(crate) pub_key_inv: crypto::pssig::BlindPublicKey<E>,
+    pub(crate) pub_key_ac: crypto::pssig::BlindPublicKey<E>,
 }
 
 /// Intermediary customer; acts as a zkChannels customer
@@ -266,7 +266,7 @@ pub struct IntermediaryCustomer<E: Engine> {
     /// Merchant anonymous credential if this is indeed a merchant in the intermediary setting
     pub merch_ac: Option<crypto::pssig::Signature<E>>,
     /// intermediary public keys
-    intermediary_keys: IntermediaryCustomerInfo<E>,
+    pub intermediary_keys: IntermediaryCustomerInfo<E>,
 }
 
 impl<E: Engine> IntermediaryCustomer<E> {
@@ -326,7 +326,7 @@ impl<E: Engine> IntermediaryCustomer<E> {
         }, r)
     }
 
-    fn fs_challenge(mpk: &PublicParams<E>, a1: E::Fqk, a2: E::Fqk) -> E::Fr
+    pub fn fs_challenge(mpk: &PublicParams<E>, a1: E::Fqk, a2: E::Fqk) -> E::Fr
         where
             <E as pairing::Engine>::G1: serde::Serialize,
             <E as pairing::Engine>::G2: serde::Serialize,
