@@ -7,7 +7,7 @@ pub struct Spydermix {
 }
 
 impl ExtensionTrait for Spydermix {
-    fn init(&self, _payment_amount: i64)  -> Result<(), String> { unimplemented!() }
+    fn init(&self, _payment_amount: i64, ei: Box<dyn ExtensionInfoWrapper>)  -> Result<(), String> { unimplemented!() }
     fn output(&self) -> Result<String, String> {
         unimplemented!()
     }

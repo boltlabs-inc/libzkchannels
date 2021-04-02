@@ -52,6 +52,9 @@ extern crate core;
 extern crate rand_xorshift;
 extern crate serde_bytes;
 
+#[macro_use]
+extern crate downcast_rs;
+
 pub mod bindings;
 pub mod channels_mpc;
 pub mod channels_util;

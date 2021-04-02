@@ -16,6 +16,7 @@ use util::{
 use wallet::Wallet;
 use zkchan_tx::fixed_size_array::FixedSizeArray16;
 use zkproofs::PublicParams;
+use extensions::ExtensionInfoWrapper;
 
 #[derive(Debug)]
 pub struct BoltError {
@@ -739,7 +740,7 @@ pub struct MerchantState<E: Engine> {
     pub spent_nonces: HashSet<String>,
     pub pay_tokens: HashMap<String, crypto::pssig::Signature<E>>,
     extensions: HashMap<String, Extensions<E>>,
-    //pub intermediary: Option<Intermediary<E>>,
+    // extensions_info: HashMap<String, Box<dyn ExtensionInfoWrapper>>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -786,6 +787,7 @@ impl<E: Engine> MerchantState<E> {
             spent_nonces: HashSet::new(),
             pay_tokens: HashMap::new(),
             extensions: HashMap::new(),
+            // extensions_info: HashMap::new(),
         }
     }
 
@@ -927,6 +929,10 @@ impl<E: Engine> MerchantState<E> {
     pub fn store_ext(&mut self, session_id: FixedSizeArray16, ext: Extensions<E>) {
         self.extensions.insert(session_id.to_string(), ext);
     }
+
+    // pub fn add_extensions_info(&mut self, typ: String, ei: Box<dyn ExtensionInfoWrapper>) {
+    //     self.extensions_info.insert(typ, ei);
+    // }
 }
 
 #[cfg(test)]

@@ -32,6 +32,7 @@ impl<'de, E: Engine> ExtensionInput<'de, E> for Extensions<E> {
     {
         match serde_json::from_str::<Extensions<E>>(aux.as_str()) {
             Ok(out) => {
+                // out.init(payment_amount, Box::new(""));
                 Some(out)
             },
             Err(e) => {
@@ -43,10 +44,10 @@ impl<'de, E: Engine> ExtensionInput<'de, E> for Extensions<E> {
 }
 
 impl<E: Engine> ExtensionTrait for Extensions<E> {
-    fn init(&self, payment_amount: i64) -> Result<(), String> {
+    fn init(&self, payment_amount: i64, ei: Box<dyn ExtensionInfoWrapper>) -> Result<(), String> {
         match self {
             Extensions::Intermediary(obj) => {
-                obj.init(payment_amount)
+                obj.init(payment_amount, ei)
             }
             _ => { Ok(()) }
         }
