@@ -104,13 +104,18 @@ impl<'de, E: Engine> ExtensionTrait<'de, E> for Intermediary<E> {
     }
 
     /// Returns blind signature on invoice commitment
-    fn output<R: Rng>(&self, rng: &mut R, ei: &ExtensionInfoWrapper<E>) -> Result<String, String> {
+    fn output<R: Rng>(&self, rng: &mut R, ei: &ExtensionInfoWrapper<E>) -> Result<String, String> where
+        <E as pairing::Engine>::G1: serde::Serialize,
+    {
         let info = match ei {
             ExtensionInfoWrapper::Intermediary(info) => info,
             _ => return Err("wrong extension info".to_string())
         };
-        let signature = info.keypair_inv.sign_blind(rng, &info.mpk, self.invoice.clone()); //TODO: pass in rng instead of thread_rng()
-        Ok(signature.to_string())
+        let signature = info.keypair_inv.sign_blind(rng, &info.mpk, self.invoice.clone());
+        match serde_json::to_string(&signature) {
+            Ok(output) => Ok(output),
+            Err(e) => Err(e.to_string())
+        }
     }
 }
 
@@ -229,14 +234,14 @@ impl<E: Engine> IntermediaryMerchant<E> {
 
     /// signs an invoice, not blind
     /// this should probably only be used for testing.
-    pub fn sign_invoice<R: Rng>(
+    pub fn unblind_invoice(
         &self,
-        invoice: &Invoice<E>,
-        rng: &mut R,
+        sig: &Signature<E>,
+        bf: &E::Fr,
     ) -> zkproofs::Signature<E> {
         self.intermediary_keys
             .keypair_inv
-            .sign(rng, &invoice.as_fr())
+            .unblind(bf, sig)
     }
 }
 
@@ -303,7 +308,7 @@ impl<E: Engine> IntermediaryCustomer<E> {
         &self,
         invoice: &Invoice<E>,
         rng: &mut R,
-    ) -> Intermediary<E> {
+    ) -> (Intermediary<E>, E::Fr) {
         let r = util::convert_int_to_fr::<E>(rng.gen());
         let message = invoice.as_fr();
         let commit_key = &self.intermediary_keys.invoice_commit;
@@ -313,12 +318,12 @@ impl<E: Engine> IntermediaryCustomer<E> {
         // and reveals the invoice amount
         let proof =
             CommitmentProof::new(rng, commit_key, &invoice_commit.c, &message, &r, &vec![0]);
-        Intermediary {
+        (Intermediary {
             invoice: invoice_commit,
             inv_proof: Some(proof),
             claim_proof: None,
             nonce: None,
-        }
+        }, r)
     }
 
     fn fs_challenge(mpk: &PublicParams<E>, a1: E::Fqk, a2: E::Fqk) -> E::Fr

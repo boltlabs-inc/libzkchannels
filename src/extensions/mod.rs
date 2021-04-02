@@ -24,7 +24,8 @@ pub trait ExtensionTrait<'de, E: Engine> {
         <E as pairing::Engine>::G1: serde::Serialize,
         <E as pairing::Engine>::G2: serde::Serialize,
         <E as pairing::Engine>::Fqk: serde::Serialize,;
-    fn output<R: Rng>(&self, rng: &mut R, ei: &ExtensionInfoWrapper<E>) -> Result<String, String>;
+    fn output<R: Rng>(&self, rng: &mut R, ei: &ExtensionInfoWrapper<E>) -> Result<String, String> where
+        <E as pairing::Engine>::G1: serde::Serialize,;
 }
 
 #[derive(Clone, Serialize, Deserialize)]

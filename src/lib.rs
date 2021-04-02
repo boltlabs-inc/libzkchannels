@@ -736,7 +736,7 @@ mod tests {
 
         // ALICE commits to invoice with INT's invoice keys
         // and proves knowledge of opening commitment
-        let validated_invoice = alice.prepare_payment_invoice(&invoice, rng);
+        let (validated_invoice, bf) = alice.prepare_payment_invoice(&invoice, rng);
 
         // ALICE initializes pay with INT, passing invoice stuff as aux
         // and receiving signature on invoice as output
@@ -749,9 +749,8 @@ mod tests {
         );
 
         // ALICE unblinds signature and sends to BOB
-        // TODO: replace signing here with unblinding of obj returned from pay!!!
-        println!("blind signature: {}", signed_invoice);
-        let unblinded_sig = int_merch.sign_invoice(&invoice, rng);
+        let blinded_sig = serde_json::from_str(signed_invoice.as_str()).unwrap();
+        let unblinded_sig = int_merch.unblind_invoice(&blinded_sig, &bf);
 
         // BOB verifies signature
         assert!(bob.validate_invoice_signature(&invoice, unblinded_sig.clone()));

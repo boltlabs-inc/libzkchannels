@@ -28,7 +28,8 @@ pub trait ExtensionWrapper<'de, E: Engine> {
         <E as pairing::Engine>::G1: serde::Serialize,
         <E as pairing::Engine>::G2: serde::Serialize,
         <E as pairing::Engine>::Fqk: serde::Serialize,;
-    fn output<R: Rng>(&self, rng: &mut R, ei: HashMap<String, ExtensionInfoWrapper<E>>) -> Result<String, String>;
+    fn output<R: Rng>(&self, rng: &mut R, ei: HashMap<String, ExtensionInfoWrapper<E>>) -> Result<String, String> where
+        <E as pairing::Engine>::G1: serde::Serialize,;
 }
 
 impl<'de, E: Engine> ExtensionInput<'de, E> for Extensions<E> {
@@ -70,7 +71,9 @@ impl<'de, E: Engine> ExtensionWrapper<'de, E> for Extensions<E> {
         }
     }
 
-    fn output<R: Rng>(&self, rng: &mut R, ei: HashMap<String, ExtensionInfoWrapper<E>>) -> Result<String, String> {
+    fn output<R: Rng>(&self, rng: &mut R, ei: HashMap<String, ExtensionInfoWrapper<E>>) -> Result<String, String> where
+        <E as pairing::Engine>::G1: serde::Serialize,
+    {
         match self {
             Extensions::Spydermix(_) => {
                 Err("unimplemented".to_string())

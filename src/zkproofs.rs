@@ -547,7 +547,9 @@ pub mod pay {
         session_id: &[u8; 16],
         rt: &RevLockPair,
         merch_state: &mut MerchantState<E>,
-    ) -> BoltResult<(pssig::Signature<E>, String)> {
+    ) -> BoltResult<(pssig::Signature<E>, String)> where
+        <E as pairing::Engine>::G1: serde::Serialize,
+    {
         if merch_state.keys.contains_key(&hex::encode(&rt.rev_lock))
             && merch_state.keys.get(&hex::encode(&rt.rev_lock)).unwrap() != ""
         {
