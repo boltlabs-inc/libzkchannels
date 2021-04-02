@@ -98,9 +98,9 @@ pub mod ffishim {
         let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
 
         // NOTE: this used to be a parameter to ChannelState, but that feature is now deprecated.
-        let mut tps = false;
+        let mut _tps = false;
         if third_party_support > 1 {
-            tps = true;
+            _tps = true;
         }
         let channel_state = zkproofs::ChannelState::<CURVE>::new(name.to_string());
 

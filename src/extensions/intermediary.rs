@@ -1,7 +1,7 @@
 use super::*;
 use crypto;
 use pairing::Engine;
-use rand::Rng;
+use rand::{Rng, thread_rng};
 use util;
 use zkproofs;
 use zkproofs::{ChannelState, ChannelToken, Commitment, CommitmentProof};
@@ -25,7 +25,7 @@ bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
 pub struct Intermediary<E: Engine> {
     invoice: Commitment<E>,
     inv_proof: Option<CommitmentProof<E>>,
-    claim_proof: Option<(SignatureProof<E>, SignatureProof<E>)>,
+    claim_proof: Option<(Signature<E>, SignatureProof<E>, Signature<E>, SignatureProof<E>)>,
     nonce: Option<E::Fr>,
 }
 
@@ -49,10 +49,18 @@ impl<E: Engine> Intermediary<E> {
                 + "}",
         )
     }
+
+    pub fn is_claim(&self) -> bool {
+        self.claim_proof.is_some()
+    }
 }
 
 impl<'de, E: Engine> ExtensionTrait<'de, E> for Intermediary<E> {
-    fn init(&self, payment_amount: i64, ei: &ExtensionInfoWrapper<E>) -> Result<(), String> {
+    fn init(&self, _payment_amount: i64, ei: &ExtensionInfoWrapper<E>) -> Result<(), String> where
+        <E as pairing::Engine>::G1: serde::Serialize,
+        <E as pairing::Engine>::G2: serde::Serialize,
+        <E as pairing::Engine>::Fqk: serde::Serialize,
+    {
         let info = match ei {
             ExtensionInfoWrapper::Intermediary(info) => info,
             _ => return Err("wrong extension info".to_string())
@@ -70,7 +78,7 @@ impl<'de, E: Engine> ExtensionTrait<'de, E> for Intermediary<E> {
                 }
                 // check payment invoice
             }
-            (None, Some(proof), Some(n)) => {
+            (None, Some(proof), Some(_n)) => {
                 // check if nonce has been seen before
                 /*
             let nonces = HashSet::new(); // TODO: replace this with the actual set of nonces from IntermediaryMerchantInfo
@@ -82,6 +90,11 @@ impl<'de, E: Engine> ExtensionTrait<'de, E> for Intermediary<E> {
             */
 
                 // check redemption invoice
+                let challenge = IntermediaryCustomer::fs_challenge(&info.mpk, proof.1.a.clone(), proof.3.a.clone());
+                if !info.keypair_inv.public.verify_proof(&info.mpk, proof.0.clone(), proof.1.clone(), challenge) ||
+                    !info.keypair_ac.public.verify_proof(&info.mpk, proof.2.clone(), proof.3.clone(), challenge) {
+                    return Err("could not verify proof".to_string());
+                }
                 Ok(())
             }
             _ => {
@@ -96,7 +109,8 @@ impl<'de, E: Engine> ExtensionTrait<'de, E> for Intermediary<E> {
             ExtensionInfoWrapper::Intermediary(info) => info,
             _ => return Err("wrong extension info".to_string())
         };
-        Ok("This is a valid blind signature!".to_string())
+        let signature = info.keypair_inv.sign_blind(&mut thread_rng(), &info.mpk, self.invoice.clone()); //TODO: pass in rng instead of thread_rng()
+        Ok(signature.to_string())
     }
 }
 
@@ -364,8 +378,10 @@ impl<E: Engine> IntermediaryCustomer<E> {
 
         // PoK: prover knows the opening of the commitment
         // and reveals the invoice amount and nonce
-        let proof_state_inv = self.intermediary_keys.pub_key_inv.prove_commitment(rng, &self.intermediary_keys.mpk, invoice_sig, None, None);
-        let proof_state_ac = self.intermediary_keys.pub_key_ac.prove_commitment(rng, &self.intermediary_keys.mpk, &self.merch_ac.clone().unwrap(), Some(vec![proof_state_inv.t[2]]), None);
+        let merch_ac = self.merch_ac.clone().unwrap();
+
+        let proof_state_inv = self.intermediary_keys.pub_key_inv.prove_commitment(rng, &self.intermediary_keys.mpk, &invoice_sig.clone(), None, None);
+        let proof_state_ac = self.intermediary_keys.pub_key_ac.prove_commitment(rng, &self.intermediary_keys.mpk, &merch_ac.clone(), Some(vec![proof_state_inv.t[2]]), None);
         let challenge = Self::fs_challenge(&self.intermediary_keys.mpk, proof_state_inv.a, proof_state_ac.a);
         let proof1 = self.intermediary_keys.pub_key_inv.prove_response(&proof_state_inv, challenge, &mut message);
         let proof2 = self.intermediary_keys.pub_key_ac.prove_response(&proof_state_ac, challenge, &mut vec![self.merch_id.unwrap()]);
@@ -373,7 +389,7 @@ impl<E: Engine> IntermediaryCustomer<E> {
         Intermediary {
             invoice: invoice_commit,
             inv_proof: None,
-            claim_proof: Some((proof1, proof2)),
+            claim_proof: Some((proof_state_inv.blindSig, proof1, proof_state_ac.blindSig, proof2)),
             nonce: Some(invoice.nonce),
         }
     }
@@ -446,7 +462,7 @@ mod tests {
         // convert back
         let result = match Extensions::parse(&aux, 0, HashMap::new()).unwrap().unwrap() {
             Extensions::Intermediary(obj) => obj,
-            _ => panic!("wrong extension type".to_string()),
+            _ => panic!("{}", "wrong extension type".to_string()),
         };
 
         // check
@@ -462,7 +478,7 @@ mod tests {
         // convert back
         let result = match Extensions::parse(&aux, 0, HashMap::new()).unwrap().unwrap() {
             Extensions::Intermediary(obj) => obj,
-            _ => panic!("wrong extension type".to_string()),
+            _ => panic!("{}", "wrong extension type".to_string()),
         };
 
         // check

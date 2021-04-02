@@ -87,7 +87,7 @@ mod tests {
 
         let res1 =
             cust_state.set_initial_cust_state(&mut channel_token, &funding_tx_info, &tx_fee_info);
-        assert!(res1.is_ok(), res1.err().unwrap());
+        assert!(res1.is_ok(), "{}", res1.err().unwrap());
 
         let got_close_tx = cust_state.sign_initial_closing_transaction::<Testnet>(
             &channel_state,
@@ -95,7 +95,7 @@ mod tests {
             &escrow_sig,
             &merch_sig,
         );
-        assert!(got_close_tx.is_ok(), got_close_tx.err().unwrap());
+        assert!(got_close_tx.is_ok(), "{}", got_close_tx.err().unwrap());
         // customer can proceed to sign the escrow-tx and merch-close-tx and sends resulting signatures to merchant
         let (init_cust_state, init_hash) = mpc::get_initial_state(&cust_state).unwrap();
 
@@ -107,7 +107,7 @@ mod tests {
             init_hash,
             &mut merch_state,
         );
-        assert!(res2.is_ok(), res2.err().unwrap());
+        assert!(res2.is_ok(), "{}", res2.err().unwrap());
         let _rc = mpc::customer_mark_open_channel(&mut cust_state).unwrap();
         let _rc =
             mpc::merchant_mark_open_channel(channel_token.escrow_txid.0.clone(), &mut merch_state)
@@ -121,7 +121,7 @@ mod tests {
             &s0,
             &mut merch_state,
         );
-        assert!(pay_token.is_ok(), pay_token.err().unwrap());
+        assert!(pay_token.is_ok(), "{}", pay_token.err().unwrap());
 
         mpc::activate_customer_finalize(pay_token.unwrap(), &mut cust_state).unwrap();
 
@@ -314,7 +314,7 @@ mod tests {
             None,
             None,
         );
-        assert!(res_merch.is_ok(), res_merch.err().unwrap());
+        assert!(res_merch.is_ok(), "{}", res_merch.err().unwrap());
 
         let masked_inputs = mpc::pay_confirm_mpc_result(
             &mut db as &mut dyn StateDatabase,
@@ -322,7 +322,7 @@ mod tests {
             "6ae9c1ec9fe899664f2a35badbbcada8".to_string(),
             &mut merch_state,
         );
-        assert!(masked_inputs.is_ok(), masked_inputs.err().unwrap());
+        assert!(masked_inputs.is_ok(), "{}", masked_inputs.err().unwrap());
         // println!("Masked Tx Inputs: {:#?}", masked_inputs.unwrap());
         let mask_in = masked_inputs.unwrap();
         println!("escrow_mask: {}", hex::encode(mask_in.escrow_mask.0));
@@ -387,7 +387,7 @@ mod tests {
 
             let (init_cust_state, init_hash) = match mpc::get_initial_state(&cust_state) {
                 Ok(n) => (n.0, n.1),
-                Err(e) => panic!(e)
+                Err(e) => panic!("{}", e)
             };
 
             let res2 = mpc::validate_channel_params(&mut db as &mut dyn StateDatabase, &channel_token, &init_cust_state, init_hash, &mut merch_state);
@@ -445,7 +445,7 @@ mod tests {
             );
 
             let is_ok = mpc::pay_unmask_sigs_customer(&channel_state, &channel_token, masks, &mut cust_state);
-            assert!(is_ok.is_ok(), is_ok.err().unwrap());
+            assert!(is_ok.is_ok(), "{}", is_ok.err().unwrap());
 
             let mut pt_mask = [0u8; 32];
             pt_mask.copy_from_slice(hex::decode("4a682bd5d46e3b5c7c6c353636086ed7a943895982cb43deba0a8843459500e4").unwrap().as_slice());
@@ -495,7 +495,7 @@ mod tests {
             &escrow_sig,
             &merch_sig,
         );
-        assert!(got_close_tx.is_ok(), got_close_tx.err().unwrap());
+        assert!(got_close_tx.is_ok(), "{}", got_close_tx.err().unwrap());
 
         // at this point, we should be pending open since we've got the initial close tx signed
         // just need to broadcast the escrow tx

@@ -926,7 +926,7 @@ mod tests {
         // let's check that we can retrieve the original secret
         let orig_rev_sec = match db.get_rev_secret(&rev_lock_hex) {
             Ok(n) => n,
-            Err(e) => panic!(format!("Could not retrieve rev secret from DB: {}", e)),
+            Err(e) => panic!("{}", format!("Could not retrieve rev secret from DB: {}", e)),
         };
 
         assert_eq!(orig_rev_sec, rev_sec_hex);

@@ -958,7 +958,7 @@ mod tests {
         );
 
         // if this assert is triggered, then there was an error inside the mpc
-        assert!(mpc_result.is_ok(), mpc_result.err().unwrap());
+        assert!(mpc_result.is_ok(), "{}", mpc_result.err().unwrap());
         let (pt_masked_ar, ct_escrow_masked_ar, ct_merch_masked_ar, success_ar) =
             mpc_result.unwrap();
         assert_eq!(hex::encode(success_ar), "03030303030303030303030303030303");

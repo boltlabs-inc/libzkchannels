@@ -2044,7 +2044,7 @@ mod tests {
         // activate channel - generate pay_token
         let pay_token_0 = match merch_state.activate_channel(&mut db as &mut dyn StateDatabase, &channel_token, &s_0) {
             Ok(p) => p,
-            Err(e) => panic!(e)
+            Err(e) => panic!("{}", e)
         };
 
         // at this point, should have the signed cust-close-txs
@@ -2081,7 +2081,7 @@ mod tests {
             ptr::null_mut(),
             None,
             None,);
-        assert!(res.is_ok(), res.err().unwrap());
+        assert!(res.is_ok(), "{}", res.err().unwrap());
 
         println!("completed mpc execution!");
 
@@ -2135,13 +2135,13 @@ mod tests {
 
             println!("now, unmask and verify...");
             let is_ok = cust_state.unmask_and_verify_transactions::<Testnet>(&channel_state, &channel_token, mb.get_tx_masks());
-            assert!(is_ok.is_ok(), is_ok.err().unwrap());
+            assert!(is_ok.is_ok(), "{}", is_ok.err().unwrap());
 
             let is_ok = cust_state.unmask_and_verify_pay_token(mb.pt_mask.0, mb.pt_mask_r.0);
             assert!(is_ok);
 
             let result = cust_state.customer_close::<Testnet>(&channel_state, &channel_token, true);
-            assert!(result.is_ok(), result.err().unwrap());
+            assert!(result.is_ok(), "{}", result.err().unwrap());
             let (close_escrow_tx, close_escrow_txid_be, _) = result.unwrap();
 
             // output most recent closing tx
@@ -2221,7 +2221,7 @@ mod tests {
             &init_cust_state,
             s_0.compute_hash(),
         );
-        assert!(res.is_ok(), res.err().unwrap());
+        assert!(res.is_ok(), "{}", res.err().unwrap());
 
         println!("Begin activate phase for channel");
         println!(
@@ -2241,7 +2241,7 @@ mod tests {
             &s_0,
         ) {
             Ok(p) => p,
-            Err(e) => panic!(e),
+            Err(e) => panic!("{}", e),
         };
 
         // at this point, should have the signed cust-close-txs
@@ -2296,7 +2296,7 @@ mod tests {
             None,
             None,
         );
-        assert!(res.is_ok(), res.err().unwrap());
+        assert!(res.is_ok(), "{}", res.err().unwrap());
 
         let (pt_mask, pt_mask_r) = merch_state
             .verify_revoked_state(

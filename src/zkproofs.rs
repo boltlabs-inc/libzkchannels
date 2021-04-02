@@ -377,6 +377,7 @@ pub mod pay {
         <E as ff::ScalarEngine>::Fr: serde::Serialize,
         <E as pairing::Engine>::G1: serde::Serialize,
         <E as pairing::Engine>::G2: serde::Serialize,
+        <E as pairing::Engine>::Fqk: serde::Serialize,
         <E as pairing::Engine>::G1: serde::Deserialize<'de>,
         <E as pairing::Engine>::G2: serde::Deserialize<'de>,
         <E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>,
@@ -387,7 +388,10 @@ pub mod pay {
                 Some(ext) => merch_state.store_ext(FixedSizeArray16(*session_id), ext),
                 None => {}
             }
-            Err(e) => return false
+            Err(e) => {
+                println!("{}", e);
+                return false
+            }
         };
         if !merch_state.spent_nonces.contains(&nonce.to_string()) && amount != 0 {
             merch_state.spent_nonces.insert(nonce.to_string());
