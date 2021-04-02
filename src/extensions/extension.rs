@@ -23,46 +23,54 @@ pub enum Extensions<E: Engine> {
     Default,
 }
 
+pub trait ExtensionWrapper<'de, E: Engine> {
+    fn init(&self, payment_amount: i64, ei: HashMap<String, ExtensionInfoWrapper<E>>) -> Result<(), String>;
+    fn output(&self, ei: HashMap<String, ExtensionInfoWrapper<E>>) -> Result<String, String>;
+}
+
 impl<'de, E: Engine> ExtensionInput<'de, E> for Extensions<E> {
-    fn parse(aux: &'de String, payment_amount: i64) -> Option<Self> where
+    fn parse(aux: &'de String, payment_amount: i64, extension_info: HashMap<String, ExtensionInfoWrapper<E>>) -> Result<Option<Self>, String>
+        where
         <E as pairing::Engine>::G1: serde::Deserialize<'de>,
         <E as pairing::Engine>::G2: serde::Deserialize<'de>,
         <E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>,
         <E as pairing::Engine>::Fqk: serde::Deserialize<'de>,
     {
+        if aux.is_empty() {
+            return Ok(None);
+        }
         match serde_json::from_str::<Extensions<E>>(aux.as_str()) {
             Ok(out) => {
-                // out.init(payment_amount, Box::new(""));
-                Some(out)
-            },
+                out.init(payment_amount, extension_info)?;
+                Ok(Some(out))
+            }
             Err(e) => {
-                println!("{}", e);
-                None
+                Err(e.to_string())
             }
         }
     }
 }
 
-impl<E: Engine> ExtensionTrait for Extensions<E> {
-    fn init(&self, payment_amount: i64, ei: Box<dyn ExtensionInfoWrapper>) -> Result<(), String> {
+impl<'de, E: Engine> ExtensionWrapper<'de, E> for Extensions<E> {
+    fn init(&self, payment_amount: i64, ei: HashMap<String, ExtensionInfoWrapper<E>>) -> Result<(), String> {
         match self {
             Extensions::Intermediary(obj) => {
-                obj.init(payment_amount, ei)
+                obj.init(payment_amount, ei.get("intermediary").unwrap_or(&ExtensionInfoWrapper::Default))
             }
             _ => { Ok(()) }
         }
     }
 
-    fn output(&self) -> Result<String, String> {
+    fn output(&self, ei: HashMap<String, ExtensionInfoWrapper<E>>) -> Result<String, String> {
         match self {
             Extensions::Spydermix(obj) => {
-                obj.output()
+                Err("unimplemented".to_string())
             }
             Extensions::Default => {
                 Err("unimplemented".to_string())
             }
             Extensions::Intermediary(obj) => {
-                obj.output()
+                obj.output(ei.get("intermediary").unwrap_or(&ExtensionInfoWrapper::Default))
             }
         }
     }

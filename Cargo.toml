@@ -37,7 +37,6 @@ zkchan-tx = { git = "https://github.com/boltlabs-inc/zkchan-tx" }
 enum-display-derive = "0.1.0"
 confy = "0.4"
 num-bigint = "0.3.2"
-downcast-rs = "1.2.0"
 
 [build-dependencies]
 bindgen="*"

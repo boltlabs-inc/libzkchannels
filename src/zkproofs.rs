@@ -315,8 +315,8 @@ pub mod unlink {
 
 pub mod pay {
     use super::*;
-    use extensions::extension::Extensions;
-    use extensions::{ExtensionTrait, ExtensionInput};
+    use extensions::extension::{Extensions, ExtensionWrapper};
+    use extensions::{ExtensionInput};
 
     ///
     /// pay::customer_prepare() - takes as input an rng, the channel state, the payment amount, and the customer state.
@@ -374,14 +374,20 @@ pub mod pay {
         merch_state: &mut MerchantState<E>,
     ) -> bool
     where
+        <E as ff::ScalarEngine>::Fr: serde::Serialize,
+        <E as pairing::Engine>::G1: serde::Serialize,
+        <E as pairing::Engine>::G2: serde::Serialize,
         <E as pairing::Engine>::G1: serde::Deserialize<'de>,
         <E as pairing::Engine>::G2: serde::Deserialize<'de>,
         <E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>,
         <E as pairing::Engine>::Fqk: serde::Deserialize<'de>,
     {
-        match Extensions::parse(aux, amount) {
-            Some(ext) => merch_state.store_ext(FixedSizeArray16(*session_id), ext),
-            None => {}
+        match Extensions::parse(aux, amount, merch_state.get_extensions_info()) {
+            Ok(ext) => match ext {
+                Some(ext) => merch_state.store_ext(FixedSizeArray16(*session_id), ext),
+                None => {}
+            }
+            Err(e) => return false
         };
         if !merch_state.spent_nonces.contains(&nonce.to_string()) && amount != 0 {
             merch_state.spent_nonces.insert(nonce.to_string());
@@ -556,7 +562,7 @@ pub mod pay {
         );
         let ext = merch_state.get_ext(FixedSizeArray16(*session_id));
         let ext_output = match ext {
-            Some(ext_unwrapped) => match ext_unwrapped.output() {
+            Some(ext_unwrapped) => match ext_unwrapped.output(merch_state.get_extensions_info()) {
                 Ok(ext_str) => ext_str,
                 Err(err) => return Err(err),
             },

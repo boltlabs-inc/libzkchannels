@@ -2,14 +2,11 @@ use super::*;
 use crypto;
 use pairing::Engine;
 use rand::Rng;
-use ff::PrimeField;
 use util;
 use zkproofs;
 use zkproofs::{ChannelState, ChannelToken, Commitment, CommitmentProof};
 use ff::Rand;
 use crypto::pssig::{Signature, SignatureProof, PublicParams};
-use std::collections::HashSet;
-use crypto::ped92::CSMultiParams;
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
@@ -54,47 +51,51 @@ impl<E: Engine> Intermediary<E> {
     }
 }
 
-impl<E: Engine> ExtensionTrait for Intermediary<E> {
-    fn init(&self, payment_amount: i64, ei: Box<dyn ExtensionInfoWrapper>) -> Result<(), String> {
-        if let Some(info) = ei.downcast_ref::<IntermediaryMerchantInfo<E>>() {
-            match (&self.inv_proof, &self.claim_proof, self.nonce) {
-                (Some(proof), None, None) => {
-                    let xvec: Vec<E::G1> = vec![proof.T.clone(), self.invoice.c];
-                    let challenge = util::hash_g1_to_fr::<E>(&xvec);
-                    let com_params = info.keypair_inv
-                        .generate_cs_multi_params(&info.mpk);
-                    if proof.verify_proof(&com_params, &self.invoice.c, &challenge, None) { //TODO: reveal option for amount
-                        Ok(())
-                    } else {
-                        Err("could not verify proof".to_string())
-                    }
-                    // check payment invoice
-                }
-                (None, Some(proof), Some(n)) => {
-                    // check if nonce has been seen before
-                    /*
-                let nonces = HashSet::new(); // TODO: replace this with the actual set of nonces from IntermediaryMerchantInfo
-                //let nint = n.from_repr().expect("Badly formed nonce"); // TODO: figure out if field elements have a hashable representation
-                if nonces.contains(nint) {
-                    panic!("Nonce has already been redeemed.".to_string());
-                }
-                nonces.insert(nint);
-                */
-
-                    // check redemption invoice
+impl<'de, E: Engine> ExtensionTrait<'de, E> for Intermediary<E> {
+    fn init(&self, payment_amount: i64, ei: &ExtensionInfoWrapper<E>) -> Result<(), String> {
+        let info = match ei {
+            ExtensionInfoWrapper::Intermediary(info) => info,
+            _ => return Err("wrong extension info".to_string())
+        };
+        match (&self.inv_proof, &self.claim_proof, self.nonce) {
+            (Some(proof), None, None) => {
+                let xvec: Vec<E::G1> = vec![proof.T.clone(), self.invoice.c];
+                let challenge = util::hash_g1_to_fr::<E>(&xvec);
+                let com_params = info.keypair_inv
+                    .generate_cs_multi_params(&info.mpk);
+                if proof.verify_proof(&com_params, &self.invoice.c, &challenge, None) { //TODO: reveal option for amount
                     Ok(())
+                } else {
+                    Err("could not verify proof".to_string())
                 }
-                _ => {
-                    Err("Incorrectly formed Intermediary struct.".to_string())
-                }
+                // check payment invoice
             }
-        } else {
-            Err("Incorrect IntermediaryMerchantInfo.".to_string())
+            (None, Some(proof), Some(n)) => {
+                // check if nonce has been seen before
+                /*
+            let nonces = HashSet::new(); // TODO: replace this with the actual set of nonces from IntermediaryMerchantInfo
+            //let nint = n.from_repr().expect("Badly formed nonce"); // TODO: figure out if field elements have a hashable representation
+            if nonces.contains(nint) {
+                panic!("Nonce has already been redeemed.".to_string());
+            }
+            nonces.insert(nint);
+            */
+
+                // check redemption invoice
+                Ok(())
+            }
+            _ => {
+                Err("Incorrectly formed Intermediary struct.".to_string())
+            }
         }
     }
 
     /// Returns blind signature on invoice commitment
-    fn output(&self) -> Result<String, String> {
+    fn output(&self, ei: &ExtensionInfoWrapper<E>) -> Result<String, String> {
+        let info = match ei {
+            ExtensionInfoWrapper::Intermediary(info) => info,
+            _ => return Err("wrong extension info".to_string())
+        };
         Ok("This is a valid blind signature!".to_string())
     }
 }
@@ -124,6 +125,15 @@ impl<E: Engine> Invoice<E> {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
+                           <E as pairing::Engine>::G1: serde::Serialize, \
+                           <E as pairing::Engine>::G2: serde::Serialize"))]
+#[serde(
+bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+                         <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+                         <E as pairing::Engine>::G2: serde::Deserialize<'de>")
+)]
 pub struct IntermediaryMerchantInfo<E: Engine> {
     /// merchant public parameters
     mpk: zkproofs::PublicParams<E>,
@@ -132,10 +142,8 @@ pub struct IntermediaryMerchantInfo<E: Engine> {
     /// additional keys for handling invoices
     keypair_inv: crypto::pssig::BlindKeyPair<E>,
     // TODO: add list of intermediary nonces
-    nonces: HashSet<E::Fr>,
+    // nonces: HashSet<E::Fr>,
 }
-
-impl<E: Engine> ExtensionInfoWrapper for IntermediaryMerchantInfo<E> {}
 
 /// Intermediary node; acts as a zkChannels merchant; can pass payments among its customers
 /// Holds extra key material for generating objects used in intermediary protocol
@@ -168,9 +176,9 @@ impl<E: Engine> IntermediaryMerchant<E> {
             mpk,
             keypair_ac,
             keypair_inv,
-            nonces: HashSet::new(),
+            // nonces: HashSet::new(),
         };
-        // merch_state.add_extensions_info("intermediary".to_string(), Box::new(intermediary_keys.clone()));
+        merch_state.add_extensions_info("intermediary".to_string(), ExtensionInfoWrapper::Intermediary(intermediary_keys.clone()));
 
         (
             IntermediaryMerchant {
@@ -436,7 +444,7 @@ mod tests {
         let aux = original.to_aux_string();
 
         // convert back
-        let result = match Extensions::parse(&aux, 0).unwrap() {
+        let result = match Extensions::parse(&aux, 0, HashMap::new()).unwrap().unwrap() {
             Extensions::Intermediary(obj) => obj,
             _ => panic!("wrong extension type".to_string()),
         };
@@ -452,7 +460,7 @@ mod tests {
         let aux = original.to_aux_string();
 
         // convert back
-        let result = match Extensions::parse(&aux, 0).unwrap() {
+        let result = match Extensions::parse(&aux, 0, HashMap::new()).unwrap().unwrap() {
             Extensions::Intermediary(obj) => obj,
             _ => panic!("wrong extension type".to_string()),
         };

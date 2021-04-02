@@ -740,7 +740,7 @@ pub struct MerchantState<E: Engine> {
     pub spent_nonces: HashSet<String>,
     pub pay_tokens: HashMap<String, crypto::pssig::Signature<E>>,
     extensions: HashMap<String, Extensions<E>>,
-    // extensions_info: HashMap<String, Box<dyn ExtensionInfoWrapper>>,
+    extensions_info: HashMap<String, ExtensionInfoWrapper<E>>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -787,7 +787,7 @@ impl<E: Engine> MerchantState<E> {
             spent_nonces: HashSet::new(),
             pay_tokens: HashMap::new(),
             extensions: HashMap::new(),
-            // extensions_info: HashMap::new(),
+            extensions_info: HashMap::new(),
         }
     }
 
@@ -922,7 +922,7 @@ impl<E: Engine> MerchantState<E> {
     //     };
     // }
 
-    pub fn get_ext(&mut self, session_id: FixedSizeArray16) -> Option<&Extensions<E>> {
+    pub fn get_ext(&self, session_id: FixedSizeArray16) -> Option<&Extensions<E>> {
         self.extensions.get(session_id.to_string().as_str())
     }
 
@@ -930,9 +930,13 @@ impl<E: Engine> MerchantState<E> {
         self.extensions.insert(session_id.to_string(), ext);
     }
 
-    // pub fn add_extensions_info(&mut self, typ: String, ei: Box<dyn ExtensionInfoWrapper>) {
-    //     self.extensions_info.insert(typ, ei);
-    // }
+    pub fn get_extensions_info(&self) -> HashMap<String, ExtensionInfoWrapper<E>> {
+        self.extensions_info.clone()
+    }
+
+    pub fn add_extensions_info(&mut self, typ: String, ei: ExtensionInfoWrapper<E>) {
+        self.extensions_info.insert(typ, ei);
+    }
 }
 
 #[cfg(test)]
