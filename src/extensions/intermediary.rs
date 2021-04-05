@@ -6,7 +6,7 @@ use rand::Rng;
 use util;
 use zkproofs;
 use zkproofs::{ChannelState, ChannelToken, Commitment, CommitmentProof};
-use ff::Rand;
+use ff::{Rand,Field};
 use crypto::pssig::{Signature, SignatureProof, PublicParams};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -57,7 +57,7 @@ impl<E: Engine> Intermediary<E> {
 }
 
 impl<'de, E: Engine> ExtensionTrait<'de, E> for Intermediary<E> {
-    fn init(&self, _payment_amount: i64, ei: &mut ExtensionInfoWrapper<E>) -> Result<(), String> where
+    fn init(&self, payment_amount: i64, ei: &mut ExtensionInfoWrapper<E>) -> Result<(), String> where
         <E as pairing::Engine>::G1: serde::Serialize,
         <E as pairing::Engine>::G2: serde::Serialize,
         <E as ff::ScalarEngine>::Fr: serde::Serialize,
@@ -81,7 +81,27 @@ impl<'de, E: Engine> ExtensionTrait<'de, E> for Intermediary<E> {
                 // check payment invoice
             }
             (None, Some(proof), Some(n)) => {
-                // check if nonce has been seen before
+                // name parts of proof
+                let (inv_signature, inv_proof, ac_signature, ac_proof) = proof;
+
+                // check that nonce matches proof
+                let challenge = IntermediaryCustomer::fs_challenge(&info.mpk, &proof.1.a, &proof.3.a);
+                let mut cn = E::Fr::one();
+                cn.mul_assign(&challenge);
+                cn.mul_assign(&n);
+                if cn != inv_proof.zsig[1] {
+                    return Err("Nonce does not match commitment".to_string());
+                }
+
+                // check that payment amount matches proof
+                let mut c_eps = E::Fr::one();
+                c_eps.mul_assign(&challenge);
+                c_eps.mul_assign(&util::convert_int_to_fr::<E>(-payment_amount));
+                if c_eps != inv_proof.zsig[0] {
+                    return Err("Payment amount does not match commitment".to_string());
+                }
+
+                // check if nonce has been seen before and save if not
                 let nstr = match serde_json::to_string(&n) {
                     Ok(nstr) => nstr,
                     Err(e) => return Err(format!("Poorly formed nonce: {}", e)),
@@ -94,9 +114,8 @@ impl<'de, E: Engine> ExtensionTrait<'de, E> for Intermediary<E> {
                 }
 
                 // check redemption invoice
-                let challenge = IntermediaryCustomer::fs_challenge(&info.mpk, &proof.1.a, &proof.3.a);
-                if !info.keypair_inv.public.verify_proof(&info.mpk, &proof.0, &proof.1, challenge) ||
-                    !info.keypair_ac.public.verify_proof(&info.mpk, &proof.2, &proof.3, challenge) {
+                if !info.keypair_inv.public.verify_proof(&info.mpk, &inv_signature, &inv_proof, challenge) ||
+                    !info.keypair_ac.public.verify_proof(&info.mpk, &ac_signature, &ac_proof, challenge) {
                     return Err("could not verify proof".to_string());
                 }
                 Ok(())
@@ -164,7 +183,7 @@ pub struct IntermediaryMerchantInfo<E: Engine> {
     keypair_ac: crypto::pssig::BlindKeyPair<E>,
     /// additional keys for handling invoices
     keypair_inv: crypto::pssig::BlindKeyPair<E>,
-    // TODO: add list of intermediary nonces
+    /// list of intermediary nonces
     nonces: HashSet<String>,
 }
 
@@ -388,20 +407,26 @@ impl<E: Engine> IntermediaryCustomer<E> {
         let mut message = invoice.as_fr();
         let invoice_commit = commit_key.commit(&message, &r);
 
-        // PoK: prover knows the opening of the commitment
-        // and reveals the invoice amount and nonce
+        // commit to ac signature (this also blinds it)
         let merch_ac = self.merch_ac.as_ref().unwrap();
+        let proof_state_ac = self.intermediary_keys.pub_key_ac.prove_commitment(rng, &self.intermediary_keys.mpk, &merch_ac, None, None);
 
-        let proof_state_inv = self.intermediary_keys.pub_key_inv.prove_commitment(rng, &self.intermediary_keys.mpk, &invoice_sig, None, None);
-        let proof_state_ac = self.intermediary_keys.pub_key_ac.prove_commitment(rng, &self.intermediary_keys.mpk, &merch_ac, Some(vec![proof_state_inv.t[2]]), None);
+        // commit to invoice, using the same randomness for the credential field (this also blinds the signature)
+        let randomness = Some(vec![E::Fr::zero(), E::Fr::zero(), proof_state_ac.t[0]]);
+        let proof_state_inv = self.intermediary_keys.pub_key_inv.prove_commitment(rng, &self.intermediary_keys.mpk, &invoice_sig, randomness, None);
+
+        // set challenge on the /\ of the two commitments
         let challenge = Self::fs_challenge(&self.intermediary_keys.mpk, &proof_state_inv.a, &proof_state_ac.a);
-        let proof1 = self.intermediary_keys.pub_key_inv.prove_response(&proof_state_inv, &challenge, &mut message);
-        let proof2 = self.intermediary_keys.pub_key_ac.prove_response(&proof_state_ac, &challenge, &mut vec![self.merch_id.unwrap()]);
 
+        // calculate response to challenge
+        let proof_inv = self.intermediary_keys.pub_key_inv.prove_response(&proof_state_inv, &challenge, &mut message);
+        let proof_ac = self.intermediary_keys.pub_key_ac.prove_response(&proof_state_ac, &challenge, &mut vec![self.merch_id.unwrap()]);
+
+        // compose complete PoK: 2 commitments + challenge responses
         Intermediary {
             invoice: invoice_commit,
             inv_proof: None,
-            claim_proof: Some((proof_state_inv.blindSig, proof1, proof_state_ac.blindSig, proof2)),
+            claim_proof: Some((proof_state_inv.blindSig, proof_inv, proof_state_ac.blindSig, proof_ac)),
             nonce: Some(invoice.nonce),
         }
     }
@@ -491,34 +516,40 @@ mod tests {
     #[test]
     fn test_encoding_nonce() {
         // encode random value as json string
-        let (original, mut extension_info) = get_random_intermediary(true);
+        let (original, _) = get_random_intermediary(true);
         let aux = original.to_aux_string();
 
         // convert back
-
-        let result = match Extensions::parse(&aux, 0, &mut extension_info).unwrap().unwrap() {
-            Extensions::Intermediary(obj) => obj,
-            _ => panic!("{}", "wrong extension type".to_string()),
+        let result = match serde_json::from_str::<Extensions<Bls12>>(aux.as_str()) {
+            Ok(result) => result,
+            Err(e) => panic!("Failed to parse json: {}", e),
         };
-
+        let parsed = match result {
+            Extensions::Intermediary(obj) => obj,
+            _ => panic!("json parsed to incorrect extension type."),
+        };
         // check
-        compare_intermediaries(original, result);
+        compare_intermediaries(original, parsed);
     }
 
     #[test]
     fn test_encoding_no_nonce() {
         // encode random value WITHOUT A NONCE to json string
-        let (original, mut extension_info) = get_random_intermediary(false);
+        let (original, _) = get_random_intermediary(false);
         let aux = original.to_aux_string();
 
         // convert back
-        let result = match Extensions::parse(&aux, 0, &mut extension_info).unwrap().unwrap() {
+        let result = match serde_json::from_str::<Extensions<Bls12>>(aux.as_str()) {
+            Ok(result) => result,
+            Err(e) => panic!("Failed to parse json: {}", e),
+        };
+        let parsed = match result {
             Extensions::Intermediary(obj) => obj,
-            _ => panic!("{}", "wrong extension type".to_string()),
+            _ => panic!("json parsed to incorrect extension type."),
         };
 
         // check
-        compare_intermediaries(original, result);
+        compare_intermediaries(original, parsed);
     }
 
     fn get_key_material() -> IntermediaryMerchantInfo<Bls12> {
@@ -644,7 +675,9 @@ mod tests {
         // expected outcome: init should throw an error
         match outcome {
             Ok(_) => panic!("Proof validated with wrong nonce!"),
-            Err(e) => println!("Proof failed with error: {}", e),
+            Err(e) => if e != "Nonce does not match commitment" {
+                panic!("Proof failed with wrong error! {}", e)
+            },
         };
 
     }
