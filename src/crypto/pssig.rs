@@ -574,7 +574,7 @@ impl<E: Engine> BlindPublicKey<E> {
 
     /// prove knowledge of a signature: commitment phase
     /// returns the proof state, including commitment a and a blind signature blindSig
-    pub fn prove_commitment<R: Rng>(
+    pub fn prove_commitment_inefficiently<R: Rng>(
         &self,
         rng: &mut R,
         mpk: &PublicParams<E>,
@@ -599,6 +599,53 @@ impl<E: Engine> BlindPublicKey<E> {
         let mut h = E::pairing(blindSig.h, mpk.g2);
         h = h.pow(tt.into_repr());
         a.mul_assign(&h);
+        ProofState {
+            v,
+            t,
+            tt,
+            a,
+            blindSig,
+        }
+    }
+
+    /// prove knowledge of a signature: commitment phase
+    /// returns the proof state, including commitment a and a blind signature blindSig
+    pub fn prove_commitment<R: Rng>(
+        &self,
+        rng: &mut R,
+        mpk: &PublicParams<E>,
+        signature: &Signature<E>,
+        tOptional: Option<Vec<E::Fr>>,
+        ttOptional: Option<E::Fr>,
+    ) -> ProofState<E> {
+        let v = E::Fr::rand(rng);
+        let blindSig = self.blind(rng, &v, signature);
+        // generate commitment randomness if not specified
+        let t = match tOptional {
+            None => {
+                let mut t = Vec::<E::Fr>::with_capacity(self.Y2.len());
+                for _ in 0..t.capacity() {
+                    t.push(E::Fr::rand(rng));
+                }
+                t
+            }
+            Some(t) => t
+        }; 
+        let tt = ttOptional.unwrap_or(E::Fr::rand(rng));
+
+        // compute right side of pairing computation
+        // = (t0 * g2) + sum( t_i * Y2_i )
+        let mut rhs = E::G2::zero();
+        rhs.add_assign(&mpk.g2);
+        rhs.mul_assign(tt.into_repr());
+        for j in 0..self.Y2.len() {
+            let mut newterm = E::G2::zero();
+            newterm.add_assign(&self.Y2[j]);
+            newterm.mul_assign(t[j].into_repr());
+            rhs.add_assign(&newterm);
+        }
+        let a = E::pairing(blindSig.h, rhs);
+
         ProofState {
             v,
             t,
@@ -764,9 +811,10 @@ mod tests {
         bls12_381::{G1Uncompressed, G2Uncompressed},
         EncodedPoint,
     };
-    use rand::SeedableRng;
+    use rand::{SeedableRng, prelude::StdRng};
     use rand_xorshift::XorShiftRng;
     use std::collections::HashMap;
+    use std::time::Instant;
     use util::convert_str_to_fr;
 
     #[test]
@@ -969,6 +1017,42 @@ mod tests {
                 .verify_proof(&mpk, &proof_state.blindSig, &proof, challenge),
             true
         );
+    }
+
+    #[test]
+    fn compare_signature_commitment_algorithms() {
+        let mut rng = &mut rand::thread_rng();
+
+        let l = 5;
+        let mpk = setup(&mut rng);
+        let keypair = BlindKeyPair::<Bls12>::generate(&mut rng, &mpk, l);
+
+        let mut message1: Vec<Fr> = Vec::new();
+        for _i in 0..l {
+            message1.push(Fr::rand(&mut rng));
+        }
+
+        let mut ts = Vec::<Fr>::with_capacity(l);
+        for _ in 0..ts.capacity() {
+            ts.push(Fr::rand(&mut rng));
+        }
+        let tt = Fr::rand(&mut rng);
+        
+        let sig = keypair.sign(&mut rng, &message1);
+
+        // make matching RNGs (not secure)
+        let mut rng_old: StdRng = SeedableRng::seed_from_u64(987654);
+        let mut rng_new: StdRng = SeedableRng::seed_from_u64(987654);
+
+        let s = Instant::now();
+        let ps_old = keypair.public.prove_commitment_inefficiently(&mut rng_old, &mpk, &sig, Some(ts.clone()), Some(tt.clone()));
+        let e_old = s.elapsed();
+        let ps_new = keypair.public.prove_commitment(&mut rng_new, &mpk, &sig, Some(ts), Some(tt));
+        let e_new = s.elapsed();
+        
+        println!("old: {}\n new: {}", e_old.as_millis(), e_new.as_millis() - e_old.as_millis());
+
+        assert_eq!(ps_old.a, ps_new.a);
     }
 
     #[test]
