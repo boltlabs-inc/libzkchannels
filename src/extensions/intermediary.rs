@@ -539,7 +539,6 @@ mod tests {
         let rng = &mut rand::thread_rng();
 
         let merch_name = "Hub";
-        // Define three participants in the intermediary protocol and derive channel tokens (e.g. public key info)
         let (mut int_merch, mut channel_token) =
             intermediary::IntermediaryMerchant::<Bls12>::init(rng, merch_name);
 
@@ -598,5 +597,55 @@ mod tests {
             Err(e) => assert_eq!(e, "Nonce has already been redeemed"),
             Ok(_) => panic!("Invoice should not be redeemable")
         };
+    }
+
+    #[test]
+    fn nonce_verifies_correctly() {
+        let rng = &mut rand::thread_rng();
+
+        let merch_name = "Hub";
+        let (mut int_merch, mut channel_token) =
+            intermediary::IntermediaryMerchant::<Bls12>::init(rng, merch_name);
+
+        let mut bob = intermediary::IntermediaryCustomer::init(
+            rng,
+            &mut channel_token,
+            int_merch.get_invoice_public_keys(),
+            int_merch.channel_state.clone(),
+            1000,
+            1000,
+            "bob",
+            true,
+        );
+        let ac = int_merch.register_merchant(rng, bob.merch_id.unwrap());
+        bob.merch_ac = Some(ac);
+
+        let invoice = intermediary::Invoice::new(
+            rng.gen_range(5, 100), // amount
+            Fr::rand(rng),         // nonce
+            Fr::rand(rng),         // provider id (merchant anon credential)
+        );
+
+        // skip straight to second payment
+        let unblinded_sig = int_merch.get_intermediary_keys().keypair_inv.sign(rng, &invoice.as_fr());
+        let mut redemption_invoice = bob.prepare_redemption_invoice(&invoice, &unblinded_sig, rng);
+
+        // change the nonce in the validated invoice (zk proof stays the same)
+        redemption_invoice.nonce = Some(Fr::rand(rng));
+
+        // try to pay
+        let outcome = redemption_invoice.init(
+            invoice.amount,
+            int_merch.merch_state.extensions_info
+                .get_mut("intermediary")
+                .expect("Merchant is incorrectly formed (should have an intermediary extension)")
+        );
+
+        // expected outcome: init should throw an error
+        match outcome {
+            Ok(_) => panic!("Proof validated with wrong nonce!"),
+            Err(e) => println!("Proof failed with error: {}", e),
+        };
+
     }
 }
