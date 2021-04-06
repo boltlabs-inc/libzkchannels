@@ -85,7 +85,7 @@ impl<'de, E: Engine> ExtensionTrait<'de, E> for Intermediary<E> {
                 let (inv_signature, inv_proof, ac_signature, ac_proof) = proof;
 
                 // check that nonce matches proof
-                let challenge = IntermediaryCustomer::fs_challenge(&info.mpk, &proof.1.a, &proof.3.a);
+                let challenge = IntermediaryCustomer::fs_challenge(&info.mpk, &inv_proof.a, &ac_proof.a);
                 let mut cn = E::Fr::one();
                 cn.mul_assign(&challenge);
                 cn.mul_assign(&n);
@@ -111,6 +111,11 @@ impl<'de, E: Engine> ExtensionTrait<'de, E> for Intermediary<E> {
                 }
                 if !info.nonces.insert(nstr) {
                     return Err("Failed to save nonce".to_string());
+                }
+
+                // check that provider IDs match in invoice and credential
+                if inv_proof.zsig[2] != ac_proof.zsig[0] {
+                    return Err("Provider credentials don't match".to_string());
                 }
 
                 // check redemption invoice
@@ -326,6 +331,25 @@ impl<E: Engine> IntermediaryCustomer<E> {
             merch_ac: None,
             intermediary_keys,
         }
+    }
+
+    pub fn make_invoice<R: Rng>(
+        &self,
+        payment_amount: i64,
+        rng: &mut R,
+    ) -> Result<Invoice<E>, String> 
+    {
+        let provider_id = match self.merch_id {
+            Some(id) => id,
+            None => 
+                return Err("Customer must be a merchant to create an invoice".to_string()),
+        };
+        let nonce = util::convert_int_to_fr::<E>(rng.gen());
+        Ok(Invoice {
+            amount: payment_amount,
+            nonce,
+            provider_id,
+        })
     }
 
     /// Produces a commitment to an invoice
@@ -593,11 +617,7 @@ mod tests {
         let ac = int_merch.register_merchant(rng, bob.merch_id.unwrap());
         bob.merch_ac = Some(ac);
 
-        let invoice = intermediary::Invoice::new(
-            rng.gen_range(5, 100), // amount
-            Fr::rand(rng),         // nonce
-            Fr::rand(rng),         // provider id (merchant anon credential)
-        );
+        let invoice = bob.make_invoice(rng.gen_range(5,100), rng).unwrap()
 
         // skip straight to second payment
         let unblinded_sig = int_merch.get_intermediary_keys().keypair_inv.sign(rng, &invoice.as_fr());
@@ -681,4 +701,54 @@ mod tests {
         };
 
     }
+    #[test]
+    fn anon_credentials_must_match() {
+        let rng = &mut rand::thread_rng();
+
+        let merch_name = "Hub";
+        let (mut int_merch, mut channel_token) =
+            intermediary::IntermediaryMerchant::<Bls12>::init(rng, merch_name);
+
+        let mut bob = intermediary::IntermediaryCustomer::init(
+            rng,
+            &mut channel_token,
+            int_merch.get_invoice_public_keys(),
+            int_merch.channel_state.clone(),
+            1000,
+            1000,
+            "bob",
+            true,
+        );
+        let ac = int_merch.register_merchant(rng, bob.merch_id.unwrap());
+        bob.merch_ac = Some(ac);
+
+        // put some trash provider ID into the invoice
+        let invoice = intermediary::Invoice::new(
+            rng.gen_range(5, 100), // amount
+            Fr::rand(rng),         // nonce
+            Fr::rand(rng),         // provider id (merchant anon credential)
+        );
+
+        // skip straight to second payment
+        let unblinded_sig = int_merch.get_intermediary_keys().keypair_inv.sign(rng, &invoice.as_fr());
+        let redemption_invoice = bob.prepare_redemption_invoice(&invoice, &unblinded_sig, rng);
+
+        // try to pay
+        let outcome = redemption_invoice.init(
+            -invoice.amount,
+            int_merch.merch_state.extensions_info
+                .get_mut("intermediary")
+                .expect("Merchant is incorrectly formed (should have an intermediary extension)")
+        );
+
+        // expected outcome: init should throw an error
+        match outcome {
+            Ok(_) => panic!("Proof validated with wrong anonymous credential!"),
+            Err(e) => if e != "Provider credentials don't match" {
+                panic!("Proof failed with wrong error! {}", e)
+            },
+        };
+
+    }
 }
+

@@ -730,11 +730,7 @@ mod tests {
         assert!(bob.cust_state.protocol_status == ProtocolStatus::Established);
 
         // BOB generates an invoice and "sends" to ALICE
-        let invoice = intermediary::Invoice::new(
-            rng.gen_range(5, 100), // amount
-            Fr::rand(rng),         // nonce
-            Fr::rand(rng),         // provider id (merchant anon credential)
-        );
+        let invoice = bob.make_invoice(rng.gen_range(5,100), rng).unwrap();
 
         // ALICE commits to invoice with INT's invoice keys
         // and proves knowledge of opening commitment
@@ -758,7 +754,7 @@ mod tests {
         assert!(bob.validate_invoice_signature(&invoice, &unblinded_sig));
 
         // BOB commits to invoice and makes PoK
-        let redemption_invoice = bob.prepare_redemption_invoice(&invoice, &unblinded_sig, rng);
+        let redemption_proof = bob.prepare_redemption_invoice(&invoice, &unblinded_sig, rng);
 
         // BOB initializes pay with INT, passing commit and PoK as aux
         // and receiving no aux output
@@ -767,7 +763,7 @@ mod tests {
             &mut int_merch.merch_state,
             &mut bob.cust_state,
             -invoice.amount,
-            redemption_invoice.to_aux_string(),
+            redemption_proof.to_aux_string(),
         );
 
         // Check that all balances were correctly updated
@@ -833,11 +829,7 @@ mod tests {
         assert!(bob.cust_state.protocol_status == ProtocolStatus::Established);
 
         // BOB generates an invoice and "sends" to ALICE
-        let invoice = intermediary::Invoice::<Bls12>::new(
-            rng.gen_range(5, 100), // amount
-            Fr::rand(rng),         // nonce
-            Fr::rand(rng),         // provider id (merchant anon credential)
-        );
+        let invoice = bob.make_invoice(rng.gen_range(5,100), rng).unwrap();
 
         // ALICE commits to invoice with INT's invoice keys
         // and proves knowledge of opening commitment
@@ -923,11 +915,7 @@ mod tests {
         assert!(bob.cust_state.protocol_status == ProtocolStatus::Established);
 
         // BOB generates an invoice and "sends" to ALICE
-        let invoice = intermediary::Invoice::new(
-            rng.gen_range(5, 100), // amount
-            Fr::rand(rng),         // nonce
-            Fr::rand(rng),         // provider id (merchant anon credential)
-        );
+        let invoice = bob.make_invoice(rng.gen_range(5,100), rng).unwrap();
 
         // ALICE commits to invoice with INT's invoice keys
         // and proves knowledge of opening commitment
