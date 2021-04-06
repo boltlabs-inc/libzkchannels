@@ -743,10 +743,11 @@ mod tests {
             invoice.amount,
             validated_invoice.to_aux_string(),
         );
+        println!("first payment complete");
 
         // ALICE unblinds signature and sends to BOB
         let blinded_sig = serde_json::from_str(signed_invoice.as_str()).unwrap();
-        let unblinded_sig = int_merch.unblind_invoice(&blinded_sig, &bf);
+        let unblinded_sig = alice.unblind_signature(&blinded_sig, &bf);
 
         // BOB verifies signature
         assert!(bob.validate_invoice_signature(&invoice, &unblinded_sig));
@@ -763,6 +764,7 @@ mod tests {
             -invoice.amount,
             redemption_proof.to_aux_string(),
         );
+        println!("second payment complete");
 
         // Check that all balances were correctly updated
         assert_eq!(alice.cust_state.cust_balance, b0_alice - invoice.amount);

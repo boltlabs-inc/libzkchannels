@@ -271,16 +271,6 @@ impl<E: Engine> IntermediaryMerchant<E> {
         }
     }
 
-    /// Unblinds a signature on an invoice using the merchant public keys
-    pub fn unblind_invoice(
-        &self,
-        sig: &Signature<E>,
-        bf: &E::Fr,
-    ) -> zkproofs::Signature<E> {
-        self.get_intermediary_keys()
-            .keypair_inv
-            .unblind(bf, sig)
-    }
 }
 
 pub struct IntermediaryCustomerInfo<E: Engine> {
@@ -357,6 +347,17 @@ impl<E: Engine> IntermediaryCustomer<E> {
             nonce,
             provider_id,
         })
+    }
+
+    /// Unblinds a signature (presumably on an invoice) using the merchant public keys
+    pub fn unblind_signature(
+        &self,
+        sig: &Signature<E>,
+        bf: &E::Fr,
+    ) -> zkproofs::Signature<E> {
+        self.intermediary_keys
+            .pub_key_inv
+            .unblind(bf, sig)
     }
 
     /// Produces a commitment to an invoice
