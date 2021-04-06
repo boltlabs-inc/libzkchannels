@@ -98,7 +98,8 @@ impl<'de, E: Engine> ExtensionTrait<'de, E> for Intermediary<E> {
                 c_eps.mul_assign(&challenge);
                 c_eps.mul_assign(&util::convert_int_to_fr::<E>(-payment_amount));
                 if c_eps != inv_proof.zsig[0] {
-                    return Err("Payment amount does not match commitment".to_string());
+                    let err = "Payment amount does not match commitment. Maybe it should be negative?";
+                    return Err(err.to_string());
                 }
 
                 // check if nonce has been seen before and save if not
@@ -415,6 +416,9 @@ impl<E: Engine> IntermediaryCustomer<E> {
         util::hash_to_fr::<E>(transcript)
     }
 
+    /// constructs a redemption intermediary with joint proof of knowledge
+    /// on the caller's merchant credentials and the given invoice/signature pair
+    /// does not validate input (e.g. the invoice does not have to match the signature)
     pub fn prepare_redemption_invoice<R: Rng>(
         &self,
         invoice: &Invoice<E>,
@@ -475,54 +479,50 @@ mod tests {
     use ff::Rand;
     use pairing::bls12_381::{Bls12, Fr};
     use rand::thread_rng;
-    use crypto::pssig::{setup};
 
-    fn get_random_intermediary(with_nonce: bool) -> (Intermediary<Bls12>, HashMap<String, ExtensionInfoWrapper<Bls12>>) {
-        // get a commitment
+    fn make_parties<R: Rng>(rng: &mut R) 
+    -> (IntermediaryMerchant<Bls12>, IntermediaryCustomer<Bls12>, IntermediaryCustomer<Bls12>) {
+        let merch_name = "Hub";
+        let (int_merch, mut channel_token) =
+            intermediary::IntermediaryMerchant::<Bls12>::init(rng, merch_name);
+
+        let alice = intermediary::IntermediaryCustomer::init(
+            rng,
+            &mut channel_token,
+            int_merch.get_invoice_public_keys(),
+            int_merch.channel_state.clone(),
+            1000,
+            1000,
+            "Alice",
+            false,
+        );
+        let mut bob = intermediary::IntermediaryCustomer::init(
+            rng,
+            &mut channel_token,
+            int_merch.get_invoice_public_keys(),
+            int_merch.channel_state.clone(),
+            1000,
+            1000,
+            "bob",
+            true,
+        );
+        let ac = int_merch.register_merchant(rng, bob.merch_id.unwrap());
+        bob.merch_ac = Some(ac);
+
+        (int_merch, alice, bob)
+    }
+
+    fn get_random_intermediary(with_nonce: bool) -> Intermediary<Bls12> {
         let rng = &mut thread_rng();
-        let m1 = vec![Fr::rand(rng)];
-        let r = Fr::rand(rng);
+        let (int_merch, alice, bob) = make_parties(rng);
+        let invoice = bob.make_invoice(rng.gen_range(5,100), rng).unwrap();
 
-        let info = get_key_material();
-        let mut extension_info = HashMap::new();
-        extension_info.insert("intermediary".to_string(), ExtensionInfoWrapper::Intermediary(info.clone()));
-
-        let com_params = info.keypair_inv
-            .generate_cs_multi_params(&info.mpk);
-        let invoice = com_params.commit(&m1, &r);
-
-        // get a nonce
         if with_nonce {
-            // get a PoK
-            let mpk = info.mpk;
-            let pair1 = info.keypair_inv;
-            let pair2 = info.keypair_ac;
-            let mut msg1 = vec![Fr::rand(rng), Fr::rand(rng), Fr::rand(rng)];
-            let mut msg2 = vec![Fr::rand(rng)];
-            let sig1 = pair1.secret.sign(rng, &msg1);
-            let sig2 = pair2.secret.sign(rng, &msg2);
-            let ps1 = pair1.public.prove_commitment(rng, &mpk, &sig1, None, None);
-            let ps2 = pair2.public.prove_commitment(rng, &mpk, &sig2, None, None);
-            let challenge = IntermediaryCustomer::fs_challenge(&mpk, &ps1.a, &ps2.a);
-            let proof1 = pair1.public.prove_response(&ps1, &challenge, &mut msg1);
-            let proof2 = pair2.public.prove_response(&ps2, &challenge, &mut msg2);
-
-            (Intermediary {
-                invoice,
-                inv_proof: None,
-                claim_proof: Some((ps1.blindSig, proof1, ps2.blindSig, proof2)),
-                nonce: Some(Fr::rand(rng)),
-            }, extension_info)
+            let unblinded_sig = int_merch.get_intermediary_keys().keypair_inv.sign(rng, &invoice.as_fr());
+            bob.prepare_redemption_invoice(&invoice, &unblinded_sig, rng)
         } else {
-            // get a PoK
-            let proof = CommitmentProof::new(rng, &com_params, &invoice.c, &m1, &r, &vec![0]);
-
-            (Intermediary {
-                invoice,
-                inv_proof: Some(proof),
-                claim_proof: None,
-                nonce: None,
-            }, extension_info)
+            let (intermediary, _) = alice.prepare_payment_invoice(&invoice, rng);
+            intermediary
         }
     }
 
@@ -538,108 +538,207 @@ mod tests {
     }
 
     #[test]
-    fn test_encoding_nonce() {
+    fn intermediary_encoding_works() {
         // encode random value as json string
-        let (original, _) = get_random_intermediary(true);
-        let aux = original.to_aux_string();
-
-        // convert back
-        let result = match serde_json::from_str::<Extensions<Bls12>>(aux.as_str()) {
-            Ok(result) => result,
-            Err(e) => panic!("Failed to parse json: {}", e),
-        };
-        let parsed = match result {
-            Extensions::Intermediary(obj) => obj,
-            _ => panic!("json parsed to incorrect extension type."),
-        };
-        // check
-        compare_intermediaries(original, parsed);
-    }
-
-    #[test]
-    fn test_encoding_no_nonce() {
-        // encode random value WITHOUT A NONCE to json string
-        let (original, _) = get_random_intermediary(false);
-        let aux = original.to_aux_string();
-
-        // convert back
-        let result = match serde_json::from_str::<Extensions<Bls12>>(aux.as_str()) {
-            Ok(result) => result,
-            Err(e) => panic!("Failed to parse json: {}", e),
-        };
-        let parsed = match result {
-            Extensions::Intermediary(obj) => obj,
-            _ => panic!("json parsed to incorrect extension type."),
-        };
-
-        // check
-        compare_intermediaries(original, parsed);
-    }
-
-    fn get_key_material() -> IntermediaryMerchantInfo<Bls12> {
-        let rng = &mut rand::thread_rng();
-        let mpk = setup(rng);
-        let keypair_ac = crypto::pssig::BlindKeyPair::<Bls12>::generate(rng, &mpk, 1);
-        let keypair_inv = crypto::pssig::BlindKeyPair::<Bls12>::generate(rng, &mpk, 3);
-        IntermediaryMerchantInfo {
-            mpk,
-            keypair_ac,
-            keypair_inv,
-            nonces: HashSet::new(),
+        for int_type in vec![true, false] {
+            let original = get_random_intermediary(int_type);
+            let aux = original.to_aux_string();
+            
+            // convert back
+            let result = match serde_json::from_str::<Extensions<Bls12>>(aux.as_str()) {
+                Ok(result) => result,
+                Err(e) => panic!("Failed to parse json: {}", e),
+            };
+            let parsed = match result {
+                Extensions::Intermediary(obj) => obj,
+                _ => panic!("json parsed to incorrect extension type."),
+            };
+            // check
+            compare_intermediaries(original, parsed);
         }
     }
 
     #[test]
-    fn nonces_update_correctly() {
+    #[should_panic]
+    fn initial_payment_amount_matches() {
         let rng = &mut rand::thread_rng();
+        let (mut int_merch, alice, bob) = make_parties(rng);
+        let mut invoice = bob.make_invoice(rng.gen_range(5,100), rng).unwrap();
+        let (payment_intermediary, _) = alice.prepare_payment_invoice(&invoice, rng);
 
-        let merch_name = "Hub";
-        let (mut int_merch, mut channel_token) =
-            intermediary::IntermediaryMerchant::<Bls12>::init(rng, merch_name);
-
-        // merchant initially has 0 nonces
-        let info = match int_merch.merch_state.extensions_info.get("intermediary") {
-            Some(ExtensionInfoWrapper::Intermediary(info)) => info,
-            _ => panic!("Bad extension type."),
-        };
-        assert_eq!(0, info.nonces.len());
-
-        let mut bob = intermediary::IntermediaryCustomer::init(
-            rng,
-            &mut channel_token,
-            int_merch.get_invoice_public_keys(),
-            int_merch.channel_state.clone(),
-            1000,
-            1000,
-            "bob",
-            true,
-        );
-        let ac = int_merch.register_merchant(rng, bob.merch_id.unwrap());
-        bob.merch_ac = Some(ac);
-
-        let invoice = bob.make_invoice(rng.gen_range(5,100), rng).unwrap()
-
-        // skip straight to second payment
-        let unblinded_sig = int_merch.get_intermediary_keys().keypair_inv.sign(rng, &invoice.as_fr());
-        let redemption_invoice = bob.prepare_redemption_invoice(&invoice, &unblinded_sig, rng);
-
-        let _ = redemption_invoice.init(
-            invoice.amount,
+        // try to pay with the wrong requested payment
+        let result = payment_intermediary.init(
+            rng.gen_range(100,500),
             int_merch.merch_state.extensions_info
                 .get_mut("intermediary")
                 .expect("Merchant is incorrectly formed (should have an intermediary extension)")
         );
+        match result {
+            Err(e) => println!("failed with error {}", e),
+            Ok(_) => println!("didn't fail??"),
+        }
 
-        // after payment, merchant has 1 nonce
-        let info = match int_merch.merch_state.extensions_info.get("intermediary") {
-            Some(ExtensionInfoWrapper::Intermediary(info)) => info,
+        // try to pay with an invoice that doesn't match the intermediary
+        invoice.amount = rng.gen_range(100,500);
+        let result = payment_intermediary.init(
+            rng.gen_range(100,500),
+            int_merch.merch_state.extensions_info
+                .get_mut("intermediary")
+                .expect("Merchant is incorrectly formed (should have an intermediary extension)")
+        );
+        match result {
+            Err(e) => println!("failed with error {}", e), // expected error
+            Ok(_) => println!("didn't fail??"), // TODO: replace with panic
+        }
+    }
+
+    #[test]
+    fn initial_payment_proof_matches() {
+        let rng = &mut rand::thread_rng();
+        let (mut int_merch, alice, bob) = make_parties(rng);
+        let invoice = bob.make_invoice(rng.gen_range(5,100), rng).unwrap();
+        let (payment_intermediary, _) = alice.prepare_payment_invoice(&invoice, rng);
+
+        // make a mismatched invoice (proof doesn't match commitment)
+        let wrong_invoice = bob.make_invoice(invoice.amount, rng).unwrap();
+        let (mut wrong_intermediary, _) = alice.prepare_payment_invoice(&wrong_invoice, rng);
+        wrong_intermediary.inv_proof = payment_intermediary.inv_proof;
+
+        // try to pay
+        let result = wrong_intermediary.init(
+            rng.gen_range(100,500),
+            int_merch.merch_state.extensions_info
+                .get_mut("intermediary")
+                .expect("Merchant is incorrectly formed (should have an intermediary extension)")
+        );
+        match result {
+            Err(e) => assert_eq!(e, "could not verify proof"), 
+            Ok(_) => println!("didn't fail??"),
+        }
+    }
+
+    #[test]
+    fn initial_payment_proof_validates() {
+        let rng = &mut rand::thread_rng();
+        let (_, alice, bob) = make_parties(rng);
+        let invoice = bob.make_invoice(rng.gen_range(5,100), rng).unwrap();
+
+        // create an invoice validated to the original merchant
+        let (payment_intermediary, _) = alice.prepare_payment_invoice(&invoice, rng);
+
+        // try to use it to pay to a different merchant
+        let (mut other_merch, _, _) = make_parties(rng);
+        let result = payment_intermediary.init(
+            rng.gen_range(100,500),
+            other_merch.merch_state.extensions_info
+                .get_mut("intermediary")
+                .expect("Merchant is incorrectly formed (should have an intermediary extension)")
+        );
+        match result {
+            Err(_) => (), // allow any error
+            Ok(_) => panic!("Merchant verified a proof it didn't sign")
+        }
+    }
+    
+    #[test]
+    fn redemption_payment_proof_matches() {
+        let rng = &mut rand::thread_rng();
+        let (mut int_merch, _, bob) = make_parties(rng);
+        let invoice = bob.make_invoice(rng.gen_range(5,100), rng).unwrap();
+
+        // simulate first payment: get valid signature on invoice from original merchant
+        let unblinded_sig = int_merch.get_intermediary_keys().keypair_inv.sign(rng, &invoice.as_fr());
+        let redemption_intermediary = bob.prepare_redemption_invoice(&invoice, &unblinded_sig, rng);
+
+        // make a mismatched invoice (replace proofs, but not signatures)
+        let wrong_invoice = bob.make_invoice(invoice.amount, rng).unwrap();
+        let wrong_sig = int_merch.get_intermediary_keys().keypair_inv.sign(rng, &wrong_invoice.as_fr());
+        let mut wrong_intermediary = bob.prepare_redemption_invoice(&invoice, &wrong_sig, rng);
+
+        wrong_intermediary.claim_proof = 
+            match (redemption_intermediary.claim_proof, wrong_intermediary.claim_proof) {
+                (Some((_, ac_proof, _, inv_proof)), Some((ac_sig, _, inv_sig, _))) => 
+                    Some((ac_sig, ac_proof, inv_sig, inv_proof)),
+                _ => None,
+            };
+
+        // try to pay
+        let result = wrong_intermediary.init(
+            -invoice.amount,
+            int_merch.merch_state.extensions_info
+                .get_mut("intermediary")
+                .expect("Merchant is incorrectly formed (should have an intermediary extension)")
+        );
+        match result {
+            Err(e) => assert_eq!(e, "could not verify proof"), // expected error
+            Ok(_) => panic!("Merchant allowed a payment with mismatched signature/proof pairs"),
+        }
+    }
+    #[test]
+    fn redemption_payment_proof_validates() {
+        let rng = &mut rand::thread_rng();
+        let (_, _, bob) = make_parties(rng);
+        let invoice = bob.make_invoice(rng.gen_range(5,100), rng).unwrap();
+        let (mut other_merch, _, _) = make_parties(rng);
+
+        // simulate first payment: get valid signature on invoice from original merchant
+        let unblinded_sig = other_merch.get_intermediary_keys().keypair_inv.sign(rng, &invoice.as_fr());
+        let redemption_invoice = bob.prepare_redemption_invoice(&invoice, &unblinded_sig, rng);
+
+        // try to use it to pay to a different merchant
+        let result = redemption_invoice.init(
+            -invoice.amount,
+            other_merch.merch_state.extensions_info
+                .get_mut("intermediary")
+                .expect("Merchant is incorrectly formed (should have an intermediary extension)")
+        );
+        match result {
+            Err(_) => (), // allow any error. proof will probably fail at the first check on nonces
+            Ok(_) => panic!("Merchant verified a proof it didn't sign")
+        }
+    }
+
+    #[test]
+    fn redemption_payment_nonces_not_reusable() {
+        let rng = &mut rand::thread_rng();
+
+        let (mut int_merch, _, bob) = make_parties(rng);
+
+        // merchant initially has 0 nonces
+        match int_merch.merch_state.extensions_info.get("intermediary") {
+            Some(ExtensionInfoWrapper::Intermediary(info)) => 
+                assert_eq!(0, info.nonces.len()),
             _ => panic!("Bad extension type."),
         };
-        assert_eq!(1, info.nonces.len());
+
+        let invoice = bob.make_invoice(rng.gen_range(5,100), rng).unwrap();
+
+        // simulate first payment: get valid signature on invoice
+        let unblinded_sig = int_merch.get_intermediary_keys().keypair_inv.sign(rng, &invoice.as_fr());
+        let redemption_invoice = bob.prepare_redemption_invoice(&invoice, &unblinded_sig, rng);
+
+        // make second payment
+        let result = redemption_invoice.init(
+            -invoice.amount,
+            int_merch.merch_state.extensions_info
+                .get_mut("intermediary")
+                .expect("Merchant is incorrectly formed (should have an intermediary extension)")
+        );
+        match result {
+            Err(e) => panic!("Payment failed?! {}", e),
+            Ok(_) => (),
+        }
+
+        // after payment, merchant has 1 nonce
+        match int_merch.merch_state.extensions_info.get("intermediary") {
+            Some(ExtensionInfoWrapper::Intermediary(info)) => 
+                assert_eq!(1, info.nonces.len()),
+            _ => panic!("Bad extension type."),
+        };
 
         // bob cannot redeem invoice again 
         let result = redemption_invoice.init(
-            invoice.amount,
+            -invoice.amount,
             int_merch.merch_state.extensions_info
                 .get_mut("intermediary")
                 .expect("Merchant is incorrectly formed (should have an intermediary extension)")
@@ -651,33 +750,12 @@ mod tests {
     }
 
     #[test]
-    fn nonce_verifies_correctly() {
+    fn redemption_payment_nonce_matches() {
         let rng = &mut rand::thread_rng();
+        let (mut int_merch, _, bob) = make_parties(rng);
+        let invoice = bob.make_invoice(rng.gen_range(5,100), rng).unwrap();
 
-        let merch_name = "Hub";
-        let (mut int_merch, mut channel_token) =
-            intermediary::IntermediaryMerchant::<Bls12>::init(rng, merch_name);
-
-        let mut bob = intermediary::IntermediaryCustomer::init(
-            rng,
-            &mut channel_token,
-            int_merch.get_invoice_public_keys(),
-            int_merch.channel_state.clone(),
-            1000,
-            1000,
-            "bob",
-            true,
-        );
-        let ac = int_merch.register_merchant(rng, bob.merch_id.unwrap());
-        bob.merch_ac = Some(ac);
-
-        let invoice = intermediary::Invoice::new(
-            rng.gen_range(5, 100), // amount
-            Fr::rand(rng),         // nonce
-            Fr::rand(rng),         // provider id (merchant anon credential)
-        );
-
-        // skip straight to second payment
+        // simulate first payment: get valid signature on invoice
         let unblinded_sig = int_merch.get_intermediary_keys().keypair_inv.sign(rng, &invoice.as_fr());
         let mut redemption_invoice = bob.prepare_redemption_invoice(&invoice, &unblinded_sig, rng);
 
@@ -686,7 +764,7 @@ mod tests {
 
         // try to pay
         let outcome = redemption_invoice.init(
-            invoice.amount,
+            -invoice.amount,
             int_merch.merch_state.extensions_info
                 .get_mut("intermediary")
                 .expect("Merchant is incorrectly formed (should have an intermediary extension)")
@@ -695,41 +773,20 @@ mod tests {
         // expected outcome: init should throw an error
         match outcome {
             Ok(_) => panic!("Proof validated with wrong nonce!"),
-            Err(e) => if e != "Nonce does not match commitment" {
-                panic!("Proof failed with wrong error! {}", e)
-            },
+            Err(e) => assert_eq!(e, "Nonce does not match commitment"), // expected error
         };
-
     }
+
     #[test]
-    fn anon_credentials_must_match() {
+    fn redemption_payment_anon_credential_matches() {
         let rng = &mut rand::thread_rng();
-
-        let merch_name = "Hub";
-        let (mut int_merch, mut channel_token) =
-            intermediary::IntermediaryMerchant::<Bls12>::init(rng, merch_name);
-
-        let mut bob = intermediary::IntermediaryCustomer::init(
-            rng,
-            &mut channel_token,
-            int_merch.get_invoice_public_keys(),
-            int_merch.channel_state.clone(),
-            1000,
-            1000,
-            "bob",
-            true,
-        );
-        let ac = int_merch.register_merchant(rng, bob.merch_id.unwrap());
-        bob.merch_ac = Some(ac);
+        let (mut int_merch, _, bob) = make_parties(rng);
 
         // put some trash provider ID into the invoice
-        let invoice = intermediary::Invoice::new(
-            rng.gen_range(5, 100), // amount
-            Fr::rand(rng),         // nonce
-            Fr::rand(rng),         // provider id (merchant anon credential)
-        );
+        let mut invoice = bob.make_invoice(rng.gen_range(5,100), rng).unwrap();
+        invoice.provider_id = Fr::rand(rng);
 
-        // skip straight to second payment
+        // simulate first payment: get valid signature on invoice
         let unblinded_sig = int_merch.get_intermediary_keys().keypair_inv.sign(rng, &invoice.as_fr());
         let redemption_invoice = bob.prepare_redemption_invoice(&invoice, &unblinded_sig, rng);
 
@@ -743,12 +800,40 @@ mod tests {
 
         // expected outcome: init should throw an error
         match outcome {
+            Err(e) => assert_eq!(e, "Provider credentials don't match"), // expected error
             Ok(_) => panic!("Proof validated with wrong anonymous credential!"),
-            Err(e) => if e != "Provider credentials don't match" {
+        };
+
+    }
+
+    #[test]
+    fn redemption_payment_amount_matches() {
+        let rng = &mut rand::thread_rng();
+        let (mut int_merch, _, bob) = make_parties(rng);
+
+        // simulate first payment: get valid siganture on original invoice
+        let invoice = bob.make_invoice(rng.gen_range(5,100), rng).unwrap();
+        let unblinded_sig = int_merch.get_intermediary_keys().keypair_inv.sign(rng, &invoice.as_fr());
+
+        // BOB generates a redemption proof for a different payment amount
+        let bad_invoice = bob.make_invoice(rng.gen_range(100,500), rng).unwrap();
+        let redemption_invoice = bob.prepare_redemption_invoice(&bad_invoice, &unblinded_sig, rng);
+
+        // try to pay
+        let outcome = redemption_invoice.init(
+            -invoice.amount,
+            int_merch.merch_state.extensions_info
+                .get_mut("intermediary")
+                .expect("Merchant is incorrectly formed (should have an intermediary extension)")
+        );
+
+        // expected outcome: init should throw an error
+        match outcome {
+            Ok(_) => panic!("Proof validated with wrong anonymous credential!"),
+            Err(e) => if ! e.contains("Payment amount does not match commitment") {
                 panic!("Proof failed with wrong error! {}", e)
             },
         };
-
     }
 }
 

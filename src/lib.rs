@@ -678,7 +678,7 @@ mod tests {
     }
 
     #[test]
-    fn intermediary_payment_basics_works() {
+    fn intermediary_payment_e2e_works() {
         println!("Intermediary test...");
         let rng = &mut rand::thread_rng();
 
@@ -702,6 +702,7 @@ mod tests {
             "Alice",
             false,
         );
+        // register BOB as an anonymous merchant with the intermediary
         let mut bob = intermediary::IntermediaryCustomer::init(
             rng,
             &mut channel_token,
@@ -773,203 +774,6 @@ mod tests {
         assert_eq!(bob.cust_state.merch_balance, b0_merch_b - invoice.amount);
 
         println!("Successful payment with intermediary!");
-    }
-
-    #[test]
-    #[should_panic]
-    fn intermediary_payment_wrong_first_proof() {
-        println!("Intermediary test...");
-        let rng = &mut rand::thread_rng();
-
-        let b0_alice = rng.gen_range(100, 1000);
-        let b0_bob = rng.gen_range(100, 1000);
-        let b0_merch_a = rng.gen_range(100, 1000);
-        let b0_merch_b = rng.gen_range(100, 1000);
-
-        let merch_name = "Hub";
-
-        // Define three participants in the intermediary protocol and derive channel tokens (e.g. public key info)
-        let (mut int_merch, mut channel_token) =
-            intermediary::IntermediaryMerchant::<Bls12>::init(rng, merch_name);
-        let mut alice = intermediary::IntermediaryCustomer::init(
-            rng,
-            &mut channel_token,
-            int_merch.get_invoice_public_keys(),
-            int_merch.channel_state.clone(),
-            b0_alice,
-            b0_merch_a,
-            "Alice",
-            false,
-        );
-        let mut bob = intermediary::IntermediaryCustomer::init(
-            rng,
-            &mut channel_token,
-            int_merch.get_invoice_public_keys(),
-            int_merch.channel_state.clone(),
-            b0_bob,
-            b0_merch_b,
-            "Bob",
-            true,
-        );
-        let ac = int_merch.register_merchant(rng, bob.merch_id.unwrap());
-        bob.merch_ac = Some(ac);
-
-        // Establish channels between the two customers and the intermediary
-        execute_establish_protocol_helper(
-            &int_merch.channel_state, // merch, alice, and bob all have copies of identical channel state.
-            &mut int_merch.merch_state,
-            &mut alice.cust_state,
-        );
-        execute_establish_protocol_helper(
-            &int_merch.channel_state,
-            &mut int_merch.merch_state,
-            &mut bob.cust_state,
-        );
-        assert!(alice.cust_state.protocol_status == ProtocolStatus::Established);
-        assert!(bob.cust_state.protocol_status == ProtocolStatus::Established);
-
-        // BOB generates an invoice and "sends" to ALICE
-        let invoice = bob.make_invoice(rng.gen_range(5,100), rng).unwrap();
-
-        // ALICE commits to invoice with INT's invoice keys
-        // and proves knowledge of opening commitment
-        let r = util::convert_int_to_fr::<Bls12>(rng.gen());
-        let message = invoice.as_fr();
-        let commit_key = &alice.intermediary_keys.invoice_commit;
-        let invoice_commit = commit_key.commit(&message, &r);
-
-        // PoK: prover knows the opening of the commitment
-        // and reveals the invoice amount
-        let fake_msg = vec![Fr::rand(rng), Fr::rand(rng), Fr::rand(rng)];
-        let proof =
-            CommitmentProof::new(rng, commit_key, &invoice_commit.c, &fake_msg, &r, &vec![0]);
-        let aux = Intermediary {
-            invoice: invoice_commit,
-            inv_proof: Some(proof),
-            claim_proof: None,
-            nonce: None,
-        };
-
-        // ALICE initializes pay with INT, passing invoice stuff as aux
-        // and receiving signature on invoice as output
-        execute_payment_protocol_aux_helper(
-            &int_merch.channel_state,
-            &mut int_merch.merch_state,
-            &mut alice.cust_state,
-            invoice.amount,
-            aux.to_aux_string(),
-        );
-    }
-
-    #[test]
-    #[should_panic]
-    fn intermediary_payment_wrong_second_proof() {
-        println!("Intermediary test...");
-        let rng = &mut rand::thread_rng();
-
-        let b0_alice = rng.gen_range(100, 1000);
-        let b0_bob = rng.gen_range(100, 1000);
-        let b0_merch_a = rng.gen_range(100, 1000);
-        let b0_merch_b = rng.gen_range(100, 1000);
-
-        let merch_name = "Hub";
-
-        // Define three participants in the intermediary protocol and derive channel tokens (e.g. public key info)
-        let (mut int_merch, mut channel_token) =
-            intermediary::IntermediaryMerchant::<Bls12>::init(rng, merch_name);
-        let mut alice = intermediary::IntermediaryCustomer::init(
-            rng,
-            &mut channel_token,
-            int_merch.get_invoice_public_keys(),
-            int_merch.channel_state.clone(),
-            b0_alice,
-            b0_merch_a,
-            "Alice",
-            false,
-        );
-        let mut bob = intermediary::IntermediaryCustomer::init(
-            rng,
-            &mut channel_token,
-            int_merch.get_invoice_public_keys(),
-            int_merch.channel_state.clone(),
-            b0_bob,
-            b0_merch_b,
-            "Bob",
-            true,
-        );
-        let ac = int_merch.register_merchant(rng, bob.merch_id.unwrap());
-        bob.merch_ac = Some(ac);
-
-        // Establish channels between the two customers and the intermediary
-        execute_establish_protocol_helper(
-            &int_merch.channel_state, // merch, alice, and bob all have copies of identical channel state.
-            &mut int_merch.merch_state,
-            &mut alice.cust_state,
-        );
-        execute_establish_protocol_helper(
-            &int_merch.channel_state,
-            &mut int_merch.merch_state,
-            &mut bob.cust_state,
-        );
-        assert!(alice.cust_state.protocol_status == ProtocolStatus::Established);
-        assert!(bob.cust_state.protocol_status == ProtocolStatus::Established);
-
-        // BOB generates an invoice and "sends" to ALICE
-        let invoice = bob.make_invoice(rng.gen_range(5,100), rng).unwrap();
-
-        // ALICE commits to invoice with INT's invoice keys
-        // and proves knowledge of opening commitment
-        let (validated_invoice, bf) = alice.prepare_payment_invoice(&invoice, rng);
-
-        // ALICE initializes pay with INT, passing invoice stuff as aux
-        // and receiving signature on invoice as output
-        let signed_invoice = execute_payment_protocol_aux_helper(
-            &int_merch.channel_state,
-            &mut int_merch.merch_state,
-            &mut alice.cust_state,
-            invoice.amount,
-            validated_invoice.to_aux_string(),
-        );
-
-        // ALICE unblinds signature and sends to BOB
-        let blinded_sig = serde_json::from_str(signed_invoice.as_str()).unwrap();
-        let unblinded_sig = int_merch.unblind_invoice(&blinded_sig, &bf);
-
-        // BOB verifies signature
-        assert!(bob.validate_invoice_signature(&invoice, &unblinded_sig));
-
-        // BOB commits to invoice and makes PoK
-        let r = util::convert_int_to_fr::<Bls12>(rng.gen());
-        let commit_key = &bob.intermediary_keys.invoice_commit;
-        let message = vec![Fr::rand(rng), Fr::rand(rng), Fr::rand(rng)];
-        let invoice_commit = commit_key.commit(&message, &r);
-
-        // PoK: prover knows the opening of the commitment
-        // and reveals the invoice amount and nonce
-        let merch_ac = bob.merch_ac.clone().unwrap();
-
-        let proof_state_inv = bob.intermediary_keys.pub_key_inv.prove_commitment(rng, &bob.intermediary_keys.mpk, &unblinded_sig, None, None);
-        let proof_state_ac = bob.intermediary_keys.pub_key_ac.prove_commitment(rng, &bob.intermediary_keys.mpk, &merch_ac, Some(vec![proof_state_inv.t[2]]), None);
-        let challenge = IntermediaryCustomer::fs_challenge(&bob.intermediary_keys.mpk, &proof_state_inv.a, &proof_state_ac.a);
-        let proof1 = bob.intermediary_keys.pub_key_inv.prove_response(&proof_state_inv, &challenge, &message);
-        let proof2 = bob.intermediary_keys.pub_key_ac.prove_response(&proof_state_ac, &challenge, &vec![bob.merch_id.unwrap()]);
-
-        let aux = Intermediary {
-            invoice: invoice_commit,
-            inv_proof: None,
-            claim_proof: Some((proof_state_inv.blindSig, proof1, proof_state_ac.blindSig, proof2)),
-            nonce: Some(invoice.nonce),
-        };
-
-        // BOB initializes pay with INT, passing commit and PoK as aux
-        // and receiving no aux output
-        execute_payment_protocol_aux_helper(
-            &int_merch.channel_state,
-            &mut int_merch.merch_state,
-            &mut bob.cust_state,
-            -invoice.amount,
-            aux.to_aux_string(),
-        );
     }
 
     #[test]
