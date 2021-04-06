@@ -69,16 +69,22 @@ impl<'de, E: Engine> ExtensionTrait<'de, E> for Intermediary<E> {
         };
         match (&self.inv_proof, &self.claim_proof, self.nonce) {
             (Some(proof), None, None) => {
+                // generate challenge 
                 let xvec: Vec<E::G1> = vec![proof.T, self.invoice.c];
                 let challenge = util::hash_g1_to_fr::<E>(&xvec);
+
+                // extract commitment paramters
                 let com_params = info.keypair_inv
                     .generate_cs_multi_params(&info.mpk);
-                if proof.verify_proof(&com_params, &self.invoice.c, &challenge, None) { //TODO: reveal option for amount
+                
+                // verify proof with revealed amount
+                let amt_fr = util::convert_int_to_fr::<E>(payment_amount);
+                let revealed_values = Some(vec![Some(amt_fr), None, None]);
+                if proof.verify_proof(&com_params, &self.invoice.c, &challenge, revealed_values) { 
                     Ok(())
                 } else {
                     Err("could not verify proof".to_string())
                 }
-                // check payment invoice
             }
             (None, Some(proof), Some(n)) => {
                 // name parts of proof
@@ -559,11 +565,10 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn initial_payment_amount_matches() {
         let rng = &mut rand::thread_rng();
         let (mut int_merch, alice, bob) = make_parties(rng);
-        let mut invoice = bob.make_invoice(rng.gen_range(5,100), rng).unwrap();
+        let invoice = bob.make_invoice(rng.gen_range(5,100), rng).unwrap();
         let (payment_intermediary, _) = alice.prepare_payment_invoice(&invoice, rng);
 
         // try to pay with the wrong requested payment
@@ -574,21 +579,8 @@ mod tests {
                 .expect("Merchant is incorrectly formed (should have an intermediary extension)")
         );
         match result {
-            Err(e) => println!("failed with error {}", e),
-            Ok(_) => println!("didn't fail??"),
-        }
-
-        // try to pay with an invoice that doesn't match the intermediary
-        invoice.amount = rng.gen_range(100,500);
-        let result = payment_intermediary.init(
-            rng.gen_range(100,500),
-            int_merch.merch_state.extensions_info
-                .get_mut("intermediary")
-                .expect("Merchant is incorrectly formed (should have an intermediary extension)")
-        );
-        match result {
-            Err(e) => println!("failed with error {}", e), // expected error
-            Ok(_) => println!("didn't fail??"), // TODO: replace with panic
+            Err(e) => assert_eq!(e, "could not verify proof"), // expected error
+            Ok(_) => panic!("Merchant allowed payment that didn't match invoice proof"),
         }
     }
 
