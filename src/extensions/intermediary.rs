@@ -73,13 +73,13 @@ impl<'de, E: Engine> ExtensionTrait<'de, E> for Intermediary<E> {
                 let xvec: Vec<E::G1> = vec![proof.T, self.invoice.c];
                 let challenge = util::hash_g1_to_fr::<E>(&xvec);
 
-                // extract commitment paramters
+                // indicate revealed amount (original message is [commitment randomness, amount, nonce, id])
+                let amt_fr = util::convert_int_to_fr::<E>(payment_amount);
+                let revealed_values = Some(vec![None, Some(amt_fr), None, None]);
+
+                // verify proof with revealed amount
                 let com_params = info.keypair_inv
                     .generate_cs_multi_params(&info.mpk);
-                
-                // verify proof with revealed amount
-                let amt_fr = util::convert_int_to_fr::<E>(payment_amount);
-                let revealed_values = Some(vec![Some(amt_fr), None, None]);
                 if proof.verify_proof(&com_params, &self.invoice.c, &challenge, revealed_values) { 
                     Ok(())
                 } else {
@@ -372,9 +372,9 @@ impl<E: Engine> IntermediaryCustomer<E> {
         let invoice_commit = commit_key.commit(&message, &r);
 
         // PoK: prover knows the opening of the commitment
-        // and reveals the invoice amount
+        // and reveals the invoice amount (message is [commitment randomness, amt, nonce, id])
         let proof =
-            CommitmentProof::new(rng, commit_key, &invoice_commit.c, &message, &r, &vec![0]);
+            CommitmentProof::new(rng, commit_key, &invoice_commit.c, &message, &r, &vec![1]);
         (Intermediary {
             invoice: invoice_commit,
             inv_proof: Some(proof),
@@ -581,6 +581,18 @@ mod tests {
         match result {
             Err(e) => assert_eq!(e, "could not verify proof"), // expected error
             Ok(_) => panic!("Merchant allowed payment that didn't match invoice proof"),
+        }
+
+        // try to pay with correct amount
+        let result = payment_intermediary.init(
+            invoice.amount, 
+            int_merch.merch_state.extensions_info
+                .get_mut("intermediary")
+                .expect("Merchant is incorrectly formed (should have an intermediary extension)")
+        );
+        match result {
+            Err(e) => panic!("Merchant didn't allow a valid payment! {}", e),
+            Ok(_) => (),
         }
     }
 
