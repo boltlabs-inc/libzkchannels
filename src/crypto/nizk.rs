@@ -823,7 +823,7 @@ mod tests {
         let com = secParams
             .pubParams
             .comParams
-            .commit(&wallet.as_fr_vec().clone(), &t);
+            .commit(&wallet.as_fr_vec(), &t);
 
         let com_proof = CommitmentProof::<Bls12>::new(
             rng,
@@ -838,7 +838,7 @@ mod tests {
             &secParams.pubParams.comParams,
             &com.c,
             &com_proof,
-            &channelId.clone(),
+            &channelId,
             bc,
             bm,
         ));
@@ -874,11 +874,11 @@ mod tests {
         let com1 = secParams
             .pubParams
             .comParams
-            .commit(&wallet1.as_fr_vec().clone(), &t);
+            .commit(&wallet1.as_fr_vec(), &t);
         let com2 = secParams
             .pubParams
             .comParams
-            .commit(&wallet2.as_fr_vec().clone(), &t);
+            .commit(&wallet2.as_fr_vec(), &t);
 
         let com1_proof = CommitmentProof::<Bls12>::new(
             rng,
@@ -893,7 +893,7 @@ mod tests {
             &secParams.pubParams.comParams,
             &com1.c,
             &com1_proof,
-            &channelId.clone(),
+            &channelId,
             bc,
             bm,
         ));
@@ -901,7 +901,7 @@ mod tests {
             &secParams.pubParams.comParams,
             &com2.c,
             &com1_proof,
-            &channelId.clone(),
+            &channelId,
             bc2,
             bm,
         ));

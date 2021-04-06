@@ -224,7 +224,7 @@ impl<E: Engine> CommitmentProof<E> {
             CommitmentProof::<E>::prove_commitment::<R>(csprng, com_params, message, Some(rt));
 
         // compute the challenge
-        let x: Vec<E::G1> = vec![Tvals, com.clone()];
+        let x: Vec<E::G1> = vec![Tvals, *com];
         let challenge = util::hash_g1_to_fr::<E>(&x);
 
         // compute the response
@@ -245,9 +245,8 @@ impl<E: Engine> CommitmentProof<E> {
             if t.len() == i {
                 t.push(E::Fr::rand(csprng));
             }
-            let ti = t[i].clone();
             let mut gt = com_params.pub_bases[i].clone();
-            gt.mul_assign(ti.into_repr());
+            gt.mul_assign(t[i].into_repr());
             Tvals.add_assign(&gt);
         }
         (Tvals, t)
@@ -285,21 +284,27 @@ impl<E: Engine> CommitmentProof<E> {
         challenge: &E::Fr,
         revealOption: Option<Vec<Option<E::Fr>>>,
     ) -> bool {
-        let mut comc = com.clone();
-        let T = self.T.clone();
+        // comc = c*com + T
+        let mut comc = E::G1::zero();
+        comc.add_assign(&com);
         comc.mul_assign(challenge.into_repr());
-        comc.add_assign(&T);
+        comc.add_assign(&self.T);
+
+        // x = sum( Yi * zi )
+        // for commitment bases Y and proof responses z
         let mut x = E::G1::zero();
         let reveal = revealOption.unwrap_or(vec![]);
         let mut revealBool = true;
         for i in 0..self.z.len() {
-            let mut base = com_params.pub_bases[i].clone();
+            let mut base = E::G1::zero();
+            base.add_assign(&com_params.pub_bases[i]);
             base.mul_assign(self.z[i].into_repr());
             x.add_assign(&base);
 
+            // check partially revealed values against responses
             if reveal.len() > i && reveal[i].is_some() {
                 let mut el = reveal[i].unwrap();
-                el.mul_assign(&challenge.clone());
+                el.mul_assign(&challenge);
                 revealBool = revealBool && self.z[i] == el;
             }
         }
@@ -409,8 +414,8 @@ mod tests {
 
         let comParams = CSMultiParams::setup_gen_params(rng, 5);
         let rl_com = comParams.commit(&vec![wallet.rev_lock], &rho);
-        let s_com = comParams.commit(&wallet.as_fr_vec().clone(), &tau);
-        let s_bar_com = comParams.commit(&wallet.as_fr_vec_bar().clone(), &tau_bar);
+        let s_com = comParams.commit(&wallet.as_fr_vec(), &tau);
+        let s_bar_com = comParams.commit(&wallet.as_fr_vec_bar(), &tau_bar);
 
         let rl_proof = CommitmentProof::<Bls12>::new(
             rng,
@@ -421,7 +426,7 @@ mod tests {
             &vec![],
         );
 
-        let xvec: Vec<G1> = vec![rl_proof.T.clone(), rl_com.c];
+        let xvec: Vec<G1> = vec![rl_proof.T, rl_com.c];
         let challenge = util::hash_g1_to_fr::<Bls12>(&xvec);
         assert_eq!(
             rl_proof.verify_proof(&comParams, &rl_com.c, &challenge, None),
@@ -437,7 +442,7 @@ mod tests {
             &vec![],
         );
 
-        let xvec: Vec<G1> = vec![s_proof.T.clone(), s_com.c];
+        let xvec: Vec<G1> = vec![s_proof.T, s_com.c];
         let challenge = util::hash_g1_to_fr::<Bls12>(&xvec);
         assert_eq!(
             s_proof.verify_proof(&comParams, &s_com.c, &challenge, None),
@@ -453,7 +458,7 @@ mod tests {
             &vec![],
         );
 
-        let xvec: Vec<G1> = vec![s_bar_proof.T.clone(), s_bar_com.c];
+        let xvec: Vec<G1> = vec![s_bar_proof.T, s_bar_com.c];
         let challenge = util::hash_g1_to_fr::<Bls12>(&xvec);
         assert_eq!(
             s_bar_proof.verify_proof(&comParams, &s_bar_com.c, &challenge, None),
