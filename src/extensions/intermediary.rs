@@ -566,6 +566,27 @@ mod tests {
     }
 
     #[test]
+    fn initial_payment_works() {
+        let rng = &mut rand::thread_rng();
+        let (mut int_merch, alice, bob) = make_parties(rng);
+        let invoice = bob.make_invoice(rng.gen_range(5,100), rng).unwrap();
+        let (payment_intermediary, _) = alice.prepare_payment_invoice(&invoice, rng);
+
+        // make a valid payment
+        let result = payment_intermediary.init(
+            invoice.amount, 
+            int_merch.merch_state.extensions_info
+                .get_mut("intermediary")
+                .expect("Merchant is incorrectly formed (should have an intermediary extension)")
+        );
+        match result {
+            Err(e) => panic!("Merchant didn't allow a valid payment! {}", e),
+            Ok(_) => (),
+        }
+
+    }
+
+    #[test]
     fn initial_payment_amount_matches() {
         let rng = &mut rand::thread_rng();
         let (mut int_merch, alice, bob) = make_parties(rng);
@@ -583,18 +604,6 @@ mod tests {
             Err(e) => assert_eq!(e, "could not verify proof"), // expected error
             Ok(_) => panic!("Merchant allowed payment that didn't match invoice proof"),
         }
-
-        // try to pay with correct amount
-        let result = payment_intermediary.init(
-            invoice.amount, 
-            int_merch.merch_state.extensions_info
-                .get_mut("intermediary")
-                .expect("Merchant is incorrectly formed (should have an intermediary extension)")
-        );
-        match result {
-            Err(e) => panic!("Merchant didn't allow a valid payment! {}", e),
-            Ok(_) => (),
-        }
     }
 
     #[test]
@@ -607,18 +616,18 @@ mod tests {
         // make a mismatched invoice (proof doesn't match commitment)
         let wrong_invoice = bob.make_invoice(invoice.amount, rng).unwrap();
         let (mut wrong_intermediary, _) = alice.prepare_payment_invoice(&wrong_invoice, rng);
-        wrong_intermediary.inv_proof = payment_intermediary.inv_proof;
+        wrong_intermediary.inv_proof = payment_intermediary.inv_proof.clone();
 
         // try to pay
         let result = wrong_intermediary.init(
-            rng.gen_range(100,500),
+            invoice.amount,
             int_merch.merch_state.extensions_info
                 .get_mut("intermediary")
                 .expect("Merchant is incorrectly formed (should have an intermediary extension)")
         );
         match result {
             Err(e) => assert_eq!(e, "could not verify proof"), 
-            Ok(_) => println!("didn't fail??"),
+            Ok(_) => panic!("Merchant allowed a payment with a non-matching proof and commitment"),
         }
     }
 
@@ -634,7 +643,7 @@ mod tests {
         // try to use it to pay to a different merchant
         let (mut other_merch, _, _) = make_parties(rng);
         let result = payment_intermediary.init(
-            rng.gen_range(100,500),
+            invoice.amount,
             other_merch.merch_state.extensions_info
                 .get_mut("intermediary")
                 .expect("Merchant is incorrectly formed (should have an intermediary extension)")
@@ -679,6 +688,30 @@ mod tests {
             Ok(_) => panic!("Merchant allowed a payment with mismatched signature/proof pairs"),
         }
     }
+
+    #[test]
+    fn redemption_payment_works() {
+        let rng = &mut rand::thread_rng();
+        let (mut int_merch, _, bob) = make_parties(rng);
+        let invoice = bob.make_invoice(rng.gen_range(5,100), rng).unwrap();
+
+        // simulate first payment: get valid signature on invoice from original merchant
+        let unblinded_sig = int_merch.get_intermediary_keys().keypair_inv.sign(rng, &invoice.as_fr());
+        let redemption_invoice = bob.prepare_redemption_invoice(&invoice, &unblinded_sig, rng);
+
+        // make a valid payment
+        let result = redemption_invoice.init(
+            -invoice.amount,
+            int_merch.merch_state.extensions_info
+                .get_mut("intermediary")
+                .expect("Merchant is incorrectly formed (should have an intermediary extension)")
+        );
+        match result {
+            Err(e) => panic!("Merchant didn't allow a valid redemption payment: {}", e),
+            Ok(_) => ()
+        }
+    }
+
     #[test]
     fn redemption_payment_proof_validates() {
         let rng = &mut rand::thread_rng();
@@ -730,7 +763,7 @@ mod tests {
                 .expect("Merchant is incorrectly formed (should have an intermediary extension)")
         );
         match result {
-            Err(e) => panic!("Payment failed?! {}", e),
+            Err(e) => panic!("Merchant didn't allow a valid payment: {}", e),
             Ok(_) => (),
         }
 
@@ -741,7 +774,7 @@ mod tests {
             _ => panic!("Bad extension type."),
         };
 
-        // bob cannot redeem invoice again 
+        // try to pay with the same invoice
         let result = redemption_invoice.init(
             -invoice.amount,
             int_merch.merch_state.extensions_info
@@ -749,7 +782,7 @@ mod tests {
                 .expect("Merchant is incorrectly formed (should have an intermediary extension)")
         );
         match result {
-            Err(e) => assert_eq!(e, "Nonce has already been redeemed"),
+            Err(e) => assert_eq!(e, "Nonce has already been redeemed"), // expected error
             Ok(_) => panic!("Invoice should not be redeemable")
         };
     }
@@ -774,8 +807,6 @@ mod tests {
                 .get_mut("intermediary")
                 .expect("Merchant is incorrectly formed (should have an intermediary extension)")
         );
-
-        // expected outcome: init should throw an error
         match outcome {
             Ok(_) => panic!("Proof validated with wrong nonce!"),
             Err(e) => assert_eq!(e, "Nonce does not match commitment"), // expected error
@@ -802,8 +833,6 @@ mod tests {
                 .get_mut("intermediary")
                 .expect("Merchant is incorrectly formed (should have an intermediary extension)")
         );
-
-        // expected outcome: init should throw an error
         match outcome {
             Err(e) => assert_eq!(e, "Provider credentials don't match"), // expected error
             Ok(_) => panic!("Proof validated with wrong anonymous credential!"),
@@ -831,13 +860,11 @@ mod tests {
                 .get_mut("intermediary")
                 .expect("Merchant is incorrectly formed (should have an intermediary extension)")
         );
-
-        // expected outcome: init should throw an error
         match outcome {
-            Ok(_) => panic!("Proof validated with wrong anonymous credential!"),
-            Err(e) => if ! e.contains("Payment amount does not match commitment") {
+            Err(e) => if ! e.contains("Payment amount does not match commitment") { // expected error
                 panic!("Proof failed with wrong error! {}", e)
             },
+            Ok(_) => panic!("Proof validated with wrong payment amount!"),
         };
     }
 }
