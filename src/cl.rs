@@ -516,8 +516,8 @@ impl<E: Engine> BlindPublicKey<E> {
     pub fn verify_proof(
         &self,
         mpk: &PublicParams<E>,
-        blindSig: Signature<E>,
-        p: SignatureProof<E>,
+        blindSig: &Signature<E>,
+        p: &SignatureProof<E>,
         challenge: E::Fr,
     ) -> bool {
         // zero is a valid signature for any message, so never allow it
@@ -960,7 +960,7 @@ mod tests {
         let challenge = proof_state.fs_challenge(&mpk);
         let proof = keypair
             .public
-            .prove_response(&proof_state.clone(), challenge, &mut message1);
+            .prove_response(&proof_state, challenge, &mut message1);
 
         // println!("{:?}", serde_json::to_string(&mpk).unwrap());
         // println!("{:?}", serde_json::to_string(&challenge).unwrap());
@@ -972,7 +972,7 @@ mod tests {
         assert_eq!(
             keypair
                 .public
-                .verify_proof(&mpk, proof_state.blindSig, proof, challenge),
+                .verify_proof(&mpk, &proof_state.blindSig, &proof, challenge),
             true
         );
     }
