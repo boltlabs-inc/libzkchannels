@@ -350,33 +350,37 @@ impl<E: Engine> PublicKey<E> {
         message: &Vec<E::Fr>,
         signature: &Signature<E>,
     ) -> bool {
-        let mut L = E::G2::zero();
+        // zero is valid for any message, so never allow it
+        if signature.h == E::G1::zero() {
+            return false
+        }
+
+        // otherwise, verify the signature is on the message
+        // bounds check on message vector
         let mut l = self.Y.len();
         let diff = (l - message.len());
-
         l = match diff > 0 {
             true => message.len(),
             false => l,
         };
 
+        // L = sum ( Y_i ^ m_i)
+        let mut L = E::G2::zero();
         for i in 0..l {
             if i < message.len() {
-                // bounds check on message vector
-                // L = L + self.Y[i].mul(message[i]);
                 let mut Y = self.Y[i];
-                Y.mul_assign(message[i]); // Y_i ^ m_i
-                L.add_assign(&Y); // L += Y_i ^m_i
+                Y.mul_assign(message[i]); 
+                L.add_assign(&Y); 
             }
         }
-
         let mut X2 = self.X;
         X2.add_assign(&L); // X2 = X + L
         let lhs = E::pairing(signature.h, X2);
         let rhs = E::pairing(signature.H, mpk.g2);
-        signature.h != E::G1::one() && lhs == rhs
+        lhs == rhs
     }
 
-    pub fn debug_verify(
+    fn debug_verify(
         &self,
         mpk: &PublicParams<E>,
         message: &Vec<E::Fr>,
@@ -411,7 +415,7 @@ impl<E: Engine> PublicKey<E> {
         let lhs = E::pairing(signature.h, X2);
         let rhs = E::pairing(signature.H, mpk.g2);
         let pp = PartialProducts { Ys: pp1, Ls: pp2 };
-        return ((signature.h != E::G1::one() && lhs == rhs), pp);
+        return ((signature.h != E::G1::zero() && lhs == rhs), pp);
     }
 }
 
@@ -454,9 +458,13 @@ impl<E: Engine> BlindPublicKey<E> {
         message: &Vec<E::Fr>,
         signature: &Signature<E>,
     ) -> bool {
-        let mut L = E::G2::zero();
+        // zero is valid for any message, so never allow it
+        if signature.h == E::G1::zero() {
+            return false
+        }
+
+        // otherwise, verify the signature is on the message
         let l = self.Y2.len();
-        //println!("verify - m.len = {}, l = {}", message.len(), l);
         assert!(message.len() <= l + 1);
 
         let last_elem = match l >= message.len() {
@@ -469,24 +477,24 @@ impl<E: Engine> BlindPublicKey<E> {
             false => l,
         };
 
+        // L = X2 + sum( Y_i ^ m_i)
+        let mut L = E::G2::zero();
         for i in 0..l {
-            // L = L + self.Y[i].mul(message[i]);
             let mut Y = self.Y2[i];
-            Y.mul_assign(message[i]); // Y_i ^ m_i
-            L.add_assign(&Y); // L += Y_i ^m_i
+            Y.mul_assign(message[i]); 
+            L.add_assign(&Y); 
         }
+        L.add_assign(&self.X2); 
 
-        // Y_(l+1) ^ t
+        // L += Y_(l+1) ^ t
         let mut Yt = mpk.g2.clone();
         Yt.mul_assign(message[last_elem]);
         L.add_assign(&Yt);
 
-        let mut X2 = self.X2.clone();
-        X2.add_assign(&L); // X2 = X + L
-        let lhs = E::pairing(signature.h, X2);
+        let lhs = E::pairing(signature.h, L);
         let rhs = E::pairing(signature.H, mpk.g2);
 
-        signature.h != E::G1::one() && lhs == rhs
+        lhs == rhs
     }
 
     /// verify a blinded signature without unblinding it first
@@ -498,8 +506,7 @@ impl<E: Engine> BlindPublicKey<E> {
         signature: &Signature<E>,
     ) -> bool {
         let mut m = message.clone();
-        let t = bf.clone();
-        m.push(t);
+        m.push(*bf);
         self.verify(mpk, &m, signature)
     }
 
@@ -513,6 +520,11 @@ impl<E: Engine> BlindPublicKey<E> {
         p: SignatureProof<E>,
         challenge: E::Fr,
     ) -> bool {
+        // zero is a valid signature for any message, so never allow it
+        if blindSig.h == E::G1::zero() {
+            return false
+        }
+        // otherwise, verify the proof
         let mut gx = E::pairing(blindSig.h, self.X2);
         gx = gx.pow(challenge.into_repr());
         for j in 0..self.Y2.len() {
