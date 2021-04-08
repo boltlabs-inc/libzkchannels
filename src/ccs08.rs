@@ -191,8 +191,8 @@ impl<E: Engine> SecretParamsUL<E> {
         for i in 0..self.pubParams.l as usize {
             let subResult = self.kp.public.verify_proof(
                 &self.pubParams.mpk,
-                proof.V[i].clone(),
-                proof.sigProofs[i].clone(),
+                &proof.V[i],
+                &proof.sigProofs[i],
                 challenge,
             );
 
