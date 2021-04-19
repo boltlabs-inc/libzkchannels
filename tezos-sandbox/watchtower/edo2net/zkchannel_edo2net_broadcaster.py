@@ -1,5 +1,5 @@
 # Example usage:
-# python3 zkchannel_edo2net_broadcaster.py --cust=tz1S6eSPZVQzHyPF2bRKhSKZhDZZSikB3e51.json --merch=tz1VcYZwxQoyxfjhpNiRkdCUe5rzs53LMev6.json --close=sample_cust_close.json 
+# python3 zkchannel_edo2net_broadcaster.py --cust=tz1S6eSPZVQzHyPF2bRKhSKZhDZZSikB3e51.json --merch=tz1VcYZwxQoyxfjhpNiRkdCUe5rzs53LMev6.json --custclose=cust_close.json --merchclose=merch_close.json 
 
 import argparse
 from pytezos import pytezos
@@ -49,28 +49,48 @@ def convert_mt_to_tez(balance):
     return str(int(balance) /1000000)
 
 if __name__ == "__main__":
-        
     parser = argparse.ArgumentParser()
     parser.add_argument("--shell", "-n", help="the address to connect to edo2net", default = "https://rpc.tzkt.io/edo2net/")
-    parser.add_argument("--cust", "-c", required=True, help="customer's testnet json file")
-    parser.add_argument("--merch", "-m", required=True, help="merchant's testnet json file")
-    parser.add_argument("--close", "-cc", required=True, help="Enter the filename (with path) to the cust_close.json file created by zkchannels-cli")
+    parser.add_argument("--cust", "-c", help="customer's testnet account json file")
+    parser.add_argument("--merch", "-m", help="merchant's testnet account json file")
+    parser.add_argument("--custclose", "-cc", help="Enter the filename (with path) to the cust_close.json file created by zkchannels-cli")
+    parser.add_argument("--merchclose", "-mc", help="Enter the filename (with path) to the merch_close.json file created by zkchannels-cli")
     args = parser.parse_args()
 
     if args.shell:
         pytezos = pytezos.using(shell=args.shell)
     print("Connecting to edo2net via: " + args.shell)
-    cust_json = args.cust
-    merch_json = args.merch
+
+    if args.cust:
+       cust_acc = args.cust
+    else:
+        cust_acc = "tz1S6eSPZVQzHyPF2bRKhSKZhDZZSikB3e51.json"
+
+    if args.merch:
+        merch_acc = args.merch
+    else:
+        merch_acc = "tz1VcYZwxQoyxfjhpNiRkdCUe5rzs53LMev6.json"
+
+    if args.custclose:
+        cust_close_file = args.custclose
+    else:
+        cust_close_file="cust_close.json"
+
+    if args.merchclose:
+        merch_close_file = args.merchclose
+    else:
+        merch_close_file="merch_close.json"
+    
 
     # Set customer and merch pytezos interfaces
-    cust_py = pytezos.using(key=cust_json)
-    cust_addr = read_json_file(cust_json)['pkh']
-    merch_py = pytezos.using(key=merch_json)
-    merch_addr = read_json_file(merch_json)['pkh']
+    cust_py = pytezos.using(key=cust_acc)
+    cust_addr = read_json_file(cust_acc)['pkh']
+    merch_py = pytezos.using(key=merch_acc)
+    merch_addr = read_json_file(merch_acc)['pkh']
 
-    # load cust_close json from libzkchannels
-    cust_close_json = read_json_file('sample_cust_close.json')
+    cust_close_json = read_json_file(cust_close_file)
+    merch_close_json = read_json_file(merch_close_file)
+
     # load zchannel contracts
     main_code = ContractInterface.from_file('zkchannel_contract.tz')
 
@@ -192,13 +212,5 @@ if __name__ == "__main__":
     print("Broadcasting Cust Claim")
     out = cust_ci.custClaim().inject()
     print("Cust Claim ophash: ", out['hash'])
-
-    # # Alternatively, to close the channel with merchDispute, run:
-    # print("Dry run of Cust Claim")
-    # out = cust_ci.custClaim().run_operation()
-    # print("Cust Claim valid: ", out.operations[0]['internal'])
-    # print("Broadcasting Merch Dispute")
-    # rev_secret = "enter secret here"
-    # merch_ci.merchDispute(rev_secret).inject()
 
     print("Tests finished!")
