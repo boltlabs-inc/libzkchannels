@@ -164,7 +164,7 @@ if __name__ == "__main__":
 
     watchtower_command = "python3 passive_zkchannel_watchtower.py --contract {cid} --network {shell} --identity merchant".format(cid=main_id, shell=args.shell)
     print("Run the watchtower with \n" + watchtower_command)
-    input("Press enter to continue")
+    # input("Press enter to continue")
 
     # Set contract interfaces for cust and merch
     cust_ci = cust_py.contract(main_id)
@@ -208,6 +208,14 @@ if __name__ == "__main__":
     # print(cust_ci.custClose(close_storage).cmdline())
     out = cust_ci.custClose(close_storage).inject(_async=False)
     print("Cust Close ophash: ", out['hash'])
+
+    # print("Dry run of Merch Dispute")
+    # rev_secret = merch_close_json['rev_secret']
+    # out = cust_ci.merchDispute(rev_secret).run_operation()
+    # if out.operations:
+    #     print("Merch Dispute successful")
+    # else:
+    #     print("Merch Dispute unsuccessful")
 
     print("Broadcasting Cust Claim")
     out = cust_ci.custClaim().inject()
