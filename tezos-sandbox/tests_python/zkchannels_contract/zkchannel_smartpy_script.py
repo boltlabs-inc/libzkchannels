@@ -20,6 +20,9 @@ MERCH_CLOSE = 2
 CUST_CLOSE = 3
 CLOSED = 4
  
+INFINITY = "0x400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+ 
+        
 # chanID is a unique identifier for the channel.
 # Addresses are used both for interacting with contract, and receiving payouts.
 # Public keys are used for verifying signatures required for certain state transitions.
@@ -27,6 +30,14 @@ CLOSED = 4
 # selfDelay defines the delay (in seconds) during which the other party can counter specific state transitions.
 # delayExpiry is the unix timestamp corresponding to when the delay expires.
 class ZkChannel(sp.Contract):
+
+    @sp.global_lambda
+    def is_g1_zero(val):
+        packed_s1 = sp.pack(val)
+        i = sp.bls12_381_g1(INFINITY)
+        packed_i = sp.pack(i)
+        sp.result(packed_s1 != packed_i)
+    
     def __init__(self, chanID, custAddr, merchAddr, custPk, merchPk, custFunding, merchFunding, selfDelay, revLock, g2, merchPk0, merchPk1, merchPk2, merchPk3, merchPk4):
         self.init(
                   chanID            = chanID,
@@ -48,7 +59,6 @@ class ZkChannel(sp.Contract):
                   merchPk2          = merchPk2,
                   merchPk3          = merchPk3,
                   merchPk4          = merchPk4)
-                  
  
     # addFunding is called by the customer or the merchant to fund their
     # portion of the channel (according to the amounts specified in custFunding
@@ -116,7 +126,10 @@ class ZkChannel(sp.Contract):
         revLock = params.revLock
         s1 = params.s1
         s2 = params.s2
-    
+        
+        # Fail if G1 is set to 0
+        sp.verify(self.is_g1_zero(s1))
+        
         # Prepare pairing check inputs
         g2 = self.data.g2
         merchPk0 = self.data.merchPk0
