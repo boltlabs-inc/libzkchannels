@@ -7,11 +7,9 @@ code
       bls12_381_g1
       bool
       {
-        # sp.result(sp.pack(lparams_0) != sp.pack(sp.bls12_381_g1('0x400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'))) # bls12_381_g1
-        PUSH bls12_381_g1 0x400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000; # bls12_381_g1 : bls12_381_g1
-        PACK;       # bytes : bls12_381_g1
-        SWAP;       # bls12_381_g1 : bytes
-        PACK;       # bytes : bytes
+        # sp.result(sp.pack(lparams_0) != sp.bytes('0x050a00000060400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000')) # bls12_381_g1
+        PACK;       # bytes
+        PUSH bytes 0x050a00000060400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000; # bytes : bytes
         COMPARE;    # int
         NEQ;        # bool
       }; # lambda bls12_381_g1 bool : pair @parameter @storage
@@ -243,7 +241,7 @@ code
                 IF_SOME
                   {}
                   {
-                    PUSH int 188; # int : @storage
+                    PUSH int 187; # int : @storage
                     FAILWITH;   # FAILED
                   }; # @some : @storage
                 NIL operation; # list operation : @some : @storage
@@ -355,7 +353,7 @@ code
                 IF_SOME
                   {}
                   {
-                    PUSH int 141; # int : @parameter%custClose : @storage
+                    PUSH int 140; # int : @parameter%custClose : @storage
                     FAILWITH;   # FAILED
                   }; # @some : @parameter%custClose : @storage
                 CAR;        # nat : @parameter%custClose : @storage
@@ -374,7 +372,7 @@ code
                 IF_SOME
                   {}
                   {
-                    PUSH int 144; # int : bls12_381_fr : bls12_381_fr : @parameter%custClose : @storage
+                    PUSH int 143; # int : bls12_381_fr : bls12_381_fr : @parameter%custClose : @storage
                     FAILWITH;   # FAILED
                   }; # @some : bls12_381_fr : bls12_381_fr : @parameter%custClose : @storage
                 CAR;        # nat : bls12_381_fr : bls12_381_fr : @parameter%custClose : @storage
@@ -391,7 +389,7 @@ code
                 IF_SOME
                   {}
                   {
-                    PUSH int 147; # int : bls12_381_fr : bls12_381_fr : @parameter%custClose : @storage
+                    PUSH int 146; # int : bls12_381_fr : bls12_381_fr : @parameter%custClose : @storage
                     FAILWITH;   # FAILED
                   }; # @some : bls12_381_fr : bls12_381_fr : @parameter%custClose : @storage
                 # val1 = sp.local("val1", sp.mul(self.data.merchPk0, self.data.chanID)) # @some : bls12_381_fr : bls12_381_fr : @parameter%custClose : @storage
@@ -519,7 +517,7 @@ code
                 IF_SOME
                   {}
                   {
-                    PUSH int 164; # int : list operation : @parameter%custClose : pair (pair (pair (pair (bls12_381_fr %chanID) (address %custAddr)) (pair mutez mutez)) (pair (pair key timestamp) (pair (bls12_381_g2 %g2) (pair (address %merchAddr) (mutez %merchBal))))) (pair (pair (pair (mutez %merchFunding) (key %merchPk)) (pair (bls12_381_g2 %merchPk0) (pair (bls12_381_g2 %merchPk1) (bls12_381_g2 %merchPk2)))) (pair (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4)) (pair bytes (pair (int %selfDelay) (nat %status)))))
+                    PUSH int 163; # int : list operation : @parameter%custClose : pair (pair (pair (pair (bls12_381_fr %chanID) (address %custAddr)) (pair mutez mutez)) (pair (pair key timestamp) (pair (bls12_381_g2 %g2) (pair (address %merchAddr) (mutez %merchBal))))) (pair (pair (pair (mutez %merchFunding) (key %merchPk)) (pair (bls12_381_g2 %merchPk0) (pair (bls12_381_g2 %merchPk1) (bls12_381_g2 %merchPk2)))) (pair (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4)) (pair bytes (pair (int %selfDelay) (nat %status)))))
                     FAILWITH;   # FAILED
                   }; # @some : list operation : @parameter%custClose : pair (pair (pair (pair (bls12_381_fr %chanID) (address %custAddr)) (pair mutez mutez)) (pair (pair key timestamp) (pair (bls12_381_g2 %g2) (pair (address %merchAddr) (mutez %merchBal))))) (pair (pair (pair (mutez %merchFunding) (key %merchPk)) (pair (bls12_381_g2 %merchPk0) (pair (bls12_381_g2 %merchPk1) (bls12_381_g2 %merchPk2)))) (pair (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4)) (pair bytes (pair (int %selfDelay) (nat %status)))))
                 DIG 2;      # @parameter%custClose : @some : list operation : pair (pair (pair (pair (bls12_381_fr %chanID) (address %custAddr)) (pair mutez mutez)) (pair (pair key timestamp) (pair (bls12_381_g2 %g2) (pair (address %merchAddr) (mutez %merchBal))))) (pair (pair (pair (mutez %merchFunding) (key %merchPk)) (pair (bls12_381_g2 %merchPk0) (pair (bls12_381_g2 %merchPk1) (bls12_381_g2 %merchPk2)))) (pair (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4)) (pair bytes (pair (int %selfDelay) (nat %status)))))
@@ -621,7 +619,7 @@ code
                 IF_SOME
                   {}
                   {
-                    PUSH int 112; # int : @storage
+                    PUSH int 111; # int : @storage
                     FAILWITH;   # FAILED
                   }; # @some : @storage
                 NIL operation; # list operation : @some : @storage
@@ -814,7 +812,7 @@ code
                 IF_SOME
                   {}
                   {
-                    PUSH int 177; # int : @storage
+                    PUSH int 176; # int : @storage
                     FAILWITH;   # FAILED
                   }; # @some : @storage
                 NIL operation; # list operation : @some : @storage
@@ -1009,7 +1007,7 @@ code
                 IF_SOME
                   {}
                   {
-                    PUSH int 222; # int : pair (pair (pair (pair (bls12_381_fr %chanID) (address %custAddr)) (pair mutez mutez)) (pair (pair (key %custPk) (timestamp %delayExpiry)) (pair bls12_381_g2 (pair address mutez)))) (pair (pair (pair (mutez %merchFunding) (key %merchPk)) (pair (bls12_381_g2 %merchPk0) (pair (bls12_381_g2 %merchPk1) (bls12_381_g2 %merchPk2)))) (pair (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4)) (pair (bytes %revLock) (pair (int %selfDelay) (nat %status)))))
+                    PUSH int 221; # int : pair (pair (pair (pair (bls12_381_fr %chanID) (address %custAddr)) (pair mutez mutez)) (pair (pair (key %custPk) (timestamp %delayExpiry)) (pair bls12_381_g2 (pair address mutez)))) (pair (pair (pair (mutez %merchFunding) (key %merchPk)) (pair (bls12_381_g2 %merchPk0) (pair (bls12_381_g2 %merchPk1) (bls12_381_g2 %merchPk2)))) (pair (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4)) (pair (bytes %revLock) (pair (int %selfDelay) (nat %status)))))
                     FAILWITH;   # FAILED
                   }; # @some : pair (pair (pair (pair (bls12_381_fr %chanID) (address %custAddr)) (pair mutez mutez)) (pair (pair (key %custPk) (timestamp %delayExpiry)) (pair bls12_381_g2 (pair address mutez)))) (pair (pair (pair (mutez %merchFunding) (key %merchPk)) (pair (bls12_381_g2 %merchPk0) (pair (bls12_381_g2 %merchPk1) (bls12_381_g2 %merchPk2)))) (pair (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4)) (pair (bytes %revLock) (pair (int %selfDelay) (nat %status)))))
                 NIL operation; # list operation : @some : pair (pair (pair (pair (bls12_381_fr %chanID) (address %custAddr)) (pair mutez mutez)) (pair (pair (key %custPk) (timestamp %delayExpiry)) (pair bls12_381_g2 (pair address mutez)))) (pair (pair (pair (mutez %merchFunding) (key %merchPk)) (pair (bls12_381_g2 %merchPk0) (pair (bls12_381_g2 %merchPk1) (bls12_381_g2 %merchPk2)))) (pair (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4)) (pair (bytes %revLock) (pair (int %selfDelay) (nat %status)))))
@@ -1031,7 +1029,7 @@ code
                 IF_SOME
                   {}
                   {
-                    PUSH int 223; # int : list operation : pair (pair (pair (pair (bls12_381_fr %chanID) (address %custAddr)) (pair mutez mutez)) (pair (pair (key %custPk) (timestamp %delayExpiry)) (pair bls12_381_g2 (pair address mutez)))) (pair (pair (pair (mutez %merchFunding) (key %merchPk)) (pair (bls12_381_g2 %merchPk0) (pair (bls12_381_g2 %merchPk1) (bls12_381_g2 %merchPk2)))) (pair (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4)) (pair (bytes %revLock) (pair (int %selfDelay) (nat %status)))))
+                    PUSH int 222; # int : list operation : pair (pair (pair (pair (bls12_381_fr %chanID) (address %custAddr)) (pair mutez mutez)) (pair (pair (key %custPk) (timestamp %delayExpiry)) (pair bls12_381_g2 (pair address mutez)))) (pair (pair (pair (mutez %merchFunding) (key %merchPk)) (pair (bls12_381_g2 %merchPk0) (pair (bls12_381_g2 %merchPk1) (bls12_381_g2 %merchPk2)))) (pair (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4)) (pair (bytes %revLock) (pair (int %selfDelay) (nat %status)))))
                     FAILWITH;   # FAILED
                   }; # @some : list operation : pair (pair (pair (pair (bls12_381_fr %chanID) (address %custAddr)) (pair mutez mutez)) (pair (pair (key %custPk) (timestamp %delayExpiry)) (pair bls12_381_g2 (pair address mutez)))) (pair (pair (pair (mutez %merchFunding) (key %merchPk)) (pair (bls12_381_g2 %merchPk0) (pair (bls12_381_g2 %merchPk1) (bls12_381_g2 %merchPk2)))) (pair (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4)) (pair (bytes %revLock) (pair (int %selfDelay) (nat %status)))))
                 DUP 3;      # pair (pair (pair (pair (bls12_381_fr %chanID) (address %custAddr)) (pair mutez mutez)) (pair (pair (key %custPk) (timestamp %delayExpiry)) (pair bls12_381_g2 (pair address mutez)))) (pair (pair (pair (mutez %merchFunding) (key %merchPk)) (pair (bls12_381_g2 %merchPk0) (pair (bls12_381_g2 %merchPk1) (bls12_381_g2 %merchPk2)))) (pair (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4)) (pair (bytes %revLock) (pair (int %selfDelay) (nat %status))))) : @some : list operation : pair (pair (pair (pair (bls12_381_fr %chanID) (address %custAddr)) (pair mutez mutez)) (pair (pair (key %custPk) (timestamp %delayExpiry)) (pair bls12_381_g2 (pair address mutez)))) (pair (pair (pair (mutez %merchFunding) (key %merchPk)) (pair (bls12_381_g2 %merchPk0) (pair (bls12_381_g2 %merchPk1) (bls12_381_g2 %merchPk2)))) (pair (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4)) (pair (bytes %revLock) (pair (int %selfDelay) (nat %status)))))
@@ -1146,7 +1144,7 @@ code
                     IF_SOME
                       {}
                       {
-                        PUSH int 87; # int : @storage
+                        PUSH int 86; # int : @storage
                         FAILWITH;   # FAILED
                       }; # @some : @storage
                     NIL operation; # list operation : @some : @storage
@@ -1214,7 +1212,7 @@ code
                     IF_SOME
                       {}
                       {
-                        PUSH int 91; # int : list operation : pair (pair (pair (pair (bls12_381_fr %chanID) (address %custAddr)) (pair mutez mutez)) (pair (pair (key %custPk) (timestamp %delayExpiry)) (pair (bls12_381_g2 %g2) (pair (address %merchAddr) (mutez %merchBal))))) (pair (pair (pair (mutez %merchFunding) (key %merchPk)) (pair (bls12_381_g2 %merchPk0) (pair (bls12_381_g2 %merchPk1) (bls12_381_g2 %merchPk2)))) (pair (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4)) (pair (bytes %revLock) (pair (int %selfDelay) (nat %status)))))
+                        PUSH int 90; # int : list operation : pair (pair (pair (pair (bls12_381_fr %chanID) (address %custAddr)) (pair mutez mutez)) (pair (pair (key %custPk) (timestamp %delayExpiry)) (pair (bls12_381_g2 %g2) (pair (address %merchAddr) (mutez %merchBal))))) (pair (pair (pair (mutez %merchFunding) (key %merchPk)) (pair (bls12_381_g2 %merchPk0) (pair (bls12_381_g2 %merchPk1) (bls12_381_g2 %merchPk2)))) (pair (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4)) (pair (bytes %revLock) (pair (int %selfDelay) (nat %status)))))
                         FAILWITH;   # FAILED
                       }; # @some : list operation : pair (pair (pair (pair (bls12_381_fr %chanID) (address %custAddr)) (pair mutez mutez)) (pair (pair (key %custPk) (timestamp %delayExpiry)) (pair (bls12_381_g2 %g2) (pair (address %merchAddr) (mutez %merchBal))))) (pair (pair (pair (mutez %merchFunding) (key %merchPk)) (pair (bls12_381_g2 %merchPk0) (pair (bls12_381_g2 %merchPk1) (bls12_381_g2 %merchPk2)))) (pair (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4)) (pair (bytes %revLock) (pair (int %selfDelay) (nat %status)))))
                     DUP 3;      # pair (pair (pair (pair (bls12_381_fr %chanID) (address %custAddr)) (pair mutez mutez)) (pair (pair (key %custPk) (timestamp %delayExpiry)) (pair (bls12_381_g2 %g2) (pair (address %merchAddr) (mutez %merchBal))))) (pair (pair (pair (mutez %merchFunding) (key %merchPk)) (pair (bls12_381_g2 %merchPk0) (pair (bls12_381_g2 %merchPk1) (bls12_381_g2 %merchPk2)))) (pair (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4)) (pair (bytes %revLock) (pair (int %selfDelay) (nat %status))))) : @some : list operation : pair (pair (pair (pair (bls12_381_fr %chanID) (address %custAddr)) (pair mutez mutez)) (pair (pair (key %custPk) (timestamp %delayExpiry)) (pair (bls12_381_g2 %g2) (pair (address %merchAddr) (mutez %merchBal))))) (pair (pair (pair (mutez %merchFunding) (key %merchPk)) (pair (bls12_381_g2 %merchPk0) (pair (bls12_381_g2 %merchPk1) (bls12_381_g2 %merchPk2)))) (pair (pair (bls12_381_g2 %merchPk3) (bls12_381_g2 %merchPk4)) (pair (bytes %revLock) (pair (int %selfDelay) (nat %status)))))

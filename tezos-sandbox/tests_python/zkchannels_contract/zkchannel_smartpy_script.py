@@ -34,9 +34,8 @@ class ZkChannel(sp.Contract):
     @sp.global_lambda
     def is_g1_zero(val):
         packed_s1 = sp.pack(val)
-        i = sp.bls12_381_g1(ZERO_IN_G1)
-        packed_i = sp.pack(i)
-        sp.result(packed_s1 != packed_i)
+        packed_zero = sp.reduce(sp.pack(sp.bls12_381_g1(ZERO_IN_G1)))
+        sp.result(packed_s1 != packed_zero)
     
     def __init__(self, chanID, custAddr, merchAddr, custPk, merchPk, custFunding, merchFunding, selfDelay, revLock, g2, merchPk0, merchPk1, merchPk2, merchPk3, merchPk4):
         self.init(
