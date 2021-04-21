@@ -1,6 +1,13 @@
-# tezos-sandbox
-Testing with Tezos using BLS12-381
+# tezos-sandbox dir
+/cli - the zkchannels-cli used for executing the off-chain side of the protocol.<br>
+/docs - docs, tutorials, diagrams, and benchmarks.<br>
+/smartpy_scripts - useful smartpy script examples.<br>
+/tests_python/zkchannels_contract - zkchannels smartpy and michelson contract with tezos-client pytest script.<br>
+/watchtower - notification watchtower implementation in pytezos.<br>
+/zkchannel_sandbox - tezos-client pytests for ps sig verification logic.<br>
 
+
+# Testing with Tezos using BLS12-381
 ## Building on sandbox
 
 (1a) Build dependencies on Ubuntu 20.04:
