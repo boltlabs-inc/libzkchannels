@@ -153,7 +153,6 @@ class ZkChannel(sp.Contract):
         prod1 = sp.local("prod1", val1.value + val2.value + val3.value + val4.value + merchPk4)
         g2_negated = - g2
         pair_list = sp.local("pair_list", [sp.pair(s1, prod1.value), sp.pair(s2, g2_negated)])
-        out = sp.local('out', False)
         sp.verify(sp.pairing_check(pair_list.value))
         
         # Update on-chain state and transfer merchant's balance   
