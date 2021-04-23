@@ -27,11 +27,13 @@ impl<E: Engine> Wallet<E> {
         ]
     }
     pub fn as_fr_vec_bar(&self) -> Vec<E::Fr> {
+        let close_prefix = util::hash_to_fr::<E>("close".as_bytes().to_vec());
         vec![
             self.channelId,
             self.rev_lock,
             E::Fr::from_str(&self.bc.to_string()).unwrap(),
             E::Fr::from_str(&self.bm.to_string()).unwrap(),
+            close_prefix,
         ]
     }
 }

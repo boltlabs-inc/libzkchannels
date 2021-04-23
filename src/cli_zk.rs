@@ -1119,13 +1119,23 @@ mod cust {
             let cid = format!("{}", cust_close.message.channelId.into_repr());
             let mut channel_id_vec = hex::decode(cid[2..].to_string()).unwrap();
             channel_id_vec.reverse();
+
             let rlock = format!("{}", cust_close.message.rev_lock.into_repr());
             let mut rev_lock_vec = hex::decode(rlock[2..].to_string()).unwrap();
             rev_lock_vec.reverse();
+
+            let close_fixed = format!(
+                "{}",
+                zkchannels::util::hash_to_fr::<Bls12>("close".as_bytes().to_vec()).into_repr()
+            );
+            let mut close_fixed_str = hex::decode(close_fixed[2..].to_string()).unwrap();
+            close_fixed_str.reverse();
+
             message_map.insert("channel_id", hex::encode(&channel_id_vec));
             message_map.insert("rev_lock", hex::encode(&rev_lock_vec));
             message_map.insert("cust_bal", cust_close.message.bc.to_string());
             message_map.insert("merch_bal", cust_close.message.bm.to_string());
+            message_map.insert("close", hex::encode(&close_fixed_str));
 
             let json = [
                 "{\"merch_pk\":",
