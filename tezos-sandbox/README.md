@@ -14,8 +14,7 @@
 	
     sudo add-apt-repository ppa:avsm/ppa
     sudo apt update
-    sudo apt-get install -y rsync git m4 build-essential patch unzip wget pkg-config libgmp-dev libev-dev libhidapi-dev libffi-dev opam jq
-    sudo apt-get install -y virtualenv python3-pip 
+    sudo apt-get install -y rsync git m4 build-essential patch unzip wget pkg-config libgmp-dev libev-dev libhidapi-dev libffi-dev opam jq virtualenv python3-pip 
     
 (1b) Build deps on Mac OS:
 
@@ -42,7 +41,7 @@ To switch back to latest stable version of rust do the following:
     
     git clone https://gitlab.com/tezos/tezos.git
     cd tezos
-    git checkout master
+    git checkout v9.0
     opam init --bare -y
     opam switch create for_tezos 4.09.1   (if Linux)
     make build-deps
@@ -67,7 +66,11 @@ To switch back to latest stable version of rust do the following:
 
     cp ../libzkchannels/tezos-sandbox/pyproject.toml .
     poetry install 
-    
+
+(8) Install some dependencies
+
+    pip install base58check ed25519 pyblake2
+
 (8) Run the test sandbox script for the zkChannels contract
 
     cp -r ../libzkchannels/tezos-sandbox/tests_python/zkchannels_contract tests_python/
