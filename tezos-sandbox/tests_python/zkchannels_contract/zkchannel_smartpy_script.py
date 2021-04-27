@@ -113,29 +113,25 @@ class ZkChannel(sp.Contract):
         self.data.merchBal = sp.tez(0)
         self.data.status = CLOSED
  
-        
     @sp.entry_point
     def custClose(self, params):
         sp.verify(self.data.custAddr == sp.sender)
         sp.verify((self.data.status == OPEN) | (self.data.status == MERCH_CLOSE))
-
         # custClose inputs
         custBal = params.custBal
         merchBal = params.merchBal
         revLock = params.revLock
         s1 = params.s1
         s2 = params.s2
-        
         # Fail if G1 is set to 0
         sp.verify(self.is_g1_zero(s1))
-        
         # Prepare pairing check inputs
         g2 = self.data.g2
-        merchPk0 = self.data.merchPk0
-        merchPk1 = self.data.merchPk1
-        merchPk2 = self.data.merchPk2
-        merchPk3 = self.data.merchPk3
-        merchPk4 = self.data.merchPk4
+        Y0 = self.data.merchPk0
+        Y1 = self.data.merchPk1
+        Y2 = self.data.merchPk2
+        Y3 = self.data.merchPk3
+        X = self.data.merchPk4
         chanID = self.data.chanID
         cust_b = sp.local('cust_b', sp.fst(sp.ediv(custBal, sp.mutez(1)).open_some()))
         one = sp.local('one', sp.bls12_381_fr("0x01"))
@@ -144,17 +140,13 @@ class ZkChannel(sp.Contract):
         merch_bal_b = sp.local("merch_bal_b", sp.mul(merch_b.value, one.value))
         revLockConcat = sp.local('revLockConcat', sp.concat([sp.bytes("0x050a00000020"), revLock]))
         rev_lock_b = sp.local('rev_lock_b', sp.unpack(revLockConcat.value, t = sp.TBls12_381_fr).open_some())
-        
-        # Verify signature
-        val1 = sp.local("val1", sp.mul(merchPk0, chanID))
-        val2 = sp.local("val2", sp.mul(merchPk1, rev_lock_b.value))
-        val3 = sp.local("val3", sp.mul(merchPk2, cust_bal_b.value))
-        val4 = sp.local("val4", sp.mul(merchPk3, merch_bal_b.value))
-        prod1 = sp.local("prod1", val1.value + val2.value + val3.value + val4.value + merchPk4)
-        g2_negated = - g2
-        pair_list = sp.local("pair_list", [sp.pair(s1, prod1.value), sp.pair(s2, g2_negated)])
-        sp.verify(sp.pairing_check(pair_list.value))
-        
+        # Verify PS signature against the message
+        pk = [Y0, Y1, Y2, Y3]
+        msg = [chanID, rev_lock_b.value, cust_bal_b.value, merch_bal_b.value]
+        prod1 = sp.local('prod1', X)
+        for i in range(0, len(msg)):
+            prod1.value += sp.mul(pk[i], msg[i])
+        sp.verify(sp.pairing_check([sp.pair(s1, prod1.value), sp.pair(s2, -g2)]), message="pairing check failed")
         # Update on-chain state and transfer merchant's balance   
         self.data.custBal = custBal
         self.data.revLock = revLock
@@ -162,7 +154,6 @@ class ZkChannel(sp.Contract):
         sp.send(self.data.merchAddr, merchBal)
         self.data.merchBal = sp.tez(0)
         self.data.status = CUST_CLOSE
-             
  
     # merchDispute can be called if the merchant has the secret corresponding
     # to the latest custClose state. If the secret is valid, the merchant will
