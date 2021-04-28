@@ -766,14 +766,28 @@ mod cust {
             handle_error_result!(serde_json::from_str(&msg3.get(0).unwrap()));
         let got_close_token = true; // handle the serde_json unwrapping
 
-        if got_close_token {
-            let json_file = format!("{}_chan_id.json", channel_name);
+        if got_close_token {            
+            let json_file = format!("{}_init_state.json", channel_name);
             // if broadcast successful, then we can mark the channel as open
             handle_error_result!(zkproofs::customer_mark_open_channel(
                 init_close_token,
                 &mut channel_state,
                 &mut cust_state
             ));
+
+            let cp = channel_state.cp.clone().unwrap();
+            let mut merch_pk_map = HashMap::new();
+            // encode the merch public key
+            let g2 = G2Uncompressed::from_affine(cp.pub_params.mpk.g2.into_affine());
+            let x2 = G2Uncompressed::from_affine(cp.pub_params.pk.X2.into_affine());
+            merch_pk_map.insert("g2".to_string(), hex::encode(&g2));
+            merch_pk_map.insert("X".to_string(), hex::encode(&x2));
+            let l = cp.pub_params.pk.Y2.len();
+            for i in 0..l {
+                let key = format!("Y{}", i);
+                let y = G2Uncompressed::from_affine(cp.pub_params.pk.Y2[i].into_affine());
+                merch_pk_map.insert(key, hex::encode(&y));
+            }
 
             cust_save_state_in_db(
                 &mut db_conn,
@@ -783,13 +797,23 @@ mod cust {
                 cust_state,
             )?;
 
+            // get the channel id
             let cid = format!("{}", &chan_id.into_repr());
             let mut cid_vec = hex::decode(cid[2..].to_string()).unwrap();
             cid_vec.reverse();
 
+            // get the initial rev lock
+            let rlock = format!("{}", init_state.rev_lock.into_repr());
+            let mut initial_rev_lock = hex::decode(rlock[2..].to_string()).unwrap();
+            initial_rev_lock.reverse();
+            
+            // build the json for the initial state json
             let json = [
-                "{\"channel_id\":",
-                format!("\"{}\"", hex::encode(&cid_vec)).as_str(),
+                "{\"channel_id\":", format!("\"{}\"", hex::encode(&cid_vec)).as_str(),
+                ", \"init_rev_lock\":", format!("\"{}\"", hex::encode(&initial_rev_lock)).as_str(),
+                ", \"init_cust_bal\":", format!("{}", init_state.bc.to_string()).as_str(),
+                ", \"init_merch_bal\":", format!("{}", init_state.bm.to_string()).as_str(),
+                ", \"merch_pk\":", serde_json::to_string(&merch_pk_map).unwrap().as_str(),
                 "}",
             ]
             .concat();
@@ -1092,9 +1116,9 @@ mod cust {
         // if decompress enabled
         if decompress_cust_close {
             let cp = channel_state.cp.unwrap();
-            let mut merch_pk_map = HashMap::new();
             let mut message_map = HashMap::new();
             let mut signature_map = HashMap::new();
+            let mut merch_pk_map = HashMap::new();
 
             // encode the merch public key
             let g2 = G2Uncompressed::from_affine(cp.pub_params.mpk.g2.into_affine());
