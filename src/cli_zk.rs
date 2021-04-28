@@ -766,7 +766,7 @@ mod cust {
             handle_error_result!(serde_json::from_str(&msg3.get(0).unwrap()));
         let got_close_token = true; // handle the serde_json unwrapping
 
-        if got_close_token {            
+        if got_close_token {
             let json_file = format!("{}_init_state.json", channel_name);
             // if broadcast successful, then we can mark the channel as open
             handle_error_result!(zkproofs::customer_mark_open_channel(
@@ -806,14 +806,28 @@ mod cust {
             let rlock = format!("{}", init_state.rev_lock.into_repr());
             let mut initial_rev_lock = hex::decode(rlock[2..].to_string()).unwrap();
             initial_rev_lock.reverse();
-            
+
+            let close_fixed = format!(
+                "{}",
+                zkchannels::util::hash_to_fr::<Bls12>("close".as_bytes().to_vec()).into_repr()
+            );
+            let mut close_fixed_vec = hex::decode(close_fixed[2..].to_string()).unwrap();
+            close_fixed_vec.reverse();
+
             // build the json for the initial state json
             let json = [
-                "{\"channel_id\":", format!("\"{}\"", hex::encode(&cid_vec)).as_str(),
-                ", \"init_rev_lock\":", format!("\"{}\"", hex::encode(&initial_rev_lock)).as_str(),
-                ", \"init_cust_bal\":", format!("{}", init_state.bc.to_string()).as_str(),
-                ", \"init_merch_bal\":", format!("{}", init_state.bm.to_string()).as_str(),
-                ", \"merch_pk\":", serde_json::to_string(&merch_pk_map).unwrap().as_str(),
+                "{\"channel_id\":",
+                format!("\"{}\"", hex::encode(&cid_vec)).as_str(),
+                ", \"init_rev_lock\":",
+                format!("\"{}\"", hex::encode(&initial_rev_lock)).as_str(),
+                ", \"init_cust_bal\":",
+                format!("{}", init_state.bc.to_string()).as_str(),
+                ", \"init_merch_bal\":",
+                format!("{}", init_state.bm.to_string()).as_str(),
+                ", \"merch_pk\":",
+                serde_json::to_string(&merch_pk_map).unwrap().as_str(),
+                ", \"close\":",
+                format!("\"{}\"", hex::encode(&close_fixed_vec)).as_str(),
                 "}",
             ]
             .concat();
@@ -1152,14 +1166,14 @@ mod cust {
                 "{}",
                 zkchannels::util::hash_to_fr::<Bls12>("close".as_bytes().to_vec()).into_repr()
             );
-            let mut close_fixed_str = hex::decode(close_fixed[2..].to_string()).unwrap();
-            close_fixed_str.reverse();
+            let mut close_fixed_vec = hex::decode(close_fixed[2..].to_string()).unwrap();
+            close_fixed_vec.reverse();
 
             message_map.insert("channel_id", hex::encode(&channel_id_vec));
             message_map.insert("rev_lock", hex::encode(&rev_lock_vec));
             message_map.insert("cust_bal", cust_close.message.bc.to_string());
             message_map.insert("merch_bal", cust_close.message.bm.to_string());
-            message_map.insert("close", hex::encode(&close_fixed_str));
+            message_map.insert("close", hex::encode(&close_fixed_vec));
 
             let json = [
                 "{\"merch_pk\":",
