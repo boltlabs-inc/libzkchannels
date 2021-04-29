@@ -1,5 +1,6 @@
 use super::*;
 use cl;
+use ff::PrimeField;
 use pairing::Engine;
 use rand::Rng;
 use wallet;
@@ -68,7 +69,6 @@ impl fmt::Display for TransactionFeeInfo {
                          <E as pairing::Engine>::G1: serde::Deserialize<'de>")
 )]
 pub struct ChannelcloseC<E: Engine> {
-    pub rev_lock: FixedSizeArray32,
     pub message: wallet::Wallet<E>,
     pub merch_signature: cl::Signature<E>,
     pub cust_signature: secp256k1::Signature,
@@ -647,7 +647,6 @@ where
     };
 
     Ok(ChannelcloseC {
-        rev_lock: FixedSizeArray32(cust_state.rev_lock.0.clone()),
         message: closing_state_wallet,
         merch_signature: close_token,
         cust_signature: cust_sig,
@@ -693,17 +692,21 @@ pub fn force_merchant_close<E: Engine>(
     // check that cust_close.rev_lock == close_wallet.rev_lock
 
     if is_valid {
-        let rev_lock = cust_close.rev_lock;
+        let rlock = format!("{}", wallet.rev_lock.into_repr());
+        let rev_lock_key = rlock[2..].to_string();
         // found the rev_lock, which means close token on old state
-        let rev_lock_key = hex::encode(&rev_lock);
         if merch_state.keys.contains_key(&rev_lock_key) {
             let rev_secret_str = merch_state.keys.get(&rev_lock_key).unwrap();
             let rev_secret = hex::decode(&rev_secret_str).unwrap();
+            let rev_lock = hex::decode(&rev_lock_key).unwrap();
+            let mut rl_buf_le = [0u8; 32];
             let mut rs_buf = [0u8; 32];
-            // TODO: check that rev_secret is 32 len
+            
+            rl_buf_le.copy_from_slice(&rev_lock);
+            rl_buf_le.reverse();
             rs_buf.copy_from_slice(&rev_secret);
             return Ok(RevLockPair {
-                rev_lock: rev_lock,
+                rev_lock: FixedSizeArray32(rl_buf_le),
                 rev_secret: FixedSizeArray32(rs_buf),
             });
         }

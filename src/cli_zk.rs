@@ -811,7 +811,8 @@ mod cust {
                 "{}",
                 zkchannels::util::hash_to_fr::<Bls12>("close".as_bytes().to_vec()).into_repr()
             );
-            let close_fixed_vec = hex::decode(close_fixed[2..].to_string()).unwrap();
+            let mut close_fixed_vec = hex::decode(close_fixed[2..].to_string()).unwrap();
+            close_fixed_vec.reverse();
 
             // build the json for the initial state json
             let json = [
@@ -1165,7 +1166,8 @@ mod cust {
                 "{}",
                 zkchannels::util::hash_to_fr::<Bls12>("close".as_bytes().to_vec()).into_repr()
             );
-            let close_fixed_vec = hex::decode(close_fixed[2..].to_string()).unwrap();
+            let mut close_fixed_vec = hex::decode(close_fixed[2..].to_string()).unwrap();
+            close_fixed_vec.reverse();
 
             message_map.insert("channel_id", hex::encode(&channel_id_vec));
             message_map.insert("rev_lock", hex::encode(&rev_lock_vec));

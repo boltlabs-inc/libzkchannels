@@ -79,15 +79,33 @@ pub fn compute_the_hash<E: Engine>(bytes: &Vec<u8>) -> E::Fr {
     return E::Fr::from_str(&hexresult.to_string()).unwrap();
 }
 
-pub fn hash_secret_to_fr<E: Engine>(bytes: &Vec<u8>) -> ([u8; 32], E::Fr) {
-    let mut hasher = sha2::Sha256::new();
-    hasher.input(&bytes.as_slice());
-    let sha2_digest = hasher.result();
-    let mut hash_buf: [u8; 32] = [0; 32];
-    hash_buf.copy_from_slice(&sha2_digest);
-    let intresult = fmt_bytes_to_int(hash_buf);
-    let fr_value = E::Fr::from_str(&intresult).unwrap();
-    return (hash_buf, fr_value);
+pub fn hash_secret_to_fr<E: Engine>(bytes: &Vec<u8>) -> ([u8; 32], [u8; 32], E::Fr) {
+    let mut sec_uint = BigUint::from_bytes_be(&bytes[..]);
+    // println!("init sec: {}", sec_uint);
+    let big_modulus = BigUint::from_bytes_be(E::Fr::char().to_string().as_ref());
+
+    loop {
+        let sec_buf = sec_uint.to_bytes_be();
+        let mut hasher = sha2::Sha256::new();
+        hasher.input(&sec_buf);
+        let sha2_digest = hasher.result();
+        let mut hash_buf: [u8; 32] = [0; 32];
+        hash_buf.copy_from_slice(&sha2_digest);
+        let big_uint = BigUint::from_bytes_be(&hash_buf[..]);
+        let hexresult = big_uint % &big_modulus;
+        let fr_value = E::Fr::from_str(&hexresult.to_string()).unwrap();
+        // check that hash_buf and fr_value are the same
+        let str1 = format!("{}", fr_value.into_repr());
+        let str2 = format!("0x{}", hex::encode(&hash_buf));
+        if str1.ne(&str2) {
+            // increment secret by 1 and try again
+            sec_uint += BigUint::new(vec![1]);
+        } else {
+            let mut sec_buf2 = [0u8; 32];
+            sec_buf2.copy_from_slice(&sec_buf);
+            return (sec_buf2, hash_buf, fr_value);
+        }
+    }
 }
 
 pub fn hash_to_fr<E: Engine>(byteVec: Vec<u8>) -> E::Fr {

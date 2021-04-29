@@ -292,7 +292,10 @@ impl<E: Engine> CustomerState<E> {
         csprng.fill_bytes(&mut rev_secret);
 
         // compute hash of the revocation secret
-        let (rev_lock, rl) = hash_secret_to_fr::<E>(&rev_secret.to_vec());
+        let (rev_secret, rev_lock, rl) = hash_secret_to_fr::<E>(&rev_secret.to_vec());
+        // println!("init ... rev_sec (bytes): {}", hex::encode(&rev_secret));
+        // println!("init ... rev_lock (bytes): {}", hex::encode(&rev_lock));
+        // println!("init ... rl (FR): {}", rl.into_repr());
 
         // generate the initial nonce
         let mut nonce_bytes = [0u8; 16];
@@ -520,7 +523,8 @@ impl<E: Engine> CustomerState<E> {
         csprng.fill_bytes(&mut new_rev_secret);
 
         // compute hash of the revocation secret
-        let (new_rev_lock, new_wallet_rl) = hash_secret_to_fr::<E>(&new_rev_secret.to_vec());
+        let (new_rev_secret, new_rev_lock, new_wallet_rl) =
+            hash_secret_to_fr::<E>(&new_rev_secret.to_vec());
 
         // generate a new nonce
         let mut new_nonce = [0u8; 16];
