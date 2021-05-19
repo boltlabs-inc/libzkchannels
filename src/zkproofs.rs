@@ -21,7 +21,7 @@ pub use nizk::NIZKProof;
 pub use ped92::Commitment;
 pub use ped92::CommitmentProof;
 use serde::{Deserialize, Serialize};
-use util::{encode_short_bytes_to_fr, hash_to_slice};
+use util::{encode_short_bytes_to_fr, sha3_hash_to_slice};
 pub use wallet::{serialize_compact, Wallet};
 use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
 
@@ -631,7 +631,7 @@ where
     let mut m1 = serialize_compact::<E>(&close_wallet);
     let m2 = close_token.serialize_compact();
     m1.extend_from_slice(&m2);
-    let m = hash_to_slice(&m2);
+    let m = sha3_hash_to_slice(&m2);
 
     // compute secp256k1 signature on the hash
     let secp = secp256k1::Secp256k1::new();
@@ -701,7 +701,7 @@ pub fn force_merchant_close<E: Engine>(
             let rev_lock = hex::decode(&rev_lock_key).unwrap();
             let mut rl_buf_le = [0u8; 32];
             let mut rs_buf = [0u8; 32];
-            
+
             rl_buf_le.copy_from_slice(&rev_lock);
             rl_buf_le.reverse();
             rs_buf.copy_from_slice(&rev_secret);

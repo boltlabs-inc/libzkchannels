@@ -1,5 +1,5 @@
 use super::*;
-use util::{compute_hash160, hash_to_slice, hmac_sign};
+use util::{compute_hash160, hmac_sign, sha2_hash_to_slice};
 
 use bindings::{cb_receive, cb_send, load_circuit_file, ConnType};
 use channels_util::{
@@ -57,7 +57,7 @@ impl ChannelMPCToken {
         // check txids are set
         let input = serde_json::to_vec(&self).unwrap();
 
-        return Ok(hash_to_slice(&input));
+        return Ok(sha2_hash_to_slice(&input));
     }
 }
 
@@ -267,7 +267,7 @@ impl CustomerMPCState {
         csprng.fill_bytes(&mut rev_secret);
 
         // compute hash of the revocation secret
-        let rev_lock = hash_to_slice(&rev_secret.to_vec());
+        let rev_lock = sha2_hash_to_slice(&rev_secret.to_vec());
 
         let pay_mask_com = [0u8; 32];
         let t = [0u8; 16];
@@ -390,7 +390,7 @@ impl CustomerMPCState {
         let mut input = Vec::new();
         input.extend_from_slice(&self.rev_lock.0);
         input.extend_from_slice(&self.t.0);
-        return hash_to_slice(&input);
+        return sha2_hash_to_slice(&input);
     }
 
     pub fn get_randomness(&self) -> [u8; 16] {
@@ -479,7 +479,7 @@ impl CustomerMPCState {
         csprng.fill_bytes(&mut new_rev_secret);
 
         // compute hash of the revocation secret
-        let new_rev_lock = hash_to_slice(&new_rev_secret.to_vec());
+        let new_rev_lock = sha2_hash_to_slice(&new_rev_secret.to_vec());
 
         // update balances appropriately
         new_state.bc -= amount;
@@ -921,7 +921,7 @@ impl CustomerMPCState {
         // check the validity of the commitment opening to pay-mask(i+1)
         let mut input_buf = pt_mask_bytes.to_vec();
         input_buf.extend_from_slice(&pt_mask_r);
-        let rec_pay_mask_com = hash_to_slice(&input_buf);
+        let rec_pay_mask_com = sha2_hash_to_slice(&input_buf);
         if self.pay_token_mask_com.0 != rec_pay_mask_com {
             println!("could not validate commitment opening to pay-mask for next state");
             // if invalid, abort and output (s_{i+1}, CT_{i+1})
@@ -1011,7 +1011,7 @@ fn compute_rev_lock_commitment(input: &[u8; 32], r: &[u8; 16]) -> [u8; 32] {
     let mut input_buf = Vec::new();
     input_buf.extend_from_slice(input);
     input_buf.extend_from_slice(r);
-    return hash_to_slice(&input_buf);
+    return sha2_hash_to_slice(&input_buf);
 }
 
 fn xor_in_place(a: &mut [u8], b: &[u8]) {
@@ -1116,7 +1116,7 @@ impl MerchantMPCState {
 
         let mut key_com_buf = hmac_key_buf.to_vec();
         key_com_buf.extend_from_slice(&key_com_r);
-        let key_com = hash_to_slice(&key_com_buf.to_vec());
+        let key_com = sha2_hash_to_slice(&key_com_buf.to_vec());
         channel.set_key_com(key_com);
 
         let mut _payout_sk = [0u8; 32];
@@ -1443,7 +1443,7 @@ impl MerchantMPCState {
         // generate commitment to new pay token mask
         let mut pay_mask_buf = pay_mask.to_vec();
         pay_mask_buf.extend_from_slice(&pay_mask_r);
-        let paytoken_mask_com = hash_to_slice(&pay_mask_buf);
+        let paytoken_mask_com = sha2_hash_to_slice(&pay_mask_buf);
 
         // store pay_mask for use in mpc protocol later
         db.update_nonce_mask_map(&nonce_hex, pay_mask, pay_mask_r)?;
@@ -1477,7 +1477,7 @@ impl MerchantMPCState {
     fn recompute_commitmment(&self, buf: &[u8; 32], r: &[u8; 16]) -> [u8; 32] {
         let mut input_buf = buf.to_vec();
         input_buf.extend_from_slice(r);
-        return hash_to_slice(&input_buf);
+        return sha2_hash_to_slice(&input_buf);
     }
 
     // Merchant sign's the initial closing transaction (in the clear)
@@ -1898,7 +1898,7 @@ impl MerchantMPCState {
         // check rev_lock_com opens to RL_i / t_i
         // check that RL_i is derived from RS_i
         if compute_rev_lock_commitment(&rev_lock, &t) != rev_lock_com
-            || hash_to_slice(&rev_sec.to_vec()) != rev_lock
+            || sha2_hash_to_slice(&rev_sec.to_vec()) != rev_lock
         {
             return Err(String::from(
                 "rev_lock_com commitment did not open to specified rev_lock",

@@ -2,7 +2,7 @@ use super::*;
 use ff::PrimeField;
 use pairing::Engine;
 use std::fmt;
-use util::hash_to_slice;
+use util::sha3_hash_to_slice;
 use zkchan_tx::fixed_size_array::{FixedSizeArray16, FixedSizeArray32};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -108,7 +108,7 @@ impl State {
         let mut output_buf = Vec::new();
         output_buf.extend(STATE_HASH_PREFIX.as_bytes());
         output_buf.extend(self.serialize_compact());
-        return hash_to_slice(&output_buf);
+        return sha3_hash_to_slice(&output_buf);
     }
 }
 

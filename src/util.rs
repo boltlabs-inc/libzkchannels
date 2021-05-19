@@ -5,6 +5,7 @@ use num::BigUint;
 use pairing::Engine;
 use ripemd160::Ripemd160;
 use sha2::{Digest, Sha256};
+use sha3::{Digest as Digest2, Sha3_256};
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -68,9 +69,9 @@ pub fn fmt_bytes_to_int(bytearray: [u8; 32]) -> String {
 }
 
 pub fn compute_the_hash<E: Engine>(bytes: &Vec<u8>) -> E::Fr {
-    let mut hasher = sha2::Sha256::new();
-    hasher.input(&bytes.as_slice());
-    let sha2_digest = hasher.result();
+    let mut hasher = sha3::Sha3_256::new();
+    hasher.update(&bytes.as_slice());
+    let sha2_digest = hasher.finalize();
     let mut hash_buf: [u8; 32] = [0; 32];
     hash_buf.copy_from_slice(&sha2_digest);
     let big_uint = BigUint::from_bytes_be(&hash_buf[..]);
@@ -86,9 +87,9 @@ pub fn hash_secret_to_fr<E: Engine>(bytes: &Vec<u8>) -> ([u8; 32], [u8; 32], E::
 
     loop {
         let sec_buf = sec_uint.to_bytes_be();
-        let mut hasher = sha2::Sha256::new();
-        hasher.input(&sec_buf);
-        let sha2_digest = hasher.result();
+        let mut hasher = sha3::Sha3_256::new();
+        hasher.update(&sec_buf);
+        let sha2_digest = hasher.finalize();
         let mut hash_buf: [u8; 32] = [0; 32];
         hash_buf.copy_from_slice(&sha2_digest);
         let big_uint = BigUint::from_bytes_be(&hash_buf[..]);
@@ -152,10 +153,10 @@ pub fn convert_str_to_fr<E: Engine>(s: String) -> Option<E::Fr> {
 
 pub fn compute_pub_key_fingerprint(wpk: &secp256k1::PublicKey) -> String {
     let x_slice = wpk.serialize();
-    let mut hasher = sha2::Sha256::new();
-    hasher.input(&x_slice.to_vec());
-    let sha2_digest = hasher.result();
-    hex::encode(&sha2_digest[0..16])
+    let mut hasher = sha3::Sha3_256::new();
+    hasher.update(&x_slice.to_vec());
+    let sha3_digest = hasher.finalize();
+    hex::encode(&sha3_digest[0..16])
 }
 
 pub fn hash_buffer_to_fr<'a, E: Engine>(prefix: &'a str, buf: &[u8; 64]) -> E::Fr {
@@ -165,7 +166,17 @@ pub fn hash_buffer_to_fr<'a, E: Engine>(prefix: &'a str, buf: &[u8; 64]) -> E::F
     return compute_the_hash::<E>(&input_buf);
 }
 
-pub fn hash_to_slice(input_buf: &Vec<u8>) -> [u8; 32] {
+pub fn sha3_hash_to_slice(input_buf: &Vec<u8>) -> [u8; 32] {
+    let mut hasher = sha3::Sha3_256::new();
+    hasher.update(&input_buf.as_slice());
+    let sha3_digest = hasher.finalize();
+
+    let mut hash_buf = [0u8; 32];
+    hash_buf.copy_from_slice(&sha3_digest);
+    return hash_buf;
+}
+
+pub fn sha2_hash_to_slice(input_buf: &Vec<u8>) -> [u8; 32] {
     let mut hasher = sha2::Sha256::new();
     hasher.input(&input_buf.as_slice());
     let sha2_digest = hasher.result();
@@ -176,7 +187,7 @@ pub fn hash_to_slice(input_buf: &Vec<u8>) -> [u8; 32] {
 }
 
 pub fn compute_hash160(input_buf: &Vec<u8>) -> [u8; 20] {
-    let sha2_hash_buf = hash_to_slice(input_buf);
+    let sha2_hash_buf = sha2_hash_to_slice(input_buf);
     let mut ripemd_hasher = Ripemd160::new();
 
     ripemd_hasher.input(sha2_hash_buf);
@@ -216,7 +227,7 @@ impl RevokedMessage {
         input_buf.extend_from_slice(self.msgtype.as_bytes());
         input_buf.extend_from_slice(&self.wpk.serialize_uncompressed());
 
-        return hash_to_slice(&input_buf);
+        return sha3_hash_to_slice(&input_buf);
     }
 }
 

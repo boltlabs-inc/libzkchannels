@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fmt;
 use util::{
-    encode_short_bytes_to_fr, hash_pubkey_to_fr, hash_secret_to_fr, hash_to_fr, hash_to_slice,
+    encode_short_bytes_to_fr, hash_pubkey_to_fr, hash_secret_to_fr, hash_to_fr, sha3_hash_to_slice,
 };
 use wallet::Wallet;
 use zkchan_tx::fixed_size_array::FixedSizeArray16;
@@ -877,7 +877,7 @@ impl<E: Engine> MerchantState<E> {
     ) -> ResultBoltType<Signature<E>> {
         let rl = rev_lock.0;
         let rs = rev_secret.0.to_vec();
-        if hash_to_slice(&rs) != rl {
+        if sha3_hash_to_slice(&rs) != rl {
             return Err(BoltError::new(
                 // "rev_lock_com commitment did not open to specified rev_lock",
                 "verify_revoke_message - Failed to verify the rev_lock/rev_secret pair!",
