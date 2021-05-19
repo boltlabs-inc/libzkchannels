@@ -802,11 +802,6 @@ mod cust {
             let mut cid_vec = hex::decode(cid[2..].to_string()).unwrap();
             cid_vec.reverse();
 
-            // get the initial rev lock
-            let rlock = format!("{}", init_state.rev_lock.into_repr());
-            let mut initial_rev_lock = hex::decode(rlock[2..].to_string()).unwrap();
-            initial_rev_lock.reverse();
-
             let close_fixed = format!(
                 "{}",
                 zkchannels::util::hash_to_fr::<Bls12>("close".as_bytes().to_vec()).into_repr()
@@ -818,8 +813,6 @@ mod cust {
             let json = [
                 "{\"channel_id\":",
                 format!("\"{}\"", hex::encode(&cid_vec)).as_str(),
-                ", \"init_rev_lock\":",
-                format!("\"{}\"", hex::encode(&initial_rev_lock)).as_str(),
                 ", \"init_cust_bal\":",
                 format!("{}", init_state.bc.to_string()).as_str(),
                 ", \"init_merch_bal\":",
