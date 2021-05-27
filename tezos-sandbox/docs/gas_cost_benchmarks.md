@@ -1,46 +1,56 @@
 # Gas cost benchmarks
 
-Below are the gas and storage costs for running the scenarios in `test_zkchannel_v3.py`. The cost in tez is an estimate from the tezos-sandbox node. 
+Below are the gas and storage costs for running the scenarios in `zkchannel_edo2net_broadcaster.py`. The cost in mutez is an estimate from the edo2net. 
 
 ```
-pssig origination
-        Storage size: 686 bytes
-        Paid storage size diff: 686 bytes
-        Consumed gas: 4843.973
-        tez: 0.23715800000354648
-
-zkchannel origination
-        Storage size: 6250 bytes
-        Paid storage size diff: 6250 bytes
-        Consumed gas: 28428.318
-        tez: 1.6361730000935495
-
-addFunding
-        Storage size: 6252 bytes
-        Paid storage size diff: 2 bytes
-        Consumed gas: 29121.203
-        tez: 0.0036919997073709965
-
-merchClose
-        Storage size: 6256 bytes
-        Paid storage size diff: 4 bytes
-        Consumed gas: 29330.561
-        tez: 0.004210999701172113
-
-custClose
-    main_zkchannel entry point
-        Storage size: 6256 bytes
-        Consumed gas: 39289.103
-    pssig contract call
-        Storage size: 686 bytes
-        Consumed gas: 17527.553
-    transfer balance to merch
-        Consumed gas: 1427
-    total tez: 0.007546999957412481
-
-custClaim
-        Consumed gas: 1427
-        tez: 0.0033770003356039524
+originate: 
+            fee: 10636
+            gas: 31251
+            storage_bytes: 7408
+            storage_cost: 1852000
+            total_cost: 1862636
+ addFunding: 
+            fee: 3483
+            gas: 32072
+            storage_bytes: 3
+            storage_cost: 750
+            total_cost: 4233
+ reclaimFunding: 
+            fee: 3672
+            gas: 33953
+            storage_bytes: 0
+            storage_cost: 0
+            total_cost: 3672
+ expiry: 
+            fee: 3497
+            gas: 32281
+            storage_bytes: 4
+            storage_cost: 1000
+            total_cost: 4497
+ custClose: 
+            fee: 4695
+            gas: 41648
+            storage_bytes: 28
+            storage_cost: 7000
+            total_cost: 11695
+ merchDispute: 
+            fee: 3718
+            gas: 34084
+            storage_bytes: 0
+            storage_cost: 0
+            total_cost: 3718
+custClaim: 
+            fee: 3669
+            gas: 33970
+            storage_bytes: 0
+            storage_cost: 0
+            total_cost: 3669
+ merchClaim: 
+            fee: 3669
+            gas: 33962
+            storage_bytes: 0
+            storage_cost: 0
+            total_cost: 3669]
 ```
 
 ## Navigation
